@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { asUser, createAccount, signUpUser, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { getAccountRow } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: whether a failed logo is drawn again doesn't depend on the width
@@ -47,7 +48,7 @@ async function openFailedAccountRow(page: Page, request: Parameters<typeof creat
   const service = await stubIconService(page)
   await logInViaApi(page, user)
   await openPage(page, '/accounts')
-  const row = page.getByRole('link', { name: new RegExp(`${bank} account`) })
+  const row = getAccountRow(page, `${bank} account`)
   // A bank that has no usable logo is drawn as a circle holding its initial
   await expect(row.getByText(bank.charAt(0), { exact: true })).toBeVisible()
   await expect(row.getByRole('img')).toHaveCount(0)

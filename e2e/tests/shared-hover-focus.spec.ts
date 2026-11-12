@@ -547,6 +547,25 @@ for (const { url, name } of [
   })
 }
 
+test('keeps an archived account row faded under keyboard focus, ringed, as only a hover lifts it', async ({ page, request }) => {
+  await openWithArchived(page, request, 'light', '/accounts')
+  const header = page.getByRole('button', { name: /Archived accounts/ })
+  await header.click()
+  const row = page.locator('[data-testid^="account-row-"]').filter({ hasText: 'Old savings 1' })
+  await expect(row).toBeVisible()
+
+  await header.focus()
+  await page.keyboard.press('Tab')
+  await expect(row.getByRole('link')).toBeFocused()
+  await expect(row).toHaveCSS('outline-style', 'solid')
+  // Read once the row's own transitions have ended, since one caught before it starts would pass either way
+  const settledOpacity = await row.evaluate(async (node) => {
+    await Promise.all(node.getAnimations().map((animation) => animation.finished))
+    return getComputedStyle(node).opacity
+  })
+  expect(settledOpacity).toBe('0.75')
+})
+
 test('eases the Archived accounts list open and closed, without overshooting', async ({ page, request }) => {
   await openWithArchived(page, request, 'light', '/accounts')
   const header = page.getByRole('button', { name: /Archived accounts/ })

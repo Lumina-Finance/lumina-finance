@@ -1,8 +1,9 @@
 import { useState, type Dispatch, type FormEvent, type MutableRefObject, type SetStateAction } from 'react'
 import type { AccountsOverview } from '@/api/accounts'
 import { ApiError } from '@/api/auth'
+import { useAddReviewItem, useResolveReviewItem, type BankReviewItem } from '@/api/bank-sync'
 import { useCreateTransaction, useUpdateTransaction, type Transaction } from '@/api/transactions'
-import { getCreateFailureMessage, getTransferFailureNotice } from '@/utils/createFailure'
+import { getCreateFailureMessage, getSaveFailureMessage, getTransferFailureNotice } from '@/utils/createFailure'
 import { createRandomId } from '@/utils/randomId'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
@@ -11,6 +12,7 @@ import {
   MIN_BATCH_ADD_TRANSACTION_LOADING_MS,
 } from '@/components/transactions/transaction-modal/constants'
 import {
+  buildAddReviewItemPayload,
   buildCreateTransactionPayload,
   buildSymmetricTransferPayloads,
   getSymmetricTransferLegKinds,
@@ -53,6 +55,12 @@ interface UseTransactionSubmitOptions {
   recordCreatedAccountId: (accountId: string) => void
   flushDeferredRefresh: () => void
   closeModal: () => void
+
+  /** Turns the submit into Add to ledger for this bank item, and Dismiss can decide it instead */
+  reviewItem?: BankReviewItem
+
+  /** Called once the review item is added or dismissed while the modal is open, with the keep-open choice */
+  onReviewDecided?: (openNext: boolean) => void
 }
 
 interface TransactionSubmitState {
@@ -62,11 +70,14 @@ interface TransactionSubmitState {
   keepOpenAfterCreate: boolean
   setKeepOpenAfterCreate: Dispatch<SetStateAction<boolean>>
   runningBalance: number
+  dismissReviewItem: () => void
+  dismissLoading: boolean
 }
 
 /**
  * Owns transaction create, update, and the keep-open batch flow, including the running balance
- * shown while a batch of creates targets the same account
+ * shown while a batch of creates targets the same account, and the two decisions on a bank item,
+ * where keeping the modal open goes on to the next item
  */
 export function useTransactionSubmit({
   editing,
@@ -91,18 +102,31 @@ export function useTransactionSubmit({
   recordCreatedAccountId,
   flushDeferredRefresh,
   closeModal,
+  reviewItem,
+  onReviewDecided,
 }: UseTransactionSubmitOptions): TransactionSubmitState {
   const createMutation = useCreateTransaction({ deferAccountInvalidation: true, deferTransactionInvalidation: true })
   const updateMutation = useUpdateTransaction({ minimumPendingMs: LOADING_ANIMATION_MIN_MS })
+  const addReviewItemMutation = useAddReviewItem()
+  const resolveReviewItemMutation = useResolveReviewItem()
   const [keepOpenAfterCreate, setKeepOpenAfterCreate] = useState(false)
   const [sessionAccountDeltas, setSessionAccountDeltas] = useState<Record<string, number>>({})
   const [createDelayPending, setCreateDelayPending] = useState(false)
 
   const [editSaving, setEditSaving] = useState(false)
 
-  const createLoading = createMutation.isPending || createDelayPending
+  const createLoading = createMutation.isPending || createDelayPending || addReviewItemMutation.isPending
   const submitLoading = editing ? updateMutation.isPending || editSaving : createLoading
-  const isPending = createLoading || updateMutation.isPending || editSaving || deleteLoading
+  const dismissLoading = resolveReviewItemMutation.isPending
+
+  // A decided item stays on screen while the next one is looked for, and can't be decided again
+  const isReviewItemDecided =
+    reviewItem !== undefined &&
+    [addReviewItemMutation, resolveReviewItemMutation].some(
+      (mutation) => mutation.isSuccess && mutation.variables?.itemId === reviewItem.id,
+    )
+  const isPending =
+    createLoading || updateMutation.isPending || editSaving || deleteLoading || dismissLoading || isReviewItemDecided
 
   const selectedAccountSessionDelta = selectedAccount ? (sessionAccountDeltas[selectedAccount.id] ?? 0) : 0
   const runningBalance = selectedAccount ? selectedAccount.current_balance + selectedAccountSessionDelta : 0
@@ -137,6 +161,22 @@ export function useTransactionSubmit({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (isPending || readOnly || !guard()) return
+
+    if (reviewItem) {
+      setSubmitError('')
+      setSubmitErrorTitle('')
+      addReviewItemMutation.mutate(
+        { itemId: reviewItem.id, payload: buildAddReviewItemPayload(form, selectedCurrencyExponent) },
+        {
+          // The ledger and the block have both taken the item in by now, so the next one can open
+          onSuccess: () => {
+            if (openRef.current) onReviewDecided?.(keepOpenAfterCreate)
+          },
+          onError: (err) => setSubmitError(getSaveFailureMessage(err)),
+        },
+      )
+      return
+    }
 
     if (editing && transaction) {
       const patch = buildUpdateTransactionPatch(form, transaction, isAmountLocked ? null : selectedCurrencyExponent)
@@ -296,6 +336,22 @@ export function useTransactionSubmit({
     }
   }
 
+  // Leaves the ledger as it is, so nothing behind the modal reloads
+  const dismissReviewItem = () => {
+    if (!reviewItem || isPending) return
+    setSubmitError('')
+    setSubmitErrorTitle('')
+    resolveReviewItemMutation.mutate(
+      { itemId: reviewItem.id, resolution: 'dismiss', accountId: reviewItem.account_id },
+      {
+        onSuccess: () => {
+          if (openRef.current) onReviewDecided?.(keepOpenAfterCreate)
+        },
+        onError: (err) => setSubmitError(getSaveFailureMessage(err)),
+      },
+    )
+  }
+
   return {
     handleSubmit,
     submitLoading,
@@ -303,5 +359,7 @@ export function useTransactionSubmit({
     keepOpenAfterCreate,
     setKeepOpenAfterCreate,
     runningBalance,
+    dismissReviewItem,
+    dismissLoading,
   }
 }

@@ -2,7 +2,15 @@
  * Driving the parts of the app a spec passes through on its way to the behaviour it tests.
  */
 
-import { expect, type APIRequestContext, type CDPSession, type Locator, type Page, type Response } from '@playwright/test'
+import {
+  expect,
+  type APIRequestContext,
+  type CDPSession,
+  type Locator,
+  type Page,
+  type Request,
+  type Response,
+} from '@playwright/test'
 
 import { asUser, TEST_PASSWORD, type TestUser } from './api'
 import { waitForConfirmationLink } from './mail'
@@ -97,6 +105,15 @@ export async function runNativeCeremony(page: Page, cdp: CDPSession, ceremony: '
  */
 async function isAtLeast(page: Page, widthPx: number): Promise<boolean> {
   return page.evaluate((px) => matchMedia(`(min-width: ${px}px)`).matches, widthPx)
+}
+
+/**
+ * One of the facts a dialogue or card lists as terms and their values, by its label, or by a pattern
+ * for a label followed by a tooltip. The term holds the tooltip's text too
+ */
+export function fact(container: Locator, label: string | RegExp): Locator {
+  const term = container.page().getByRole('term').filter({ hasText: typeof label === 'string' ? new RegExp(`^${label}$`) : label })
+  return container.locator('dl > div').filter({ has: term }).getByRole('definition')
 }
 
 /**
@@ -340,9 +357,9 @@ export async function applyImportDates(page: Page): Promise<void> {
 }
 
 /**
- * Types an ISO date into the import's date field with the given label
+ * Types an ISO date into the date field with the given label, such as an import's or a dialogue's
  *
- * @param page - Page showing a staged import
+ * @param page - Page showing the field, with nothing else on it reachable under the same label
  * @param label - The field's label, such as Start date
  * @param iso - The date as yyyy-mm-dd
  * @returns The date field
@@ -371,6 +388,37 @@ export async function reachTwoFactorChallenge(page: Page, user: TestUser): Promi
 }
 
 /**
+ * Watches the requests the page sends the server from now on, for a test that moves the page's clock
+ * on. A read still out as the clock moves re-renders the view it lands in. That would word a time
+ * anew whether or not the app keeps it current, so such a test waits for every one to land first
+ *
+ * @returns Waits until every request sent so far has landed
+ */
+export function watchServerRequests(page: Page): () => Promise<void> {
+  const inFlight = new Set<Request>()
+  page.on('request', (sent) => {
+    if (sent.url().startsWith(API_BASE_URL)) inFlight.add(sent)
+  })
+  const landed = (sent: Request) => {
+    inFlight.delete(sent)
+  }
+  page.on('requestfinished', landed)
+  page.on('requestfailed', landed)
+  return () => expect.poll(() => inFlight.size).toBe(0)
+}
+
+/**
+ * Waits until the test has heard of every request the page sent so far, by sending one more from the
+ * page and waiting for its answer. The test hears of requests in the order the page sends them, but
+ * can see the screen settle before it hears of a request sent on the way there, so a test that a
+ * step sent no request asserts after this
+ */
+export async function waitForRequestsSoFar(page: Page): Promise<void> {
+  const status = await page.evaluate((url) => fetch(url).then((response) => response.status), `${API_BASE_URL}/health`)
+  expect(status).toBe(200)
+}
+
+/**
  * Assert the app is showing its signed-in shell.
  *
  * The navigation is the thing that says so, and it only renders for a signed-in user past the
@@ -389,30 +437,45 @@ export async function expectSignedIn(page: Page): Promise<void> {
 }
 
 /**
- * Filter the transaction list down to one category, and apply it.
+ * Tick or untick one value of a transaction list filter, and apply it.
  *
  * Two different control sets do this job. Above the toolbar breakpoint it is a pill that opens
  * a panel of tabs; below it a sheet whose first control is a dropdown rather than tabs, and
  * that dropdown is named by the sheet's Filters heading
  *
  * @param page - Page showing the transaction list
- * @param categoryName - Exact name of the category to keep
+ * @param facet - The filter's tab, as in 'Category' or 'Accounts'
+ * @param valueName - Exact name of the value to tick, or to untick when it is ticked
+ * @param appliedCount - How many filters are already applied when the call starts. Below the toolbar
+ *   breakpoint the sheet's button then carries that count in its name, and with none it is exactly
+ *   "Filters", so an unfiltered list that wrongly showed a count would fail to find it
  */
-export async function filterByCategory(page: Page, categoryName: string): Promise<void> {
+export async function filterTransactions(
+  page: Page,
+  facet: 'Accounts' | 'Category',
+  valueName: string,
+  appliedCount = 0,
+): Promise<void> {
   if (await isAtLeast(page, TOOLBAR_BREAKPOINT_PX)) {
     await page.getByRole('button', { name: 'Transaction filters' }).click()
-    await page.getByRole('tab', { name: 'Category' }).click()
-    await page.getByRole('checkbox', { name: categoryName }).click()
+    await page.getByRole('tab', { name: facet }).click()
+    await page.getByRole('checkbox', { name: valueName }).click()
     await page.getByRole('button', { name: 'Apply filters' }).click()
     return
   }
 
-  await page.getByRole('button', { name: 'Filters', exact: true }).click()
+  // With filters applied the button's name ends in their count, read from the badge beside its label,
+  // or as "Filters, 1 active" in selection mode
+  const filtersButton =
+    appliedCount === 0
+      ? page.getByRole('button', { name: 'Filters', exact: true })
+      : page.getByRole('button', { name: new RegExp(`^Filters\\s*(${appliedCount}|, ${appliedCount} active)$`) })
+  await filtersButton.click()
 
   const sheet = page.getByRole('dialog', { name: 'Transaction filters' })
   await sheet.getByRole('combobox', { name: 'Filters', exact: true }).click()
-  await sheet.getByRole('option', { name: 'Category' }).click()
-  await sheet.getByRole('checkbox', { name: categoryName }).click()
+  await sheet.getByRole('option', { name: facet }).click()
+  await sheet.getByRole('checkbox', { name: valueName }).click()
   await sheet.getByRole('button', { name: 'Apply filters' }).click()
 }
 
@@ -450,6 +513,19 @@ export async function openModal(page: Page, buttonNames: string[], dialogName: s
   await expect.poll(() => dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true)
 
   return dialog
+}
+
+/**
+ * Moves the tab to the background or brings it back, as the browser does when the user switches
+ * tabs: the page's visibility changes, and the visibilitychange event it hears bubbles as the
+ * browser's does
+ */
+export async function setTabHidden(page: Page, hidden: boolean): Promise<void> {
+  await page.evaluate((isHidden) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (isHidden ? 'hidden' : 'visible') })
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => isHidden })
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }))
+  }, hidden)
 }
 
 /**
@@ -524,6 +600,24 @@ export async function readSettledScrollingBox(inside: Locator): Promise<Scrollin
   await expect.poll(async () => {
     const current = await readScrollingBox(inside)
     const isStill = current.top === last?.top
+    last = current
+    return isStill
+  }).toBe(true)
+  return last!
+}
+
+/**
+ * Wait until an element stops moving, such as a calendar easing in or a tooltip gliding to a new place,
+ * and read where it rests. Two reads in a row that agree mean it has stopped
+ *
+ * @param element - The element to measure
+ * @returns The element's resting box
+ */
+export async function readSettledBox(element: Locator): Promise<NonNullable<Awaited<ReturnType<Locator['boundingBox']>>>> {
+  let last: Awaited<ReturnType<Locator['boundingBox']>> = null
+  await expect.poll(async () => {
+    const current = await element.boundingBox()
+    const isStill = current !== null && JSON.stringify(current) === JSON.stringify(last)
     last = current
     return isStill
   }).toBe(true)

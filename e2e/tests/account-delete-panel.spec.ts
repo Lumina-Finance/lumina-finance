@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, signUpUser } from '../support/api'
 import { logInViaApi, openPage, readScrollingBox, readSettledScrollingBox, roomBelow } from '../support/app'
+import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the test that depends on the screen sets each size it checks itself
@@ -17,12 +18,18 @@ const ACCOUNT_NAME = 'Everyday'
 
 // On a tablet the dialog has room for the panel under the Identity, Details and Archive sections, and
 // on a phone those sections fill it, so the panel opens below what it shows. The last size is the one
-// the typed-name step is checked at
+// the typed-name step is checked at. Bank sync offered adds the bank link section that takes the room
+// a 1024px tablet had, so that size is checked with bank sync not offered and a taller tablet with it.
+// Each phone size is checked without bank sync, and the shorter one with it too
 const DIALOG_SIZES = [
-  { width: 768, height: 1024, hasRoom: true },
-  { width: 390, height: 844, hasRoom: false },
-  { width: 390, height: 667, hasRoom: false },
+  { width: 768, height: 1024, hasRoom: true, bankSync: false },
+  { width: 768, height: 1180, hasRoom: true, bankSync: true },
+  { width: 390, height: 844, hasRoom: false, bankSync: false },
+  { width: 390, height: 667, hasRoom: false, bankSync: true },
+  { width: 390, height: 667, hasRoom: false, bankSync: false },
 ]
+
+const PROVIDERS_URL = `${API_BASE_URL}/bank-sync/providers`
 
 /** Open the account's edit dialog */
 async function openEditDialog(page: Page, accountId: string) {
@@ -50,16 +57,21 @@ async function waitForFadeIn(control: Locator) {
   })).toBe(true)
 }
 
-test('brings the delete confirmation into view and moves focus through its steps', async ({ page, request }) => {
+// The sizes with bank sync read the server's own providers, so the test runs against one offering bank
+// sync, and the sizes without it answer the providers with none
+test('brings the delete confirmation into view and moves focus through its steps', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: ACCOUNT_NAME })
   await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -5000 })
   await logInViaApi(page, user)
 
-  for (const { hasRoom, ...size } of DIALOG_SIZES) {
+  for (const { hasRoom, bankSync, ...size } of DIALOG_SIZES) {
     const at = `${size.width}×${size.height}`
     await page.setViewportSize(size)
+    if (bankSync) await page.unroute(PROVIDERS_URL)
+    else await page.route(PROVIDERS_URL, (route) => route.fulfill({ json: { may_link: false, providers: [] } }))
     const dialog = await openEditDialog(page, account.id)
+    await expect.soft(dialog.getByText('Bank link', { exact: true }), `bank link section at ${at}`).toHaveCount(bankSync ? 1 : 0)
     const firstField = dialog.getByLabel('Account name', { exact: true })
     const before = await readScrollingBox(firstField)
     await pressTrash(dialog)

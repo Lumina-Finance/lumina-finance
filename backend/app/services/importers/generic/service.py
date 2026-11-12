@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.schemas.import_run import TransactionImportRequest, TransactionImportResponse
 from app.services.accounts.snapshots import recompute_account_snapshots
+from app.services.bank_sync.manual_entries import refuse_days_a_bank_supplies
 from app.services.importers.generic.row_resolution import resolve_import_rows
 from app.services.importers.shared.lookups import load_import_lookups
 from app.services.importers.shared.save_results import build_import_summary, mark_import_caches_changed
@@ -48,7 +49,8 @@ async def import_transactions(
     Raises:
         HTTPException: Raised with 409 when another import wrote one of the same bank transactions
             into the account while this one was saving, and 422 when the import repeats a bank ID in
-            one account or every row is already in its account
+            one account, every row is already in its account, or a row falls on the days a linked
+            account's bank supplies
     """
     stats = ImportStats()
     import_lookups = await load_import_lookups(
@@ -61,6 +63,11 @@ async def import_transactions(
     )
     resolved = resolve_import_rows(data.rows, import_lookups, user.id)
     transactions = await _leave_out_held_bank_transactions(db, resolved)
+
+    # Checked once every row has resolved to an account, so a row refused for its mapping says so
+    # first, and before anything is written. A row the account already holds is left out, so its day
+    # refuses nothing
+    await refuse_days_a_bank_supplies(db, user, [(transaction.account.id, transaction.dt) for transaction in transactions], name_accounts=True)
 
     # The index holding each bank transaction once per account refuses the second of two imports
     # racing to write the same one, and the whole commit goes with it

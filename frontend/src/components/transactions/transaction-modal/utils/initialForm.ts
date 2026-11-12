@@ -1,11 +1,16 @@
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import type { AccountsOverview } from '@/api/accounts'
+import type { BankReviewItem } from '@/api/bank-sync'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { Transaction } from '@/api/transactions'
-import { INITIAL_TRANSACTION_FORM } from '@/components/transactions/transaction-modal/constants'
+import {
+  DEFAULT_DIRECTION_BY_KIND,
+  INITIAL_TRANSACTION_FORM,
+} from '@/components/transactions/transaction-modal/constants'
 import { amountToInputString } from '@/components/transactions/transaction-modal/utils/money'
 import { buildRefundNote } from '@/components/transactions/transaction-modal/utils/refund'
+import { formatRawAmount } from '@/components/transactions/utils/bankReview'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import type { TransactionFormValues, TransactionModalKind } from '@/components/transactions/transaction-modal/types'
 import { getTodayYmd } from '@/utils/date'
@@ -106,5 +111,38 @@ function buildFormFromTransaction(
       transaction.counterparty_account_scope === 'outside'
         ? OUTSIDE_ACCOUNT_VALUE
         : (transaction.counterparty_account_id ?? ''),
+  }
+}
+
+/**
+ * Builds the form a new bank item opens with: its account, date and amount as the bank sent them,
+ * Income for money in or Expense otherwise, and the bank's description as the notes, whole. A
+ * description longer than the Notes field takes is left for the field's own limit to deal with, so
+ * nothing is cut unseen. Merchant and category start empty, since nothing suggests them yet
+ *
+ * An amount sent with more decimal places than the currency holds, or one in a currency the table
+ * doesn't carry, starts empty for the user to enter, its direction still following the bank's sign
+ *
+ * @param currency - The currency of the item's account, the one the amount is in
+ */
+export function buildReviewItemForm(
+  item: Pick<BankReviewItem, 'account_id' | 'bank'>,
+  currency: string,
+  currencies: Currency[],
+): TransactionFormValues {
+  const { amount, raw_amount: rawAmount } = item.bank
+  const sign = amount === null ? formatRawAmount(rawAmount ?? '', currency).sign : Math.sign(amount)
+  const kind: TransactionModalKind = sign > 0 ? 'income' : 'expense'
+  const exponent = findCurrencyExponent(currencies, currency)
+
+  return {
+    ...INITIAL_TRANSACTION_FORM,
+    kind,
+    direction: DEFAULT_DIRECTION_BY_KIND[kind],
+    account_id: item.account_id,
+    amount: amount === null || exponent === null ? '' : amountToInputString(amount, exponent),
+    currency,
+    date: item.bank.date,
+    notes: item.bank.description,
   }
 }

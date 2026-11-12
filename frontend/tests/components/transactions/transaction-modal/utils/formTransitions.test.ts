@@ -1,3 +1,11 @@
+/**
+ * Covers what a change of kind does to the rest of the form: the category and transfer references
+ * it clears or keeps, the fields it leaves alone, and the direction it resets, or keeps for a bank item
+ *
+ * These tests catch a category left that the new kind can't take, a transfer reference left on an
+ * expense, an unrelated field cleared, and a bank item's money in turned into money out by a switch to
+ * Transfer
+ */
 import { describe, expect, it } from 'vitest'
 import { getFormAfterKindChange } from '@/components/transactions/transaction-modal/utils/formTransitions'
 import { validateTransactionForm } from '@/components/transactions/transaction-modal/utils/validation'
@@ -32,14 +40,17 @@ describe('transaction kind transitions', () => {
   })
 
   it('clears the category and transfer references when changing from Transfer to Expense', () => {
-    const result = getFormAfterKindChange({
-      ...expenseForm,
-      kind: 'transfer',
-      direction: 'credit',
-      category_id: 'transfer',
-      counterparty_account_id: 'savings',
-      symmetric_transfer: true,
-    }, 'expense')
+    const result = getFormAfterKindChange(
+      {
+        ...expenseForm,
+        kind: 'transfer',
+        direction: 'credit',
+        category_id: 'transfer',
+        counterparty_account_id: 'savings',
+        symmetric_transfer: true,
+      },
+      'expense',
+    )
 
     expect(result).toMatchObject({
       kind: 'expense',
@@ -51,12 +62,17 @@ describe('transaction kind transitions', () => {
   })
 
   it('clears the category when changing from Income to Transfer', () => {
-    expect(getFormAfterKindChange({
-      ...expenseForm,
-      kind: 'income',
-      direction: 'credit',
-      category_id: 'salary',
-    }, 'transfer')).toMatchObject({
+    expect(
+      getFormAfterKindChange(
+        {
+          ...expenseForm,
+          kind: 'income',
+          direction: 'credit',
+          category_id: 'salary',
+        },
+        'transfer',
+      ),
+    ).toMatchObject({
       kind: 'transfer',
       direction: 'debit',
       category_id: '',
@@ -90,5 +106,16 @@ describe('transaction kind transitions', () => {
     const withCreditDirection = { ...first, direction: 'credit' as const }
 
     expect(getFormAfterKindChange(withCreditDirection, 'transfer')).toEqual(withCreditDirection)
+  })
+
+  it("keeps a bank item's direction, the bank's record of which way the money went, through a kind change", () => {
+    const moneyIn = { ...expenseForm, kind: 'income' as const, direction: 'credit' as const, category_id: 'salary' }
+
+    expect(getFormAfterKindChange(moneyIn, 'transfer', {}, true)).toEqual({
+      ...moneyIn,
+      kind: 'transfer',
+      category_id: '',
+    })
+    expect(getFormAfterKindChange(moneyIn, 'transfer').direction).toBe('debit')
   })
 })

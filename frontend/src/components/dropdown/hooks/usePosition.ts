@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   DEFAULT_DROPDOWN_BOX_POSITION,
+  findDropdownPanel,
   getDropdownBoxPosition,
   isSameDropdownBoxPosition,
   type DropdownBoxDirection,
@@ -17,6 +18,9 @@ interface UseDropdownPositionParams {
   /** Whether the open box stays as wide as its slot */
   matchFieldWidth: boolean
 
+  /** Whether the open box keeps to the modal panel the field sits in */
+  clampToPanel: boolean
+
   /** The slot the control occupies in the page, held at the collapsed height while the box is open */
   wrapperRef: RefObject<HTMLDivElement | null>
 }
@@ -26,9 +30,7 @@ interface UseDropdownPositionResult {
   updateBoxPosition: () => void
 }
 
-/**
- * Reads the visual viewport when available so mobile browser chrome does not push the box off-screen
- */
+/** Reads the visual viewport when available so mobile browser chrome does not push the box off-screen */
 function getViewport(): DropdownViewport {
   const visualViewport = window.visualViewport
 
@@ -53,6 +55,7 @@ function getViewport(): DropdownViewport {
  * the page scrolled underneath. The wrapper stays in the page and moves with it.
  */
 export function useDropdownPosition({
+  clampToPanel,
   matchFieldWidth,
   placed,
   searchable,
@@ -78,6 +81,7 @@ export function useDropdownPosition({
       headHeight: rect.height,
       held: heldDirection.current,
       matchFieldWidth,
+      panel: findDropdownPanel(wrapper, clampToPanel),
       searchable,
       viewport: getViewport(),
     })
@@ -87,7 +91,7 @@ export function useDropdownPosition({
     // Kept as it is where the measurement landed in the same place, so a frame that found nothing
     // moved costs a measurement rather than a render of the whole control and its list
     setBoxPosition((current) => (isSameDropdownBoxPosition(current, next) ? current : next))
-  }, [matchFieldWidth, searchable, wrapperRef])
+  }, [clampToPanel, matchFieldWidth, searchable, wrapperRef])
 
   useEffect(() => {
     // Kept up through the collapse as well. Stopping at the moment the list closes leaves a box that is

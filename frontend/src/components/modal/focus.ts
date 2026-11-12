@@ -58,16 +58,30 @@ export function getNextTabStop<T>(tabStops: readonly T[], activeElement: T | nul
 // A control a dialog names to open on instead of its first field, such as Cancel in a delete confirmation
 const MODAL_INITIAL_FOCUS_SELECTOR = '[data-modal-initial-focus="true"]:not([disabled])'
 
+// A part of a dialogue whose fields are never the one it opens on, such as a field held with its reason,
+// where focus would open the reason over the form
+const MODAL_SKIPPED_INITIAL_FOCUS_SELECTOR = '[data-modal-skip-initial-focus]'
+
 /**
- * Moves focus into the panel once it has mounted, preferring a control the dialog names, then its first
- * field so a form opens ready to type in, and falling back to the panel itself so a dialog with no fields
- * still takes focus off the page behind
+ * Picks where focus goes once the panel has mounted: a control or field the dialogue marks with
+ * `data-modal-initial-focus`, then its first field, so a form opens ready to type in, passing over any
+ * field inside a part marked with `data-modal-skip-initial-focus`. Falls back to the panel itself so a
+ * dialogue with no fields still takes focus off the page behind
+ */
+export function getInitialModalFocusTarget(panel: HTMLElement): HTMLElement {
+  return (
+    panel.querySelector<HTMLElement>(MODAL_INITIAL_FOCUS_SELECTOR) ??
+    getModalFieldTabStops(panel).find((field) => !field.closest(MODAL_SKIPPED_INITIAL_FOCUS_SELECTOR)) ??
+    panel
+  )
+}
+
+/**
+ * Moves focus into the panel once it has mounted, to where `getInitialModalFocusTarget` picks
  */
 export function requestInitialModalFocus(panel: HTMLElement) {
   return window.requestAnimationFrame(() => {
-    const target =
-      panel.querySelector<HTMLElement>(MODAL_INITIAL_FOCUS_SELECTOR) ?? getModalFieldTabStops(panel)[0] ?? panel
-    target.focus({ preventScroll: true })
+    getInitialModalFocusTarget(panel).focus({ preventScroll: true })
   })
 }
 

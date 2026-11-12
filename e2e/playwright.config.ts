@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 import { availableParallelism } from 'node:os'
 
 import { TEST_TIMEZONE } from './support/api'
+import { BANK_SYNC_TESTS, NO_BANK_SYNC_TESTS } from './support/bankSyncServer'
 import { ACROSS_ORIGINS_TESTS } from './support/origins'
 import { EVERY_SIZE_TESTS } from './support/sizes'
 import { BASE_URL } from './support/target'
@@ -13,6 +14,15 @@ const configuredWorkers = process.env.E2E_WORKERS
 if (configuredWorkers !== undefined && (!/^[1-9]\d*$/.test(configuredWorkers) || !Number.isSafeInteger(Number(configuredWorkers)))) {
   throw new Error('E2E_WORKERS must be a positive integer')
 }
+
+// Set by CI, which runs the suite once against a server with no bank provider enabled, with `off`,
+// and once against a server offering SimpleFIN, with `on`. Each run takes only the tests written for
+// that server. Unset, as the development runner leaves it, every test runs against the one instance
+const bankSync = process.env.E2E_BANK_SYNC
+if (bankSync !== undefined && bankSync !== 'on' && bankSync !== 'off') {
+  throw new Error('E2E_BANK_SYNC must be on or off')
+}
+const otherServersTests = bankSync === 'on' ? [NO_BANK_SYNC_TESTS] : bankSync === 'off' ? [BANK_SYNC_TESTS] : []
 
 // Set by the development runner for a screenshot or visual check run, whose throwaway specs fail
 // fast: a test over the limit fails, one that outlasts it by the teardown allowance stops the run,
@@ -89,7 +99,7 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
-      grepInvert: ACROSS_ORIGINS_TESTS,
+      grepInvert: [ACROSS_ORIGINS_TESTS, ...otherServersTests],
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.desktop },
     },
     {
@@ -99,6 +109,7 @@ export default defineConfig({
       // whose frontend and API already have separate ports
       name: 'cross-origin',
       grep: ACROSS_ORIGINS_TESTS,
+      grepInvert: otherServersTests,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.desktop },
     },
     {
@@ -108,11 +119,13 @@ export default defineConfig({
       // tests whose result depends on the screen, since every other test fails the same way on desktop
       name: 'tablet',
       grep: EVERY_SIZE_TESTS,
+      grepInvert: otherServersTests,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.tablet, isMobile: true, hasTouch: true },
     },
     {
       name: 'phone',
       grep: EVERY_SIZE_TESTS,
+      grepInvert: otherServersTests,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.phone, isMobile: true, hasTouch: true },
     },
   ],

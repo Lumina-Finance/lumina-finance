@@ -2,7 +2,12 @@ from app.models.base import InstitutionStatus
 from app.models.currency import Currency
 from app.models.institution import Institution
 from tests.conftest import TestSession
-from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id, sign_up_confirmed
+from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
+
+# Shared with the bank-sync tests, so they live in support. They're imported as themselves to keep
+# this package's tests importing them from here
+from tests.routes.support.transaction_helpers import _create_transaction as _create_transaction
+from tests.routes.support.transaction_helpers import _get_system_category_id as _get_system_category_id
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -115,42 +120,6 @@ async def _create_tag(client, headers, **overrides):
     """
     payload = {"name": "vacation", **overrides}
     return await client.post("/tags", json=payload, headers=headers)
-
-
-async def _create_transaction(client, headers, account_id, category_id, **overrides):
-    """Create a transaction via POST /transactions
-
-    Defaults: dt="2026-03-15", amount=-5000, currency="CAD"
-
-    Args:
-        client: The async test client
-        headers: Auth headers for the requesting user
-        account_id: UUID of the account to attach the transaction to
-        category_id: UUID of the category to assign
-        **overrides: Fields to override in the default payload
-
-    Returns:
-        The HTTP response from the API
-    """
-    payload = {
-        "account_id": account_id,
-        "category_id": category_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        **overrides,
-    }
-
-    # The route requires a merchant, so a test that does not care which one gets the shared Myself
-    if "merchant_id" not in payload:
-        payload["merchant_id"] = await _get_system_merchant_id(client, headers)
-    return await client.post("/transactions", json=payload, headers=headers)
-
-
-async def _get_system_category_id(client, headers, name="Groceries"):
-    """Return the ID for a seeded system category"""
-    resp = await client.get("/categories", headers=headers)
-    return next(category["id"] for category in resp.json() if category["name"] == name)
 
 
 async def _refund(client, headers, account_id, category_id, expense_id, **overrides):

@@ -1,5 +1,6 @@
 /**
- * Covers authenticated fetch session handling around token refresh and request failures
+ * Covers authenticated fetch session handling around token refresh and request failures, and an
+ * answer with no content. A caller such as a review decision reads that as nothing
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, type AuthResponse } from '@/api/auth'
@@ -294,6 +295,12 @@ describe('authenticatedFetch', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock).toHaveBeenLastCalledWith(`${API_BASE}/auth/refresh`, expect.anything())
     expect(onSessionLost).not.toHaveBeenCalled()
+  })
+
+  it('answers a request the server answers with no content with nothing rather than reading a body', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    await expect(authenticatedFetch('/bank-review/items/item-1/dismiss', { method: 'POST' })).resolves.toBeUndefined()
   })
 
   it('does not refresh or resend a wrong-credential 401 that lacks the bearer challenge', async () => {

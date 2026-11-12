@@ -12,7 +12,7 @@ export type FaintestText = { text: string; contrast: number }
  * colours
  */
 export async function faintestText(element: Locator): Promise<FaintestText> {
-  return readContrast(element, false)
+  return readContrast(element, null)
 }
 
 /**
@@ -20,11 +20,22 @@ export async function faintestText(element: Locator): Promise<FaintestText> {
  * measures text, for a control that draws its colour as an icon rather than words
  */
 export async function colourContrast(element: Locator): Promise<number> {
-  return (await readContrast(element, true)).contrast
+  return (await readContrast(element, 'color')).contrast
 }
 
-async function readContrast(element: Locator, isOwnColour: boolean): Promise<FaintestText> {
-  return element.evaluate(async (root, isOwnColour) => {
+/**
+ * The contrast of a filled shape, such as a dot, against what is drawn behind it, measured as
+ * `colourContrast` measures an icon but from the shape's own background. That background is its colour
+ */
+export async function fillContrast(element: Locator): Promise<number> {
+  return (await readContrast(element, 'backgroundColor')).contrast
+}
+
+/** Which of an element's own colours is measured, or none for the faintest text inside it */
+type OwnPaint = 'color' | 'backgroundColor' | null
+
+async function readContrast(element: Locator, ownPaint: OwnPaint): Promise<FaintestText> {
+  return element.evaluate(async (root, ownPaint) => {
     // Let every transition and animation that ends run to its end first, so a colour on its way to a state,
     // such as a field turning red, is read where it settles rather than where it started
     const ending = document.getAnimations().filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
@@ -70,7 +81,8 @@ async function readContrast(element: Locator, isOwnColour: boolean): Promise<Fai
       element.style.pointerEvents = pointerEvents
       const depth = stack.indexOf(node)
       if (depth < 0) throw new Error(`"${node.textContent}" is covered or off screen, so what is under it can't be read`)
-      const under = stack.slice(depth).filter((layer) => layer === node || !node.contains(layer))
+      // A filled shape's own background is the colour measured, so what is behind it starts below it
+      const under = stack.slice(depth).filter((layer) => (layer === node ? ownPaint !== 'backgroundColor' : !node.contains(layer)))
       // The stack leaves out boxes the browser doesn't hit, such as a table row, so each element's own
       // parents up to the next element in the stack are laid in under it
       const painted: Element[] = []
@@ -84,13 +96,13 @@ async function readContrast(element: Locator, isOwnColour: boolean): Promise<Fai
       let backdrop = rgba(getComputedStyle(document.documentElement).backgroundColor)
       if (backdrop[3] === 0) backdrop = [255, 255, 255, 1]
       for (const layer of layers.reverse()) backdrop = [...over(layer, backdrop, layer[3]), 1]
-      const text = rgba(getComputedStyle(node).color)
+      const text = rgba(getComputedStyle(node)[ownPaint ?? 'color'])
       const onScreen = over(text, backdrop, text[3] * fade)
       const [lighter, darker] = [luminance(onScreen), luminance(backdrop)].sort((a, b) => b - a)
       return (lighter + 0.05) / (darker + 0.05)
     }
 
-    if (isOwnColour) return { text: '', contrast: measure(root) }
+    if (ownPaint) return { text: '', contrast: measure(root) }
 
     let faintest = { text: '', contrast: Infinity }
     for (const node of [root, ...root.querySelectorAll('*')]) {
@@ -107,5 +119,5 @@ async function readContrast(element: Locator, isOwnColour: boolean): Promise<Fai
       if (contrast < faintest.contrast) faintest = { text: ownText, contrast }
     }
     return faintest
-  }, isOwnColour)
+  }, ownPaint)
 }

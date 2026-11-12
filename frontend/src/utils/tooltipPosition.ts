@@ -100,6 +100,161 @@ export function getCursorTooltipPosition({
   }
 }
 
+type IconTooltipOffsetOptions = {
+  icon: Pick<DOMRect, 'left' | 'width'>
+  tooltipWidth: number
+
+  /** The surface marked `data-tooltip-bounds` around the icon, if any */
+  surface?: Pick<DOMRect, 'left' | 'right'>
+
+  /** The page content beside the sidebar, absent where the page has none */
+  page?: Pick<DOMRect, 'left' | 'right'>
+  screenWidth: number
+
+  /** Lets the surface's right edge win over the page's left edge, as a narrow column in a dialogue needs */
+  staysInSurface?: boolean
+}
+
+// Room kept between an icon's tooltip and each edge it stays within
+const ICON_TOOLTIP_MARGIN = 8
+
+/**
+ * How far an icon's tooltip, centred on the icon, shifts sideways to stay within the screen and the
+ * surface around it, and clear of the sidebar by keeping within the page content
+ *
+ * The page's left edge (the sidebar's) always wins, unless the caller asks to stay in the surface. Then
+ * it gives way to the surface's right edge where the tooltip can't keep to both. A dialogue sits over
+ * the page rather than in it, so a narrow column in one can lie across the sidebar's edge, and a
+ * tooltip held right of that edge would leave the column and be cut off by it
+ */
+export function getIconTooltipOffset({
+  icon,
+  tooltipWidth,
+  surface,
+  page,
+  screenWidth,
+  staysInSurface = false,
+}: IconTooltipOffsetOptions): number {
+  const ownLeft = Math.max(ICON_TOOLTIP_MARGIN, (surface?.left ?? 0) + ICON_TOOLTIP_MARGIN)
+  const ownRight = Math.min(screenWidth, surface?.right ?? screenWidth) - ICON_TOOLTIP_MARGIN
+  const pageLeft = page ? page.left + ICON_TOOLTIP_MARGIN : 0
+  const left = Math.max(ownLeft, staysInSurface ? Math.min(pageLeft, ownRight - tooltipWidth) : pageLeft)
+  const right = page ? Math.min(ownRight, page.right - ICON_TOOLTIP_MARGIN) : ownRight
+  const tooltipLeft = icon.left + icon.width / 2 - tooltipWidth / 2
+  const tooltipRight = tooltipLeft + tooltipWidth
+
+  if (tooltipLeft < left) return left - tooltipLeft
+  if (tooltipRight > right) return right - tooltipRight
+  return 0
+}
+
+export type IconTooltipPlacement = 'top' | 'bottom'
+
+type IconTooltipPlacementOptions = {
+  preferred: IconTooltipPlacement
+  icon: Pick<DOMRect, 'top' | 'bottom'>
+  tooltipHeight: number
+
+  /** What the icon explains, marked `data-tooltip-subject` around it, if anything */
+  subject?: Pick<DOMRect, 'top' | 'bottom'>
+
+  /** The surface marked `data-tooltip-bounds` around the icon, if any */
+  surface?: Pick<DOMRect, 'top' | 'bottom'>
+
+  /** Where the lowest bar the tooltip would be drawn under ends, from `getTooltipCoverBottom` */
+  coverBottom: number
+  screenHeight: number
+}
+
+/**
+ * Which side of its icon a tooltip opens on, and how far it moves up or down from the icon's edge on
+ * that side, to stay within the screen and the surface around the icon
+ *
+ * It keeps to the preferred side unless that clips and the other side doesn't. Given what the icon
+ * explains, such as a fact whose value sits under its label, it opens beyond the whole of that instead,
+ * and goes to the other side whenever the preferred one clips, even where the surface says that side
+ * clips too. The surface can be one that cuts nothing off, such as a dialogue's side column once it is
+ * stacked above the rest of the dialogue. A tooltip kept on a side it doesn't fit would run off the
+ * dialogue's edge instead
+ */
+export function getIconTooltipPlacement({
+  preferred,
+  icon,
+  tooltipHeight,
+  subject,
+  surface,
+  coverBottom,
+  screenHeight,
+}: IconTooltipPlacementOptions): { placement: IconTooltipPlacement; shift: number } {
+  const anchor = subject ?? icon
+  const top = Math.max(ICON_TOOLTIP_MARGIN, (surface?.top ?? 0) + ICON_TOOLTIP_MARGIN, coverBottom)
+  const bottom = Math.min(screenHeight, surface?.bottom ?? screenHeight) - ICON_TOOLTIP_MARGIN
+  const clips = { top: anchor.top - tooltipHeight < top, bottom: anchor.bottom + tooltipHeight > bottom }
+  const other = preferred === 'top' ? 'bottom' : 'top'
+  const flips = subject ? clips[preferred] : clips[preferred] && !clips[other]
+  const placement = flips ? other : preferred
+
+  return { placement, shift: placement === 'top' ? anchor.top - icon.top : anchor.bottom - icon.bottom }
+}
+
+/**
+ * Where the lowest bar marked with `data-tooltip-cover` ends, among those starting above the trigger
+ * and reaching across it, such as a sticky toolbar a list scrolls under, or 0 when there is none. A
+ * panel opening upwards past it would be drawn under the bar
+ *
+ * A bar holding the trigger is its own surface rather than one over it, so it is left out. So is
+ * every bar for a trigger in a dialogue, since the page behind the dialogue keeps its stuck bars in
+ * place under the dialogue rather than over it
+ */
+export function getTooltipCoverBottom(trigger: HTMLElement, triggerRect: DOMRect): number {
+  if (trigger.closest('[role="dialog"]')) return 0
+
+  let coverBottom = 0
+  for (const cover of document.querySelectorAll('[data-tooltip-cover]')) {
+    if (cover.contains(trigger)) continue
+    const rect = cover.getBoundingClientRect()
+    const isAcross = rect.left < triggerRect.right && rect.right > triggerRect.left
+    if (rect.top < triggerRect.top && isAcross) coverBottom = Math.max(coverBottom, rect.bottom)
+  }
+  return coverBottom
+}
+
+type IconTooltipSideOptions = {
+  trigger: HTMLElement
+  tooltip: HTMLElement
+  preferred: IconTooltipPlacement
+
+  /** What limits the room above and below: the surface marked `data-tooltip-bounds`, or only the screen */
+  sideBoundary: 'bounds' | 'viewport'
+
+  /** Keeps the panel clear of the stuck bars marked `data-tooltip-cover`, as a list's toolbar is */
+  clearsStickyBars?: boolean
+}
+
+/**
+ * Picks the side of the trigger an icon's tooltip opens on, the preferred one unless only the other has
+ * room, or beyond the whole of what the trigger explains when it sits inside an element marked
+ * `data-tooltip-subject`. Stuck bars are ignored unless the caller asks to clear them
+ */
+export function getIconTooltipSide({
+  trigger,
+  tooltip,
+  preferred,
+  sideBoundary,
+  clearsStickyBars = false,
+}: IconTooltipSideOptions): { placement: IconTooltipPlacement; shift: number } {
+  const icon = trigger.getBoundingClientRect()
+  return getIconTooltipPlacement({
+    preferred,
+    icon,
+    tooltipHeight: tooltip.getBoundingClientRect().height,
+    subject: trigger.closest('[data-tooltip-subject]')?.getBoundingClientRect(),
+    surface: sideBoundary === 'bounds' ? trigger.closest('[data-tooltip-bounds]')?.getBoundingClientRect() : undefined,
+    coverBottom: clearsStickyBars ? getTooltipCoverBottom(trigger, icon) : 0,
+    screenHeight: window.innerHeight,
+  })
+}
+
 /**
  * Positions a tooltip element against the cursor by writing the computed coordinates onto its style
  *

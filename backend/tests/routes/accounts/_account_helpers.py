@@ -11,20 +11,9 @@ from app.models.institution import Institution
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.support import sign_up_confirmed
+from tests.routes.support.clock_helpers import _FixedClock
 
 NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
-
-
-class _FixedClock:
-    """Fixed clock used to make account lifecycle dates deterministic"""
-
-    def __init__(self, instant):
-        """Store the fixed instant returned by the test clock"""
-        self.instant = instant
-
-    def now(self, tz=None):
-        """Return the fixed instant in the requested timezone"""
-        return self.instant.astimezone(tz) if tz else self.instant
 
 
 async def _seed_institution(logo_url: str | None = None):

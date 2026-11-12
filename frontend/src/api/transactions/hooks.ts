@@ -19,10 +19,14 @@ import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback'
 import { transactionKeys, transactionOverviewKeys } from '@/api/cache/queryKeys'
 import {
   findCachedTransaction,
+  findCachedTransactions,
   invalidateBulkUpdatedTransactionData,
   invalidateFinancialTransactionData,
   invalidatePatchedTransactionData,
+  invalidateReviewIfFromBank,
+  invalidateReviewOfEditedBankTransactions,
   invalidateTransactionAccountData,
+  readBulkEditAsPatch,
   removeTransactionsFromLists,
 } from '@/api/cache/updates/transactions'
 import {
@@ -250,6 +254,10 @@ export function useUpdateTransaction({ minimumPendingMs = 0 }: { minimumPendingM
     onSuccess: (updated, { patch }, context) => {
       const accountIds = uniqueIds([context?.previousTransaction?.account_id, updated.account_id])
       invalidatePatchedTransactionData(queryClient, patch, accountIds)
+
+      // A move out of its account drops the bank record, so the answer has no bank source and only
+      // the cached copy says where it came from, while the answer alone says so for an uncached row
+      invalidateReviewOfEditedBankTransactions(queryClient, [context?.previousTransaction, updated], patch)
     },
   })
 }
@@ -262,15 +270,24 @@ export function useBulkUpdateTransactions({ minimumPendingMs = 0 }: { minimumPen
   return useMutation({
     mutationFn: (payload: Parameters<typeof bulkUpdateTransactions>[0]) =>
       runWithMinimumPendingTime(minimumPendingMs, () => bulkUpdateTransactions(payload)),
-    onSuccess: (result, payload) => {
+    onMutate: (payload: Parameters<typeof bulkUpdateTransactions>[0]) => ({
+      editedTransactions: findCachedTransactions(queryClient, payload.transaction_ids),
+    }),
+    onSuccess: (result, payload, context) => {
       invalidateBulkUpdatedTransactionData(queryClient, payload, result.affected_account_ids)
+      invalidateReviewOfEditedBankTransactions(
+        queryClient,
+        context?.editedTransactions ?? [],
+        readBulkEditAsPatch(payload),
+      )
     },
   })
 }
 
 /**
- * Removes a deleted transaction from the cached lists and refreshes the aggregate views it fed, split
- * out so the caller can defer it until the modal has dismissed and the row can animate out in view
+ * Removes a deleted transaction from the cached lists and refreshes the aggregate views it fed, and the
+ * review inbox when it came from the bank, split out so the caller can defer it until the modal has
+ * dismissed and the row can animate out in view
  */
 export function applyTransactionDeletion(
   queryClient: QueryClient,
@@ -282,9 +299,12 @@ export function applyTransactionDeletion(
 
 /**
  * Removes deleted transactions from the cached lists and refreshes the aggregate views of the
- * accounts they were in, once for the whole set
+ * accounts they were in, once for the whole set, and the review inbox when any of them came from
+ * the bank
  */
 function applyTransactionsDeletion(queryClient: QueryClient, transactionIds: string[], accountIds: string[]) {
+  // Read from the cache before the rows are removed from it
+  invalidateReviewIfFromBank(queryClient, findCachedTransactions(queryClient, transactionIds))
   removeTransactionsFromLists(queryClient, transactionIds)
   invalidateTransactions(queryClient)
   invalidateFinancialTransactionData(queryClient, accountIds)

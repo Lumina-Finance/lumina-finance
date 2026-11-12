@@ -28,7 +28,7 @@ from app.services.importers.shared.layouts import undo_import_layout
 from app.services.importers.shared.run_locking import load_locked_change_marker, load_locked_run
 from app.services.importers.shared.sources import undo_import_sources
 from app.services.transactions.bulk_access import load_locked_run_transactions, load_writable_accounts
-from app.services.transactions.deletion import delete_locked_transactions
+from app.services.transactions.deletion import delete_locked_transactions, mark_accounts_changed
 
 # The summary field listing what a run created, by the kind of record
 _CREATED_ID_FIELDS = {
@@ -141,9 +141,11 @@ async def undo_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> Im
     """Delete everything an import wrote, its transactions and every record it created, or nothing
 
     Records the import reused, which existed before it, are left as they are, and a CSV layout its
-    commit saved goes back to what it was before. The run and the
-    user's change marker are held for the whole undo, so two undos of one import queue and the
-    second finds it gone, and a change landing meanwhile waits and then finds its records gone
+    commit saved goes back to what it was before. The run is held for the whole undo, so two undos of
+    one import queue and the second finds it gone. The user's change marker is held last, after the
+    rows and balances, as every ledger write takes it, so a bank sync writing into the same accounts
+    queues with the undo rather than deadlocking. A change that landed meanwhile has moved it by then,
+    and the undo is refused, while one landing after waits and then finds its records gone
 
     Args:
         db: Active database session
@@ -164,8 +166,10 @@ async def undo_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> Im
     run = await load_locked_run(db, run_id)
     if run is None or run.committed_at is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import not found")
-    changed_at = await load_locked_change_marker(db, user.id)
-    if run.committed_at < datetime.now(UTC) - IMPORT_UNDO_WINDOW or run.committed_at != changed_at:
+
+    # Read without holding it, to refuse early, and read again once held, last
+    changed_at = await db.scalar(select(UserCacheState.changed_at).where(UserCacheState.user_id == user.id))
+    if not _still_undoable(run, changed_at):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_NO_LONGER_UNDOABLE)
 
     deleted_days = await load_locked_run_transactions(db, user, run.id)
@@ -189,11 +193,15 @@ async def undo_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> Im
     try:
         await undo_import_layout(db, run)
         await undo_import_sources(db, run)
-        await delete_locked_transactions(db, Transaction.import_run_id == run.id, accounts, deleted_days)
+        await delete_locked_transactions(db, Transaction.import_run_id == run.id, deleted_days)
         for kind, model in _CREATED_MODELS:
             if created[kind]:
                 await db.execute(delete(model).where(model.id == any_(_id_array(kind, created[kind]))))
         await db.execute(delete(ImportRun).where(ImportRun.id == run.id))
+        if not _still_undoable(run, await load_locked_change_marker(db, user.id)):
+            await db.rollback()
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=_NO_LONGER_UNDOABLE)
+        await mark_accounts_changed(db, accounts)
         await mark_user_cache_changed(db, user.id)
         await db.commit()
     except DBAPIError as exc:
@@ -206,6 +214,11 @@ async def undo_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> Im
         transactions_deleted=len(deleted_days),
         affected_account_ids=[account.id for account in accounts],
     )
+
+
+def _still_undoable(run: ImportRun, changed_at: datetime | None) -> bool:
+    """Return whether the run is inside the undo window and nothing has changed the user's data since it was saved"""
+    return run.committed_at is not None and run.committed_at >= datetime.now(UTC) - IMPORT_UNDO_WINDOW and run.committed_at == changed_at
 
 
 def _has_group_account(accounts: Iterable[Account]) -> bool:

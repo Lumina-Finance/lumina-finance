@@ -1,6 +1,6 @@
 /**
  * Tests the create-account form, so the fields it clears when a dependent one changes, the errors it
- * raises and the signed minor-unit payload it builds cannot drift from the account type chosen
+ * raises and the minor-unit payload it builds cannot drift from the account type chosen
  */
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
@@ -43,34 +43,29 @@ describe('create account form helpers', () => {
       validateCreateAccountForm({
         ...buildInitialCreateAccountForm(null),
         credit_limit: '-1',
-        starting_balance: 'abc',
       }),
     ).toEqual({
       account_type: 'Select an account type',
       name: 'Name is required',
       currency: 'Select a currency',
       credit_limit: 'Must be a positive number',
-      starting_balance: 'Must be zero or higher',
     })
   })
 
-  it('derives conditional fields and builds signed minor-unit payloads for liabilities', () => {
+  it('derives conditional fields and builds minor-unit payloads for liabilities', () => {
     const form = {
       ...buildInitialCreateAccountForm('CAD'),
       account_type: 'credit_card' as const,
       name: 'Rewards Card',
       institution_id: 'td',
       credit_limit: '10000.50',
-      starting_balance: '123.45',
     }
 
     expect(buildCreateAccountViewModel(form, currencies)).toMatchObject({
       conditionalAccountField: 'credit-limit',
-      isLiability: true,
       isRevolving: true,
       selectedAccountTypeLabel: 'Credit card',
       selectedCurrencySymbol: 'CA$',
-      startingBalanceLabel: 'Starting amount owed',
     })
     expect(buildCreateAccountPayload(form, currencies)).toEqual({
       account_kind: 'revolving',
@@ -80,7 +75,6 @@ describe('create account form helpers', () => {
       institution_id: 'td',
       currency: 'CAD',
       credit_limit: 1000050,
-      starting_balance: -12345,
       notes: null,
       is_archived: false,
     })

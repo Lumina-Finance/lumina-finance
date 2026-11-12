@@ -57,5 +57,11 @@ export type TransactionListToolbarProps = {
 
   // Opens the bulk delete confirmation. Absent on a list that offers no selection at all
   onDeleteSelection?: () => void
+
+  // Opens the bulk dismiss confirmation. Absent while no new item waits for review in the list's accounts
+  onDismissSelection?: () => void
+
+  // Shown as the dismiss button's title while it is off, nothing being ticked included
+  dismissDisabledReason?: string
   onToggleSelecting?: () => void
 }

@@ -39,6 +39,7 @@ function createRow(id: string, dateLabel: string): PreviewTransactionRow {
       updated_at: '2026-01-01T00:00:00Z',
       tag_ids: [],
       tags: [],
+      bank_source: null,
     },
   }
 }

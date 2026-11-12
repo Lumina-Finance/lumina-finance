@@ -1,11 +1,7 @@
 """Alembic schema parity tests"""
 
 import json
-import os
-import subprocess
-import sys
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
@@ -16,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_en
 from sqlalchemy.pool import NullPool
 
 from app.bank_transaction_key import key_fingerprint, resolve_key
-from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
+from app.config.database import APP_DB_USER
 from app.db.bank_transaction_key import FINGERPRINT_TABLE as BANK_TRANSACTION_KEY_FINGERPRINT_TABLE
 from app.db.credentials import resolve_role_password
 from app.db.key_fingerprint import read_fingerprint
@@ -28,15 +24,15 @@ from app.services.merchants.defaults import (
     SYSTEM_MERCHANT_NAMES,
     UNKNOWN_MERCHANT_NAME,
 )
-from tests.conftest import (
-    DB_HOST,
-    DB_PASSWORD,
-    DB_PORT,
-    DB_USER,
-    WORKER_DB_NAME,
+from tests.conftest import DB_HOST, DB_PORT, WORKER_DB_NAME
+from tests.migrations.support import (
+    _create_engine_for_database,
+    _drop_database,
+    _recreate_database,
+    _run_alembic,
+    _run_alembic_upgrade,
 )
 
-_BACKEND_DIR = Path(__file__).resolve().parents[2]
 _ALEMBIC_TEST_DB_NAME = f"{WORKER_DB_NAME}_alembic_schema"
 _ALEMBIC_ENUM_DB_NAME = f"{WORKER_DB_NAME}_alembic_enums"
 _ALEMBIC_AUTH_RESET_DB_NAME = f"{WORKER_DB_NAME}_alembic_auth_reset"
@@ -189,7 +185,7 @@ async def test_account_date_index_migration_preserves_rows_and_existing_indexes(
             assert rows == original_rows
             assert {name: definition for name, definition in indexes.items() if name != _ACCOUNT_DATE_INDEX_NAME} == original_indexes
             if not reupgrade:
-                _run_account_index_downgrade(database_name)
+                _run_alembic_downgrade(database_name, _BEFORE_ACCOUNT_DATE_INDEX_REVISION)
                 async with engine.connect() as conn:
                     rows, indexes = await _read_account_index_migration_state(conn)
                 assert rows == original_rows
@@ -691,26 +687,7 @@ async def _read_import_run_sources(conn: AsyncConnection) -> dict[str, str]:
 
 def _run_alembic_downgrade(database_name: str, revision: str) -> None:
     """Run Alembic downgrade against a generated migration database"""
-    environment = os.environ.copy()
-    environment.update(
-        {
-            "DB_HOST": DB_HOST,
-            "DB_PORT": DB_PORT,
-            "DB_NAME": database_name,
-            "DB_USER": DB_USER,
-            "DB_PASSWORD": DB_PASSWORD,
-        }
-    )
-
-    # Fixed revisions and executable keep this migration subprocess independent of application imports
-    completed = subprocess.run(  # noqa: S603
-        [sys.executable, "-m", "alembic", "downgrade", revision],
-        cwd=_BACKEND_DIR,
-        env=environment,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    completed = _run_alembic(database_name, "downgrade", revision)
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
@@ -729,31 +706,6 @@ async def _read_account_index_migration_state(conn: AsyncConnection) -> tuple[li
         ).all()
     )
     return rows, indexes
-
-
-def _run_account_index_downgrade(database_name: str) -> None:
-    """Downgrade only the account index revision in a generated migration database"""
-    environment = os.environ.copy()
-    environment.update(
-        {
-            "DB_HOST": DB_HOST,
-            "DB_PORT": DB_PORT,
-            "DB_NAME": database_name,
-            "DB_USER": DB_USER,
-            "DB_PASSWORD": DB_PASSWORD,
-        }
-    )
-
-    # Fixed revision and executable keep this migration subprocess independent of application imports
-    completed = subprocess.run(  # noqa: S603
-        [sys.executable, "-m", "alembic", "downgrade", _BEFORE_ACCOUNT_DATE_INDEX_REVISION],
-        cwd=_BACKEND_DIR,
-        env=environment,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 async def test_alembic_schema_columns_match_model_metadata() -> None:
@@ -987,7 +939,7 @@ async def test_email_fold_migration_refuses_case_variant_accounts_and_upgrades_o
                 {"id": user_ids["Alice@example.com"], "hash": _EMAIL_FOLD_SECRET_HASH},
             )
 
-        refused = _start_alembic_upgrade(database_name, "head")
+        refused = _run_alembic(database_name, "upgrade", "head")
         output = refused.stdout + refused.stderr
 
         assert refused.returncode != 0
@@ -1047,86 +999,6 @@ async def test_email_fold_migration_refuses_case_variant_accounts_and_upgrades_o
     finally:
         await engine.dispose()
         await _drop_database(database_name)
-
-
-async def _recreate_database(database_name: str) -> None:
-    """Drop and recreate the database used for Alembic schema parity"""
-    maintenance_engine = _create_engine_for_database("postgres", isolation_level="AUTOCOMMIT")
-    try:
-        async with maintenance_engine.connect() as conn:
-            await _terminate_database_connections(conn, database_name)
-
-            # Drop any stale parity database left by an interrupted test run
-            await conn.execute(text(f'DROP DATABASE IF EXISTS "{database_name}"'))
-
-            # Create a clean database owned by the migrator, since Alembic runs as
-            # the migrator and must own the schema it builds from the base revision
-            await conn.execute(text(f'CREATE DATABASE "{database_name}" OWNER "{MIGRATOR_DB_USER}"'))
-    finally:
-        await maintenance_engine.dispose()
-
-
-async def _drop_database(database_name: str) -> None:
-    """Drop the database used for Alembic schema parity"""
-    maintenance_engine = _create_engine_for_database("postgres", isolation_level="AUTOCOMMIT")
-    try:
-        async with maintenance_engine.connect() as conn:
-            await _terminate_database_connections(conn, database_name)
-
-            # Drop the parity database so repeated test runs start clean
-            await conn.execute(text(f'DROP DATABASE IF EXISTS "{database_name}"'))
-    finally:
-        await maintenance_engine.dispose()
-
-
-async def _terminate_database_connections(conn: AsyncConnection, database_name: str) -> None:
-    """Terminate open connections to a generated parity database"""
-    # Close active connections so PostgreSQL can drop the generated database. Only client connections:
-    # an autovacuum worker may be cleaning the new database, it runs as a superuser this role may not
-    # terminate, and the drop stops it by itself
-    await conn.execute(
-        text(
-            """
-            SELECT pg_terminate_backend(pid)
-            FROM pg_stat_activity
-            WHERE datname = :database_name
-              AND pid <> pg_backend_pid()
-              AND backend_type = 'client backend'
-            """,
-        ),
-        {"database_name": database_name},
-    )
-
-
-def _run_alembic_upgrade(database_name: str, *, revision: str = "head") -> None:
-    """Run Alembic upgrade against a generated parity database"""
-    completed = _start_alembic_upgrade(database_name, revision)
-    assert completed.returncode == 0, completed.stdout + completed.stderr
-
-
-def _start_alembic_upgrade(database_name: str, revision: str) -> subprocess.CompletedProcess[str]:
-    """Run Alembic upgrade against a generated parity database and return the finished process, whatever its outcome"""
-    environment = os.environ.copy()
-    environment.update(
-        {
-            "DB_HOST": DB_HOST,
-            "DB_PORT": DB_PORT,
-            "DB_NAME": database_name,
-            "DB_USER": DB_USER,
-            "DB_PASSWORD": DB_PASSWORD,
-        },
-    )
-
-    # Alembic revisions are fixed test constants, and subprocess keeps migration imports isolated
-    completed = subprocess.run(  # noqa: S603
-        [sys.executable, "-m", "alembic", "upgrade", revision],
-        cwd=_BACKEND_DIR,
-        env=environment,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    return completed
 
 
 async def _seed_legacy_auth_state(database_name: str) -> None:
@@ -1296,13 +1168,6 @@ def _get_model_enums() -> dict[str, set[str]]:
             if isinstance(column.type, SqlaEnum):
                 labels_by_type[column.type.name] = set(column.type.enums)
     return labels_by_type
-
-
-def _create_engine_for_database(database_name: str, *, isolation_level: str | None = None):
-    """Create an async engine for a test database"""
-    database_url = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{database_name}"
-    engine = create_async_engine(database_url, poolclass=NullPool, isolation_level=isolation_level)
-    return engine
 
 
 def _create_app_role_engine(database_name: str):

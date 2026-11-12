@@ -16,6 +16,12 @@ from tests.conftest import DB_USER, TEST_DATABASE_URL, engine, migrator_engine, 
 
 _RESET_ADVICE = "accept that statements imported again will bring back"
 
+# What a bank sync costs after a reset: it hashes its provider IDs under the same key
+_SYNC_COST = (
+    "bank sync will send its recently fetched transactions back for review even where you approved them, "
+    "and the bank's corrections and removals will stop reaching the transactions already saved"
+)
+
 
 @pytest.fixture
 def key_file(tmp_path, monkeypatch):
@@ -96,9 +102,10 @@ async def test_ensure_key_refuses_to_replace_the_key_saved_hashes_were_made_with
         await _save_hashed_transaction(connection)
         await _record(connection, generate_key())
 
-        with pytest.raises(RuntimeError, match=f"Restore that key.*{_RESET_ADVICE}"):
+        with pytest.raises(RuntimeError, match=f"Restore that key.*{_RESET_ADVICE}") as refusal:
             await ensure_key(connection)
 
+    assert _SYNC_COST in str(refusal.value)
     assert not key_file.exists()
 
 
@@ -155,8 +162,10 @@ async def test_a_start_under_another_key_than_the_hashes_were_made_with_is_refus
     async with engine.begin() as connection:
         await _record(connection, generate_key())
 
-        with pytest.raises(RuntimeError, match=f"different key.*{_RESET_ADVICE}"):
+        with pytest.raises(RuntimeError, match=f"different key.*{_RESET_ADVICE}") as refusal:
             await verify_key_matches_hashes(connection)
+
+    assert _SYNC_COST in str(refusal.value)
 
 
 async def test_a_start_with_a_key_and_no_record_yet_passes(key_file, monkeypatch):
@@ -168,7 +177,7 @@ async def test_a_start_with_a_key_and_no_record_yet_passes(key_file, monkeypatch
 
 
 @pytest.mark.parametrize("source", ["environment", "file", "generated"])
-async def test_resetting_binds_the_database_to_a_new_key_so_it_starts(key_file, monkeypatch, source):
+async def test_resetting_binds_the_database_to_a_new_key_so_it_starts(key_file, monkeypatch, capsys, source):
     """Someone who lost the key must have a way forward, taken on purpose rather than by accident"""
     key = generate_key()
     if source == "environment":
@@ -189,6 +198,8 @@ async def test_resetting_binds_the_database_to_a_new_key_so_it_starts(key_file, 
         recorded = await connection.scalar(text("SELECT fingerprint FROM bank_transaction_key_fingerprint"))
     assert recorded == key_fingerprint(bytes.fromhex(key))
     assert key_file.exists() == (source != "environment")
+    # The reset says what it cost, bank sync included
+    assert _SYNC_COST in capsys.readouterr().err
 
 
 async def test_a_reset_that_cannot_record_the_key_leaves_no_key_behind(key_file):

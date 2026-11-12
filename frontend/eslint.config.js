@@ -10,6 +10,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 const restrictedApiIndexImports = [
   '@/api/accounts',
   '@/api/auth',
+  '@/api/bank-sync',
   '@/api/budgets',
   '@/api/categories',
   '@/api/currency',

@@ -9,6 +9,9 @@ import type { TransactionFormValues } from '@/components/transactions/transactio
 
 interface UseAccountFieldOptions {
   accounts: AccountsOverview[]
+
+  /** The accounts a transfer may name as its other side, before archived ones and its own are left out */
+  counterpartyAccounts: AccountsOverview[]
   selectableAccounts: AccountsOverview[]
   editing: boolean
   selectedAccount: AccountsOverview | undefined
@@ -34,6 +37,7 @@ interface AccountFieldState {
  */
 export function useAccountField({
   accounts,
+  counterpartyAccounts,
   selectableAccounts,
   editing,
   selectedAccount,
@@ -47,21 +51,21 @@ export function useAccountField({
     [selectableAccounts, editing, form.currency],
   )
   const counterpartyAccountOptions = useMemo(
-    () => buildCounterpartyAccountOptions(accounts, form.account_id, form.symmetric_transfer),
-    [accounts, form.account_id, form.symmetric_transfer],
+    () => buildCounterpartyAccountOptions(counterpartyAccounts, form.account_id, form.symmetric_transfer),
+    [counterpartyAccounts, form.account_id, form.symmetric_transfer],
   )
-  const selectedArchivedAccountOption = editing && selectedAccount?.is_archived
-    ? { value: selectedAccount.id, label: selectedAccount.name }
-    : undefined
+  const selectedArchivedAccountOption =
+    editing && selectedAccount?.is_archived ? { value: selectedAccount.id, label: selectedAccount.name } : undefined
 
   // An account archived after the transfer was recorded is off the list above, so the stored answer
   // is supplied as its own option. Without it the field would read as unanswered, and every edit
   // now has to answer, so correcting anything else on the transaction would force the account to be
   // changed to one that is not where the money went
   const recordedCounterpartyAccount = accounts.find((account) => account.id === form.counterparty_account_id)
-  const selectedArchivedCounterpartyAccountOption = editing && recordedCounterpartyAccount?.is_archived
-    ? { value: recordedCounterpartyAccount.id, label: recordedCounterpartyAccount.name }
-    : undefined
+  const selectedArchivedCounterpartyAccountOption =
+    editing && recordedCounterpartyAccount?.is_archived
+      ? { value: recordedCounterpartyAccount.id, label: recordedCounterpartyAccount.name }
+      : undefined
 
   const handleAccountChange = (accountId: string) => {
     const account = accounts.find((a) => a.id === accountId)
@@ -91,7 +95,8 @@ export function useAccountField({
       // Ticking narrows the list to accounts that can take a real transaction, dropping both
       // outside the app and the archived ones, so an answer that is no longer on the list is
       // cleared rather than left selected against a missing option
-      counterparty_account_id: value && !canReceivePairedTransaction(f.counterparty_account_id) ? '' : f.counterparty_account_id,
+      counterparty_account_id:
+        value && !canReceivePairedTransaction(f.counterparty_account_id) ? '' : f.counterparty_account_id,
     }))
   }
 

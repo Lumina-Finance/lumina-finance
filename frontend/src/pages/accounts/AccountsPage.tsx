@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
 import { getRegroupTransition } from '@/pages/accounts/components/regroupMotion'
 import { useAuth } from '@/hooks/useAuth'
-import { useAccounts } from '@/api/accounts'
+import { useAccounts, type AccountsOverview } from '@/api/accounts'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import CreateAccountModal from '@/pages/accounts/components/create-account-modal/Modal'
+import NewAccountPromptModal from '@/pages/accounts/components/new-account-prompt/Modal'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import AccountListToolbar from '@/pages/accounts/components/toolbar/ListToolbar'
 import AccountListSection from '@/pages/accounts/components/ListSection'
@@ -27,7 +28,8 @@ import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
  *
  * Archived accounts are held out of the grouped lists, the totals and the filter toolbar, and
  * appear only in their own section. The create-account modal is remounted each time it opens so
- * it always starts from an empty form
+ * it always starts from an empty form, and an account it saves is followed by a prompt asking how it
+ * stays up to date once the modal has finished closing
  */
 export default function AccountsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -36,6 +38,8 @@ export default function AccountsPage() {
   // Where the toolbar ends once it sticks, which is where an open group's header sticks as its rows scroll
   // past. The toolbar measures it, and this guess holds until then
   const [groupHeaderStickyTop, setGroupHeaderStickyTop] = useState(72)
+  const [createdAccount, setCreatedAccount] = useState<AccountsOverview | null>(null)
+  const [showNewAccountPrompt, setShowNewAccountPrompt] = useState(false)
   const { user } = useAuth()
   const { data: accounts, isFetching, error } = useAccounts()
   const {
@@ -202,7 +206,25 @@ export default function AccountsPage() {
         </LayoutGroup>
       </div>
 
-      <CreateAccountModal key={createModalKey} open={showCreateModal} onClose={() => setShowCreateModal(false)} />
+      <CreateAccountModal
+        key={createModalKey}
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={setCreatedAccount}
+        onExitComplete={() => {
+          if (createdAccount) setShowNewAccountPrompt(true)
+        }}
+      />
+
+      {createdAccount && (
+        <NewAccountPromptModal
+          key={createdAccount.id}
+          open={showNewAccountPrompt}
+          account={createdAccount}
+          onClose={() => setShowNewAccountPrompt(false)}
+          onExitComplete={() => setCreatedAccount(null)}
+        />
+      )}
     </div>
   )
 }

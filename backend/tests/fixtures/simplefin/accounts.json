@@ -1,0 +1,170 @@
+{
+  "errlist": [],
+  "connections": [
+    {
+      "conn_id": "CON-harbour-jim",
+      "name": "Harbour Bank",
+      "org_id": "ORG-harbour",
+      "org_url": "harbourbank.example",
+      "sfin_url": "https://beta-bridge.simplefin.org/simplefin"
+    },
+    {
+      "conn_id": "CON-harbour-ann",
+      "name": "Harbour Bank",
+      "org_id": "ORG-harbour",
+      "org_url": "harbourbank.example",
+      "sfin_url": "https://beta-bridge.simplefin.org/simplefin"
+    },
+    {
+      "conn_id": "CON-harbourline",
+      "name": "Harbourline Card Services",
+      "org_id": "ORG-harbourline",
+      "sfin_url": "https://beta-bridge.simplefin.org/simplefin"
+    },
+    {
+      "conn_id": "CON-sakura",
+      "name": "Sakura Bank",
+      "org_id": "ORG-sakura",
+      "sfin_url": "https://beta-bridge.simplefin.org/simplefin"
+    },
+    {
+      "conn_id": "CON-gulf",
+      "name": "Gulf Trust",
+      "org_id": "ORG-gulf",
+      "sfin_url": "https://beta-bridge.simplefin.org/simplefin"
+    }
+  ],
+  "accounts": [
+    {
+      "id": "ACT-chequing",
+      "name": "Everyday Chequing",
+      "conn_id": "CON-harbour-jim",
+      "conn_name": "Harbour Bank",
+      "currency": "USD",
+      "balance": "2510.75",
+      "available-balance": "2410.750",
+      "balance-date": 1791115200,
+      "transactions": [
+        {
+          "id": "TRN-coffee",
+          "posted": 1791115200,
+          "amount": "-4.500",
+          "description": "POS 4411 BLUE BOTTLE SF",
+          "transacted_at": 1791083700,
+          "payee": "Blue Bottle Coffee",
+          "memo": "Card ending 4411",
+          "extra": {"category": "Dining"}
+        },
+        {
+          "id": "TRN-fx-fee",
+          "posted": 1791083700,
+          "amount": "-12.345",
+          "description": "FOREIGN TRANSACTION FEE"
+        },
+        {
+          "id": "TRN-grocer",
+          "posted": 0,
+          "amount": "-23.10",
+          "description": "CORNER GROCER",
+          "pending": true,
+          "transacted_at": 1791083700
+        },
+        {
+          "id": "TRN-parking",
+          "posted": 0,
+          "amount": "-8.00",
+          "description": "CITY PARKING"
+        }
+      ]
+    },
+    {
+      "id": "ACT-savings",
+      "name": "Joint Savings",
+      "conn_id": "CON-harbour-ann",
+      "conn_name": "Harbour Bank",
+      "currency": "USD",
+      "balance": "10000.00",
+      "balance-date": 1791115200,
+      "transactions": []
+    },
+    {
+      "id": "ACT-visa",
+      "name": "Rewards Visa",
+      "conn_id": "CON-harbourline",
+      "conn_name": "Harbourline Card Services",
+      "currency": "USD",
+      "balance": "-640.125",
+      "balance-date": 1791115200,
+      "transactions": [
+        {
+          "id": "TRN-streaming",
+          "posted": 1791115200,
+          "amount": "-15.00",
+          "description": "STREAMING SERVICE",
+          "pending": true
+        }
+      ]
+    },
+    {
+      "id": "ACT-yen",
+      "name": "Yen Savings",
+      "conn_id": "CON-sakura",
+      "conn_name": "Sakura Bank",
+      "currency": "JPY",
+      "balance": "150000",
+      "balance-date": 1791115200,
+      "transactions": [
+        {
+          "id": "TRN-konbini",
+          "posted": 1791115200,
+          "amount": "-1500",
+          "description": "KONBINI 7-11"
+        }
+      ]
+    },
+    {
+      "id": "ACT-dinar",
+      "name": "Dinar Current",
+      "conn_id": "CON-gulf",
+      "conn_name": "Gulf Trust",
+      "currency": "BHD",
+      "balance": "1200.500",
+      "available-balance": "1100.2505",
+      "balance-date": 1791115200,
+      "transactions": [
+        {
+          "id": "TRN-refund",
+          "posted": 1791115200,
+          "amount": "12.340",
+          "description": "REFUND"
+        }
+      ]
+    },
+    {
+      "id": "ACT-points",
+      "name": "Harbour Rewards Points",
+      "conn_id": "CON-harbour-jim",
+      "conn_name": "Harbour Bank",
+      "currency": "https://harbourbank.example/currencies/points",
+      "balance": "5120",
+      "balance-date": 1791115200,
+      "transactions": [
+        {
+          "id": "TRN-points",
+          "posted": 1791115200,
+          "amount": "250",
+          "description": "POINTS EARNED"
+        }
+      ]
+    },
+    {
+      "id": "ACT-unnamed-currency",
+      "name": "Gift Card",
+      "conn_id": "CON-harbour-jim",
+      "conn_name": "Harbour Bank",
+      "currency": "",
+      "balance": "25.00",
+      "balance-date": 1791115200
+    }
+  ]
+}

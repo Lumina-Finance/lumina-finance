@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
 import { ChevronDown, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { SETTINGS_SECTIONS, type SettingsSection, type SettingsSectionId } from '@/pages/settings/settingsNavigation'
+import type { SettingsSection, SettingsSectionId } from '@/pages/settings/settingsNavigation'
 
 type SettingsSectionButtonProps = {
   section: SettingsSection
@@ -10,6 +10,7 @@ type SettingsSectionButtonProps = {
 }
 
 type SettingsMobileSectionMenuProps = {
+  sections: SettingsSection[]
   activeSection: SettingsSectionId
   activeSettingsSection: SettingsSection
   menuOpen: boolean
@@ -22,6 +23,7 @@ type SettingsMobileSectionMenuProps = {
 }
 
 type SettingsDesktopSectionSidebarProps = {
+  sections: SettingsSection[]
   activeSection: SettingsSectionId
   onSectionSelect: (id: SettingsSectionId) => void
   onImportSelect: () => void
@@ -50,6 +52,7 @@ function SettingsSectionButton({ section, activeSection, onSelect }: SettingsSec
  * Renders the sticky compact settings section menu
  */
 export function SettingsMobileSectionMenu({
+  sections,
   activeSection,
   activeSettingsSection,
   menuOpen,
@@ -114,7 +117,7 @@ export function SettingsMobileSectionMenu({
                 }}
               >
                 <nav className="space-y-0.5" aria-label="Settings sections">
-                  {SETTINGS_SECTIONS.map((section) => (
+                  {sections.map((section) => (
                     <SettingsSectionButton
                       key={section.id}
                       section={section}
@@ -140,6 +143,7 @@ export function SettingsMobileSectionMenu({
  * Renders the desktop settings section sidebar
  */
 export function SettingsDesktopSectionSidebar({
+  sections,
   activeSection,
   onSectionSelect,
   onImportSelect,
@@ -147,7 +151,7 @@ export function SettingsDesktopSectionSidebar({
   return (
     <aside className="hidden w-[260px] self-stretch min-[1200px]:grid min-[1200px]:min-h-[calc(100vh-3rem)] min-[1200px]:grid-rows-[auto_minmax(0,1fr)_auto]">
       <nav className="settings-desktop-section-nav sticky top-6 row-start-1 space-y-0.5" aria-label="Settings sections">
-        {SETTINGS_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <SettingsSectionButton
             key={section.id}
             section={section}

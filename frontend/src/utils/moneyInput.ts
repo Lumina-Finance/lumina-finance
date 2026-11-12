@@ -55,6 +55,14 @@ export function readMoneyInputChange(value: string, typed: string, exponent: num
 }
 
 /**
+ * Reports whether text typed or pasted into a money field holds a hyphen or a true minus, so the text a
+ * field that takes no negative amount refused can be read to say why
+ */
+export function holdsMinus(typed: string): boolean {
+  return /[-−]/.test(typed)
+}
+
+/**
  * Returns the number of decimal places a currency uses, falling back to two when the code is not
  * in the table
  *

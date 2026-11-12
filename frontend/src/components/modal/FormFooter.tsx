@@ -11,7 +11,7 @@ const FOOTER_BASE_CLASS_NAME = 'grid shrink-0 grid-cols-2 gap-3 py-4 sm:flex min
 
 interface ModalFormFooterProps {
   submitLabel: string
-  /** Held down while the submission is in flight, which swaps the label for a spinner and blocks cancelling */
+  /** Held down while the submission is in flight. It swaps the label for a spinner and, by default, blocks cancelling */
   submitDisabled: boolean
   /**
    * Why the form can't go ahead, once a press found a problem. The submit button then fades but stays
@@ -19,6 +19,16 @@ interface ModalFormFooterProps {
    * fill in, whose button never fades
    */
   submitBlockedReason?: string
+  /** Blocks cancelling, following submitDisabled unless set. False leaves Cancel open for a form waiting on a submission it can leave */
+  cancelDisabled?: boolean
+  /**
+   * Holds the submit button with a reason the form can't fix, shown on it the way any unavailable
+   * button shows its own, and taking the place of submitBlockedReason while it is set
+   */
+  submitReason?: string | null
+
+  /** The id of an element in the modal that already prints the submit reason, and the button is described by it */
+  submitReasonShownById?: string
   /** Width classes for the submit button, so a short label does not stretch the whole way across */
   submitWidthClassName: string
   /** Shown beside the actions when the submission failed, rather than against any one field */
@@ -27,6 +37,9 @@ interface ModalFormFooterProps {
   errorId?: string
   level?: ModalLevel
   onCancel: () => void
+
+  /** Names the dismissing action where Cancel would read as undoing something already saved */
+  cancelLabel?: string
 
   /** Runs the primary action directly and renders it as a plain button, for a panel with nothing to submit */
   onPrimary?: () => void
@@ -38,8 +51,22 @@ interface ModalFormFooterProps {
    */
   primaryOnLeft?: boolean
 
-  /** Draws the primary action red, for a confirmation that deletes */
+  /** Draws the primary action red, for a submission that removes something */
   tone?: 'primary' | 'danger'
+
+  /**
+   * Crossfades the primary button's label into the next when `submitLabel` changes while the modal is
+   * open, and eases the button's width to the new label's, as any button does between its label and a
+   * spinner. The button must take its width from its label, such as `sm:w-auto` in
+   * `submitWidthClassName`, since a fixed width has nothing to ease. Without it a changed label snaps in
+   */
+  fadesLabelChanges?: boolean
+
+  /**
+   * Keeps both buttons their width when the error beside them is long, so the error wraps in the room
+   * left. Without it the buttons give way to the error, as they do in every other modal
+   */
+  holdsButtonWidth?: boolean
 }
 
 /**
@@ -49,14 +76,20 @@ export function ModalFormFooter({
   submitLabel,
   submitDisabled,
   submitBlockedReason,
+  cancelDisabled = submitDisabled,
+  submitReason = null,
+  submitReasonShownById,
   submitWidthClassName,
   error,
   errorId,
   level = 'page',
   onCancel,
+  cancelLabel = 'Cancel',
   onPrimary,
   primaryOnLeft = false,
   tone = 'primary',
+  fadesLabelChanges = false,
+  holdsButtonWidth = false,
 }: ModalFormFooterProps) {
   const primaryRef = useRef<HTMLButtonElement>(null)
   const primaryHadFocus = useRef(false)
@@ -82,12 +115,19 @@ export function ModalFormFooter({
   const cancelButton = (
     <button
       type="button"
-      className="app-secondary-button w-full sm:w-auto"
+      className={`app-secondary-button w-full sm:w-auto${holdsButtonWidth ? ' shrink-0' : ''}`}
       onClick={onCancel}
-      disabled={submitDisabled}
+      disabled={cancelDisabled}
       data-modal-initial-focus={primaryOnLeft ? 'true' : undefined}
     >
-      Cancel
+      {/* Crossfades a changed label and eases the width, as the primary beside it does */}
+      {fadesLabelChanges ? (
+        <PendingLabel pending={false} name={cancelLabel} contentKey={cancelLabel}>
+          {cancelLabel}
+        </PendingLabel>
+      ) : (
+        cancelLabel
+      )}
     </button>
   )
   const primaryButton = (
@@ -98,14 +138,20 @@ export function ModalFormFooter({
         primaryHadFocus.current = true
         onPrimary?.()
       }}
+      // A reason keeps the button focusable so it can be read, refusing presses itself
       disabled={submitDisabled}
-      disabledReason={submitDisabled ? undefined : submitBlockedReason}
+      disabledReason={submitDisabled ? undefined : (submitReason ?? submitBlockedReason)}
+      reasonShownById={submitReason ? submitReasonShownById : undefined}
       aria-busy={submitDisabled}
-      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'}${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
+      className={`${tone === 'danger' ? 'app-danger-button' : 'app-primary-button'}${holdsButtonWidth ? ' shrink-0' : ''}${submitDisabled ? ' app-primary-button-loading justify-self-center sm:justify-self-auto' : ` ${submitWidthClassName}`}`}
     >
       {/* The spinner replaces the label, so it carries the label as its own name and a screen reader still
           says which action is in flight */}
-      <PendingLabel pending={submitDisabled} name={submitLabel}>
+      <PendingLabel
+        pending={submitDisabled}
+        name={submitLabel}
+        contentKey={fadesLabelChanges ? submitLabel : undefined}
+      >
         {submitLabel}
       </PendingLabel>
     </DisabledReasonButton>

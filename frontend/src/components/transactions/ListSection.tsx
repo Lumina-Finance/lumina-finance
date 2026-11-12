@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCategories } from '@/api/categories'
 import { ApiError } from '@/api/auth'
+import {
+  useBankLinksByAccount,
+  useBulkAddReviewItems,
+  useBulkDismissReviewItems,
+  type BankReviewItem,
+} from '@/api/bank-sync'
 import {
   useBulkDeleteTransactions,
   useBulkUpdateTransactions,
@@ -12,6 +18,8 @@ import {
 import { useToast } from '@/hooks/useToast'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import { saveBlobAsFile } from '@/utils/downloadFile'
+import { countNoun } from '@/utils/bankSync'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 import {
   getExportBlockReason,
   getExportFailureMessage,
@@ -23,6 +31,20 @@ import { getActiveFilterCount } from '@/components/transactions/utils/filterOpti
 import { BulkEditModal } from '@/components/transactions/bulk-edit/BulkEditModal'
 import { BulkDeleteConfirm } from '@/components/transactions/bulk-edit/BulkDeleteConfirm'
 import { BulkEditConfirm } from '@/components/transactions/bulk-edit/BulkEditConfirm'
+import { BulkDismissConfirm } from '@/components/transactions/bulk-edit/BulkDismissConfirm'
+import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
+import {
+  REVIEW_ITEMS_NOT_DELETED,
+  REVIEW_ITEMS_NOT_EXPORTED,
+  describeAddedButNotUpdated,
+  describeBulkAdd,
+  describeBulkDismiss,
+  describeTickLimit,
+  getDismissBlockReason,
+  getReviewEditBlockReason,
+  toBulkAddValues,
+} from '@/components/transactions/bulk-edit/reviewSelection'
+import { useReviewSelection } from '@/components/transactions/bank-review/useReviewSelection'
 import { selectedTransactionsSignature } from '@/components/transactions/bulk-edit/confirmation'
 import { getBulkDeleteBlockReason, getLinkedIdsOutside } from '@/components/transactions/bulk-edit/deletion'
 import {
@@ -36,10 +58,14 @@ import { getTransactionReadOnlyReason } from '@/components/transactions/utils/ro
 import { getImportBlockReason, isImportableAccount } from '@/utils/importableAccount'
 import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/components/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/components/transactions/DateGroupList'
+import { BankHoldsSection } from '@/components/transactions/bank-review/HoldsSection'
+import { BankPendingSection } from '@/components/transactions/bank-review/PendingSection'
+import { BankReviewSection, type ReviewFocusRequest } from '@/components/transactions/bank-review/ReviewSection'
 import TransactionFilterLoadingOverlay from '@/components/transactions/FilterLoadingOverlay'
 import TransactionListToolbar from '@/components/transactions/toolbar/ListToolbar'
 import { useTransactionFilterLoadingState } from '@/components/transactions/hooks/useTransactionFilterLoadingState'
 import { useInfiniteScrollTrigger } from '@/components/transactions/hooks/useInfiniteScrollTrigger'
+import { useSkipAppendedEnter } from '@/components/transactions/hooks/useSkipAppendedEnter'
 import { useTransactionSearch } from '@/components/transactions/hooks/useTransactionSearch'
 import type { TransactionListAccount, TransactionListFilters } from '@/components/transactions/types/transactionList'
 import { groupTransactionsByDate } from '@/components/transactions/utils/transactionDateGroups'
@@ -183,6 +209,21 @@ export default function TransactionListSection({
   const createDisabledReason = fixedAccount?.is_archived ? 'Archived accounts are read-only' : createBlockReason
   const createDisabled = Boolean(createDisabledReason)
 
+  // A row's Needs review marker asks the review block to go to the row's waiting item
+  const [reviewFocus, setReviewFocus] = useState<ReviewFocusRequest | null>(null)
+  const showReviewItem = useCallback(
+    (itemId: string) => setReviewFocus((current) => ({ itemId, nonce: (current?.nonce ?? 0) + 1 })),
+    [],
+  )
+
+  // Held between renders, so the review block and the pending strip skip the list's own renders, such
+  // as one per search keystroke
+  const fixedAccountId = fixedAccount?.id
+  const reviewAccountIds = useMemo(
+    () => (fixedAccountId ? [fixedAccountId] : filters.account_id),
+    [fixedAccountId, filters.account_id],
+  )
+
   const [isSelecting, setIsSelecting] = useState(false)
   const [pendingChange, setPendingChange] = useState<BulkEditFields | null>(null)
 
@@ -227,8 +268,26 @@ export default function TransactionListSection({
   // The search text is not part of the filters, so both go into the key that empties a selection
   const requestKey = useMemo(() => `${JSON.stringify(filters)}|${activeSearch}`, [filters, activeSearch])
 
-  const selection = useBulkSelection(selectableRows, requestKey, !filterListLoading)
+  // One bulk edit covers ledger transactions and items waiting for review together, so each list may
+  // tick what the other leaves of the limit. The review count is held in state, since its selection
+  // reads the ledger's, and is brought up to date in the render that changes it
+  const [reviewTickCount, setReviewTickCount] = useState(0)
+  const ledgerLimit = MAX_BULK_EDIT_TRANSACTIONS - reviewTickCount
+  const selection = useBulkSelection(selectableRows, requestKey, !filterListLoading, ledgerLimit)
   const { clear: clearSelection } = selection
+  const reviewSelection = useReviewSelection(
+    reviewAccountIds,
+    MAX_BULK_EDIT_TRANSACTIONS - selection.selectedIds.length,
+  )
+  const { clear: clearReviewSelection, selectedItems: selectedReviewItems } = reviewSelection
+  const reviewCount = selectedReviewItems.length
+  if (reviewCount !== reviewTickCount) setReviewTickCount(reviewCount)
+  const ledgerCount = selection.selectedIds.length
+  const totalSelected = ledgerCount + reviewCount
+
+  // Dismiss is offered only while a new item waits in the list's accounts, or one is still ticked
+  const offersDismiss = reviewSelection.newItemCount > 0 || reviewCount > 0
+  const limitReason = describeTickLimit(offersDismiss)
 
   // A Set rather than the array useBulkSelection returns, since isRowSelectable does a membership
   // check per row and a fresh array scan for each one would be quadratic in the list's length
@@ -241,11 +300,12 @@ export default function TransactionListSection({
   const buildRowSelection = useCallback(
     (transactionId: string, isReadOnly: boolean) => ({
       mark: selection.markFor(transactionId),
-      isSelectable: isRowSelectable(transactionId, selectedIdsSet, isReadOnly),
+      isSelectable: isRowSelectable(transactionId, selectedIdsSet, isReadOnly, ledgerLimit),
+      limitReason,
       onToggle: (withShift: boolean) => selection.toggle(transactionId, withShift),
       onPointerEnter: () => selection.handlePointerEnter(transactionId),
     }),
-    [selection, selectedIdsSet],
+    [selection, selectedIdsSet, ledgerLimit, limitReason],
   )
 
   // Takes the transactions one day heading shows, which is what its tick covers. Whether any of them
@@ -314,21 +374,33 @@ export default function TransactionListSection({
     [fixedAccount, accounts],
   )
 
+  const bulkAdd = useBulkAddReviewItems()
+  const isWriting = bulkUpdate.isPending || bulkAdd.isPending
+
+  // The items waiting for review the change adds, frozen with pendingChange
+  const [pendingReviewItems, setPendingReviewItems] = useState<BankReviewItem[]>([])
+
+  /**
+   * Drops the change the confirmation holds, closing it
+   */
+  const dropPendingChange = useCallback(() => {
+    setPendingChange(null)
+    setPendingChangeIds([])
+    setPendingReviewItems([])
+    setPendingChangeSignature(null)
+    setApplyError(null)
+  }, [])
+
   // Losing the last ticked row ends the edit, which a refetch that no longer carries those rows can do
   // while it is open. It goes rather than animating out, since what it would animate out is a panel
   // relabelling itself to nothing on the way. Closed here rather than derived from the count, since a
-  // count the user then puts back would reopen a dialog they never asked for a second time
-  if (isEditMounted && selection.selectedIds.length === 0) {
+  // count the user then puts back would reopen a dialogue they never asked for a second time
+  if (isEditMounted && totalSelected === 0) {
     setIsEditOpen(false)
     setIsEditMounted(false)
 
     // A write already sent keeps its confirmation, which is where its refusal has to land
-    if (!bulkUpdate.isPending) {
-      setPendingChange(null)
-      setPendingChangeIds([])
-      setPendingChangeSignature(null)
-      setApplyError(null)
-    }
+    if (!isWriting) dropPendingChange()
   }
 
   // Keep a sent request visible until it settles. If its confirmation then remains open after a
@@ -337,12 +409,9 @@ export default function TransactionListSection({
     pendingChange !== null &&
     pendingChangeSignature !== null &&
     pendingChangeSignature !== selectedChangeSignature &&
-    !bulkUpdate.isPending
+    !isWriting
   ) {
-    setPendingChange(null)
-    setPendingChangeIds([])
-    setPendingChangeSignature(null)
-    setApplyError(null)
+    dropPendingChange()
   }
 
   /**
@@ -350,37 +419,59 @@ export default function TransactionListSection({
    */
   const stopSelecting = useCallback(() => {
     setIsSelecting(false)
-    setPendingChange(null)
-    setPendingChangeIds([])
-    setPendingChangeSignature(null)
-    setApplyError(null)
+    dropPendingChange()
     clearSelection()
-  }, [clearSelection])
+    clearReviewSelection()
+  }, [clearSelection, clearReviewSelection, dropPendingChange])
 
   /**
-   * Freezes the modal's change with the selected ids and their stored values at Apply
+   * Adds the ticked items waiting for review straight from the modal, when no ledger transaction is
+   * ticked beside them. Adding them can be undone by deleting what was added, so it isn't confirmed
+   */
+  function addReviewItemsOnly(fields: BulkEditFields) {
+    if (bulkAdd.isPending) return
+    bulkAdd.mutate(
+      { scope: reviewSelection.scope, items: selectedReviewItems, values: toBulkAddValues(fields) },
+      {
+        onSuccess: (result) => {
+          stopSelecting()
+          showToast({
+            status: 'success',
+            text: describeBulkAdd(result.decided_ids.length, result.skipped_ids.length, null),
+          })
+        },
+        onError: (error) => {
+          showToast({
+            status: 'error',
+            text: getSaveFailureMessage(error),
+          })
+        },
+      },
+    )
+  }
+
+  /**
+   * Freezes the modal's change with the selected ids and their stored values at Apply. Items waiting
+   * for review on their own are added at once, and anything that touches the ledger is confirmed
    */
   function applyBulkEdit(fields: BulkEditFields) {
+    if (ledgerCount === 0) {
+      addReviewItemsOnly(fields)
+      return
+    }
     setPendingChangeIds([...selection.selectedIds])
+    setPendingReviewItems(selectedReviewItems)
     setPendingChangeSignature(selectedChangeSignature)
     setPendingChange(fields)
   }
 
   /**
-   * Writes the change the modal holds, keeping a refusal open while the selected values still match
+   * Updates the ticked ledger transactions, saying in the toast how many items were added before
+   * them, or null when none were
    */
-  function applyPendingChange() {
-    if (!pendingChange) return
-    if (pendingChangeSignature !== selectedChangeSignature) {
-      setPendingChange(null)
-      setPendingChangeIds([])
-      setPendingChangeSignature(null)
-      setApplyError(null)
-      return
-    }
-    setApplyError(null)
+  function updateLedgerTransactions(fields: BulkEditFields, added: { count: number; skipped: number } | null) {
     bulkUpdate.mutate(
-      { transaction_ids: pendingChangeIds, ...pendingChange },
+      { transaction_ids: pendingChangeIds, ...fields },
       {
         onSuccess: (result) => {
           setPendingChange(null)
@@ -388,11 +479,52 @@ export default function TransactionListSection({
           // Ends selection mode rather than only dropping the ticks, which would leave every checkbox
           // on screen with nothing in them and read as though nothing had happened
           stopSelecting()
+          const updated = result.transactions_updated
           showToast({
             status: 'success',
-            text: `${result.transactions_updated} ${result.transactions_updated === 1 ? 'transaction' : 'transactions'} updated.`,
+            text: added
+              ? describeBulkAdd(added.count, added.skipped, updated)
+              : `${countNoun(updated, 'transaction')} updated.`,
           })
         },
+        onError: (error) => {
+          const reason = getSaveFailureMessage(error)
+          if (!added) {
+            setApplyError(reason)
+            return
+          }
+
+          // The items are in the ledger by now, so the confirmation can't offer the same change
+          // again. The ledger ticks stay for another try
+          dropPendingChange()
+          setIsEditOpen(false)
+          showToast({ status: 'error', text: describeAddedButNotUpdated(added.count, reason) })
+        },
+      },
+    )
+  }
+
+  /**
+   * Writes the change the modal holds, keeping a refusal open while the selected values still match.
+   * Items waiting for review are added first, and the ledger transactions are updated once they are
+   */
+  function applyPendingChange() {
+    if (!pendingChange) return
+    if (pendingChangeSignature !== selectedChangeSignature) {
+      dropPendingChange()
+      return
+    }
+    setApplyError(null)
+    if (pendingReviewItems.length === 0) {
+      updateLedgerTransactions(pendingChange, null)
+      return
+    }
+    const fields = pendingChange
+    bulkAdd.mutate(
+      { scope: reviewSelection.scope, items: pendingReviewItems, values: toBulkAddValues(fields) },
+      {
+        onSuccess: (result) =>
+          updateLedgerTransactions(fields, { count: result.decided_ids.length, skipped: result.skipped_ids.length }),
         onError: (error) => {
           setApplyError(error instanceof ApiError ? error.message : 'Something went wrong. Please try again.')
         },
@@ -400,15 +532,48 @@ export default function TransactionListSection({
     )
   }
 
-  const deleteDisabledReason = useMemo(
-    () =>
-      getBulkDeleteBlockReason(
-        selectedFacts.map((row) => row.accountId),
-        accountMap,
-        fixedAccount,
-      ),
-    [selectedFacts, accountMap, fixedAccount],
-  )
+  // The items the dismiss confirmation was opened for, frozen like the delete's ids. Null while it is
+  // closed, with the count kept so its title doesn't read 0 while it fades out
+  const [pendingDismissItems, setPendingDismissItems] = useState<BankReviewItem[] | null>(null)
+  const [dismissCount, setDismissCount] = useState(0)
+  const [dismissError, setDismissError] = useState<string | null>(null)
+  const bulkDismiss = useBulkDismissReviewItems()
+
+  /**
+   * Dismisses the items the confirmation was opened for, keeping a refusal open with its reason
+   */
+  function dismissPendingItems() {
+    if (!pendingDismissItems) return
+    setDismissError(null)
+    bulkDismiss.mutate(
+      { scope: reviewSelection.scope, items: pendingDismissItems },
+      {
+        onSuccess: (result) => {
+          setPendingDismissItems(null)
+          stopSelecting()
+          showToast({
+            status: 'success',
+            text: describeBulkDismiss(result.decided_ids.length, result.skipped_ids.length),
+          })
+        },
+        onError: (error) => {
+          setDismissError(getSaveFailureMessage(error))
+        },
+      },
+    )
+  }
+
+  const linksByAccount = useBankLinksByAccount()
+  const deleteDisabledReason = useMemo(() => {
+    if (reviewCount > 0) return REVIEW_ITEMS_NOT_DELETED
+    const selected = new Set(selection.selectedIds)
+    return getBulkDeleteBlockReason(
+      displayedTransactions.filter((transaction) => selected.has(transaction.id)),
+      accountMap,
+      fixedAccount,
+      linksByAccount,
+    )
+  }, [reviewCount, displayedTransactions, selection.selectedIds, accountMap, fixedAccount, linksByAccount])
 
   /**
    * Deletes the transactions the confirmation was opened for, keeping a refusal open with its reason
@@ -445,13 +610,18 @@ export default function TransactionListSection({
   const exportTransactions = useExportTransactions({ minimumPendingMs: LOADING_ANIMATION_MIN_MS })
   const [isExportAllConfirmOpen, setIsExportAllConfirmOpen] = useState(false)
   const isNarrowed = getActiveFilterCount(filters, true) > 0 || activeSearch !== ''
-  const exportScope = getExportScope({ selectedCount: selection.selectedIds.length, isNarrowed })
-  const exportDisabledReason = getExportBlockReason({
-    isLoaded: displayedTransactionsLoaded,
-    hasError: Boolean(error),
-    rowCount: displayedTransactions.length,
-    isNarrowed,
-  })
+  // Ticked items waiting for review make it an export of the selection. It saves only the ledger
+  // transactions among it, since the items aren't in the ledger
+  const exportScope = getExportScope({ selectedCount: totalSelected, isNarrowed })
+  const exportDisabledReason =
+    ledgerCount === 0 && reviewCount > 0
+      ? REVIEW_ITEMS_NOT_EXPORTED
+      : getExportBlockReason({
+          isLoaded: displayedTransactionsLoaded,
+          hasError: Boolean(error),
+          rowCount: displayedTransactions.length,
+          isNarrowed,
+        })
 
   /**
    * Saves the ticked rows, or every transaction the search and filters keep, as one CSV file
@@ -484,22 +654,8 @@ export default function TransactionListSection({
     },
   })
 
-  // A finished page load appends a whole batch of older rows at once, which looks chaotic if each grows
-  // in. Arming this the moment a page fetch starts means it is still set when that page's rows mount, so
-  // they appear without animating. Arming happens during render so it is in place before the rows commit
-  const [skipAppendedEnter, setSkipAppendedEnter] = useState(false)
-  const [wasFetchingNextPage, setWasFetchingNextPage] = useState(isFetchingNextPage)
-  if (wasFetchingNextPage !== isFetchingNextPage) {
-    setWasFetchingNextPage(isFetchingNextPage)
-    if (isFetchingNextPage) setSkipAppendedEnter(true)
-  }
-
-  // Disarm once the fetch has resolved and its rows have mounted, so a later single create still animates
-  useEffect(() => {
-    if (isFetchingNextPage || !skipAppendedEnter) return
-    const timer = window.setTimeout(() => setSkipAppendedEnter(false), 0)
-    return () => window.clearTimeout(timer)
-  }, [isFetchingNextPage, skipAppendedEnter])
+  // A page of older rows appears at once rather than each row growing in
+  const skipAppendedEnter = useSkipAppendedEnter(isFetchingNextPage)
 
   return (
     <section>
@@ -525,8 +681,10 @@ export default function TransactionListSection({
         importDisabledReason={importDisabledReason}
         onStickyOffsetChange={setDateHeaderStickyTop}
         isSelecting={isSelecting}
-        selectedCount={selection.selectedIds.length}
-        editDisabledReason={categories ? undefined : 'Categories have not loaded yet'}
+        selectedCount={totalSelected}
+        editDisabledReason={
+          categories ? getReviewEditBlockReason(selectedReviewItems) : 'Categories have not loaded yet'
+        }
         onEditSelection={() => {
           setEditOpenings((count) => count + 1)
           setIsEditMounted(true)
@@ -544,7 +702,37 @@ export default function TransactionListSection({
           setPendingDeleteIds([...selection.selectedIds])
           setDeleteCount(selection.selectedIds.length)
         }}
+        onDismissSelection={
+          offersDismiss
+            ? () => {
+                setDismissError(null)
+                setPendingDismissItems(selectedReviewItems)
+                setDismissCount(reviewCount)
+              }
+            : undefined
+        }
+        dismissDisabledReason={getDismissBlockReason(ledgerCount, reviewCount)}
         onToggleSelecting={() => (isSelecting ? stopSelecting() : setIsSelecting(true))}
+      />
+
+      <BankReviewSection
+        listAccountIds={reviewAccountIds}
+        isFixedAccount={Boolean(fixedAccount)}
+        focusRequest={reviewFocus}
+        selection={isSelecting ? reviewSelection.rowSelection : undefined}
+        prefersReducedMotion={prefersReducedMotion}
+      />
+
+      <BankHoldsSection
+        listAccountIds={reviewAccountIds}
+        isFixedAccount={Boolean(fixedAccount)}
+        prefersReducedMotion={prefersReducedMotion}
+      />
+
+      <BankPendingSection
+        listAccountIds={reviewAccountIds}
+        isFixedAccount={Boolean(fixedAccount)}
+        prefersReducedMotion={prefersReducedMotion}
       />
 
       <div className="relative" aria-busy={filterListLoading} onMouseLeave={selection.handlePointerLeaveList}>
@@ -600,6 +788,7 @@ export default function TransactionListSection({
                 isSelecting={isSelecting}
                 buildRowSelection={isSelecting ? buildRowSelection : undefined}
                 buildHeadingSelection={isSelecting ? buildHeadingSelection : undefined}
+                onShowReview={showReviewItem}
                 onEditTransaction={onEditTransaction}
               />
 
@@ -624,10 +813,7 @@ export default function TransactionListSection({
           open={isEditOpen}
           onClose={() => {
             setIsEditOpen(false)
-            setPendingChange(null)
-            setPendingChangeIds([])
-            setPendingChangeSignature(null)
-            setApplyError(null)
+            dropPendingChange()
           }}
           onExitComplete={() => {
             if (!isEditOpen) setIsEditMounted(false)
@@ -635,6 +821,7 @@ export default function TransactionListSection({
           rows={selectedFacts}
           selectedCurrencies={selectedCurrencies}
           accounts={accountsForBulkEdit}
+          reviewCount={reviewCount}
           onApply={applyBulkEdit}
         />
       )}
@@ -653,14 +840,22 @@ export default function TransactionListSection({
       <BulkEditConfirm
         open={pendingChange !== null}
         count={pendingChangeIds.length}
+        reviewCount={pendingReviewItems.length}
         error={applyError}
-        isApplying={bulkUpdate.isPending}
+        isApplying={isWriting}
         onConfirm={applyPendingChange}
+        onCancel={dropPendingChange}
+      />
+
+      <BulkDismissConfirm
+        open={pendingDismissItems !== null}
+        count={dismissCount}
+        error={dismissError}
+        isDismissing={bulkDismiss.isPending}
+        onConfirm={dismissPendingItems}
         onCancel={() => {
-          setPendingChange(null)
-          setPendingChangeIds([])
-          setPendingChangeSignature(null)
-          setApplyError(null)
+          setPendingDismissItems(null)
+          setDismissError(null)
         }}
       />
 

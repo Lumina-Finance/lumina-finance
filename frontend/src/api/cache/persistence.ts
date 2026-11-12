@@ -31,8 +31,9 @@ const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000
 // write capability to every account response. Version 3 sends the amounts behind the Insights
 // percentages in place of percentages, which changes the period glance and the category and merchant rows.
 // Version 4 adds the refund links every transaction response carries. Version 5 adds the earlier-period
-// sums and counts behind the spending comparison's average
-const PERSISTED_CACHE_SHAPE = '5'
+// sums and counts behind the spending comparison's average. Version 6 adds the bank source every
+// transaction response carries. Version 7 adds the date range import every bank link carries
+const PERSISTED_CACHE_SHAPE = '7'
 
 /**
  * Persists successful query data while leaving failed FX responses and the authenticator setup

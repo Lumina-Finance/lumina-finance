@@ -9,6 +9,7 @@ import {
   fromMinorUnits,
   getCurrencyExponent,
   getMoneyPlaceholder,
+  holdsMinus,
   isAcceptedMoneyInput,
   isValidMoneyInput,
   normalizeMoneyInput,
@@ -167,6 +168,19 @@ describe('the placeholder a field shows', () => {
     expect(getMoneyPlaceholder(CENTS)).toBe('0.00')
     expect(getMoneyPlaceholder(WHOLE_UNITS)).toBe('0')
     expect(getMoneyPlaceholder(MILS)).toBe('0.000')
+  })
+})
+
+describe('a minus in text a field refused', () => {
+  it.each([
+    { typed: '-5', holds: true },
+    { typed: '−5', holds: true },
+    { typed: '5-', holds: true },
+    { typed: '+5', holds: false },
+    { typed: '5.00', holds: false },
+    { typed: '', holds: false },
+  ])('reads $typed as holding a minus: $holds', ({ typed, holds }) => {
+    expect(holdsMinus(typed)).toBe(holds)
   })
 })
 

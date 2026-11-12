@@ -16,8 +16,8 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import current_user_id_ctx, get_db
-from app.dependencies import get_authenticated_user, get_current_session_id
+from app.database import current_session_id_ctx, current_user_id_ctx, get_db
+from app.dependencies import get_authenticated_user
 from app.routes.auth.token_helpers import decode_native_handoff_token, issue_and_store_tokens
 from app.schemas.auth import AuthResponse, NativeExchangeRequest
 from app.services.auth.native_handoff import issue_native_handoff_code, redeem_native_handoff_code
@@ -57,7 +57,7 @@ async def native_handoff_route(request: Request, db: Annotated[AsyncSession, Dep
         user = await get_authenticated_user(credentials, db)
     except HTTPException:
         return _redirect_to_app(error="handoff_failed")
-    session_id = get_current_session_id()
+    session_id = current_session_id_ctx.get()
     if session_id is None:
         return _redirect_to_app(error="handoff_failed")
 

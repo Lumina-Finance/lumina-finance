@@ -12,14 +12,28 @@ import {
   signUpUser,
 } from '../support/api'
 import { logInViaApi, openModal, openPage, reachTwoFactorChallenge, signUpThroughTheForm } from '../support/app'
+import {
+  answerAsBankImported,
+  answerLinksWith,
+  answerReviewItems,
+  BANK_SOURCE,
+  claimSetupToken,
+  createEmptyBridgeScenario,
+  pageOf,
+  reviewBlock,
+  reviewItem,
+} from '../support/bankSync'
+import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
+import { expectStretchedFocusRing, getTransactionRowButton } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from four groups that run at every size. The focus ring on each kind
+// Runs on desktop only, apart from five groups that run at every size. The focus ring on each kind
 // of control does so because the toolbar changes below 750px, the Settings section menu and
-// card row tests because the menu and the card change with the width too, and the whole-ring test
-// because the filters, charts and rows are laid out differently at each size. The date-range control
-// tests set their own sizes.
+// card row tests because the menu and the card change with the width too, the whole-ring test
+// because the filters, charts and rows are laid out differently at each size, and the ring on a
+// bank-imported row's bank icon because the row lays out its icon differently at each width. The
+// date-range control tests set their own sizes.
 
 /**
  * Guards the keyboard focus indicator. It used to be a tint at about a tenth of the accent's strength,
@@ -197,6 +211,27 @@ async function expectHoverLook(page: Page, element: Locator, ring: { offset: str
   return { rest, focused }
 }
 
+/**
+ * Whether an element draws its focus in the colour the stylesheet gives the focus ring, as an outline or
+ * a shadow on the element, on either of its pseudo-elements or on anything inside it, such as a ring a
+ * list item lays over itself
+ */
+async function drawsFocusColour(element: Locator): Promise<boolean> {
+  return element.evaluate((node) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--app-focus-ring)'
+    document.body.append(probe)
+    const ring = getComputedStyle(probe).color
+    probe.remove()
+    return [node, ...node.querySelectorAll('*')].some((box) =>
+      [null, '::before', '::after'].some((pseudo) => {
+        const style = getComputedStyle(box, pseudo)
+        return (style.outlineStyle !== 'none' && style.outlineColor === ring) || style.boxShadow.includes(ring)
+      }),
+    )
+  })
+}
+
 async function seedOneTransaction(page: Page, request: Parameters<typeof signUpUser>[0]) {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -208,7 +243,12 @@ async function seedOneTransaction(page: Page, request: Parameters<typeof signUpU
   })
   await logInViaApi(page, user)
   await openPage(page, '/transactions')
-  return page.getByTestId(`transaction-row-${id}`)
+  return { rowButton: getTransactionRowButton(page.getByTestId(`transaction-row-${id}`)), box: transactionBox(page, id) }
+}
+
+/** The row's own box. It carries its padding and separator and is what a focused row's ring goes round */
+function transactionBox(page: Page, id: string): Locator {
+  return page.getByTestId(`transaction-box-${id}`)
 }
 
 /**
@@ -307,16 +347,16 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 
   // A row has no border, so it keeps the ring, drawn around the row itself inside its edges where the
-  // next row can't cover it, and shows its hover look as well. The same holds when its checkbox while
-  // selecting holds focus, which also turns its own border the focus colour
+  // next row can't cover it. The row's title reaches the ring through the row's own outline and shows the
+  // row's hover look as well. The same holds when its checkbox while selecting holds focus, and that also
+  // turns its own border the focus colour
   test(`shows a transaction row's ring and hover look on keyboard focus in the ${colorScheme} theme`, async ({ page, request }) => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
-    const rowButton = await seedOneTransaction(page, request)
-    const row = rowButton.locator('..')
+    const { rowButton, box: row } = await seedOneTransaction(page, request)
 
     const { rest, focused } = await expectHoverLook(page, rowButton, null)
     expect(focused.frame.backgroundColor).not.toBe(rest.frame.backgroundColor)
-    await focusFromKeyboard(page, rowButton)
+    await expectStretchedFocusRing(rowButton, row)
     await expectSharedRing(row, 'outline', '-2px')
 
     await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
@@ -328,6 +368,81 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect.poll(async () => (await readLook(row)).button.backgroundColor).toBe(focused.frame.backgroundColor)
   })
 }
+
+// The bank icon on a bank-imported row is an outline icon with no hover look to show in place of a
+// ring, so the keyboard reaching it from the row's title rings it as the controls beside it are
+test(
+  'rings the bank icon on a bank-imported row under keyboard focus in the focus colour',
+  AT_EVERY_SIZE,
+  async ({ page, request }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday' })
+    const id = await createTransaction(request, user, {
+      accountId: account.id,
+      categoryName: 'Groceries',
+      amount: -4250,
+      date: daysFromTodayInTestTimezone(-1),
+    })
+    await answerAsBankImported(page, { [id]: BANK_SOURCE })
+    await logInViaApi(page, user)
+    await openPage(page, '/transactions')
+    const row = page.getByTestId(`transaction-row-${id}`)
+    const icon = row.getByRole('button', { name: 'From SimpleFIN', exact: true })
+
+    await focusFromKeyboard(page, getTransactionRowButton(row))
+    expect(await drawsFocusColour(icon)).toBe(false)
+    await page.keyboard.press('Tab')
+    await expect(icon).toBeFocused()
+    await expectSharedRing(icon, 'outline', '2px')
+    expect(await drawsFocusColour(icon)).toBe(true)
+    await expect(getTransactionRowButton(row)).not.toBeFocused()
+  },
+)
+
+// The bank screens draw focus in a few ways: an outline, a shadow ring around a control or inside its
+// edge, or a ring on something inside it, such as a review item's frame. Each way is drawn in the app's
+// one focus colour, so this samples one control for each way rather than every control the bank screens
+// draw focus on, and the bank icon's ring has its own test above. Read for each control, so a run that
+// fails names every control that misses it, and until it holds, since some ease their focus in
+test('draws keyboard focus on the bank screens in the focus colour', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -1800,
+    date: daysFromTodayInTestTimezone(-1),
+  })
+  const connection = await claimSetupToken(request, user, (await createEmptyBridgeScenario(request)).setupToken)
+  // A removal waits on the row of the linked account, so the row carries a Needs review marker and the
+  // block holds the item
+  await answerLinksWith(page, () => [account.id])
+  await answerAsBankImported(page, { [id]: { ...BANK_SOURCE, review_item_id: 'item-1' } })
+  await answerReviewItems(page, () => pageOf([reviewItem('item-1', 'removal', account.id, {}, { transaction_id: id })], { removal: 1 }))
+  await logInViaApi(page, user)
+
+  const expectFocusColour = async (control: Locator) => {
+    expect(await drawsFocusColour(control), `${control} before focus`).toBe(false)
+    await focusFromKeyboard(page, control)
+    await expect(control).toBeFocused()
+    await expect.configure({ soft: true }).poll(() => drawsFocusColour(control), { message: `focus on ${control}` }).toBe(true)
+  }
+
+  await openPage(page, '/transactions')
+  // The pill has a border, so it shows its hover look on keyboard focus and draws no ring
+  const pill = page.getByTestId(`transaction-row-${id}`).getByRole('button', { name: 'Needs review. Show the waiting item' })
+  const { rest, focused } = await expectHoverLook(page, pill)
+  expect(focused).not.toEqual(rest)
+  await expectFocusColour(reviewBlock(page).getByRole('button').filter({ hasText: 'GROCER item-1' }))
+
+  await openPage(page, `/accounts/${account.id}`)
+  await expectFocusColour(page.getByRole('button', { name: /^Bank sync: .* Open bank link$/ }))
+
+  await openPage(page, '/settings#bank-connections')
+  await expectFocusColour(page.locator(`[data-connection-id="${connection.id}"]`).getByRole('button').first())
+})
 
 // Every stop on the way through the page and a dialog, links, charts and info buttons included, shows
 // the app's focus rather than the browser's own ring, which Chrome reports as an outline style of auto
@@ -393,7 +508,7 @@ test('toggles an info tooltip with the mouse', async ({ page, request }) => {
 // A row opened with the mouse gets focus back when its dialog closes, and draws no ring for it
 test('leaves no focus ring on a transaction row opened with the mouse', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  const rowButton = await seedOneTransaction(page, request)
+  const { rowButton } = await seedOneTransaction(page, request)
 
   await rowButton.click()
   const dialog = page.getByRole('dialog')
@@ -510,7 +625,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
         return settled
       }).toBe(true)
       for (let index = 0; index < await charts.count(); index++) {
-        await focusFromKeyboard(page, charts.nth(index))
+        // A chart under its summary's loading overlay takes no focus, and on a tablet the rows above can
+        // be done before the summary has loaded, so focus is tried until the chart holds it
+        await expect(async () => {
+          await focusFromKeyboard(page, charts.nth(index))
+          await expect(charts.nth(index)).toBeFocused({ timeout: 1000 })
+        }).toPass({ timeout: 15000 })
         await expectWholeRing(charts.nth(index))
       }
     }
@@ -520,9 +640,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
     // The rows are already covered on desktop by the row test above, so this adds the tablet and phone
     // sizes for the issue's two row examples
     for (const id of rows) {
-      const row = page.getByTestId(`transaction-row-${id}`)
-      await focusFromKeyboard(page, row)
-      await expectWholeRing(row)
+      const rowButton = getTransactionRowButton(page.getByTestId(`transaction-row-${id}`))
+      await expectStretchedFocusRing(rowButton, transactionBox(page, id))
+      // The ring is the row's own, so it is the row that has to keep it whole and at 3:1 against the page
+      await expectWholeRing(transactionBox(page, id))
     }
     await expectEveryChart()
 
@@ -676,7 +797,9 @@ test('shows a visible hover look on keyboard focus on the buttons that had none'
   await dialog.getByRole('group', { name: 'Date', exact: true }).getByRole('button', { name: 'Open calendar', exact: true }).click()
   const calendar = page.getByRole('dialog', { name: 'Choose date', exact: true })
   await expect(calendar).toBeVisible()
-  await expectVisibleHoverLook(page, calendar.locator('[data-iso]').nth(16), { offset: '2px' })
+  // A day other than the chosen one, since the calendar opens with focus on the chosen day, and on a day
+  // when that sits 17th its look at rest would already be its focused one
+  await expectVisibleHoverLook(page, calendar.locator('[data-iso]:not([data-selected])').nth(16), { offset: '2px' })
   await expectVisibleHoverLook(page, calendar.locator('[data-iso][data-selected]'), { offset: '2px' })
 })
 
@@ -918,7 +1041,7 @@ test('lists the outline colour in the transition of every control that draws the
   const { id: tagId } = await tag.json() as { id: string }
   const periodStart = budgetPeriodStart()
   await createMonthlyBudget(request, user, { name: 'Food', categoryNames: ['Groceries'], overallLimit: 50_000, periodStart })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: periodStart, tagIds: [tagId] })
+  const taggedId = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: periodStart, tagIds: [tagId] })
   const categoryId = await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
   const limit = await request.post(`${API_BASE_URL}/tax-advantaged-categories/${categoryId}/limits`, {
     headers: asUser(user),
@@ -939,7 +1062,7 @@ test('lists the outline colour in the transition of every control that draws the
   await openPage(page, '/accounts')
   await sweep()
   await openPage(page, '/transactions')
-  await page.getByRole('button', { name: /Groceries/ }).first().click()
+  await getTransactionRowButton(page.getByTestId(`transaction-row-${taggedId}`)).click()
   await expect(page.getByRole('button', { name: /Holiday/ }).first()).toBeVisible()
   await sweep()
   await openPage(page, '/settings#tax-advantaged-categories')
@@ -1032,7 +1155,7 @@ test('lists the outline colour in the transition of every control that draws the
 // it with a 200ms curve, such as Tailwind's duration-200, has it about 0.77 drawn, so it fails both the length and the midpoint
 test('fades the keyboard focus ring in and out', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
-  const rowButton = await seedOneTransaction(page, request)
+  const { rowButton, box } = await seedOneTransaction(page, request)
 
   const expectFades = async (name: string, target: Locator, frame: Locator, offset: string) => {
     const fades = await readRingFades(page, target, frame)
@@ -1050,7 +1173,7 @@ test('fades the keyboard focus ring in and out', async ({ page, request }) => {
     await expectSharedRing(frame, 'outline', offset)
   }
 
-  await expectFades('transaction row', rowButton, rowButton.locator('..'), '-2px')
+  await expectFades('transaction row', rowButton, box, '-2px')
   const chart = page.locator('svg.recharts-surface[tabindex="0"]').filter({ visible: true }).first()
   await expect(chart).toBeVisible()
   await expectFades('chart', chart, chart, '-2px')
@@ -1066,14 +1189,16 @@ test('fades the keyboard focus ring in and out', async ({ page, request }) => {
 // appears and goes at once. Removing the reduced-motion override of the rest outline fails this
 test('shows the keyboard focus ring at once with reduced motion', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  const rowButton = await seedOneTransaction(page, request)
-  expect(await readRingFades(page, rowButton, rowButton.locator('..'))).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
+  const { rowButton, box } = await seedOneTransaction(page, request)
+  expect(await readRingFades(page, rowButton, box)).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
 })
 
 // Forced colours would draw the clear outline a control holds at rest, so none is held there
 test('holds no outline at rest in forced colours', async ({ page, request }) => {
   await page.emulateMedia({ forcedColors: 'active' })
-  await seedOneTransaction(page, request)
+  const { box } = await seedOneTransaction(page, request)
+  // A row holds no outline at rest, since it draws the ring only while something inside it has focus
+  expect(await box.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
   await openPage(page, '/settings')
   const security = page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Security', exact: true })
   expect(await security.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
@@ -1123,7 +1248,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     expect(tagResponse.status()).toBe(201)
     // One tagged expense inside the budget's period serves both the budget row and the chip
     await createMonthlyBudget(request, user, { name: 'Food', categoryNames: ['Groceries'], overallLimit: 50_000, periodStart: budgetPeriodStart() })
-    await createTransaction(request, user, {
+    const taggedId = await createTransaction(request, user, {
       accountId: account.id,
       categoryName: 'Groceries',
       amount: -2000,
@@ -1150,7 +1275,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expectWholeRing(budgetRow)
 
     await openPage(page, '/transactions')
-    await page.getByRole('button', { name: /Groceries/ }).first().click()
+    await getTransactionRowButton(page.getByTestId(`transaction-row-${taggedId}`)).click()
     const chip = page.getByRole('dialog').getByRole('button', { name: 'Remove Family', exact: true })
     await focusFromKeyboard(page, chip)
     await expectWholeRing(chip)
@@ -1166,3 +1291,29 @@ for (const colorScheme of ['light', 'dark'] as const) {
     }
   })
 }
+
+// Tabbing from a bank row's title to its bank icon moves the ring onto the icon. The icon draws its own,
+// so the row around it holds none beside it
+test('draws one ring when the keyboard moves from a bank row title to its bank icon', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id,
+    categoryName: 'Groceries',
+    amount: -4250,
+    date: daysFromTodayInTestTimezone(-1),
+  })
+  await answerAsBankImported(page, { [id]: BANK_SOURCE })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const row = page.getByTestId(`transaction-row-${id}`)
+  const icon = row.getByRole('button', { name: 'From SimpleFIN', exact: true })
+
+  await focusFromKeyboard(page, getTransactionRowButton(row))
+  await expectSharedRing(transactionBox(page, id), 'outline', '-2px')
+  await page.keyboard.press('Tab')
+  await expect(icon).toBeFocused()
+  await expectSharedRing(icon, 'outline', '2px')
+  await expect.poll(() => transactionBox(page, id).evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
+})

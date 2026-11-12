@@ -1,5 +1,5 @@
 // Runs on desktop only: the modal and the pickers are the same markup at every size, and the sizes are
-// covered by the visual spec
+// covered by the visual spec. The hint test on a list row sets its own widths
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
@@ -441,3 +441,65 @@ for (const size of [
     }
   })
 }
+
+// The row's title is stretched over the whole row by a layer, so an icon that explains itself on hover has to sit
+// above it. The pointer must land on the icon itself, or its hint never shows
+async function expectPointerLandsOn(icon: Locator) {
+  await icon.scrollIntoViewIfNeeded()
+  await expect
+    .poll(() =>
+      icon.evaluate((node) => {
+        const { x, y, width, height } = node.getBoundingClientRect()
+        return node.contains(document.elementFromPoint(x + width / 2, y + height / 2))
+      }),
+    )
+    .toBe(true)
+  await icon.hover({ timeout: 2000 })
+}
+
+// A refunded expense's link icon keeps its "Refunded once" hint in a list at a wide and a phone width
+for (const width of [1280, 390]) {
+  test(`shows the refund link hint on a list row at ${width}px wide`, async ({ page, request }) => {
+    await page.setViewportSize({ width, height: 844 })
+    const user = await signUpUser(request)
+    const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+    const expenseId = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -4200, date: daysFromTodayInTestTimezone(-2) })
+    const refundId = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: 1000, date: daysFromTodayInTestTimezone(-1) })
+    const linked = await request.post(`${API_BASE_URL}/transactions/${refundId}/refund-link`, {
+      headers: asUser(user),
+      data: { original_transaction_id: expenseId },
+    })
+    expect(linked.ok()).toBe(true)
+
+    await logInViaApi(page, user)
+    await openPage(page, `/accounts/${account.id}`)
+    const icon = linkIcon(page, expenseId)
+    await expect(icon).toHaveAttribute('title', 'Refunded once')
+    await expectPointerLandsOn(icon)
+  })
+}
+
+// An expense that is already refunded once is still listed in the picker for a second refund, and its icon keeps
+// its hint there too
+test('shows the refund link hint on a row of the link picker', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -4200, date: daysFromTodayInTestTimezone(-3) })
+  const firstRefundId = await createTransaction(request, user, { ...row, amount: 1000, date: daysFromTodayInTestTimezone(-2) })
+  const secondRefundId = await createTransaction(request, user, { ...row, amount: 500, date: daysFromTodayInTestTimezone(-1) })
+  const linked = await request.post(`${API_BASE_URL}/transactions/${firstRefundId}/refund-link`, {
+    headers: asUser(user),
+    data: { original_transaction_id: expenseId },
+  })
+  expect(linked.ok()).toBe(true)
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  await openRow(page, secondRefundId)
+  await page.getByTestId('link-existing').click()
+  const picker = page.getByRole('dialog', { name: 'Link to an expense', exact: true })
+  const icon = picker.getByTestId('link-candidate').getByTestId('transaction-refund-link')
+  await expect(icon).toHaveAttribute('title', 'Refunded once')
+  await expectPointerLandsOn(icon)
+})

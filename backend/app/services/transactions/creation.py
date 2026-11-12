@@ -2,6 +2,7 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.transaction import Transaction
 from app.models.transaction_link import TransactionLink
@@ -9,6 +10,7 @@ from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.transaction import CreateTransactionRequest, TransactionResponse
 from app.services.accounts.snapshots import recompute_account_snapshots, refuse_unstorable_balance
+from app.services.bank_sync.manual_entries import refuse_days_a_bank_supplies
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transactions.accounts import (
     validate_transaction_account_is_not_archived,
@@ -33,9 +35,8 @@ async def create_transaction_and_get_response(
 ) -> TransactionResponse:
     """Create a transaction and return its API response
 
-    The service validates account write access, related transaction entities,
-    and currency requirements before inserting the transaction, updating tag
-    associations, recalculating snapshots, and marking the affected cache scope
+    The service validates account write access, refuses a date a linked account's bank supplies,
+    writes the transaction, marks the affected cache scope and commits
 
     Args:
         db: Active database session
@@ -53,6 +54,43 @@ async def create_transaction_and_get_response(
         PermissionLevel.WRITE,
         lock_against_delete=True,
     )
+    await refuse_days_a_bank_supplies(db, user, [(account.id, data.dt)])
+    txn = await insert_transaction(db, user, account, data)
+
+    # Mark the affected user or group cache after all transaction writes are flushed
+    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
+    # Build the response before committing, since a delete of the account may take the row the moment
+    # this commits
+    await db.flush()
+    await db.refresh(txn)
+    response = await get_transaction_response(db, txn, just_created=True)
+    await db.commit()
+    return response
+
+
+async def insert_transaction(
+    db: AsyncSession,
+    user: User,
+    account: Account,
+    data: CreateTransactionRequest,
+) -> Transaction:
+    """Validate a new transaction and write it with its tags and the account's balances, without committing
+
+    Every single transaction the user creates goes through here, so a bank item added to the
+    ledger passes the same checks as a transaction entered by hand. The caller marks the cache
+    last and commits, so the write can be one step of a larger save. The days a linked account's
+    bank supplies are left to the caller, since only a transaction that isn't the bank's own is
+    refused there
+
+    Args:
+        db: Active database session
+        user: The user creating the transaction
+        account: The account named by the payload, one the user may write to
+        data: Transaction creation payload
+
+    Returns:
+        The new transaction, flushed
+    """
     validate_transaction_account_is_not_archived(account)
     refuse_unstorable_balance(account.name, data.amount)
 
@@ -118,13 +156,4 @@ async def create_transaction_and_get_response(
 
     # Rebuild balance snapshots from this transaction's day forward
     await recompute_account_snapshots(db, {data.account_id: data.dt})
-
-    # Mark the affected user or group cache after all transaction writes are flushed
-    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-    # Build the response before committing, since a delete of the account may take the row the moment
-    # this commits
-    await db.flush()
-    await db.refresh(txn)
-    response = await get_transaction_response(db, txn)
-    await db.commit()
-    return response
+    return txn

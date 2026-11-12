@@ -1,4 +1,5 @@
 """Account update helpers"""
+
 import uuid
 from collections.abc import Mapping
 from datetime import date
@@ -18,6 +19,7 @@ from app.services.accounts.balance_adjustments import (
     validate_no_transactions_after_archive_date,
     zero_account_balance_for_archive,
 )
+from app.services.bank_sync.manual_entries import refuse_archiving_a_linked_account
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
@@ -88,6 +90,8 @@ async def apply_account_updates(
     """
     should_archive = updates.get("is_archived") is True and not account.is_archived
     if should_archive:
+        # Archiving writes an adjustment dated today. A linked account's bank supplies it
+        await refuse_archiving_a_linked_account(db, account)
         await validate_no_transactions_after_archive_date(db, account, archive_date)
 
     # Apply requested fields before adding any archive balance adjustment

@@ -14,10 +14,12 @@ const PICKED_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
 const PICKED_ROW_CLASS_NAME =
   'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-chosen-hover-fill)] [&_.app-transaction-row]:bg-transparent!'
 
-// A row that can't be picked wears the app's standard disabled strength, and eases to and from it as picks change. Only
-// what the row's button holds fades, so the keyboard focus ring drawn on the button itself stays at full strength
-const CONTENT_CLASS_NAME = '[&_button>*]:transition-opacity motion-reduce:[&_button>*]:transition-none'
-const DISABLED_CONTENT_CLASS_NAME = '[&_button>*]:opacity-50'
+// A row that can't be picked wears the app's standard disabled strength, and eases to and from it as picks change. The
+// whole of the row's content fades, its cells and its title, whereas the row around it draws the keyboard focus
+// ring and stays at full strength
+const CONTENT_CLASS_NAME =
+  '[&_[data-row-content]]:transition-opacity motion-reduce:[&_[data-row-content]]:transition-none'
+const DISABLED_CONTENT_CLASS_NAME = '[&_[data-row-content]]:opacity-50'
 
 interface LinkCandidateRowProps {
   transaction: Transaction

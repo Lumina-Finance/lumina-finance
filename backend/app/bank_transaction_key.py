@@ -1,4 +1,8 @@
-"""The server's secret key for the bank transaction hashes an OFX import keeps
+"""The server's secret key for the bank transaction hashes an OFX import and a bank sync keep
+
+A bank sync keeps the same kind of hash for the ID its provider gives each transaction
+(app.services.bank_sync.transaction_hash), with the provider and the provider's bank account as the
+bank account key, so a stored transaction holds nothing of the ID itself
 
 The import page sends the bank account a statement names and the bank's ID for each transaction as
 the file wrote them. The server hashes the pair with SHA-256 and keys the digest with HMAC-SHA256
@@ -7,7 +11,9 @@ enough possible values that a bare digest could be reversed by trying them all. 
 outside the database, so a copy of the database alone cannot be searched that way
 
 Losing or changing the secret leaves every saved hash unmatched, so a statement imported again
-brings back the transactions an earlier import already saved. So the database records the key's
+brings back the transactions an earlier import already saved. The next bank sync finds no match for
+the days it fetches again, so each transaction already approved returns for review, and the bank's
+corrections and removals for the saved ones stop arriving. So the database records the key's
 fingerprint, and app.db.bank_transaction_key refuses to start under another key or to generate one
 over a database that has a key, until an operator accepts that cost with its reset command
 

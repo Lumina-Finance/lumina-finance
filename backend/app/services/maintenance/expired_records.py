@@ -1,7 +1,10 @@
-"""One cleanup for every kind of record that expires or is left behind
+"""One cleanup for the records that expire or are left behind, except those bank sync prunes as it writes
 
 Each kind is one entry in EXPIRED_RECORD_KINDS. A self-hosted server prunes them all on a schedule
 from inside the app, and any other runtime calls prune_expired_records from its own scheduler
+
+Bank sync prunes its request records where it writes them: recording a request to a provider deletes
+that connection's earlier records once the request budget no longer counts them
 """
 
 import asyncio
@@ -21,6 +24,7 @@ from app.services.auth.sessions import delete_expired_auth_sessions, delete_expi
 from app.services.auth.signup import delete_stale_signup_email_sends
 from app.services.auth.two_factor import prune_stale_factor_staging
 from app.services.auth.webauthn import delete_expired_webauthn_challenges
+from app.services.bank_sync.jobs import delete_finished_bank_sync_jobs
 from app.services.importers.shared.run_staging import delete_expired_import_runs
 
 logger = logging.getLogger(__name__)
@@ -50,6 +54,7 @@ EXPIRED_RECORD_KINDS: tuple[ExpiredRecordKind, ...] = (
     ExpiredRecordKind("sign-up email records", delete_stale_signup_email_sends),
     ExpiredRecordKind("two-factor staging", prune_stale_factor_staging),
     ExpiredRecordKind("import runs", delete_expired_import_runs),
+    ExpiredRecordKind("finished bank sync jobs", delete_finished_bank_sync_jobs),
 )
 
 

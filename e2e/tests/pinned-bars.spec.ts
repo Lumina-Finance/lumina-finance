@@ -6,6 +6,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
 import { loadEveryTransaction, logInViaApi, openPage } from '../support/app'
+import { getTransactionRowButton } from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs on desktop only, apart from the section menu and Shift+Tab tests, which run at every size:
@@ -55,6 +56,12 @@ test('brings each chosen settings section to rest below the pinned section menu'
   const user = await signUpUser(request)
   await logInViaApi(page, user)
   await openPage(page, '/settings')
+
+  // A section's height is final only once its data has loaded, and a smooth scroll aims at where the
+  // chosen heading was when it began, so the sections that show a spinner while they load settle first.
+  // Runway shows none while its accounts load, so its empty state is what says they have
+  await expect(page.getByText('No eligible accounts yet. Add an asset account to configure runway.')).toBeVisible()
+  await expect(page.getByRole('status', { name: /^Loading / })).toHaveCount(0)
 
   // The section menu pins above the page below the side list's width, and the side list takes its place
   // above it. Found by what it opens, since its name is whichever section is current
@@ -202,11 +209,12 @@ for (const { path, placeholder, buttons, oneRow, lastSeeded } of [
 
 /**
  * How far the focused row's top sits below the lowest pinned bar above it, such as the toolbar and the day
- * heading or Upcoming header stuck below it, and whether its bottom is still inside the window
+ * heading or Upcoming header stuck below it, and whether its bottom is still inside the window. Focus is on
+ * the row's title, so the row is read around it
  */
 async function focusedRowClearance(page: Page): Promise<{ belowBars: number, bottomInWindow: boolean }> {
   return page.evaluate(() => {
-    const row = document.activeElement!.getBoundingClientRect()
+    const row = document.activeElement!.closest('[data-testid^="transaction-row-"]')!.getBoundingClientRect()
     const coveredTo = Math.max(0, ...[...document.querySelectorAll('body *')]
       .filter((element) => getComputedStyle(element).position === 'sticky')
       .map((bar) => bar.getBoundingClientRect())
@@ -247,14 +255,14 @@ for (const { place, date } of [
     await expect(rows).toHaveCount(30)
 
     // Rested with the 12th row's top level with the bottom of the bars, so the rows above it are under them
-    await rows.nth(11).focus()
+    await getTransactionRowButton(rows.nth(11)).focus()
     await waitForScrollToRest(page)
     await page.evaluate((by) => window.scrollBy(0, by), (await focusedRowClearance(page)).belowBars)
     await waitForScrollToRest(page)
 
     for (const row of [rows.nth(10), rows.nth(9)]) {
       await page.keyboard.press('Shift+Tab')
-      await expect(row).toBeFocused()
+      await expect(getTransactionRowButton(row)).toBeFocused()
       await waitForScrollToRest(page)
       const clearance = await focusedRowClearance(page)
       expect(clearance.belowBars).toBeGreaterThanOrEqual(0)
@@ -264,7 +272,7 @@ for (const { place, date } of [
     // A row already clear of the bars leaves the page where it is
     const restingAt = await page.evaluate(() => window.scrollY)
     await page.keyboard.press('Tab')
-    await expect(rows.nth(10)).toBeFocused()
+    await expect(getTransactionRowButton(rows.nth(10))).toBeFocused()
     await waitForScrollToRest(page)
     expect(await page.evaluate(() => window.scrollY)).toBe(restingAt)
   })

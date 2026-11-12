@@ -18,6 +18,9 @@ import type { TransactionDirection, TransactionModalKind } from '@/components/tr
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { getFieldLabelId } from '@/utils/fieldLabel'
 
+// Why a bank item's account can't be changed
+const LOCKED_ACCOUNT_REASON = 'A bank item stays in the account whose bank sent it'
+
 type SelectedTransactionTag = {
   id: string
   name: string
@@ -29,6 +32,12 @@ interface TransactionReferencesSectionProps {
   accountValue: string
   accountError?: string | false
   accountPlaceholder: string
+
+  // Holds the account where it is, for a bank item. The item belongs to the account whose feed it came from
+  isAccountLocked: boolean
+
+  // Set while the account's problem is the long refusal to move a bank item. That refusal wraps beside the whole label
+  isAccountErrorLong: boolean
   runningBalance?: { amount: number; currency: string }
 
   // Set instead of the one above when a paired transfer puts the recorded account in the second slot
@@ -147,6 +156,8 @@ export default function TransactionReferencesSection({
   accountValue,
   accountError,
   accountPlaceholder,
+  isAccountLocked,
+  isAccountErrorLong,
   runningBalance,
   counterpartyAccountRunningBalance,
   kind,
@@ -227,7 +238,8 @@ export default function TransactionReferencesSection({
 
   return (
     <CreateModalSectionFrame step="02" title="Source/Destination">
-      <div>
+      {/* A bank item's account is held with its reason. Focus would open the reason over the form */}
+      <div data-modal-skip-initial-focus={isAccountLocked || undefined}>
         <CreateModalFieldLabelRow
           htmlFor={TRANSACTION_MODAL_FIELD_IDS.account}
           label={accountLabel}
@@ -240,6 +252,7 @@ export default function TransactionReferencesSection({
           }
           error={accountError}
           errorId={TRANSACTION_MODAL_ERROR_IDS.account_id}
+          keepsLabelWhole={isAccountErrorLong}
         />
         <Dropdown
           id={TRANSACTION_MODAL_FIELD_IDS.account}
@@ -255,7 +268,8 @@ export default function TransactionReferencesSection({
           placeholder={accountPlaceholder}
           searchable
           searchPlaceholder="Search accounts..."
-          disabled={readOnly}
+          disabled={readOnly || isAccountLocked}
+          disabledReason={isAccountLocked ? LOCKED_ACCOUNT_REASON : undefined}
         />
         <RunningBalanceRow runningBalance={runningBalance} />
 

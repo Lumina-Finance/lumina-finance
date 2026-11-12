@@ -2,10 +2,11 @@
  * Guards a dropdown's open list inside a dialog, which once covered the dialog's title or its buttons
  * because it was placed against the window rather than the dialog's own body
  */
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openModal, openPage } from '../support/app'
+import { isUncovered } from '../support/selectors'
 
 // Runs on desktop only: it sets the window sizes it checks itself
 
@@ -45,30 +46,5 @@ for (const size of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]
     await expect(page.getByRole('option')).toHaveCount(0)
     // Closing leaves the dialog exactly as it was before the list opened
     expect(await edgeBoxes()).toEqual(closedAt)
-  })
-}
-
-/**
- * Returns whether nothing is drawn over the element at its centre or near any of its four edges, so a
- * list covering only part of it still counts as covering it. The points stay clear of the corners,
- * which a pill button's rounding leaves outside the button
- */
-async function isUncovered(locator: Locator): Promise<boolean> {
-  return locator.evaluate((element) => {
-    const box = element.getBoundingClientRect()
-    const middleX = box.left + box.width / 2
-    const middleY = box.top + box.height / 2
-    const inset = box.height / 2
-    const points = [
-      [middleX, middleY],
-      [middleX, box.top + 2],
-      [middleX, box.bottom - 2],
-      [box.left + inset, middleY],
-      [box.right - inset, middleY],
-    ]
-    return points.every(([x, y]) => {
-      const shown = document.elementFromPoint(x, y)
-      return shown !== null && element.contains(shown)
-    })
   })
 }

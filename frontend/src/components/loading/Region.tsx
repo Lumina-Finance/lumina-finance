@@ -5,7 +5,7 @@ import {
   LoadingOverlay,
   loadingVisibilityCss,
 } from '@/components/loading/Transition'
-import { getLoadingRegionHeight } from '@/components/loading/regionHeight'
+import { getLoadingRegionHeight, observeContentHeight } from '@/components/loading/regionHeight'
 import { useLoadingSnapshot } from '@/hooks/useLoadingSnapshot'
 
 type LoadingRegionBaseProps = {
@@ -18,21 +18,31 @@ type LoadingRegionBaseProps = {
 
   /** Follows the content's height across the load, for content that animates no height of its own */
   animateLoadingHeight?: boolean
+
+  /**
+   * Clips the content only while it is concealed or the height is held, so a tooltip or a focus ring
+   * inside can reach past the region's edges once it has settled
+   */
+  clipsOnlyWhileChanging?: boolean
+
+  /** Holds the content's layout height rather than its box on screen, for a region in a dialogue still scaling in */
+  readsLayoutHeight?: boolean
 }
 
 // The two forms are kept apart so children written as a function cannot be left without the
 // snapshot they read, which would hand them undefined on the first render
-type LoadingRegionProps<T> = LoadingRegionBaseProps & (
-  | {
-    /** Rows or values held through a transition, so they conceal rather than vanishing mid-blur */
-    snapshot: T
-    children: (displaySnapshot: T) => ReactNode
-  }
-  | {
-    snapshot?: never
-    children: ReactNode
-  }
-)
+type LoadingRegionProps<T> = LoadingRegionBaseProps &
+  (
+    | {
+        /** Rows or values held through a transition, so they conceal rather than vanishing mid-blur */
+        snapshot: T
+        children: (displaySnapshot: T) => ReactNode
+      }
+    | {
+        snapshot?: never
+        children: ReactNode
+      }
+  )
 
 /**
  * Conceals a region behind a labelled overlay while its data loads
@@ -51,13 +61,10 @@ export default function LoadingRegion<T>({
   transitionKey,
   snapshot,
   animateLoadingHeight = false,
+  clipsOnlyWhileChanging = false,
+  readsLayoutHeight = false,
 }: LoadingRegionProps<T>) {
-  const {
-    displaySnapshot,
-    contentConcealed,
-    loadingVisible,
-    shouldReduceMotion,
-  } = useLoadingSnapshot({
+  const { displaySnapshot, contentConcealed, loadingVisible, shouldReduceMotion } = useLoadingSnapshot({
     snapshot: snapshot as T,
     loading,
     transitionKey: transitionKey ?? label,
@@ -90,52 +97,35 @@ export default function LoadingRegion<T>({
     const element = contentRef.current
     if (!heightHeld || !element) return undefined
 
-    let frameId: number | null = null
-    const updateHeight = () => {
-      if (frameId !== null) window.cancelAnimationFrame(frameId)
-      frameId = window.requestAnimationFrame(() => {
-        frameId = null
-        setContentHeight(element.getBoundingClientRect().height)
-      })
-    }
-
-    updateHeight()
-    const observer = new ResizeObserver(updateHeight)
-    observer.observe(element)
+    const stopObserving = observeContentHeight(element, setContentHeight, readsLayoutHeight)
 
     return () => {
-      if (frameId !== null) window.cancelAnimationFrame(frameId)
-      observer.disconnect()
+      stopObserving()
       // Dropped rather than kept, since the content is free to change size while nothing is
       // measuring it and the next load would open at a height it no longer has
       setContentHeight(null)
     }
-  }, [heightHeld])
+  }, [heightHeld, readsLayoutHeight])
 
   const height = getLoadingRegionHeight({
     contentHeight,
     revealSettled,
     shouldReduceMotion,
   })
-  const content = typeof children === 'function'
-    ? (children as (displaySnapshot: T) => ReactNode)(displaySnapshot)
-    : children
+  const content =
+    typeof children === 'function' ? (children as (displaySnapshot: T) => ReactNode)(displaySnapshot) : children
+
+  const clips = !clipsOnlyWhileChanging || contentConcealed || !revealSettled
 
   return (
     <div
-      className={`relative overflow-hidden ${className}`}
+      className={`relative ${clips ? 'overflow-hidden ' : ''}${className}`}
       style={{
         height: height ?? undefined,
-        transition: shouldReduceMotion || !animateLoadingHeight
-          ? undefined
-          : `height ${loadingVisibilityCss}`,
+        transition: shouldReduceMotion || !animateLoadingHeight ? undefined : `height ${loadingVisibilityCss}`,
       }}
     >
-      <LoadingContent
-        concealed={contentConcealed}
-        shouldReduceMotion={shouldReduceMotion}
-        className={contentClassName}
-      >
+      <LoadingContent concealed={contentConcealed} shouldReduceMotion={shouldReduceMotion} className={contentClassName}>
         {animateLoadingHeight ? <div ref={contentRef}>{content}</div> : content}
       </LoadingContent>
       <LoadingOverlay

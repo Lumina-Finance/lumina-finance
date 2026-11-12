@@ -1,12 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { EyeOff } from 'lucide-react'
+import { Unfold } from '@/components/display/Unfold'
 import { Switch } from '@/components/forms/Switch'
 import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
-import {
-  ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON,
-  EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
-  EASE,
-} from '@/pages/accounts/detail/constants/accountDetail'
+import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS, EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import { ArchiveBalanceWarning } from '@/pages/accounts/detail/components/edit-identity/controls/ArchiveBalanceWarning'
 import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
 
@@ -14,8 +11,17 @@ type AccountArchiveSectionProps = {
   sectionNumber: string
   isArchived: boolean
   isArchiving: boolean
-  /** Locks the switch off while later-dated transactions would leave the archived balance off zero */
+  /** Locks the switch off while later-dated transactions would leave the archived balance off zero. Never true for a linked account */
   isArchiveBlocked: boolean
+
+  /** Locks the switch until the account's bank link has been read, since a link holds archiving back */
+  isLinkLoading: boolean
+
+  /** Why the account can't be archived while it is linked, printed under the switch like the other reason */
+  archiveLinkedReason: string | null
+
+  /** The one reason archiving is unavailable, the link's or the later transactions', or null when it is available */
+  archiveReason: string | null
   currentBalance: number
   currency: string
   onToggle: (checked: boolean) => void
@@ -23,13 +29,16 @@ type AccountArchiveSectionProps = {
 
 /**
  * Renders archive controls, warns when archiving will create a balance adjustment and explains
- * why archiving is unavailable while later-dated transactions remain
+ * why archiving is unavailable while the account is linked or later-dated transactions remain
  */
 export function AccountArchiveSection({
   sectionNumber,
   isArchived,
   isArchiving,
   isArchiveBlocked,
+  isLinkLoading,
+  archiveLinkedReason,
+  archiveReason,
   currentBalance,
   currency,
   onToggle,
@@ -38,15 +47,20 @@ export function AccountArchiveSection({
 
   return (
     <EditModalSection number={sectionNumber} title="Archive">
+      {/* The switch's input is visually hidden, so a press lands on the row, and the row refuses it as well,
+          whether the switch is held for a reason or only until the link has been read. A switch held off by a
+          link stays focusable, so its row keeps its ring whole and the text inside fades */}
       <label
         htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
-        className={`flex items-center justify-between gap-4 rounded-xl p-4 ${isArchiveBlocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+        className={`flex items-center justify-between gap-4 rounded-xl p-4 ${archiveReason || isLinkLoading ? 'cursor-not-allowed' : 'cursor-pointer'} ${isArchiveBlocked ? 'opacity-60' : ''}`}
         style={{
           background: 'var(--app-input-bg)',
           border: '1px solid var(--app-input-border)',
         }}
       >
-        <span className="min-w-0">
+        <span
+          className={`min-w-0 transition-opacity motion-reduce:transition-none ${archiveLinkedReason !== null ? 'opacity-60' : ''}`}
+        >
           <span className="flex items-center gap-2 font-medium">
             <EyeOff size={16} style={{ color: 'var(--app-text-muted)' }} aria-hidden />
             Archive account
@@ -58,21 +72,26 @@ export function AccountArchiveSection({
         <Switch
           id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archive}
           checked={isArchived}
-          disabled={isArchiveBlocked}
-          describedBy={isArchiveBlocked ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason : undefined}
+          disabled={isArchiveBlocked || isLinkLoading}
+          unavailable={archiveLinkedReason !== null}
+          describedBy={archiveReason ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason : undefined}
           onChange={onToggle}
         />
       </label>
 
-      {isArchiveBlocked && (
-        <p
-          id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason}
-          className="mt-2 text-sm font-medium"
-          style={{ color: 'var(--app-negative)' }}
-        >
-          {ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON}
-        </p>
-      )}
+      <AnimatePresence initial={false}>
+        {archiveReason && (
+          <Unfold key="reason" flush>
+            <p
+              id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason}
+              className="mt-2 text-sm font-medium"
+              style={{ color: 'var(--app-negative)' }}
+            >
+              {archiveReason}
+            </p>
+          </Unfold>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence initial={false}>
         {isArchiving && (

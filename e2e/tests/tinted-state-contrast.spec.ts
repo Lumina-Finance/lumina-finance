@@ -101,6 +101,28 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expectReadable(amount.locator('..'), 'in the amount field')
     })
 
+    test('draws a new account\'s starting balance in error at full contrast', async ({ page, request }) => {
+      const user = await signUpUser(request)
+      // Offering no bank provider, whichever server the test runs against, opens the starting balance at once
+      await page.route(`${API_BASE_URL}/bank-sync/providers`, (route) =>
+        route.fulfill({ json: { may_link: false, sync_running: false, providers: [] } }))
+      await logInViaApi(page, user)
+      await openPage(page, '/accounts')
+      await expectTheme(page)
+      const dialog = await openModal(page, ['Add account'], 'Add account')
+      await chooseFromDropdown(dialog, 'Account type', 'Checking')
+      await dialog.getByLabel('Account name').fill('Everyday')
+      await dialog.getByRole('button', { name: 'Create account' }).click()
+      const prompt = page.getByRole('dialog', { name: 'Add a starting balance' })
+
+      // A minus marks the field, since a starting balance is zero or more
+      const balance = prompt.getByLabel('Starting balance', { exact: true })
+      await balance.pressSequentially('-')
+      await expect(balance).toHaveClass(/app-input-error/)
+      await expect(balance.locator('..').getByText('$', { exact: true })).toBeVisible()
+      await expectReadable(balance.locator('..'), 'in the starting balance field')
+    })
+
     test('draws the archive warning at full contrast', async ({ page, request }) => {
       const user = await signUpUser(request)
       const account = await createAccount(request, user, { name: 'Everyday' })
@@ -217,7 +239,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       // faded as a whole so it reads as unavailable, which is exempt from the 4.5:1 minimum
       for (const [what, account] of Object.entries(accounts)) {
         if (account === old) continue
-        const row = page.locator(`a[href="/accounts/${account.id}"]`)
+        const row = page.getByTestId(`account-row-${account.id}`)
         await expect(row).toBeVisible()
         await page.mouse.move(0, 0)
         await expectReadable(row, `on a row with a ${what}`)
@@ -227,8 +249,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
       // An archived row keeps the fade it has on main, three quarters at rest and full under the pointer,
       // while an active row is never faded
-      const archivedRow = page.locator(`a[href="/accounts/${old.id}"]`)
-      const activeRow = page.locator(`a[href="/accounts/${accounts['positive balance'].id}"]`)
+      const archivedRow = page.getByTestId(`account-row-${old.id}`)
+      const activeRow = page.getByTestId(`account-row-${accounts['positive balance'].id}`)
       const opacityOf = (row: Locator) => row.evaluate((node) => getComputedStyle(node).opacity)
       await page.mouse.move(0, 0)
       await expect.poll(() => opacityOf(archivedRow), { message: 'an archived row at rest' }).toBe('0.75')

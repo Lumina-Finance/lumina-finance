@@ -1,0 +1,7 @@
+{{ lead }}
+{%- for account in accounts %}
+{% if loop.first %}
+{% endif %}- {{ account }}
+{%- endfor %}
+
+{{ closing }}

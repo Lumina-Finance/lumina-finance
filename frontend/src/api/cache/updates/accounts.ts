@@ -1,4 +1,4 @@
-import type { QueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query'
 import {
   invalidateAccountBalances,
   invalidateAccountData,
@@ -19,35 +19,35 @@ import {
   invalidateTransactionOverview,
   invalidateTransactions,
   markTransactionsStale,
-} from '@/api/cache/invalidation';
-import { accountKeys } from '@/api/cache/queryKeys';
-import type { Account, AccountsOverview, CreateAccountPayload } from '@/api/accounts/types';
+} from '@/api/cache/invalidation'
+import { accountKeys } from '@/api/cache/queryKeys'
+import type { Account, AccountsOverview, CreateAccountPayload } from '@/api/accounts/types'
 
 /**
  * Updates cached list rows after account create or update responses
  */
 export function updateCachedAccountList(queryClient: QueryClient, account: AccountsOverview) {
   queryClient.setQueryData<AccountsOverview[]>(accountKeys.list(), (accounts) => {
-    if (!accounts) return [account];
-    const index = accounts.findIndex((item) => item.id === account.id);
-    if (index === -1) return [...accounts, account];
-    return accounts.map((item) => (item.id === account.id ? account : item));
-  });
+    if (!accounts) return [account]
+    const index = accounts.findIndex((item) => item.id === account.id)
+    if (index === -1) return [...accounts, account]
+    return accounts.map((item) => (item.id === account.id ? account : item))
+  })
 }
 
 /**
  * Reads a cached account from detail first, then falls back to the list row
  */
 export function getCachedAccount(queryClient: QueryClient, accountId: string) {
-  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId));
-  if (detail) return detail;
+  const detail = queryClient.getQueryData<Account>(accountKeys.detail(accountId))
+  if (detail) return detail
 
-  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list());
-  return accounts?.find((account) => account.id === accountId);
+  const accounts = queryClient.getQueryData<AccountsOverview[]>(accountKeys.list())
+  return accounts?.find((account) => account.id === accountId)
 }
 
 function isRevolvingAccount(account: Pick<AccountsOverview, 'account_kind'> | undefined) {
-  return account === undefined || account.account_kind === 'revolving';
+  return account === undefined || account.account_kind === 'revolving'
 }
 
 /**
@@ -57,7 +57,7 @@ export function invalidateAccountCreditData(
   queryClient: QueryClient,
   account: Pick<AccountsOverview, 'account_kind'> | undefined,
 ) {
-  if (isRevolvingAccount(account)) invalidateDashboardCredit(queryClient);
+  if (isRevolvingAccount(account)) invalidateDashboardCredit(queryClient)
 }
 
 /**
@@ -72,11 +72,12 @@ export function invalidateAccountCreditPicker(
   previous: Pick<AccountsOverview, 'name' | 'institution'> | undefined,
   account: Pick<AccountsOverview, 'account_kind' | 'name' | 'institution'>,
 ) {
-  if (!isRevolvingAccount(account)) return;
-  const isUnchanged = previous !== undefined
-    && previous.name === account.name
-    && (previous.institution?.id ?? null) === (account.institution?.id ?? null);
-  if (!isUnchanged) invalidateDashboardCreditUtilization(queryClient);
+  if (!isRevolvingAccount(account)) return
+  const isUnchanged =
+    previous !== undefined &&
+    previous.name === account.name &&
+    (previous.institution?.id ?? null) === (account.institution?.id ?? null)
+  if (!isUnchanged) invalidateDashboardCreditUtilization(queryClient)
 }
 
 /**
@@ -86,12 +87,12 @@ export function invalidateAccountTaxAdvantagedCategoryData(
   queryClient: QueryClient,
   categoryIds: Array<string | null | undefined>,
 ) {
-  const knownCategoryIds = categoryIds.filter((categoryId): categoryId is string => !!categoryId);
-  const hasUnknownCategory = categoryIds.some((categoryId) => categoryId === undefined);
-  if (knownCategoryIds.length === 0 && !hasUnknownCategory) return;
+  const knownCategoryIds = categoryIds.filter((categoryId): categoryId is string => !!categoryId)
+  const hasUnknownCategory = categoryIds.some((categoryId) => categoryId === undefined)
+  if (knownCategoryIds.length === 0 && !hasUnknownCategory) return
 
-  invalidateTaxAdvantagedCategories(queryClient, knownCategoryIds);
-  invalidateTaxAdvantagedCategoryOverview(queryClient);
+  invalidateTaxAdvantagedCategories(queryClient, knownCategoryIds)
+  invalidateTaxAdvantagedCategoryOverview(queryClient)
 }
 
 /**
@@ -107,47 +108,72 @@ export function invalidateAccountAggregateData(
   account: Pick<AccountsOverview, 'account_kind' | 'tax_advantaged_category_id'> | undefined,
   { isDeleted = false }: { isDeleted?: boolean } = {},
 ) {
-  invalidateAccountData(queryClient, isDeleted ? [] : [accountId]);
+  invalidateAccountData(queryClient, isDeleted ? [] : [accountId])
   if (isDeleted) {
-    markTransactionsStale(queryClient);
+    markTransactionsStale(queryClient)
   } else {
-    invalidateTransactions(queryClient);
-    invalidateTransactionOverview(queryClient);
+    invalidateTransactions(queryClient)
+    invalidateTransactionOverview(queryClient)
   }
-  invalidateDashboardBalance(queryClient);
-  invalidateDashboardIncomeExpense(queryClient);
-  invalidateDashboardRecent(queryClient);
-  invalidateAccountCreditData(queryClient, account);
-  invalidateInsightsBalance(queryClient);
-  invalidateInsightsIncomeExpense(queryClient);
-  invalidateInsightsMerchants(queryClient);
-  invalidateBudgets(queryClient);
-  invalidateDashboardBudgets(queryClient);
-  invalidateRunwaySettings(queryClient);
-  invalidateAccountTaxAdvantagedCategoryData(queryClient, [account?.tax_advantaged_category_id]);
+  invalidateDashboardBalance(queryClient)
+  invalidateDashboardIncomeExpense(queryClient)
+  invalidateDashboardRecent(queryClient)
+  invalidateAccountCreditData(queryClient, account)
+  invalidateInsightsBalance(queryClient)
+  invalidateInsightsIncomeExpense(queryClient)
+  invalidateInsightsMerchants(queryClient)
+  invalidateBudgets(queryClient)
+  invalidateDashboardBudgets(queryClient)
+  invalidateRunwaySettings(queryClient)
+  invalidateAccountTaxAdvantagedCategoryData(queryClient, [account?.tax_advantaged_category_id])
 }
 
 /**
- * Invalidates balances and rollups affected by an account created with a starting balance
+ * Invalidates the rollups a newly created account joins. The account starts at a zero balance
  */
 export function invalidateCreatedAccountData(
   queryClient: QueryClient,
   account: AccountsOverview,
   payload: CreateAccountPayload,
 ) {
-  if (!account.is_archived && account.current_balance !== 0) {
-    invalidateAccountBalances(queryClient, [account.id]);
-    invalidateTransactions(queryClient);
-    invalidateTransactionOverview(queryClient);
-    invalidateDashboardBalance(queryClient);
-    invalidateDashboardRecent(queryClient);
-    invalidateInsightsBalance(queryClient);
-    invalidateRunway(queryClient);
-  }
   if (!account.is_archived && payload.credit_limit !== null) {
-    invalidateAccountCreditData(queryClient, account);
+    invalidateAccountCreditData(queryClient, account)
   }
   if (account.tax_advantaged_category_id) {
-    invalidateAccountTaxAdvantagedCategoryData(queryClient, [account.tax_advantaged_category_id]);
+    invalidateAccountTaxAdvantagedCategoryData(queryClient, [account.tax_advantaged_category_id])
   }
+}
+
+/**
+ * Shows the balance an account's starting balance gave it, and refreshes the transaction lists that
+ * now hold the starting balance and every view built on balances. A starting balance is never cash
+ * flow, so income, expense and budget views are left alone
+ */
+export function applyRecordedStartingBalance(queryClient: QueryClient, account: Account) {
+  queryClient.setQueryData(accountKeys.detail(account.id), account)
+  updateCachedAccountList(queryClient, account)
+  invalidateAccountBalances(queryClient, [account.id])
+  invalidateViewsBuiltOnStartingBalance(queryClient, account)
+}
+
+/**
+ * Reads an account and every view a starting balance changes again after a save that ended with no
+ * answer and wasn't settled as saved, since it may still land, so they don't keep showing zero
+ */
+export function refreshAfterInterruptedStartingBalance(queryClient: QueryClient, accountId: string) {
+  invalidateAccountData(queryClient, [accountId])
+  invalidateViewsBuiltOnStartingBalance(queryClient, getCachedAccount(queryClient, accountId))
+}
+
+function invalidateViewsBuiltOnStartingBalance(
+  queryClient: QueryClient,
+  account: Pick<AccountsOverview, 'account_kind'> | undefined,
+) {
+  invalidateTransactions(queryClient)
+  invalidateTransactionOverview(queryClient)
+  invalidateDashboardBalance(queryClient)
+  invalidateDashboardRecent(queryClient)
+  invalidateInsightsBalance(queryClient)
+  invalidateRunway(queryClient)
+  invalidateAccountCreditData(queryClient, account)
 }

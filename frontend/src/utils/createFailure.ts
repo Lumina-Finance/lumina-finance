@@ -11,7 +11,7 @@ type TransferLegFailure = {
 /** What a failed pair of transfer legs shows, with a title only when the user must add a leg by hand */
 type TransferFailureNotice = { title: string; message: string }
 
-const GENERIC_CREATE_FAILURE = 'Something went wrong. Please try again.'
+const GENERIC_FAILURE = 'Something went wrong. Please try again.'
 
 function isTimeout(error: unknown) {
   return error instanceof DOMException && error.name === 'TimeoutError'
@@ -27,7 +27,15 @@ export function getCreateFailureMessage(error: unknown, kind: CreatedKind) {
   if (isTimeout(error)) {
     return `The server took too long to answer. It may have been saved, so check your ${kind}s before trying again.`
   }
-  return error instanceof ApiError ? error.message : GENERIC_CREATE_FAILURE
+  return getSaveFailureMessage(error)
+}
+
+/**
+ * Reads what a failed save shows the user: the server's own reason where it gave one, else the
+ * fallback, the friendly sentence unless the caller names what failed
+ */
+export function getSaveFailureMessage(error: unknown, fallback = GENERIC_FAILURE) {
+  return error instanceof ApiError ? error.message : fallback
 }
 
 /**

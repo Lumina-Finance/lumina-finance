@@ -26,10 +26,11 @@ def _streamed(content: bytes, chunk_size: int = 1024 * 1024, **kwargs) -> httpx.
     Returns:
         A streaming response
     """
+
     async def chunks() -> AsyncIterator[bytes]:
         """Yield the body one chunk at a time"""
         for start in range(0, len(content), chunk_size):
-            yield content[start:start + chunk_size]
+            yield content[start : start + chunk_size]
 
     return httpx.Response(200, content=chunks(), **kwargs)
 
@@ -37,8 +38,8 @@ def _streamed(content: bytes, chunk_size: int = 1024 * 1024, **kwargs) -> httpx.
 def _client_returning(build_response, max_response_bytes: int = MAX_RESPONSE_BYTES) -> httpx.AsyncClient:
     """Return a capped client whose transport answers with a freshly built response
 
-    Built directly rather than through build_http_client, which takes no transport because
-    nothing in the application needs to substitute one
+    Built directly rather than through build_http_client. That always applies the
+    application's cap, so these tests can set a small one
 
     Args:
         build_response: Callable returning the response for a request
@@ -84,8 +85,7 @@ async def test_oversized_response_is_caught_as_a_transport_failure():
     an error outside that hierarchy would reach a route as a 500 rather than the provider
     failure each of them already reports
     """
-    client = _client_returning(lambda: _streamed(b"x" * (_SMALL_CAP_BYTES + 1), chunk_size=16),
-                               max_response_bytes=_SMALL_CAP_BYTES)
+    client = _client_returning(lambda: _streamed(b"x" * (_SMALL_CAP_BYTES + 1), chunk_size=16), max_response_bytes=_SMALL_CAP_BYTES)
 
     async with client:
         with pytest.raises(httpx.RequestError):
@@ -152,7 +152,6 @@ async def test_streaming_is_refused():
     client = _client_returning(lambda: _streamed(b'{"rate": "1.35"}'))
 
     async with client:
-
         # Matched on the message, since httpx's own streaming errors are RuntimeError too
         with pytest.raises(RuntimeError, match="cannot stream"):
             async with client.stream("GET", _URL):

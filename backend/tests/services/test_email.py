@@ -21,6 +21,7 @@ from app.services.email import (
     RenderedEmail,
     build_email_sender,
     get_email_sender,
+    render_action_needed_email,
     render_reset_email,
     render_signup_confirmation_email,
     set_email_sender,
@@ -318,3 +319,26 @@ def test_render_reset_email_carries_link_in_both_parts():
     assert "abc123" in message.html_body
     assert "15" in message.text_body
     assert "15" in message.html_body
+
+
+def test_render_action_needed_email_lists_the_accounts_in_both_parts_escaping_them_in_html():
+    """Account and connection names are the user's own, so the HTML part escapes them while the text part keeps them as typed"""
+    message = render_action_needed_email(
+        "Reconnect SimpleFIN to resume syncing",
+        "SimpleFIN rejected your <Home> connection, so syncing has stopped for:",
+        ["Bills & <Savings>", "Everyday"],
+        "Please reconnect in Settings to resume syncing.",
+    )
+
+    assert message.subject == "Reconnect SimpleFIN to resume syncing"
+    assert message.text_body == (
+        "SimpleFIN rejected your <Home> connection, so syncing has stopped for:\n\n"
+        "- Bills & <Savings>\n"
+        "- Everyday\n\n"
+        "Please reconnect in Settings to resume syncing."
+    )
+    assert "your &lt;Home&gt; connection" in message.html_body
+    assert "<li>Bills &amp; &lt;Savings&gt;</li>" in message.html_body
+    assert "<li>Everyday</li>" in message.html_body
+    assert "<Home>" not in message.html_body
+    assert "<Savings>" not in message.html_body

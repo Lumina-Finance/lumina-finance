@@ -170,12 +170,15 @@ function transferEndDetail(
     clauses.push(`${effect.moves} of the ${total} ${effect.moves === 1 ? 'moves' : 'move'} into ${accountLabel}`)
   }
   if (effect.recordsOnly > 0 && effect.recordsOnly < total) {
-    const verb = end === 'to'
-      ? (effect.recordsOnly === 1 ? 'goes' : 'go')
-      : (effect.recordsOnly === 1 ? 'comes' : 'come')
-    const target = end === 'to'
-      ? (choice?.scope === 'outside' ? 'outside this app' : `to ${accountLabel}`)
-      : (choice?.scope === 'outside' ? 'from outside this app' : `from ${accountLabel}`)
+    const verb = end === 'to' ? (effect.recordsOnly === 1 ? 'goes' : 'go') : effect.recordsOnly === 1 ? 'comes' : 'come'
+    const target =
+      end === 'to'
+        ? choice?.scope === 'outside'
+          ? 'outside this app'
+          : `to ${accountLabel}`
+        : choice?.scope === 'outside'
+          ? 'from outside this app'
+          : `from ${accountLabel}`
     clauses.push(`${effect.recordsOnly} of the ${total} now ${verb} ${target}`)
   }
 
@@ -183,10 +186,7 @@ function transferEndDetail(
 }
 
 /** Returns the account's label or "Outside this app" for a transfer end choice that is actually set */
-function transferEndValueLabel(
-  choice: TransferEndChoice,
-  accountLabelById: (accountId: string) => string,
-): string {
+function transferEndValueLabel(choice: TransferEndChoice, accountLabelById: (accountId: string) => string): string {
   return choice.scope === 'outside' ? OUTSIDE_ACCOUNT_LABEL : accountLabelById(choice.accountId)
 }
 
@@ -208,6 +208,7 @@ function transferEndValueLabel(
  * @param labels Display text the modal has already resolved for the chosen ids
  * @param chosenCategoryRecordsTransferTarget Whether the category the edit sets records the other
  *     side, or undefined while the edit sets no category and each row keeps its own
+ * @param reviewCount How many items waiting for review the edit adds to the ledger beside the rows
  */
 export function describeBulkEdit(
   choice: BulkEditChoice,
@@ -215,11 +216,12 @@ export function describeBulkEdit(
   blockers: BulkEditBlockers,
   labels: BulkEditSummaryLabels,
   chosenCategoryRecordsTransferTarget: boolean | undefined,
+  reviewCount = 0,
 ): BulkEditSummary {
   // An empty selection has nothing for a row to describe and nothing for a warning to refuse, so
   // this returns before reading choice at all rather than letting a control still holding a value
   // from before the selection emptied produce a row for a transaction that is no longer there
-  if (rows.length === 0) return { rows: [], notes: [], warnings: [] }
+  if (rows.length === 0 && reviewCount === 0) return { rows: [], notes: [], warnings: [] }
 
   const fields = buildBulkEditFields(choice)
   const effects = countTransferEndEffects(rows, choice, chosenCategoryRecordsTransferTarget)
@@ -230,16 +232,17 @@ export function describeBulkEdit(
   const directionValue = fields.direction ?? fields.transfer_direction
   if (directionValue) {
     const directionIsImplied = fields.transfer_direction !== undefined
-    const directionRowCount = rows.filter((row) =>
-      !row.isZeroAmount
-        && (!directionIsImplied || (chosenCategoryRecordsTransferTarget ?? row.recordsFarSide)),
+    const directionRowCount = rows.filter(
+      (row) =>
+        !row.isZeroAmount && (!directionIsImplied || (chosenCategoryRecordsTransferTarget ?? row.recordsFarSide)),
     ).length
     summaryRows.push({
       label: 'Direction',
       value: directionRowCount === 0 ? 'Unchanged' : DIRECTION_ROW_VALUES[directionValue],
-      detail: directionRowCount < rows.length
-        ? `applies to ${directionRowCount} of the ${rows.length} selected transactions`
-        : undefined,
+      detail:
+        directionRowCount < rows.length
+          ? `applies to ${directionRowCount} of the ${rows.length} selected transactions`
+          : undefined,
     })
   }
   if (fields.account_id !== undefined) {
@@ -252,9 +255,10 @@ export function describeBulkEdit(
 
       // Hidden once every row moves or none does, the same rule the end details use below, since
       // only a partial move needs to say how many of the selection actually goes
-      detail: moveCount > 0 && moveCount < rows.length
-        ? `${moveCount} of the ${rows.length} ${moveCount === 1 ? 'moves' : 'move'} into ${moveAccountLabel}`
-        : undefined,
+      detail:
+        moveCount > 0 && moveCount < rows.length
+          ? `${moveCount} of the ${rows.length} ${moveCount === 1 ? 'moves' : 'move'} into ${moveAccountLabel}`
+          : undefined,
     })
   }
   if (fields.merchant_id !== undefined) {
@@ -264,9 +268,11 @@ export function describeBulkEdit(
     summaryRows.push({ label: 'Category', value: labels.categoryLabel })
   }
   if (fields.override_tags) {
-    summaryRows.push(fields.add_tag_ids?.length
-      ? { label: 'Tags replaced', value: formatValueList(labels.tagLabels) }
-      : { label: 'Tags removed', value: 'All tags' })
+    summaryRows.push(
+      fields.add_tag_ids?.length
+        ? { label: 'Tags replaced', value: formatValueList(labels.tagLabels) }
+        : { label: 'Tags removed', value: 'All tags' },
+    )
   } else if (fields.add_tag_ids !== undefined) {
     summaryRows.push({ label: 'Tags added', value: formatValueList(labels.tagLabels) })
   }
@@ -310,6 +316,19 @@ export function describeBulkEdit(
   }
 
   const notes: BulkEditSummaryMessage[] = []
+
+  // A new item is added at the bank's amount, and on the bank's date unless one is chosen
+  if (reviewCount > 0) {
+    const kept = fields.dt === undefined ? 'bank amount and date' : 'bank amount'
+    notes.push({
+      key: 'review-bank-values',
+      text:
+        reviewCount === 1
+          ? `The item waiting for review keeps its ${kept}.`
+          : `The ${reviewCount} items waiting for review keep their ${kept === 'bank amount' ? 'bank amounts' : 'bank amounts and dates'}.`,
+    })
+  }
+
   const sendsAnEnd = choice.endsAreOffered && (choice.transferFrom !== null || choice.transferTo !== null)
   if ((sendsAnEnd || directionValue !== undefined) && transferRowCount > 0) {
     notes.push({
@@ -328,9 +347,7 @@ export function describeBulkEdit(
     if (zeroCount > 0) {
       notes.push({
         key: 'zero-direction',
-        text: zeroCount === 1
-          ? 'The zero amount remains Credit.'
-          : `${zeroCount} zero amounts remain Credit.`,
+        text: zeroCount === 1 ? 'The zero amount remains Credit.' : `${zeroCount} zero amounts remain Credit.`,
       })
     }
   }
@@ -375,8 +392,9 @@ export function describeBulkEdit(
     const noun = rows.length === 1 ? 'transaction' : 'transactions'
     warnings.push({
       key: `currency-${mismatch.rowCurrency}-${mismatch.targetCurrency}`,
-      text: `${shareOpening(mismatch.count, rows.length)} ${noun} in ${mismatch.rowCurrency} `
-        + `can't move to a ${mismatch.targetCurrency} account.`,
+      text:
+        `${shareOpening(mismatch.count, rows.length)} ${noun} in ${mismatch.rowCurrency} ` +
+        `can't move to a ${mismatch.targetCurrency} account.`,
     })
   }
   if (blockers.unavailableOwnAccount.length > 0) {

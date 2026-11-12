@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTaxAdvantagedCategory, signUpUser, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { getAccountRow } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the grouping logic and its saved choices are the same at every size. The tests
@@ -254,8 +255,8 @@ test('shows bank logos on group headers, and on rows a bank header doesn’t hea
   await expect(groupHeading(page, bank).getByRole('img', { name: `${bank} logo` })).toBeVisible()
   await expect(logos).toHaveCount(1)
   // In its place each row shows its account type's icon, since no level names the type
-  await expect(page.getByRole('link', { name: /Bank savings/ }).locator('[data-account-type-mark="savings"]')).toBeVisible()
-  await expect(page.getByRole('link', { name: /Store card/ }).locator('[data-account-type-mark="credit_card"]')).toBeVisible()
+  await expect(getAccountRow(page, 'Bank savings').locator('[data-account-type-mark="savings"]')).toBeVisible()
+  await expect(getAccountRow(page, 'Store card').locator('[data-account-type-mark="credit_card"]')).toBeVisible()
 
   // Under a second level the sub-groups and rows still sit under their bank's header, so they leave it out
   await openPanel(page)
@@ -263,7 +264,7 @@ test('shows bank logos on group headers, and on rows a bank header doesn’t hea
   await closePanel(page)
   await expect(groupHeading(page, 'Savings').getByRole('img', { name: `${bank} logo` })).toHaveCount(0)
   await groupButton(page, 'Savings').click()
-  const savingsRow = page.getByRole('link', { name: /Bank savings/ })
+  const savingsRow = getAccountRow(page, 'Bank savings')
   await expect(savingsRow).toBeVisible()
   await expect(savingsRow.getByRole('img', { name: `${bank} logo` })).toHaveCount(0)
   // The type sub-group's own icon names the type, so the row leaves its type mark out
@@ -287,7 +288,7 @@ test('shows the tax-advantaged tag on a bank’s header, and hides it below 640p
 
   // Grouped by type, the tag stays on the account's row and the group header has none
   await expect(groupHeading(page, 'Savings').getByText('TFSA')).toHaveCount(0)
-  await expect(page.getByRole('link', { name: /Bank savings/ }).getByText('TFSA')).toBeVisible()
+  await expect(getAccountRow(page, 'Bank savings').getByText('TFSA')).toBeVisible()
 
   await chooseFirstLevel(page, 'Institution')
   await closePanel(page)
@@ -344,7 +345,7 @@ test('draws a top-level header larger than a sub-group’s and keeps account row
   })
   expect(subMark).toEqual({ mark: [36, 36], indent: '48px' })
 
-  const row = page.getByRole('link', { name: /Bank savings/ })
+  const row = getAccountRow(page, 'Bank savings')
   expect(await measure(row.getByText('Bank savings', { exact: true }))).toMatchObject({
     size: '16px',
     line: '24px',
@@ -681,7 +682,7 @@ test('on a phone, a bank’s full name keeps its line, and a long account name w
   expect(await isCut(title)).toBe(false)
   expect((await box(total)).y).toBeGreaterThanOrEqual((await box(title)).y + (await box(title)).height)
 
-  const row = page.getByRole('link', { name: /Tax-Free First Home Savings Account/ })
+  const row = getAccountRow(page, 'Tax-Free First Home Savings Account')
   const name = row.getByText('Tax-Free First Home Savings Account', { exact: true })
   const balance = row.getByText('$21,904.12')
   await expect(row.getByText('TFSA', { exact: true })).toBeVisible()
@@ -715,12 +716,12 @@ test('on a phone, a bank’s full name keeps its line, and a long account name w
   expect(Math.abs(upper.x + upper.width / 2 - logoMiddle)).toBeLessThan(1)
   expect(Math.abs(lower.x + lower.width / 2 - logoMiddle)).toBeLessThan(1)
   expect(Math.abs(lower.y - (upper.y + upper.height))).toBeLessThan(1)
-  const lastRowBox = await box(section.getByRole('link').last())
+  const lastRowBox = await box(section.getByTestId(/^account-row-/).last())
   expect(lower.y + lower.height).toBeGreaterThanOrEqual(lastRowBox.y + lastRowBox.height)
   // On a phone the space between accounts separates them, with no line, and the header shows no dots
   const dividers = await section
-    .getByRole('link')
-    .evaluateAll((links) => links.map((link) => getComputedStyle(link.parentElement!).borderTopWidth))
+    .getByTestId(/^account-row-/)
+    .evaluateAll((rows) => rows.map((row) => getComputedStyle(row.parentElement!).borderTopWidth))
   expect(dividers).toEqual(['0px', '0px', '0px'])
   await expect(header.locator('[data-account-dots]')).toBeHidden()
   // A folded group draws no line
@@ -737,7 +738,7 @@ test('on a phone, a bank’s full name keeps its line, and a long account name w
   // Grouped by account type, no header names the bank, so the row keeps its logo
   await page.evaluate((key) => localStorage.setItem(key, 'type'), GROUPING_KEY)
   await page.reload()
-  const typeRow = page.getByRole('link', { name: /Tax-Free First Home Savings Account/ })
+  const typeRow = getAccountRow(page, 'Tax-Free First Home Savings Account')
   const typeLogo = typeRow.getByRole('img', { name: `${bank} logo` })
   await expect(typeLogo).toBeVisible()
   const typeName = typeRow.getByText('Tax-Free First Home Savings Account', { exact: true })
@@ -777,7 +778,7 @@ test('on a phone, a credit card’s available amount follows its type, shortenin
   await openPage(page, '/accounts')
 
   // The store card owes $300.00 of its $1,000.00 limit, and its amount available follows its type
-  const row = page.getByRole('link', { name: /Store card/ })
+  const row = getAccountRow(page, 'Store card')
   const balance = row.getByText('($300.00)', { exact: true })
   const box = async (locator: Locator) => (await locator.boundingBox())!
   const metaLine = row.locator('p.text-sm')
@@ -786,11 +787,11 @@ test('on a phone, a credit card’s available amount follows its type, shortenin
 
   // As the row narrows, the travel card's amount takes the longest form that keeps its line whole,
   // and the converted amount on the right never wraps
-  const travel = page.getByRole('link', { name: /Travel card/ })
+  const travel = getAccountRow(page, 'Travel card')
   const travelLine = travel.locator('p.text-sm')
   const forms = ['$7,829.66 avail.', '$7,829 avail.', '$7.8K avail.', '$7K avail.']
   const seen = new Set<string>()
-  const converted = page.getByRole('link', { name: /Abroad card/ }).getByText(/^(≈|FX unavailable)/)
+  const converted = getAccountRow(page, 'Abroad card').getByText(/^(≈|FX unavailable)/)
   await expect(converted).toBeVisible()
   const convertedLineHeight = await converted.evaluate((element) => parseFloat(getComputedStyle(element).lineHeight))
   for (const width of [600, 390, 360, 340, 330, 320, 300, 280]) {
@@ -822,6 +823,46 @@ test('on a phone, a credit card’s available amount follows its type, shortenin
   expect(Math.abs(travelAvailable.x + travelAvailable.width - (travelBalance.x + travelBalance.width))).toBeLessThan(1)
 })
 
+test('on a phone, a credit card’s link is described by the available amount its line draws, and by none once the line leaves it out', async ({
+  page,
+  request,
+}) => {
+  const { user } = await seedAccounts(page, request)
+  await createAccount(request, user, {
+    name: 'Travel card',
+    accountType: 'credit_card',
+    accountKind: 'revolving',
+    startingBalance: -2_000_000,
+    creditLimit: 2_782_966,
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openPage(page, '/accounts')
+
+  const travel = getAccountRow(page, 'Travel card')
+  const link = travel.getByRole('link', { name: 'Travel card', exact: true })
+  const shown = travel.locator('p.text-sm').locator('[data-credit-available]')
+  const seen = new Set<string>()
+  for (const width of [390, 340, 320, 300, 280, 260]) {
+    await page.setViewportSize({ width, height: 844 })
+    // The fitting runs after the resize lays the row out
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    if (await shown.isVisible()) {
+      const text = (await shown.textContent())!.trim()
+      await expect(link, `${width}px`).toHaveAccessibleDescription(new RegExp(`${text.replace(/[.$]/g, '\\$&')}`))
+      seen.add('form')
+    } else {
+      // No form fits, so nothing is drawn for the link to read
+      await expect(link, `${width}px`).not.toHaveAccessibleDescription(/avail\./)
+      seen.add('none')
+    }
+  }
+  expect([...seen].sort()).toEqual(['form', 'none'])
+
+  // Wider screens draw it under the balance
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect(link).toHaveAccessibleDescription(/\$7,829\.66 avail\.$/)
+})
+
 test('an open top-level group’s header sticks under the toolbar while its rows scroll past, and closing it from there keeps it in view', async ({
   page,
   request,
@@ -835,7 +876,7 @@ test('an open top-level group’s header sticks under the toolbar while its rows
   await openPage(page, '/accounts')
 
   const header = groupButton(page, 'Savings')
-  const firstRow = page.getByRole('link', { name: /Savings 8/ })
+  const firstRow = getAccountRow(page, 'Savings 8')
   await expect(firstRow).toBeVisible()
   const box = async (locator: Locator) => (await locator.boundingBox())!
   // The toolbar is the sticky row holding the search field, with the phone's buttons under it
@@ -879,17 +920,17 @@ test('on a desktop, an open group draws a guide line from its logo to its last r
 
   // The group with no bank holds the cash and the store card
   const section = groupHeading(page, 'No institution').locator('xpath=ancestor::section[1]')
-  const rows = section.getByRole('link')
+  const rows = section.getByTestId(/^account-row-/)
   await expect(rows).toHaveCount(2)
-  const dividers = await rows.evaluateAll((links) => links.map((link) => getComputedStyle(link.parentElement!).borderTopWidth))
+  const dividers = await rows.evaluateAll((items) => items.map((item) => getComputedStyle(item.parentElement!).borderTopWidth))
   expect(dividers).toEqual(['0px', '1px'])
 
   // The guide runs from under the mark down the body, ending with the last row, once the regroup's glide settles
   const measureGuide = () => section.evaluate((element) => {
     const [header, body] = [...element.querySelectorAll('[data-group-guide]')].map((line) => line.getBoundingClientRect())
     const mark = element.querySelector('h3 button')!.firstElementChild!.getBoundingClientRect()
-    const links = element.querySelectorAll('a')
-    const lastRow = links[links.length - 1].getBoundingClientRect()
+    const rowBoxes = element.querySelectorAll('[data-testid^="account-row-"]')
+    const lastRow = rowBoxes[rowBoxes.length - 1].getBoundingClientRect()
     return { start: header.top - mark.bottom, joined: body.top - header.bottom, end: body.bottom - lastRow.bottom }
   })
   // Settled once two readings 400ms apart agree, since a reading mid-glide can pass on its way through
@@ -920,15 +961,15 @@ test('rows under a sub-group start where the sub-group’s title does', async ({
   await groupHeading(page, 'Savings').getByRole('button').click()
   const section = page.locator('section').filter({ has: groupHeading(page, 'Savings') }).last()
   const title = section.getByRole('heading').locator('span.font-serif')
-  const row = section.getByRole('link')
+  const row = section.getByTestId(/^account-row-/)
   await expect(row).toBeVisible()
   // Both are read once the body has finished opening. The row's first mark or text is its leftmost drawn part
   await expect
     .poll(async () => {
       const titleBox = await title.boundingBox()
-      const rowLeft = await row.evaluate((link) =>
+      const rowLeft = await row.evaluate((item) =>
         Math.min(
-          ...[...link.querySelectorAll('*')]
+          ...[...item.querySelectorAll('*')]
             .filter((element) => element.children.length === 0 && element.getBoundingClientRect().width > 0)
             .map((element) => element.getBoundingClientRect().x),
         ),

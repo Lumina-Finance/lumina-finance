@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.base import CategoryKind
+from app.models.base import AccountKind, CategoryKind
 from app.models.category import Category
 from app.models.merchant import Merchant
 from app.models.transaction import Transaction
@@ -18,6 +18,7 @@ from app.services.accounts.snapshots import (
     recompute_account_snapshots,
     refuse_unstorable_balance,
 )
+from app.services.bank_sync.manual_entries import refuse_days_a_bank_supplies
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
 
 _BALANCE_ADJUSTMENT_CATEGORY_NAME = "Balance Adjustment"
@@ -25,32 +26,123 @@ _STARTING_BALANCE_NOTE = "Starting balance"
 _ARCHIVE_BALANCE_ADJUSTMENT_NOTE = "Account archived"
 
 
+async def record_account_starting_balance(
+    db: AsyncSession,
+    account: Account,
+    *,
+    user: User,
+    amount: int,
+    adjustment_date: date,
+) -> None:
+    """Record the starting balance of an account that has no transactions yet
+
+    The amount is the balance as the user states it, so a liability's (what is owed) is
+    saved negated. The account row is locked before its transactions are looked for, so a
+    transaction still being saved, or a repeat of this request, is seen once it commits and this
+    one is refused rather than adding a second starting balance. An archived account is not refused,
+    since an account can be created archived and still needs its starting balance. A linked account
+    whose import has started is, since its bank supplies today
+
+    Args:
+        db: Active database session
+        account: The account receiving the starting balance, one the user owns or administers
+        user: User recording the starting balance
+        amount: Starting balance in minor units, not zero
+        adjustment_date: The account owner's today, used to date the adjustment
+
+    Raises:
+        HTTPException: The account already has transactions, its bank supplies today, the amount is outside
+            the range an account balance can hold, or the Balance Adjustment category or the Myself merchant
+            is not configured
+    """
+    # The row lock conflicts with the key share lock a transaction insert takes on its account
+    await db.execute(select(Account.id).where(Account.id == account.id).with_for_update())
+    first_transaction_id = await db.scalar(
+        select(Transaction.id).where(Transaction.account_id == account.id).limit(1),
+    )
+    if first_transaction_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="This account already has transactions, so a starting balance can't be recorded",
+        )
+
+    # Taken after the row lock above, since that lock already holds back a link request
+    await refuse_days_a_bank_supplies(db, user, [(account.id, adjustment_date)])
+
+    await add_account_starting_balance_adjustment(
+        db,
+        account,
+        user=user,
+        amount=amount if account.account_kind == AccountKind.ASSET else -amount,
+        adjustment_date=adjustment_date,
+    )
+
+
 async def add_account_starting_balance_adjustment(
     db: AsyncSession,
     account: Account,
     *,
-    user_id: uuid.UUID,
+    user: User,
     amount: int,
     adjustment_date: date,
 ) -> None:
-    """Add the starting balance adjustment for an account
+    """Add the starting balance adjustment for an account, without committing
 
     Args:
         db: Active database session
         account: Account receiving the starting balance
-        user_id: User creating the account
-        amount: Starting balance amount in minor units
+        user: User creating the account or recording its starting balance
+        amount: Signed starting balance in minor units, as the ledger keeps it
         adjustment_date: Date used for the adjustment transaction
 
     Raises:
-        HTTPException: The amount is outside the range an account balance can hold, or the balance
-            adjustment category or the Myself merchant is not configured
+        HTTPException: The amount is outside the range an account balance can hold, or the Balance
+            Adjustment category or the Myself merchant is not configured
     """
-    # A new account holds nothing else, so the amount is its whole balance
+    await add_balance_adjustment(
+        db,
+        account,
+        user=user,
+        amount=amount,
+        adjustment_date=adjustment_date,
+        note=_STARTING_BALANCE_NOTE,
+    )
+
+
+async def add_balance_adjustment(
+    db: AsyncSession,
+    account: Account,
+    *,
+    user: User,
+    amount: int,
+    adjustment_date: date,
+    note: str,
+    import_run_id: uuid.UUID | None = None,
+) -> None:
+    """Add a balance adjustment to an account and rebuild its balances from the adjustment's date, without committing
+
+    The adjustment is a Balance Adjustment transaction to the Myself merchant. The caller has run
+    whatever checks its date has to pass
+
+    Args:
+        db: Active database session
+        account: Account the adjustment lands in
+        user: User the adjustment is recorded by
+        amount: Signed minor units, as the ledger keeps them, so a liability's debt is negative
+        adjustment_date: The date it is recorded on
+        note: Why it was recorded, as shown on the transaction
+        import_run_id: Import run that recorded it. Undoing the import deletes the adjustment with it
+
+    Raises:
+        HTTPException: The amount is outside the range an account balance can hold, or the Balance
+            Adjustment category or the Myself merchant is not configured
+    """
+    # A starting balance is the account's whole balance, and any other adjustment is a single amount
+    # the column has to hold, so one check covers every caller
     refuse_unstorable_balance(account.name, amount)
     db.add(
         Transaction(
-            created_by_user_id=user_id,
+            created_by_user_id=user.id,
             account_id=account.id,
             dt=adjustment_date,
             category_id=await _get_system_balance_adjustment_category_id(db),
@@ -58,7 +150,8 @@ async def add_account_starting_balance_adjustment(
             amount=amount,
             currency=account.currency,
             fx_rate=None,
-            notes=_STARTING_BALANCE_NOTE,
+            notes=note,
+            import_run_id=import_run_id,
         )
     )
     await db.flush()
@@ -138,22 +231,15 @@ async def zero_account_balance_for_archive(
     if current_balance == 0:
         return False
 
-    db.add(
-        Transaction(
-            created_by_user_id=user.id,
-            account_id=account.id,
-            dt=archive_date,
-            category_id=await _get_system_balance_adjustment_category_id(db),
-            merchant_id=await _get_self_merchant_id(db),
-            amount=-current_balance,
-            currency=account.currency,
-            fx_rate=None,
-            notes=_ARCHIVE_BALANCE_ADJUSTMENT_NOTE,
-            import_run_id=import_run_id,
-        )
+    await add_balance_adjustment(
+        db,
+        account,
+        user=user,
+        amount=-current_balance,
+        adjustment_date=archive_date,
+        note=_ARCHIVE_BALANCE_ADJUSTMENT_NOTE,
+        import_run_id=import_run_id,
     )
-    await db.flush()
-    await recompute_account_snapshots(db, {account.id: archive_date})
     return True
 
 

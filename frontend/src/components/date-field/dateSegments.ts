@@ -75,11 +75,7 @@ function clampSegments(segments: DateSegments): DateSegments {
  * Applies newly typed digits to a segment, keeping only digits, capping the length, and re-clamping
  * the date so the visible value is always a real calendar date
  */
-export function setSegmentDigits(
-  segments: DateSegments,
-  segment: DateSegmentName,
-  rawValue: string,
-): DateSegments {
+export function setSegmentDigits(segments: DateSegments, segment: DateSegmentName, rawValue: string): DateSegments {
   const digits = rawValue.replace(/\D/g, '').slice(0, SEGMENT_MAX_LENGTH[segment])
 
   return clampSegments({ ...segments, [segment]: digits })
@@ -136,6 +132,47 @@ export function parseIsoDate(value: string): DateSegments {
   if (!match) return EMPTY_SEGMENTS
 
   return { year: match[1], month: match[2], day: match[3] }
+}
+
+/**
+ * Whether a locale writes the month before the day in a numeric date, as en-US and en-CA do and en-GB
+ * doesn't
+ *
+ * @param locale - The locale to ask, or undefined for the browser's own
+ */
+function writesMonthFirst(locale: string | undefined): boolean {
+  const parts = new Intl.DateTimeFormat(locale, { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(
+    new Date(2026, 0, 2),
+  )
+  return parts.findIndex((part) => part.type === 'month') < parts.findIndex((part) => part.type === 'day')
+}
+
+/**
+ * Reads a whole date pasted into the field, or null for anything else, including a day that doesn't
+ * exist. A year-first date takes dashes, slashes, dots or no separator. A date with the year last, such
+ * as 10/01/2026, reads two ways, so its month and day follow the order of the locale's own numeric dates
+ *
+ * @param text - The pasted text
+ * @param locale - The locale whose date order settles a year-last date, or undefined for the browser's own
+ */
+export function parsePastedDate(text: string, locale?: string): DateSegments | null {
+  const trimmed = text.trim()
+
+  // The separator, when there is one, must be the same both times
+  const yearFirst = /^(\d{4})(?:([-/.])(\d{1,2})\2(\d{1,2})|(\d{2})(\d{2}))$/.exec(trimmed)
+  const yearLast = /^(\d{1,2})([-/.])(\d{1,2})\2(\d{4})$/.exec(trimmed)
+  let segments: DateSegments
+  if (yearFirst)
+    segments = { year: yearFirst[1], month: yearFirst[3] ?? yearFirst[5], day: yearFirst[4] ?? yearFirst[6] }
+  else if (yearLast) {
+    const [first, second] = [yearLast[1], yearLast[3]]
+    segments = writesMonthFirst(locale)
+      ? { year: yearLast[4], month: first, day: second }
+      : { year: yearLast[4], month: second, day: first }
+  } else return null
+
+  const iso = formatIsoDate(segments)
+  return iso === '' ? null : parseIsoDate(iso)
 }
 
 /**

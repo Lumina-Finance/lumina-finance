@@ -3,17 +3,17 @@ import { motion, AnimatePresence } from 'motion/react'
 import { FormError } from '@/components/forms/FormError'
 import Dropdown from '@/components/dropdown/Dropdown'
 import LoadFailure from '@/components/errors/LoadFailure'
-import IconTooltip from '@/components/tooltips/IconTooltip'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import { Landmark } from 'lucide-react'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
+import { useBankProviders } from '@/api/bank-sync'
 import { useCurrencies } from '@/api/currency'
 import { useInstitutions, type Institution } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import InstitutionModal from '@/components/reference-modals/InstitutionModal'
-import { useCreateAccount } from '@/api/accounts'
+import { useCreateAccount, type AccountsOverview } from '@/api/accounts'
 import { useAuth } from '@/hooks/useAuth'
 import { useInstitutionModal } from '@/hooks/useInstitutionModal'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
@@ -51,17 +51,25 @@ const conditionalField = {
   transition: { duration: 0.25, ease: CREATE_ACCOUNT_EASE },
 }
 
-interface CreateAccountModalProps {
+type CreateAccountModalProps = {
   open: boolean
   onClose: () => void
+
+  /** Receives the account once saved, before the modal closes, so the page can ask for its starting balance */
+  onCreated: (account: AccountsOverview) => void
+  onExitComplete: () => void
 }
 
 /**
  * Orchestrates account creation form state and nested institution creation
  */
-export default function CreateAccountModal({ open, onClose }: CreateAccountModalProps) {
+export default function CreateAccountModal({ open, onClose, onCreated, onExitComplete }: CreateAccountModalProps) {
   const { user } = useAuth()
   const mutation = useCreateAccount()
+
+  // The prompt that follows the save waits for this read, so it is started while the dialogue is open
+  // and answered by the time the prompt opens. It holds the deployment's providers, not anyone's bank data
+  useBankProviders({ enabled: open })
   const { data: currencies = [] } = useCurrencies()
   const { data: institutions = [] } = useInstitutions()
   const {
@@ -79,8 +87,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   )
   const errors = refusal.errors
 
-  const { conditionalAccountField, selectedAccountTypeLabel, selectedCurrencySymbol, startingBalanceLabel } =
-    buildCreateAccountViewModel(form, currencies)
+  const { conditionalAccountField, selectedAccountTypeLabel, selectedCurrencySymbol } = buildCreateAccountViewModel(
+    form,
+    currencies,
+  )
   const currencyOptions = useMemo(() => buildCreateAccountCurrencyOptions(currencies), [currencies])
   const institutionOptions = useMemo(() => buildCreateAccountInstitutionOptions(institutions), [institutions])
   const taxPlanOptions = useMemo(
@@ -102,12 +112,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
   }
 
   const currencyExponent = getCurrencyExponent(currencies, form.currency)
-  const startingBalanceInput = useMoneyInput({
-    value: form.starting_balance,
-    exponent: currencyExponent,
-    onChange: (value) => handleChange('starting_balance', value),
-    onBlur: () => refusal.touch('starting_balance'),
-  })
   const creditLimitInput = useMoneyInput({
     value: form.credit_limit,
     exponent: currencyExponent,
@@ -122,7 +126,10 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
     const payload = buildCreateAccountPayload(form, currencies)
 
     mutation.mutate(payload, {
-      onSuccess: () => onClose(),
+      onSuccess: (account) => {
+        onCreated(account)
+        onClose()
+      },
       onError: (err) => {
         setSubmitError(getCreateFailureMessage(err, 'account'))
       },
@@ -139,6 +146,7 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
         RailIcon={Landmark}
         railLabel="Account"
         onClose={onClose}
+        onExitComplete={onExitComplete}
         onSubmit={handleSubmit}
         footer={
           <ModalFormFooter
@@ -262,39 +270,6 @@ export default function CreateAccountModal({ open, onClose }: CreateAccountModal
                   onEditOption={institutionModal.openForCorrection}
                   editOptionLabel="Correct institution"
                 />
-              </div>
-
-              <div>
-                <CreateModalFieldLabelRow
-                  htmlFor={CREATE_ACCOUNT_MODAL_FIELD_IDS.startingBalance}
-                  label={startingBalanceLabel}
-                  error={errors.starting_balance}
-                  errorId={CREATE_ACCOUNT_ERROR_IDS.starting_balance}
-                  accessory={
-                    <IconTooltip label={`${startingBalanceLabel} info`} placement="top" widthClassName="w-56" size={14}>
-                      If provided, this account will be created with a balance adjustment transaction for this amount.
-                    </IconTooltip>
-                  }
-                />
-                <div className="relative">
-                  {selectedCurrencySymbol && (
-                    <span
-                      className="app-input-prefix pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
-                      aria-hidden
-                    >
-                      {selectedCurrencySymbol}
-                    </span>
-                  )}
-                  <input
-                    id={CREATE_ACCOUNT_MODAL_FIELD_IDS.startingBalance}
-                    className={`app-input ${selectedCurrencySymbol ? 'pl-8' : ''} ${errors.starting_balance ? 'app-input-error' : ''}`}
-                    style={getSymbolInputStyle(selectedCurrencySymbol)}
-                    aria-invalid={errors.starting_balance ? true : undefined}
-                    aria-describedby={errors.starting_balance ? CREATE_ACCOUNT_ERROR_IDS.starting_balance : undefined}
-                    placeholder="Optional"
-                    {...startingBalanceInput}
-                  />
-                </div>
               </div>
 
               <AnimatePresence initial={false} mode="wait">

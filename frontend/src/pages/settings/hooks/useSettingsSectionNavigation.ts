@@ -2,10 +2,20 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { BELOW_MOBILE_NAVIGATION_TOGGLE_ROOT_MARGIN } from '@/components/navigation/constants/data'
 import { buildImportOriginState } from '@/utils/importOrigin'
-import { SETTINGS_SECTIONS, type SettingsSectionId } from '@/pages/settings/settingsNavigation'
+import {
+  isHeldWhenLinked,
+  SETTINGS_SECTIONS,
+  type SettingsSection,
+  type SettingsSectionId,
+} from '@/pages/settings/settingsNavigation'
+import { ignoreFirstReport } from '@/pages/settings/utils/ignoreFirstReport'
 
 const PROGRAMMATIC_SCROLL_SETTLE_MS = 600
 const COMPACT_MENU_QUERY = '(max-width: 1199.98px)'
+
+// How long a section opened from a link stays held at the top while the sections above it load
+const HOLD_LINKED_SECTION_MS = 3000
+const READER_SCROLL_EVENTS = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
 
 // Space left above a section the page scrolls to: below the pinned section menu where it shows, or
 // from the top of the window beside the side list
@@ -14,10 +24,16 @@ const SECTION_GAP_WITHOUT_MENU_PX = 32
 
 /**
  * Owns settings section scroll spy state, mobile menu state, and section navigation
+ *
+ * @param shownSections - The sections the page shows. A link to one that shows only once a read answers,
+ * such as Bank connections, scrolls to it when it appears
  */
-export function useSettingsSectionNavigation() {
+export function useSettingsSectionNavigation(shownSections: readonly SettingsSection[]) {
   const navigate = useNavigate()
   const location = useLocation()
+  const linkedId = location.hash
+    ? shownSections.find(({ id }) => id === decodeURIComponent(location.hash.slice(1)))?.id
+    : undefined
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('profile')
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const [settingsMenuStuck, setSettingsMenuStuck] = useState(false)
@@ -29,13 +45,14 @@ export function useSettingsSectionNavigation() {
    * Scrolls a section to just below whatever stays pinned above it, measured rather than fixed since the
    * section menu sits lower in the wider layouts
    */
-  function scrollToSection(element: HTMLElement) {
+  function scrollToSection(element: HTMLElement, behavior: ScrollBehavior = 'smooth') {
     const menu = mobileSettingsMenuRef.current
     // The menu sits inside its sticky shell, so its own offset is where its bottom lands once pinned
-    const offset = window.matchMedia(COMPACT_MENU_QUERY).matches && menu
-      ? menu.offsetTop + menu.offsetHeight + SECTION_GAP_BELOW_MENU_PX
-      : SECTION_GAP_WITHOUT_MENU_PX
-    window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - offset, behavior: 'smooth' })
+    const offset =
+      window.matchMedia(COMPACT_MENU_QUERY).matches && menu
+        ? menu.offsetTop + menu.offsetHeight + SECTION_GAP_BELOW_MENU_PX
+        : SECTION_GAP_WITHOUT_MENU_PX
+    window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - offset, behavior })
   }
 
   /**
@@ -48,7 +65,9 @@ export function useSettingsSectionNavigation() {
     skipScrollSpyRef.current = true
     setActiveSection(id)
     scrollToSection(element)
-    window.setTimeout(() => { skipScrollSpyRef.current = false }, PROGRAMMATIC_SCROLL_SETTLE_MS)
+    window.setTimeout(() => {
+      skipScrollSpyRef.current = false
+    }, PROGRAMMATIC_SCROLL_SETTLE_MS)
   }
 
   /**
@@ -75,29 +94,46 @@ export function useSettingsSectionNavigation() {
   }
 
   useEffect(() => {
-    if (!location.hash) return undefined
+    if (!linkedId) return undefined
 
-    const section = SETTINGS_SECTIONS.find(({ id }) => id === decodeURIComponent(location.hash.slice(1)))
-    if (!section) return undefined
+    let observer: ResizeObserver | null = null
+    let releaseTimer: number | null = null
 
-    let settleTimer: number | null = null
+    // A section held when linked is put back at the top each time the page grows, since the sections
+    // above it load after the page opens and push it down, until the reader scrolls themselves or the
+    // hold runs out. The observer's first report is ignored, since it comes before anything has grown
+    // and its unanimated scroll would cut the smooth scroll that just began short. Any other section
+    // scrolls once and lets the scroll spy resume when that has settled
+    const holds = isHeldWhenLinked(linkedId)
+    function release() {
+      observer?.disconnect()
+      observer = null
+      if (releaseTimer !== null) window.clearTimeout(releaseTimer)
+      releaseTimer = null
+      for (const type of READER_SCROLL_EVENTS) window.removeEventListener(type, release)
+      skipScrollSpyRef.current = false
+    }
+
     const frameId = window.requestAnimationFrame(() => {
-      const element = document.getElementById(section.id)
+      const element = document.getElementById(linkedId)
       if (!element) return
 
       skipScrollSpyRef.current = true
-      setActiveSection(section.id)
+      setActiveSection(linkedId)
       scrollToSection(element)
-      settleTimer = window.setTimeout(() => {
-        skipScrollSpyRef.current = false
-      }, PROGRAMMATIC_SCROLL_SETTLE_MS)
+      if (holds) {
+        observer = new ResizeObserver(ignoreFirstReport(() => scrollToSection(element, 'auto')))
+        observer.observe(document.body)
+        for (const type of READER_SCROLL_EVENTS) window.addEventListener(type, release, { passive: true })
+      }
+      releaseTimer = window.setTimeout(release, holds ? HOLD_LINKED_SECTION_MS : PROGRAMMATIC_SCROLL_SETTLE_MS)
     })
 
     return () => {
       window.cancelAnimationFrame(frameId)
-      if (settleTimer !== null) window.clearTimeout(settleTimer)
+      release()
     }
-  }, [location.hash])
+  }, [linkedId])
 
   useEffect(() => {
     let frameId: number | null = null
@@ -114,9 +150,7 @@ export function useSettingsSectionNavigation() {
 
         const isCompactMenu = window.matchMedia(COMPACT_MENU_QUERY).matches
         const compactMenuBottom = mobileSettingsMenuRef.current?.getBoundingClientRect().bottom ?? 0
-        const activationLine = isCompactMenu
-          ? compactMenuBottom + 24
-          : Math.min(window.innerHeight * 0.32, 240)
+        const activationLine = isCompactMenu ? compactMenuBottom + 24 : Math.min(window.innerHeight * 0.32, 240)
         let nextActiveSection = SETTINGS_SECTIONS[0].id
 
         for (const section of SETTINGS_SECTIONS) {
@@ -126,9 +160,7 @@ export function useSettingsSectionNavigation() {
           nextActiveSection = section.id
         }
 
-        setActiveSection((current) => (
-          current === nextActiveSection ? current : nextActiveSection
-        ))
+        setActiveSection((current) => (current === nextActiveSection ? current : nextActiveSection))
       })
     }
 

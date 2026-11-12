@@ -9,6 +9,16 @@ export const ACCOUNT_KIND_LABEL: Record<string, string> = {
 
 export const EASE = [0.25, 0.1, 0.25, 1] as const
 
+/**
+ * What another page asks the account page to open on arrival, through router state: the edit modal,
+ * or the bank link flow over the page, chosen on a connection just made in Settings when one is named
+ */
+export type AccountDetailArrivalState = {
+  editAccount?: boolean
+  linkBank?: boolean
+  linkConnectionId?: string
+}
+
 // An account already in the cache resolves in a few milliseconds, so the loading skeleton waits
 // this long before appearing rather than flickering through a load nobody perceives as slow
 export const ACCOUNT_SKELETON_DELAY_MS = 150
@@ -58,6 +68,23 @@ export const DELETE_ACCOUNT_NAME_MISMATCH_MESSAGE = "Type the account's name to 
 // the archive with the same wording
 export const ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON =
   "This account can't be archived because it has future dated transactions. Please delete them or adjust date before archiving the account."
+
+// Archiving writes a balance adjustment dated today, a day a linked account's bank supplies, so a
+// linked account is unlinked first. The server refuses the archive in the same words
+export function getArchiveBlockedByLinkReason(providerName: string): string {
+  return `This account is linked to ${providerName}. Please unlink the account first.`
+}
+
+/**
+ * The one reason archiving is unavailable, or null when it is available. A link's reason comes first,
+ * since the later transactions of a linked account don't block it, so the two never hold together
+ *
+ * @param linkedReason - Why the account can't be archived while it is linked, or null
+ * @param isBlockedByLaterTransactions - Whether later-dated transactions block it
+ */
+export function getArchiveReason(linkedReason: string | null, isBlockedByLaterTransactions: boolean): string | null {
+  return linkedReason ?? (isBlockedByLaterTransactions ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : null)
+}
 
 export type BalanceRange = '7D' | '30D' | '90D' | '1Y'
 export type BalanceChartMode = 'balance' | 'change'

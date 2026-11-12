@@ -23,6 +23,8 @@ from app.request_validation import handle_request_validation_error
 from app.routes.accounts import router as account_router
 from app.routes.app_version import router as app_version_router
 from app.routes.auth import router as auth_router
+from app.routes.bank_sync import bank_link_router, review_router
+from app.routes.bank_sync import router as bank_sync_router
 from app.routes.base_budgets import router as base_budget_router
 from app.routes.budgets import router as budget_router
 from app.routes.categories import router as category_router
@@ -39,6 +41,7 @@ from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
 from app.services.auth.oidc_providers import sync_oidc_providers
 from app.services.auth.step_up import ATTEMPTS_REMAINING_HEADER
+from app.services.bank_sync.providers.registry import run_startup_checks
 from app.services.email import build_email_sender, set_email_sender
 from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
 from app.services.maintenance.expired_records import prune_expired_records_on_schedule
@@ -51,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """Verify the runtime and its keys, seed OIDC providers, then prune expired records while serving"""
+    """Verify the runtime, its keys and each bank provider's settings, seed OIDC providers, then prune expired records while serving"""
     await verify_app_role_is_unprivileged()
 
     # The seeding below rewrites the OIDC client secret under whatever key resolved, so a
@@ -74,6 +77,8 @@ async def _lifespan(_app: FastAPI):
         logger.info("OIDC sign-in enabled for: %s", enabled_slugs)
     else:
         logger.info("OIDC sign-in is not configured")
+
+    run_startup_checks()
 
     # The cache's pool lives as long as the app, in every runtime, and a server without ValKey starts as usual
     async with use_valkey():
@@ -144,6 +149,9 @@ app.include_router(category_router)
 app.include_router(merchant_router)
 app.include_router(tag_router)
 app.include_router(transaction_router)
+app.include_router(bank_sync_router)
+app.include_router(bank_link_router)
+app.include_router(review_router)
 app.include_router(group_router)
 app.include_router(base_budget_router)
 app.include_router(budget_router)

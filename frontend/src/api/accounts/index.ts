@@ -34,5 +34,8 @@ export {
   useCreateAccount,
   useDeleteAccount,
   useForgetDeletedAccount,
+  useRecordStartingBalance,
   useUpdateAccount,
 } from '@/api/accounts/hooks'
+
+export { StartingBalanceNotSavedError } from '@/api/accounts/startingBalance'

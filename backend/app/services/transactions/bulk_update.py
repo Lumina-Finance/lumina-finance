@@ -32,6 +32,12 @@ from app.schemas.transaction import (
     TransferEnd,
 )
 from app.services.accounts.snapshots import recompute_account_snapshots
+from app.services.bank_sync.manual_entries import (
+    LedgerEdit,
+    detach_moved_bank_imports,
+    lock_bank_imports,
+    refuse_edits_a_bank_supplies,
+)
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
@@ -85,13 +91,16 @@ async def bulk_update_transactions(
 
     Raises:
         HTTPException: A transaction was not found, an account refuses the write, a transfer end
-            reached no row, a row breaks a rule the single-transaction path enforces, a row would
-            move into an account already holding its bank ID, or another change reached one of the
-            transactions first
+            reached no row, a row breaks a rule the single-transaction path enforces, including
+            the days a linked account's bank supplies, a row would move into an account already
+            holding its bank ID, or another change reached one of the transactions first
     """
     sent = data.model_fields_set
     requested_ids = list(dict.fromkeys(data.transaction_ids))
 
+    # A move takes each bank-imported transaction's bank transaction with it. The bank transaction is locked first
+    if "account_id" in sent:
+        await lock_bank_imports(db, requested_ids)
     transactions = await load_locked_transactions(db, user, requested_ids)
 
     transaction_ids = [transaction.id for transaction in transactions]
@@ -141,6 +150,18 @@ async def bulk_update_transactions(
         accounts_by_id[target_account.id] = target_account
     await _refuse_rows_breaking_single_edit_rules(db, user, data, transactions, resolutions, accounts_by_id)
     await _refuse_moves_into_held_bank_transactions(db, transactions, resolutions, accounts_by_id)
+    edits = [
+        LedgerEdit(
+            transaction_id=transaction.id,
+            account_id=transaction.account_id,
+            dt=transaction.dt,
+            new_account_id=resolutions[transaction.id].account_id,
+            new_dt=data.dt if "dt" in sent else transaction.dt,
+        )
+        for transaction in transactions
+    ]
+    await refuse_edits_a_bank_supplies(db, user, edits, name_accounts=True)
+    await detach_moved_bank_imports(db, edits)
 
     # Collected before the update, because SQLAlchemy writes the new values back onto the loaded
     # rows and a date or a counterparty read afterwards is the new one

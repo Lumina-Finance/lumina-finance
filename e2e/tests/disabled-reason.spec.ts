@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page, type Request } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openModal, openPage } from '../support/app'
+import { logInViaApi, openModal, openPage, readSettledBox } from '../support/app'
 
 // Runs on desktop only, except the tap test, which sets up a touch screen of its own. A control held off
 // for a reason does nothing when it is clicked, tabbed to or pressed with Enter, and says why instead
@@ -154,6 +154,20 @@ test('opens nothing when a dropdown held off for a reason is clicked or Enter is
   await expect(currency).toHaveAttribute('aria-expanded', 'false')
   await expect(page.getByRole('listbox')).toHaveCount(0)
 
+  // Held off, it still draws main's solid focus ring on its box rather than a fainter one of its own
+  await expect(currency).toBeFocused()
+  const box = dialog.getByTestId('dropdown-box').filter({ has: page.locator('#txn-currency') })
+  // The ring colour is read from a border drawn beside the box, so both resolve in the same theme and format
+  const ringColour = () => box.evaluate((node) => {
+    const probe = document.createElement('span')
+    probe.style.border = '1px solid var(--app-focus-ring)'
+    node.parentElement!.append(probe)
+    const ring = getComputedStyle(probe).borderTopColor
+    probe.remove()
+    return ring
+  })
+  await expect.poll(async () => box.evaluate((node) => getComputedStyle(node).borderTopColor)).toBe(await ringColour())
+
   // The fence: a dropdown with no reason opens from the same presses
   const category = dialog.locator('#txn-category')
   await category.click()
@@ -248,6 +262,9 @@ test.describe('on a touch screen', () => {
     const tooltip = page.getByTestId(TOOLTIP).filter({ hasText: FIX_FIELDS })
     await expectFadedOut(tooltip)
 
+    // The email's error eases in and moves the form down. A forced tap skips the wait for the button to stop
+    // moving, so it waits here, or the tap can land on the field above
+    await readSettledBox(submit)
     await submit.tap({ force: true })
     await expect(tooltip).toHaveCSS('opacity', '1')
 

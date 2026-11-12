@@ -1,14 +1,15 @@
 """Account creation scope helpers"""
+
 import uuid
 from dataclasses import dataclass
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.rls.functions import USER_TZ
 from app.models.group import GroupMember
 from app.models.user import User
+from app.services.accounts.starting_balance import get_group_owner_timezone_or_404
 
 
 @dataclass(frozen=True)
@@ -52,7 +53,7 @@ async def resolve_account_creation_scope(
     return AccountCreationScope(
         owner_id=None,
         group_id=group_id,
-        anchor_tz=await _get_group_owner_timezone_or_404(db, group_id),
+        anchor_tz=await get_group_owner_timezone_or_404(db, group_id),
     )
 
 
@@ -98,27 +99,3 @@ def _raise_for_missing_group_admin_access(membership: GroupMember) -> None:
     """
     if not membership.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create group accounts")
-
-
-async def _get_group_owner_timezone_or_404(db: AsyncSession, group_id: uuid.UUID) -> str:
-    """Return the group owner's timezone or raise a not-found response
-
-    Args:
-        db: Active database session
-        group_id: Group identifier from the request
-
-    Returns:
-        Group owner's timezone
-
-    Raises:
-        HTTPException: Group does not exist
-    """
-    # Fetch the owning user's timezone so group-account history starts on the owner's
-    # local day, through the helper since the owner's user row is not directly visible
-    group_owner_tz = await db.scalar(
-        text(f"SELECT {USER_TZ}(owner_id) FROM public.groups WHERE id = :group_id"),  # noqa: S608
-        {"group_id": group_id},
-    )
-    if group_owner_tz is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
-    return group_owner_tz

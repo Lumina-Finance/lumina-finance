@@ -24,6 +24,7 @@ const LOADING_PLACEHOLDERS = new Set([
   'pages/accounts/components/ListSection.tsx',
   'pages/budgets/components/budget-details-modal/HistoryChart.tsx',
   'pages/imports/ImportsPage.tsx',
+  'pages/settings/components/bank-connections-section/InstitutionList.tsx',
   'pages/transactions/components/top-band/MostExpensiveTransactionsPanel.tsx',
 ])
 

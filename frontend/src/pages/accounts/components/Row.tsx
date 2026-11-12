@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useId, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 import { EyeOff } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
@@ -99,10 +99,31 @@ export default function AccountRow({
         )
   const [setMetaLine, fittedForm] = useFittedForm(availableCreditForms ?? [])
 
+  // Tabbing from account to account hears only the link's name, so the link is described by what the
+  // row shows beside the name, in the row's order: the linked plan, the type and institution, the
+  // balance, the converted balance and the credit available. The logo is left out, since the institution
+  // line already names the bank, and so is the FX badge, since it is a control of its own
+  const descriptionId = useId()
+  const describedBy = [
+    linkedPlan && `${descriptionId}-plan`,
+    `${descriptionId}-metadata`,
+    `${descriptionId}-balance`,
+    showConvertedBalance && `${descriptionId}-converted`,
+    availableCreditText && `${descriptionId}-credit`,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  // The link sits on the name and stretches over the whole row, rather than wrapping it, because the
+  // row holds a control of its own, the FX badge, and a link cannot contain one. The badge is raised
+  // above the stretched link so a tap on it opens its tooltip rather than the account. Keyboard focus
+  // on the link rings the row in the app's focus ring, inset so the row beside it cannot cover it. It
+  // leaves the row unlit, since the ring falls under 3:1 against the hover's tint on the light page.
+  // The ring is the row's own, so the link draws none
   return (
-    <Link
-      to={`/accounts/${account.id}`}
-      className={`group/row app-focus-inset focus-visible:bg-transparent! flex min-w-0 items-stretch overflow-hidden rounded-xl hover:bg-[var(--app-accent-soft)] ${
+    <div
+      data-testid={`account-row-${account.id}`}
+      className={`group/row app-focus-inset relative flex min-w-0 items-stretch rounded-xl hover:bg-[var(--app-accent-soft)] has-[a:focus-visible]:bg-transparent! has-[a:focus-visible]:[outline:var(--app-focus-outline)] ${
         isArchived
           ? 'my-1 border border-dashed opacity-75 transition-[color,background-color,opacity] hover:opacity-100'
           : 'transition-control'
@@ -144,11 +165,17 @@ export default function AccountRow({
                 after its last word. Wider screens keep them in a row and cut a long name short */}
             <div className="min-w-0 flex-1 min-[750px]:flex min-[750px]:items-center min-[750px]:gap-2">
               <p className="inline font-medium [overflow-wrap:anywhere] min-[750px]:block min-[750px]:min-w-0 min-[750px]:truncate">
-                {account.name}
+                <Link
+                  to={`/accounts/${account.id}`}
+                  aria-describedby={describedBy}
+                  className="after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
+                >
+                  {account.name}
+                </Link>
               </p>
               {linkedPlan && (
                 <span className="ml-2 inline-flex align-[0.1em] min-[750px]:ml-0 min-[750px]:shrink-0">
-                  <TaxAdvantagedTag name={linkedPlan.name} />
+                  <TaxAdvantagedTag id={`${descriptionId}-plan`} name={linkedPlan.name} />
                 </span>
               )}
             </div>
@@ -160,11 +187,14 @@ export default function AccountRow({
               <EyeOff size={13} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
             )}
             <p
+              id={`${descriptionId}-metadata`}
               ref={setMetaLine}
               className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere] min-[750px]:flex-none min-[750px]:truncate"
               style={{ color: 'var(--app-text-muted)' }}
             >
-              {metadataLabel}
+              {/* The link is described by this whole line, so on a phone it reads the form of the credit
+                  available the line draws, or none, and the line under the balance reads it on wider screens */}
+              <span>{metadataLabel}</span>
               {/* On a phone the credit still available follows the type, shortened to the longest form
                   that keeps the line from wrapping, and left out when none does */}
               {availableCreditForms && (
@@ -180,6 +210,7 @@ export default function AccountRow({
         </div>
         <div className="contents text-right min-[750px]:block min-[750px]:shrink-0">
           <p
+            id={`${descriptionId}-balance`}
             className={`${isBare ? 'col-start-2' : 'col-start-3'} row-start-1 justify-self-end font-financial font-medium text-[var(--balance-text)] transition-control group-hover/row:text-[var(--balance-tinted-text)]`}
             style={balanceStyle}
           >
@@ -190,29 +221,37 @@ export default function AccountRow({
               className={`${isBare ? 'col-start-2' : 'col-start-3'} row-start-2 flex items-center justify-end gap-1.5 justify-self-end min-[750px]:mt-0.5`}
             >
               <p
+                id={`${descriptionId}-converted`}
                 className="whitespace-nowrap font-financial text-xs"
                 style={{ color: fxStatus.state === 'complete' ? 'var(--app-text-muted)' : 'var(--app-negative)' }}
               >
                 {convertedBalanceText}
               </p>
-              <FxStatusBadge
-                label="Account balance FX status"
-                fxStatus={fxStatus}
-                getMessage={getAccountBalanceFxStatusMessage}
-              />
+              <span className="relative z-10 inline-flex">
+                <FxStatusBadge
+                  label="Account balance FX status"
+                  fxStatus={fxStatus}
+                  getMessage={getAccountBalanceFxStatusMessage}
+                />
+              </span>
             </div>
           )}
           {/* Wider screens keep the credit still available under the balance. A phone puts it beside the type */}
           {availableCreditText && (
-            <p
-              className="hidden font-financial text-xs min-[750px]:mt-0.5 min-[750px]:block"
-              style={{ color: 'var(--app-text-muted)' }}
-            >
-              {availableCreditText}
-            </p>
+            // The description names this wrapper, as it is always drawn, and a screen reader reads a
+            // named element that is hidden itself but leaves out a hidden element inside it. On a phone
+            // it takes no room, and from 750px it adds no box of its own
+            <div id={`${descriptionId}-credit`} className="absolute min-[750px]:contents">
+              <p
+                className="hidden font-financial text-xs min-[750px]:mt-0.5 min-[750px]:block"
+                style={{ color: 'var(--app-text-muted)' }}
+              >
+                {availableCreditText}
+              </p>
+            </div>
           )}
         </div>
       </div>
-    </Link>
+    </div>
   )
 }

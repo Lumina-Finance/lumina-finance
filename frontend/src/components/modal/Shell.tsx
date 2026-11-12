@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useSyncExternalStore, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
+import { useAsideRoom } from '@/components/modal/asideRoom'
 import { useDialogFocus } from '@/components/modal/focus'
 import { isModalCovered, registerOpenModal, subscribeToModalStack, unregisterOpenModal } from '@/components/modal/stack'
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
@@ -50,6 +51,15 @@ interface ModalShellProps {
   onExitComplete?: () => void
   /** Keeps tooltips opened inside the panel within its edges, for one whose content would otherwise push them off */
   boundsTooltips?: boolean
+  /**
+   * Shown beside the panel rather than inside it, as part of the same dialogue
+   *
+   * The panel stays centred and this hangs off its right edge, 18rem wide. It is left out while
+   * `useAsideRoom` says there is no room for it, so whatever it holds needs another place in the panel.
+   * While shown it describes the dialogue, so a screen reader reads it with the title. It is for reading
+   * only: focus is kept inside the panel, so Tab never reaches a control placed here
+   */
+  aside?: ReactNode
   children: ReactNode
 }
 
@@ -68,15 +78,18 @@ export function ModalShell({
   closeDisabled = false,
   onExitComplete,
   boundsTooltips = false,
+  aside,
   children,
 }: ModalShellProps) {
   const token = useId()
+  const asideId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const appearance = LEVELS[level]
 
   useBodyScrollLock(open)
 
   const covered = useSyncExternalStore(subscribeToModalStack, () => isModalCovered(token))
+  const asideHasRoom = useAsideRoom()
 
   useEffect(() => {
     if (!open) return
@@ -86,6 +99,30 @@ export function ModalShell({
   }, [open, token])
 
   useDialogFocus(open, panelRef, token, onClose, closeDisabled)
+
+  const dialogAttributes = {
+    role: 'dialog',
+    'aria-modal': true,
+    'aria-labelledby': titleId,
+    tabIndex: -1,
+    inert: covered,
+    'data-tooltip-bounds': boundsTooltips ? true : undefined,
+    className: `app-modal-panel ${covered ? 'app-modal-panel-covered' : ''} ${panelClassName}`,
+    onClick: (event: MouseEvent) => event.stopPropagation(),
+  } as const
+
+  // No layout animation, and nothing else may put a settled transform or a filter on the panel either.
+  // Motion animates a layout change by scaling the element, and a scaled or filtered box becomes what its
+  // `position: fixed` descendants measure themselves from. That throws the open dropdown box hundreds of
+  // pixels out of place and clips it to the panel for as long as the animation runs. The panel is sized
+  // by its content, so it follows anything inside it that animates its own height. That is how a form
+  // that reveals whole rows grows
+  const entrance = {
+    initial: appearance.panelOffset,
+    animate: { opacity: 1, scale: 1, y: 0 },
+    exit: appearance.panelOffset,
+    transition: appearance.panelTransition,
+  }
 
   return createPortal(
     <AnimatePresence onExitComplete={onExitComplete}>
@@ -98,31 +135,37 @@ export function ModalShell({
           exit={{ opacity: 0 }}
           transition={{ duration: appearance.backdropDuration }}
         >
-          <motion.div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            aria-describedby={descriptionId}
-            tabIndex={-1}
-            inert={covered}
-            data-tooltip-bounds={boundsTooltips ? true : undefined}
-            className={`app-modal-panel ${covered ? 'app-modal-panel-covered' : ''} ${panelClassName}`}
-            onClick={(event) => event.stopPropagation()}
-            // No layout animation, and nothing else may put a settled transform or a filter on this
-            // panel either. Motion animates a layout change by scaling the element, and a scaled or
-            // filtered box becomes what its `position: fixed` descendants measure themselves from,
-            // which throws the open dropdown box hundreds of pixels out of place and clips it to
-            // the panel for as long as the animation runs. The panel is sized by its content, so it
-            // follows anything inside it that animates its own height, which is how a form that
-            // reveals whole rows grows
-            initial={appearance.panelOffset}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={appearance.panelOffset}
-            transition={appearance.panelTransition}
-          >
-            {children}
-          </motion.div>
+          {aside ? (
+            // The frame is the panel's size and carries its entrance, so the panel keeps its centred place
+            // and the aside hangs off the frame's edge. It takes the panel's size classes but never their
+            // clipping, since that would cut the aside off. The dialogue itself stays the panel, and that is
+            // what the full-screen rules for narrow viewports and the scroll lock look for
+            <motion.div className={`app-modal-frame relative ${panelClassName} !overflow-visible`} {...entrance}>
+              <div
+                ref={panelRef}
+                aria-describedby={
+                  [descriptionId, asideHasRoom ? asideId : undefined].filter(Boolean).join(' ') || undefined
+                }
+                {...dialogAttributes}
+              >
+                {children}
+              </div>
+              {asideHasRoom && (
+                <div
+                  id={asideId}
+                  inert={covered}
+                  className={`absolute left-full top-0 ml-6 w-72 ${covered ? 'app-modal-panel-covered' : ''}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {aside}
+                </div>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div ref={panelRef} aria-describedby={descriptionId} {...dialogAttributes} {...entrance}>
+              {children}
+            </motion.div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>,

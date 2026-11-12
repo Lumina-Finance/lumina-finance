@@ -18,6 +18,7 @@ from app.schemas.import_run import (
     TransactionImportTagMapping,
 )
 from app.services.accounts.snapshots import recompute_account_snapshots
+from app.services.bank_sync.manual_entries import refuse_days_a_bank_supplies
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.importers.journal.constants import JOURNAL_GENERIC_REFUSAL_REASON, JOURNAL_ROW_LABELS
 from app.services.importers.journal.row_resolution import (
@@ -72,7 +73,7 @@ async def write_journal_transactions(
 
     Raises:
         HTTPException: Raised with 422 for the first row that cannot be converted, naming the row
-            as the export does
+            as the export does, or for a row dated on days a linked account's bank supplies
     """
     stats = ImportStats()
 
@@ -92,6 +93,9 @@ async def write_journal_transactions(
     )
     legs_by_row = _resolve_rows(rows, context, JOURNAL_ROW_LABELS[source])
     legs = [leg for row_legs in legs_by_row for leg in row_legs]
+
+    # Each leg is a transaction in its own account, so both legs of a transfer are checked
+    await refuse_days_a_bank_supplies(db, user, [(leg.account.id, leg.dt) for leg in legs], name_accounts=True)
 
     # The journal flow has no step asking about a merchant, so every value keeps what the importer does
     # unasked: matching an existing merchant by name, and creating one where nothing matches

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/auth'
-import { getCreateFailureMessage, getTransferFailureNotice } from '@/utils/createFailure'
+import { getCreateFailureMessage, getSaveFailureMessage, getTransferFailureNotice } from '@/utils/createFailure'
 
 const timeout = () => new DOMException('The request timed out', 'TimeoutError')
 
@@ -26,12 +26,27 @@ describe('reading a message off a failed create', () => {
   })
 
   it('falls back to the generic sentence for anything else', () => {
-    expect(getCreateFailureMessage(new Error('Failed to fetch'), 'transaction')).toBe('Something went wrong. Please try again.')
+    expect(getCreateFailureMessage(new Error('Failed to fetch'), 'transaction')).toBe(
+      'Something went wrong. Please try again.',
+    )
+  })
+})
+
+describe('reading a message off a failed save', () => {
+  it("shows the server's own reason for a request it refused", () => {
+    expect(getSaveFailureMessage(new ApiError('This item has already been decided', 409))).toBe(
+      'This item has already been decided',
+    )
+  })
+
+  it('falls back to the generic sentence when no answer came', () => {
+    expect(getSaveFailureMessage(new TypeError('Failed to fetch'))).toBe('Something went wrong. Please try again.')
   })
 })
 
 describe('reading a notice off a transfer pair that failed', () => {
-  const timedOut = 'The server took too long to answer. It may have been saved, so check your transactions before trying again.'
+  const timedOut =
+    'The server took too long to answer. It may have been saved, so check your transactions before trying again.'
   const refused = { description: 'an expense transfer in Chequing', reason: new ApiError('Refused', 422) }
   const timedOutLeg = { description: 'an income transfer in Savings', reason: timeout() }
 

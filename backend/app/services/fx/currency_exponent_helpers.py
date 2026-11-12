@@ -27,3 +27,18 @@ async def get_currency_exponents(db: AsyncSession, currencies: set[str]) -> dict
     currency_result = await db.execute(currency_query)
     currency_exponents = {row.id: row.minor_unit_exponent for row in currency_result}
     return currency_exponents
+
+
+async def get_all_currency_exponents(db: AsyncSession) -> dict[str, int]:
+    """Return the minor-unit exponent of every currency the app holds
+
+    For reading a bank provider's amounts. Their currencies aren't known until its answer arrives
+
+    Args:
+        db: Active database session
+
+    Returns:
+        Minor-unit exponents keyed by currency code
+    """
+    currency_result = await db.execute(select(Currency.id, Currency.minor_unit_exponent))
+    return {row.id: row.minor_unit_exponent for row in currency_result}

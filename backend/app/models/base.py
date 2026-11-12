@@ -11,6 +11,11 @@ class Base(DeclarativeBase):
     pass
 
 
+def check_values(values: type[enum.StrEnum]) -> str:
+    """Return an enum's values as the quoted SQL list a check constraint's IN takes"""
+    return ", ".join(f"'{value}'" for value in values)
+
+
 class AuthProvider(enum.StrEnum):
     """Authentication provider identifiers"""
 
@@ -36,8 +41,8 @@ class InstitutionStatus(enum.StrEnum):
 class TaxTreatment(enum.StrEnum):
     """Tax treatment categories for account reporting"""
 
-    TAXABLE = "taxable"          # e.g., checking, savings, investment
-    TAX_FREE = "tax_free"        # e.g., TFSA, Roth IRA, FHSA
+    TAXABLE = "taxable"  # e.g., checking, savings, investment
+    TAX_FREE = "tax_free"  # e.g., TFSA, Roth IRA, FHSA
     TAX_DEFERRED = "tax_deferred"  # e.g., RRSP, 401k, traditional IRA
     TAX_ASSISTED = "tax_assisted"  # e.g., RESP — grants/matching
 

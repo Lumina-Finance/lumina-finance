@@ -1,3 +1,4 @@
+import type { BankReviewItem } from '@/api/bank-sync'
 import type { Transaction, TransactionDirection } from '@/api/transactions'
 import type { PendingRefund } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 
@@ -67,4 +68,13 @@ export interface CreateTransactionModalProps {
 
   /** Opens an existing transaction for viewing without allowing changes */
   readOnly?: boolean
+
+  /** Opens the modal to review this new bank item. Add to ledger takes it into the ledger */
+  reviewItem?: BankReviewItem
+
+  /**
+   * Called once the review item is added or dismissed while the modal is open, with whether the user
+   * asked to go on to the next one. The caller then shows that item or closes the modal
+   */
+  onReviewDecided?: (openNext: boolean) => void
 }

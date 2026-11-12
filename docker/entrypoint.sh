@@ -6,11 +6,21 @@ export JWT_ACCESS_PRIVATE_KEY_PATH="${JWT_ACCESS_PRIVATE_KEY_PATH:-/data/keys/ac
 export JWT_REFRESH_PRIVATE_KEY_PATH="${JWT_REFRESH_PRIVATE_KEY_PATH:-/data/keys/refresh_private.pem}"
 
 # Maintenance commands an operator runs against a stopped stack, as
-# `docker compose run --rm app <command>`. Matched against a fixed list rather than run as
-# given, since this container holds the admin database credentials and the data volume, and
-# passing arbitrary arguments through would make it a shell on both
+# `docker compose run --rm app <command>`, and the bank sync worker for a deployment that runs it in
+# its own container. Matched against a fixed list rather than run as given, since this container holds
+# the admin database credentials and the data volume, and passing arbitrary arguments through
+# would make it a shell on both
 if [ "$#" -gt 0 ]; then
 	case "$1" in
+	worker)
+		# Skips the app's start-up below: the worker needs no token signing keys, and waits
+		# for the app to create the database roles and migrate before it claims any job
+		if [ "$#" -gt 1 ]; then
+			echo "worker takes no arguments" >&2
+			exit 64
+		fi
+		exec python -m app.worker
+		;;
 	generate-app-encryption-key)
 		# Rejects anything after the command name rather than dropping it, so a mistyped
 		# invocation does not print a fresh key and exit as though it had worked
@@ -29,7 +39,10 @@ if [ "$#" -gt 0 ]; then
 	reset-bank-transaction-hash-key)
 		# Binds the database to the key now set, generating one when none is, for an
 		# operator who has lost the old one. Statements imported again then bring back
-		# the transactions already saved from them, which is why it is never automatic
+		# the transactions already saved from them. The next bank sync sends the
+		# transactions it fetches again back for review, even those approved, and the
+		# bank's corrections and removals stop reaching the saved ones. That is why it
+		# is never automatic
 		if [ "$#" -gt 1 ]; then
 			echo "reset-bank-transaction-hash-key takes no arguments" >&2
 			exit 64
@@ -44,7 +57,7 @@ if [ "$#" -gt 0 ]; then
 		;;
 	*)
 		echo "Unknown command: $1" >&2
-		echo "Available: generate-app-encryption-key, rotate-app-encryption-key, reset-bank-transaction-hash-key" >&2
+		echo "Available: generate-app-encryption-key, rotate-app-encryption-key, reset-bank-transaction-hash-key, worker" >&2
 		exit 64
 		;;
 	esac
@@ -78,14 +91,37 @@ ensure_private_key() {
 }
 
 cleanup() {
-	# Stop both child processes when the container receives a shutdown signal
+	# Stop every child process when the container receives a shutdown signal
 	if [ -n "${backend_pid:-}" ]; then
 		kill "$backend_pid" 2>/dev/null || true
 	fi
 	if [ -n "${caddy_pid:-}" ]; then
 		kill "$caddy_pid" 2>/dev/null || true
 	fi
+	if [ -n "${worker_pid:-}" ]; then
+		# The worker finishes the job it is running before it stops, within the stop grace period
+		kill "$worker_pid" 2>/dev/null || true
+		wait "$worker_pid" 2>/dev/null || true
+	fi
 }
+
+# The bank sync worker runs in this container unless RUN_BANK_SYNC_WORKER is false. A deployment
+# that runs it as its own container sets false here and starts that container with the worker
+# command. Read like the app's other switches: case-insensitive, spaces around it ignored, with a
+# blank value keeping the default. Refused when neither true nor false, so a typo never leaves
+# bank sync silently off
+RUN_BANK_SYNC_WORKER="${RUN_BANK_SYNC_WORKER:-}"
+RUN_BANK_SYNC_WORKER="${RUN_BANK_SYNC_WORKER,,}"
+RUN_BANK_SYNC_WORKER="${RUN_BANK_SYNC_WORKER#"${RUN_BANK_SYNC_WORKER%%[![:space:]]*}"}"
+RUN_BANK_SYNC_WORKER="${RUN_BANK_SYNC_WORKER%"${RUN_BANK_SYNC_WORKER##*[![:space:]]}"}"
+RUN_BANK_SYNC_WORKER="${RUN_BANK_SYNC_WORKER:-true}"
+case "$RUN_BANK_SYNC_WORKER" in
+true | false) ;;
+*)
+	echo "RUN_BANK_SYNC_WORKER must be true or false, not '$RUN_BANK_SYNC_WORKER'" >&2
+	exit 64
+	;;
+esac
 
 trap cleanup INT TERM EXIT
 
@@ -125,6 +161,22 @@ python -m scripts.seed_currencies
 python -m scripts.seed_categories
 python -m scripts.seed_merchants
 
+# With no bank provider enabled the worker has nothing to sync, so this container doesn't start it.
+# A provider whose settings are refused stops the container here, before it serves, as it would
+# stop the worker
+run_worker_here="$RUN_BANK_SYNC_WORKER"
+if [ "$run_worker_here" = true ]; then
+	if python -m app.worker check-providers; then
+		:
+	else
+		providers_status=$?
+		if [ "$providers_status" -ne 69 ]; then
+			exit "$providers_status"
+		fi
+		run_worker_here=false
+	fi
+fi
+
 # Caddy serves the frontend and proxies /api to this local Uvicorn process. Uvicorn keeps an idle
 # connection longer than Caddy's two minutes, so Caddy is always the side that closes it. The other
 # way round, a request Caddy sends just as Uvicorn closes the connection is reset, and Caddy answers
@@ -136,5 +188,13 @@ backend_pid="$!"
 caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &
 caddy_pid="$!"
 
-wait -n "$backend_pid" "$caddy_pid"
+# Started after the migrations, so it claims no job before the schema is current. A job cut short
+# when the container stops is claimed again once its lease runs out
+if [ "$run_worker_here" = true ]; then
+	python -m app.worker &
+	worker_pid="$!"
+	wait -n "$backend_pid" "$caddy_pid" "$worker_pid"
+else
+	wait -n "$backend_pid" "$caddy_pid"
+fi
 exit $?

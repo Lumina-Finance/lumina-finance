@@ -1,7 +1,7 @@
 """Transaction response builders and batch-loading helpers
 
 Transaction routes and dashboard activity share these helpers so response
-assembly uses the same tag, merchant, and converted amount shape
+assembly uses the same tag, merchant, bank source and converted amount shape
 """
 
 import uuid
@@ -12,7 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
+from app.schemas.bank_sync import TransactionBankSource
 from app.schemas.transaction import TransactionResponse, TransactionTagSummary
+from app.services.bank_sync.sources import get_bank_source
 from app.services.transactions.links import get_transaction_links_batch
 
 
@@ -128,6 +130,7 @@ def build_transaction_response(
     base_currency_amount: int | None = None,
     refund_of_transaction_id: uuid.UUID | None = None,
     refund_transaction_ids: list[uuid.UUID] | None = None,
+    bank_source: TransactionBankSource | None = None,
 ) -> TransactionResponse:
     """Build a transaction response from a transaction row and related data
 
@@ -140,6 +143,7 @@ def build_transaction_response(
         base_currency_amount: Optional amount converted into the user's base currency
         refund_of_transaction_id: Expense this transaction refunds, when linked
         refund_transaction_ids: Refunds linked to this transaction
+        bank_source: Where a bank-imported transaction came from, None on a manual one
 
     Returns:
         Transaction response containing the transaction row plus related display data
@@ -152,27 +156,31 @@ def build_transaction_response(
     data.tag_ids = tag_ids
     data.merchant_name = merchant_name
     data.tags = tags or []
+    data.bank_source = bank_source
     return data
 
 
-async def get_transaction_response(db: AsyncSession, txn: Transaction) -> TransactionResponse:
+async def get_transaction_response(db: AsyncSession, txn: Transaction, *, just_created: bool = False) -> TransactionResponse:
     """Return one transaction response with related display data
 
-    This helper loads tag identifiers, tag summaries, and the optional merchant
-    name needed by single-transaction routes before delegating to the pure
-    response builder
+    This helper loads tag identifiers, tag summaries, the optional merchant
+    name and the optional bank source needed by single-transaction routes before
+    delegating to the pure response builder
 
     Args:
         db: Active database session
         txn: Transaction row being returned by the route
+        just_created: Whether the row was inserted by this request, so no bank record points at it
+            yet and its bank source isn't read
 
     Returns:
-        Transaction response enriched with tag and merchant display data
+        Transaction response enriched with tag, merchant and bank source display data
     """
     tag_ids = await get_tag_ids(db, txn.id)
     tag_summary_map = await get_tags_batch(db, [txn.id])
     merchant_names = await get_merchant_names_batch(db, [txn.merchant_id])
     original_by_refund, refunds_by_original = await get_transaction_links_batch(db, [txn.id])
+    bank_source = None if just_created else await get_bank_source(db, txn)
     return build_transaction_response(
         txn,
         tag_ids,
@@ -180,4 +188,5 @@ async def get_transaction_response(db: AsyncSession, txn: Transaction) -> Transa
         tag_summary_map[txn.id],
         refund_of_transaction_id=original_by_refund.get(txn.id),
         refund_transaction_ids=refunds_by_original.get(txn.id),
+        bank_source=bank_source,
     )

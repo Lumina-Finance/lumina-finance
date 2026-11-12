@@ -1,4 +1,6 @@
 import { useContext, useRef, type FocusEvent, type KeyboardEvent } from 'react'
+import type { ReactNode } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import CreateModalFieldLabelRow from '@/components/create-modal/FieldLabelRow'
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import DateField from '@/components/date-field/DateField'
@@ -9,6 +11,7 @@ import { DateStepHighlightContext } from '@/components/transactions/transaction-
 import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
 import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
 import { toShortcutKeyEvent } from '@/components/transactions/transaction-modal/hooks/useShortcuts'
+import { DETAILS_LINE_TRANSITION } from '@/components/transactions/transaction-modal/constants'
 import {
   getAriaFieldShortcut,
   getDateKeyAction,
@@ -27,9 +30,18 @@ import {
   type CurrencyListState,
 } from '@/utils/currencyStatus'
 
-interface TransactionDetailsSectionProps {
+type TransactionDetailsSectionProps = {
   date: string
   dateError?: string | false
+
+  // Why the date falls on days a linked account's bank supplies. It names the provider and a date,
+  // too long for the label row beside Date, so it goes under the date on a phone and under the whole
+  // row once the fields sit side by side, keeping Date, Currency and Amount level
+  suppliedDaysError: string | null
+
+  // Days the calendar refuses, the same days the message above refuses typed in
+  isDateDisabled?: (iso: string) => boolean
+  getDateDisabledReason?: (iso: string) => string | null
   currencyOptions: DropdownOption[]
   currencyValue: string
   currencyPlaceholder: string
@@ -41,18 +53,32 @@ interface TransactionDetailsSectionProps {
   // than recomputed here, so the field the form treats as locked is the field the user sees disabled
   isAmountLocked: boolean
 
+  // Whether the modal opens on the amount rather than its first field, for an amount the user must enter
+  startsOnAmount?: boolean
+
   // Which of the reasons the amount is locked for, since a list still arriving is worth waiting
   // out, one that failed is worth a reload, and one that simply does not carry the currency is
   // neither. The lock itself is decided above rather than read off this
   currencyState: CurrencyListState
   currencyExponent: number
   notes: string
+
+  /** The most characters Notes takes, 500 unless a form for bank data lifts it */
+  notesMaxLength?: number
   readOnly: boolean
   onDateChange: (value: string) => void
   onDateBlur: () => void
   onAmountChange: (value: string, typed?: string) => void
   onAmountBlur: () => void
   onNotesChange: (value: string) => void
+
+  // The bank's value under the date and the amount of a bank-imported transaction, each in its own
+  // column, so a caption under one leaves the other field where it was
+  dateCaption?: ReactNode
+  amountCaption?: ReactNode
+
+  // Why a bank item's amount starts empty, under the field and read with it
+  amountNote?: string | null
 }
 
 /**
@@ -61,6 +87,9 @@ interface TransactionDetailsSectionProps {
 export default function TransactionDetailsSection({
   date,
   dateError,
+  suppliedDaysError,
+  isDateDisabled,
+  getDateDisabledReason,
   currencyOptions,
   currencyValue,
   currencyPlaceholder,
@@ -68,19 +97,27 @@ export default function TransactionDetailsSection({
   amount,
   amountError,
   isAmountLocked,
+  startsOnAmount = false,
   currencyState,
   currencyExponent,
   notes,
+  notesMaxLength = 500,
   readOnly,
   onDateChange,
   onDateBlur,
   onAmountChange,
   onAmountBlur,
   onNotesChange,
+  dateCaption,
+  amountCaption,
+  amountNote = null,
 }: TransactionDetailsSectionProps) {
   const ids = useTransactionModalIds()
+  const amountNoteId = `${ids.amount}-note`
+  const amountDescribedBy = [amountError && ids.errors.amount, amountNote && amountNoteId].filter(Boolean).join(' ')
   const stepHighlight = useContext(DateStepHighlightContext)
   const { user } = useAuth()
+  const prefersReducedMotion = useReducedMotion()
   const amountInput = useMoneyInput({
     value: amount,
     exponent: currencyExponent,
@@ -117,7 +154,9 @@ export default function TransactionDetailsSection({
 
   return (
     <CreateModalSectionFrame step="03" title="Details">
-      <div className="grid gap-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
+      {/* The rows carry their own spacing rather than a row gap, since the grid would hold one open for the
+          message from its first frame. Stacked on a phone, Currency and Amount keep the space above them */}
+      <div className="grid gap-x-3 sm:grid-cols-[11rem_8.5rem_minmax(0,1fr)]">
         <div>
           <CreateModalFieldLabelRow
             htmlFor={ids.date}
@@ -138,16 +177,37 @@ export default function TransactionDetailsSection({
               ariaLabel="Date"
               keyShortcuts={getAriaFieldShortcut('date')}
               value={date}
-              error={!!dateError}
-              describedById={ids.errors.date}
+              error={!!dateError || !!suppliedDaysError}
+              describedById={suppliedDaysError ? ids.suppliedDaysError : ids.errors.date}
               disabled={readOnly}
               stepHighlight={stepHighlight}
               onChange={onDateChange}
               onBlur={onDateBlur}
+              isDateDisabled={isDateDisabled}
+              getDateDisabledReason={getDateDisabledReason}
             />
           </div>
+          {dateCaption}
         </div>
-        <div>
+        <AnimatePresence initial={false}>
+          {suppliedDaysError && (
+            // Its space above sits inside the collapsing element, so it opens and closes with the text
+            <motion.p
+              key="supplied-days-error"
+              id={ids.suppliedDaysError}
+              role="alert"
+              className="overflow-hidden text-xs font-medium leading-5 sm:order-last sm:col-span-3"
+              style={{ color: 'var(--app-negative)' }}
+              initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              transition={DETAILS_LINE_TRANSITION}
+            >
+              <span className="block pt-3">{suppliedDaysError}</span>
+            </motion.p>
+          )}
+        </AnimatePresence>
+        <div className="mt-3 sm:mt-0">
           <div className="mb-1.5 flex items-center gap-2">
             <label htmlFor={ids.currency} className="app-label block text-[0.9375rem] leading-5">
               Currency
@@ -175,7 +235,7 @@ export default function TransactionDetailsSection({
             disabledReason="Locked to the selected account's currency"
           />
         </div>
-        <div>
+        <div className="mt-3 sm:mt-0">
           <CreateModalFieldLabelRow
             htmlFor={ids.amount}
             label={
@@ -226,12 +286,19 @@ export default function TransactionDetailsSection({
               style={getSymbolInputStyle(selectedCurrencySymbol)}
               aria-keyshortcuts={getAriaFieldShortcut('amount')}
               aria-invalid={amountError ? true : undefined}
-              aria-describedby={amountError ? ids.errors.amount : undefined}
+              aria-describedby={amountDescribedBy || undefined}
               placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(currencyExponent)}
               disabled={readOnly || isAmountLocked}
+              data-modal-initial-focus={startsOnAmount || undefined}
               {...amountInput}
             />
           </div>
+          {amountNote && (
+            <p id={amountNoteId} className="py-0.5 text-xs leading-4" style={{ color: 'var(--app-text-muted)' }}>
+              {amountNote}
+            </p>
+          )}
+          {amountCaption}
         </div>
       </div>
 
@@ -255,7 +322,7 @@ export default function TransactionDetailsSection({
           value={notes}
           disabled={readOnly}
           onChange={(event) => onNotesChange(event.target.value)}
-          maxLength={500}
+          maxLength={notesMaxLength}
         />
       </div>
     </CreateModalSectionFrame>

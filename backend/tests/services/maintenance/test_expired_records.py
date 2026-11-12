@@ -20,6 +20,8 @@ from app.models.auth import (
 )
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken, AuthTokenKind
+from app.models.bank_connection import BankConnection
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.currency import Currency
 from app.models.import_run import ImportRun, ImportRunSource
 from app.models.oidc import OidcAuthorizationRequest, OidcProvider
@@ -27,6 +29,7 @@ from app.models.user import User
 from app.services.maintenance import expired_records
 from app.services.maintenance.expired_records import ExpiredRecordKind, prune_expired_records
 from tests.conftest import ScopedSession, TestSession
+from tests.routes.support.bank_sync_helpers import _build_bank_connection
 
 
 async def _seed_users(count: int) -> list[User]:
@@ -197,6 +200,31 @@ async def test_prunes_abandoned_and_undo_expired_import_runs_for_every_user():
     await prune_expired_records(ScopedSession)
 
     assert await _remaining_ids(ImportRun) == {in_progress.id, still_undoable.id}
+
+
+async def test_prunes_bank_sync_jobs_finished_over_30_days_ago_for_every_user():
+    """A finished job past its retention goes for any user, while a newer one and unfinished ones stay"""
+    now = datetime.now(UTC)
+    first, second = await _seed_users(2)
+    first_connection, second_connection = _build_bank_connection(first.id), _build_bank_connection(second.id)
+    finished = {"status": BankSyncJobStatus.SUCCEEDED, "attempt": 1}
+
+    def job(connection: BankConnection, **values) -> BankSyncJob:
+        return BankSyncJob(owner_id=connection.owner_id, connection_id=connection.id, kind=BankSyncJobKind.SCHEDULED, **values)
+
+    past_retention = job(first_connection, finished_at=now - timedelta(days=30, minutes=1), **finished)
+    other_users_past_retention = job(second_connection, finished_at=now - timedelta(days=60), **finished)
+    within_retention = job(second_connection, finished_at=now - timedelta(days=29, hours=23), **finished)
+    queued = job(first_connection)
+    async with TestSession() as session:
+        session.add_all([first_connection, second_connection])
+        await session.flush()
+        session.add_all([past_retention, other_users_past_retention, within_retention, queued])
+        await session.commit()
+
+    await prune_expired_records(ScopedSession)
+
+    assert await _remaining_ids(BankSyncJob) == {within_retention.id, queued.id}
 
 
 async def test_the_cleanup_forgets_failure_counts_idle_for_a_week_and_keeps_recent_ones():

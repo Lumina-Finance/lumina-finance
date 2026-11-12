@@ -1,6 +1,7 @@
-import type { QueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query'
 import {
   accountKeys,
+  bankSyncKeys,
   budgetKeys,
   heldBankTransactionKeys,
   importLayoutKeys,
@@ -11,15 +12,19 @@ import {
   transactionKeys,
   transactionOverviewKeys,
   userKeys,
-} from '@/api/cache/queryKeys';
-import { dashboardTargets } from '@/api/cache/invalidation/dashboard';
-import { insightsTargets } from '@/api/cache/invalidation/insights';
-import { referenceDataTargets } from '@/api/cache/invalidation/referenceData';
-import { runwayTargets } from '@/api/cache/invalidation/runway';
-import { invalidateTargets, type InvalidationTarget } from '@/api/cache/invalidation/types';
+} from '@/api/cache/queryKeys'
+import { bankSyncTargets } from '@/api/cache/invalidation/bankSync'
+import { dashboardTargets } from '@/api/cache/invalidation/dashboard'
+import { insightsTargets } from '@/api/cache/invalidation/insights'
+import { referenceDataTargets } from '@/api/cache/invalidation/referenceData'
+import { runwayTargets } from '@/api/cache/invalidation/runway'
+import { invalidateTargets, type InvalidationTarget } from '@/api/cache/invalidation/types'
 
 const aggregateTargets: InvalidationTarget[] = [
   { queryKey: accountKeys.all },
+
+  // Each account's bank link compares the bank's balance with the ledger's on a day in the profile timezone
+  { queryKey: bankSyncKeys.accountAll },
   { queryKey: transactionKeys.all },
   { queryKey: transactionOverviewKeys.all },
   { queryKey: taxAdvantagedCategoryKeys.all },
@@ -27,17 +32,18 @@ const aggregateTargets: InvalidationTarget[] = [
   ...dashboardTargets,
   ...insightsTargets,
   ...runwayTargets,
-];
+]
 
 const appDataTargets: InvalidationTarget[] = [
   ...aggregateTargets,
   ...referenceDataTargets,
+  ...bankSyncTargets,
   { queryKey: lastImportKeys.all },
   { queryKey: importLayoutKeys.all },
   { queryKey: importSourceKeys.all },
   { queryKey: heldBankTransactionKeys.all },
   { queryKey: insightsKeys.savedRanges() },
-];
+]
 
 const fxTargets: InvalidationTarget[] = [
   { queryKey: accountKeys.all },
@@ -48,25 +54,25 @@ const fxTargets: InvalidationTarget[] = [
   ...dashboardTargets,
   ...insightsTargets,
   { queryKey: userKeys.runway(), exact: true },
-];
+]
 
 /**
  * Invalidates account, transaction, budget, dashboard, insights, and runway data
  */
 export function invalidateAggregateData(queryClient: QueryClient) {
-  invalidateTargets(queryClient, aggregateTargets);
+  invalidateTargets(queryClient, aggregateTargets)
 }
 
 /**
  * Invalidates all app data after imports or broad session data changes
  */
 export function invalidateAppData(queryClient: QueryClient) {
-  invalidateTargets(queryClient, appDataTargets);
+  invalidateTargets(queryClient, appDataTargets)
 }
 
 /**
  * Invalidates data whose displayed values depend on exchange rates
  */
 export function invalidateFxData(queryClient: QueryClient) {
-  invalidateTargets(queryClient, fxTargets);
+  invalidateTargets(queryClient, fxTargets)
 }

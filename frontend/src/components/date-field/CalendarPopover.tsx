@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarDay } from '@/components/date-field/CalendarDay'
 import { parseIsoDate } from '@/components/date-field/dateSegments'
 import { getFocusableElements, getNextTabStop } from '@/components/modal/focus'
 import { STACKING_LEVELS } from '@/constants/stackingLevels'
@@ -16,6 +17,12 @@ interface CalendarPopoverProps {
   value: string
   onSelect: (value: string) => void
   onClose: () => void
+
+  // Days the field refuses, shown as unavailable and never selected
+  isDateDisabled?: (iso: string) => boolean
+
+  // Why the field refuses a day, for the days isDateDisabled refuses. Left out, a refused day says nothing
+  getDateDisabledReason?: (iso: string) => string | null
 }
 
 const POPOVER_WIDTH = 264
@@ -24,8 +31,18 @@ const POPOVER_ESTIMATED_HEIGHT = 320
 const VIEWPORT_MARGIN = 8
 const WEEKDAY_LABELS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 const MONTH_LABELS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ]
 const GRID_CELL_COUNT = 42
 const DAYS_PER_WEEK = 7
@@ -39,9 +56,10 @@ function buildMonthGrid(year: number, month: number): Date[] {
   // Columns run Monday to Sunday to match WEEKDAY_LABELS and the week the rest of the product buckets by
   const gridStart = new Date(year, month - 1, 1 - getWeekdayIndex(firstOfMonth))
 
-  return Array.from({ length: GRID_CELL_COUNT }, (_, index) => (
-    new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index)
-  ))
+  return Array.from(
+    { length: GRID_CELL_COUNT },
+    (_, index) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index),
+  )
 }
 
 /**
@@ -88,7 +106,15 @@ function useCalendarPosition(open: boolean, anchorRef: RefObject<HTMLElement | n
  * Renders a floating month grid for picking a date, keeping the browser calendar out of the flow so
  * the date field stays consistent across browsers
  */
-export default function CalendarPopover({ open, anchorRef, value, onSelect, onClose }: CalendarPopoverProps) {
+export default function CalendarPopover({
+  open,
+  anchorRef,
+  value,
+  onSelect,
+  onClose,
+  isDateDisabled,
+  getDateDisabledReason,
+}: CalendarPopoverProps) {
   const position = useCalendarPosition(open, anchorRef)
   const gridRef = useRef<HTMLDivElement>(null)
   const restoreFocusRef = useRef(true)
@@ -123,9 +149,10 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
     restoreFocusRef.current = true
     const anchor = anchorRef.current
     const previousFocus = document.activeElement
-    const field = previousFocus instanceof HTMLElement && anchor?.contains(previousFocus)
-      ? previousFocus
-      : anchor?.querySelector<HTMLInputElement>('input:not([disabled])')
+    const field =
+      previousFocus instanceof HTMLElement && anchor?.contains(previousFocus)
+        ? previousFocus
+        : anchor?.querySelector<HTMLInputElement>('input:not([disabled])')
     const grid = gridRef.current
 
     return () => {
@@ -329,28 +356,24 @@ export default function CalendarPopover({ open, anchorRef, value, onSelect, onCl
               >
                 {cells.map((date) => {
                   const iso = formatYmd(date)
-                  const inMonth = date.getMonth() + 1 === viewMonth.month
-                  const isSelected = iso === value
-                  const isToday = iso === todayIso
+                  const isDisabled = isDateDisabled?.(iso) ?? false
 
                   return (
-                    <button
+                    <CalendarDay
                       key={iso}
-                      type="button"
-                      data-iso={iso}
-                      tabIndex={iso === focusedIso ? 0 : -1}
-                      aria-pressed={isSelected}
-                      onClick={() => {
-                        onSelect(iso)
+                      date={date}
+                      iso={iso}
+                      inMonth={date.getMonth() + 1 === viewMonth.month}
+                      isSelected={iso === value}
+                      isToday={iso === todayIso}
+                      isDisabled={isDisabled}
+                      disabledReason={isDisabled ? getDateDisabledReason?.(iso) : null}
+                      focusable={iso === focusedIso}
+                      onPick={(picked) => {
+                        onSelect(picked)
                         onClose()
                       }}
-                      className="app-calendar-day"
-                      data-selected={isSelected || undefined}
-                      data-today={isToday || undefined}
-                      data-outside={!inMonth || undefined}
-                    >
-                      {date.getDate()}
-                    </button>
+                    />
                   )
                 })}
               </motion.div>

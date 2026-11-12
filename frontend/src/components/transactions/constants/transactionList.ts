@@ -20,6 +20,10 @@ export const TRANSACTION_FILTER_KEYS: Array<keyof TransactionListFilters> = [
 export const FILTER_LIST_LOADING_MIN_MS = LOADING_ANIMATION_MIN_MS
 export const TRANSACTION_LIST_EASE = [0.25, 0.1, 0.25, 1] as const
 
+// How long a day group takes to grow in and to collapse. The review block above the list matches it
+export const TRANSACTION_LIST_ENTER_DURATION_S = 0.28
+export const TRANSACTION_LIST_EXIT_DURATION_S = 0.26
+
 // The room the checkbox sits in while the list is in selection mode. Held as padding on the list
 // rather than as a column, because a column the list declares in both states still takes a column
 // gap at zero width, and every row outside selection mode would lose that much space and start

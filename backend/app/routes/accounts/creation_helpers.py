@@ -106,7 +106,7 @@ async def create_account_with_initial_balance_history(
         await add_account_starting_balance_adjustment(
             db,
             account,
-            user_id=user.id,
+            user=user,
             amount=data.starting_balance,
             adjustment_date=anchor_dt,
         )

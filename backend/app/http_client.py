@@ -62,9 +62,7 @@ class _CappedResponseClient(httpx.AsyncClient):
             async for chunk in response.aiter_bytes():
                 body += chunk
                 if len(body) > self.max_response_bytes:
-                    raise ResponseTooLargeError(
-                        f"Response body exceeded {self.max_response_bytes} bytes", request=request
-                    )
+                    raise ResponseTooLargeError(f"Response body exceeded {self.max_response_bytes} bytes", request=request)
         finally:
             await response.aclose()
 
@@ -72,10 +70,8 @@ class _CappedResponseClient(httpx.AsyncClient):
         # the origin declared, since the rebuild takes its length from the body actually read
         return httpx.Response(
             status_code=response.status_code,
-            headers=[(name, value) for name, value in response.headers.raw
-                     if name.lower() not in _DROPPED_TRANSFER_HEADERS],
+            headers=[(name, value) for name, value in response.headers.raw if name.lower() not in _DROPPED_TRANSFER_HEADERS],
             content=bytes(body),
-
             # The response's own request rather than the one passed in, so a followed
             # redirect reports the URL that actually answered
             request=response.request,
@@ -84,13 +80,20 @@ class _CappedResponseClient(httpx.AsyncClient):
         )
 
 
-def build_http_client(timeout: float) -> httpx.AsyncClient:
+def build_http_client(
+    timeout: float | httpx.Timeout,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+    trust_env: bool = True,
+) -> httpx.AsyncClient:
     """Return an async HTTP client that refuses a response body past the cap
 
     Args:
-        timeout: Per-request timeout in seconds
+        timeout: Per-request timeout in seconds, or separate connect and read timeouts
+        transport: Transport to send through in place of httpx's own. Tests substitute it
+        trust_env: Whether proxies and certificate settings in the environment apply
 
     Returns:
         An async client enforcing the response size cap
     """
-    return _CappedResponseClient(timeout=timeout)
+    return _CappedResponseClient(timeout=timeout, transport=transport, trust_env=trust_env)

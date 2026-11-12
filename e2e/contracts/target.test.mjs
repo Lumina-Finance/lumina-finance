@@ -23,22 +23,35 @@ function readTarget(environment) {
   const env = { ...process.env }
   delete env.E2E_BASE_URL
   delete env.E2E_API_BASE_URL
+  delete env.E2E_FAKE_SIMPLEFIN_BRIDGE_URL
   return spawnSync(process.execPath, [
     '--experimental-strip-types', '--input-type=module', '-e',
-    `const target = await import(${JSON.stringify(targetUrl.href)}); console.log(JSON.stringify({ frontend: target.BASE_URL, api: target.API_BASE_URL }))`,
+    `const target = await import(${JSON.stringify(targetUrl.href)}); console.log(JSON.stringify({ frontend: target.BASE_URL, api: target.API_BASE_URL, bridge: target.FAKE_SIMPLEFIN_BRIDGE_URL }))`,
   ], { env: { ...env, ...environment }, encoding: 'utf8' })
 }
 
 test('same-origin target defaults the API to /api and normalizes trailing slashes', () => {
   const result = readTarget({ E2E_BASE_URL: `${frontend}///` })
   assert.equal(result.status, 0, result.stderr)
-  assert.deepEqual(JSON.parse(result.stdout), { frontend, api: `${frontend}/api` })
+  assert.deepEqual(JSON.parse(result.stdout), { frontend, api: `${frontend}/api`, bridge: null })
 })
 
 test('split target preserves the full API prefix and browser origin', () => {
   const result = readTarget({ E2E_BASE_URL: frontend, E2E_API_BASE_URL: `${apiBase}///` })
   assert.equal(result.status, 0, result.stderr)
-  assert.deepEqual(JSON.parse(result.stdout), { frontend, api: apiBase })
+  assert.deepEqual(JSON.parse(result.stdout), { frontend, api: apiBase, bridge: null })
+})
+
+test('a supplied fake SimpleFIN Bridge address loses its trailing slashes', () => {
+  const result = readTarget({ E2E_BASE_URL: frontend, E2E_FAKE_SIMPLEFIN_BRIDGE_URL: 'http://127.0.0.1:18003//' })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(JSON.parse(result.stdout).bridge, 'http://127.0.0.1:18003')
+})
+
+test('a malformed fake SimpleFIN Bridge address fails before a run', () => {
+  const result = readTarget({ E2E_BASE_URL: frontend, E2E_FAKE_SIMPLEFIN_BRIDGE_URL: '/control' })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /E2E_FAKE_SIMPLEFIN_BRIDGE_URL/)
 })
 
 test('missing frontend and invalid supplied targets fail before a run', () => {

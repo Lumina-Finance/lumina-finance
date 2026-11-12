@@ -8,11 +8,7 @@ import { PendingLabel } from '@/components/loading/PendingLabel'
 import { getFocusableElements } from '@/components/modal/focus'
 import { useRevealWhenGrown } from '@/pages/accounts/detail/hooks/useRevealWhenGrown'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
-import {
-  ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON,
-  EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
-  EASE,
-} from '@/pages/accounts/detail/constants/accountDetail'
+import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS, EASE } from '@/pages/accounts/detail/constants/accountDetail'
 import type { DeleteStage } from '@/pages/accounts/detail/components/edit-identity/types'
 
 type DeleteAccountPanelProps = {
@@ -27,8 +23,11 @@ type DeleteAccountPanelProps = {
 
   /** Fades Delete account with this reason once a press found the typed name wrong */
   blockedReason?: string
-  /** Disables the archive shortcut for the same reason the archive switch is locked */
-  isArchiveBlocked: boolean
+  /** Disables the archive shortcut until the account's bank link has been read, as the switch is */
+  isLinkLoading: boolean
+
+  /** Why the account can't be archived, or null when it can. The archive switch shows it under its row */
+  archiveReason: string | null
   onArchiveInstead: () => void
   onContinue: () => void
   onDelete: () => void
@@ -47,7 +46,8 @@ export function DeleteAccountPanel({
   isBusy,
   nameError,
   blockedReason,
-  isArchiveBlocked,
+  isLinkLoading,
+  archiveReason,
   onArchiveInstead,
   onContinue,
   onDelete,
@@ -120,14 +120,14 @@ export function DeleteAccountPanel({
                             <DisabledReasonButton
                               // The padding gives the ring room between it and the icon and text, and the ring sits
                               // inside the button's edge. The side margins hand the padding's room back so the label
-                              // lines up as before, and the two boxes around it clip with matching side room
-                              className="app-focus-inset group -mx-2 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:cursor-not-allowed"
+                              // lines up with the text around it, and the two boxes around it clip with matching side room.
+                              // A link still being read holds it back without fading it, as it does the switch,
+                              // since it is only a moment
+                              className={`app-focus-inset group -mx-2 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium aria-disabled:cursor-not-allowed ${isLinkLoading && !isBusy ? '' : 'disabled:cursor-not-allowed disabled:opacity-60'}`}
                               style={{ color: 'var(--app-text-muted)' }}
                               onClick={onArchiveInstead}
-                              disabled={isBusy}
-                              disabledReason={
-                                !isBusy && isArchiveBlocked ? ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON : undefined
-                              }
+                              disabled={isBusy || isLinkLoading}
+                              disabledReason={!isBusy && !isLinkLoading ? (archiveReason ?? undefined) : undefined}
                               // The archive section above already prints this reason, so it describes the button
                               reasonShownById={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.archiveBlockedReason}
                             >

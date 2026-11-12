@@ -2,8 +2,8 @@ import { QueryClient, type InfiniteData, type MutationObserverOptions } from '@t
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_BASE } from '@/api/config'
 import { registerAuthBindings } from '@/api/client'
-import { accountKeys, transactionKeys } from '@/api/cache/queryKeys'
-import { findCachedTransaction } from '@/api/cache/updates/transactions'
+import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys'
+import { findCachedTransaction, findCachedTransactions } from '@/api/cache/updates/transactions'
 import {
   applyTransactionDeletion,
   useBulkDeleteTransactions,
@@ -52,6 +52,7 @@ const target: Transaction = {
   updated_at: '2026-09-01T12:00:00Z',
   tag_ids: [],
   tags: [],
+  bank_source: null,
 }
 const other: Transaction = { ...target, id: 'newer-expense', amount: -100, dt: '2026-09-14' }
 
@@ -79,12 +80,25 @@ function seedAccountViews(client: QueryClient): void {
     client.setQueryData(accountKeys.detail(id), { id, account_kind: 'asset', tax_advantaged_category_id: null })
     client.setQueryData(accountKeys.cashFlow(id, 3), [])
     client.setQueryData(accountKeys.spendingBreakdown(id, 'MTD'), {})
+    client.setQueryData(bankSyncKeys.accountStatus(id), {
+      account_id: id,
+      link: null,
+      previous_link: null,
+      balance: null,
+      balance_match: null,
+    })
   }
 }
 
-/** Checks account detail, cash flow and spending freshness without mocking invalidation */
+/** Checks account detail, cash flow, spending and bank link freshness without mocking invalidation */
 function expectAccountInvalidation(client: QueryClient, id: string, invalidated: boolean): void {
-  for (const key of [accountKeys.detail(id), accountKeys.cashFlow(id, 3), accountKeys.spendingBreakdown(id, 'MTD')]) {
+  const keys = [
+    accountKeys.detail(id),
+    accountKeys.cashFlow(id, 3),
+    accountKeys.spendingBreakdown(id, 'MTD'),
+    bankSyncKeys.accountStatus(id),
+  ]
+  for (const key of keys) {
     expect(client.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(invalidated)
   }
 }
@@ -125,6 +139,34 @@ describe('transaction lookup across cached response shapes', () => {
     client.setQueryData(transactionKeys.list({}), [target])
     client.setQueryData(transactionKeys.detail(target.id), { ...target, notes: 'Later cached detail' })
     expect(findCachedTransaction(client, target.id)).toEqual(target)
+  })
+})
+
+describe('looking up several transactions at once', () => {
+  it('finds each across a detail, a plain list and an infinite list, in the order asked, with none for an uncached one', () => {
+    const client = hookContext.client!
+    const third = { ...target, id: 'transaction-3' }
+    client.setQueryData(transactionKeys.detail(other.id), other)
+    client.setQueryData(transactionKeys.list({}), [target])
+    client.setQueryData<InfiniteData<Transaction[]>>(transactionKeys.infinite({}, 1), {
+      pages: [[], [third]],
+      pageParams: [0, 1],
+    })
+
+    expect(findCachedTransactions(client, [third.id, 'uncached', other.id, target.id])).toEqual([
+      third,
+      undefined,
+      other,
+      target,
+    ])
+  })
+
+  it('returns the copy the single lookup returns when several responses hold a transaction', () => {
+    const client = hookContext.client!
+    client.setQueryData(transactionKeys.list({}), [target])
+    client.setQueryData(transactionKeys.detail(target.id), { ...target, notes: 'Later cached detail' })
+
+    expect(findCachedTransactions(client, [target.id])).toEqual([findCachedTransaction(client, target.id)])
   })
 })
 

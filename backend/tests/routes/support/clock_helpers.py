@@ -1,7 +1,24 @@
-"""Shared clock helpers for tests of the future-date cutoff"""
+"""Shared clock helpers for tests of the future-date cutoff
+
+A route test pins the time by putting the fixed clock in place of a module's datetime, through the
+routes' pin_clock fixture
+"""
 
 import importlib
 from datetime import UTC, date, datetime
+
+
+class _FixedClock:
+    """Fixed clock used to make dates the routes work out deterministic"""
+
+    def __init__(self, instant):
+        """Store the fixed instant returned by the test clock"""
+        self.instant = instant
+
+    def now(self, tz=None):
+        """Return the fixed instant in the requested timezone"""
+        return self.instant.astimezone(tz) if tz else self.instant
+
 
 # The default test user's profile zone is America/Toronto, where this instant is 23:30 on June 9
 # In UTC and in any zone ahead of Toronto it is already June 10, so a cutoff taken from the server

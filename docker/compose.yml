@@ -12,6 +12,9 @@ services:
     volumes:
       - lumina_data:/data
 
+    # Bank sync worker shutdown time
+    stop_grace_period: 6m
+
   postgres:
     image: postgres:17
     restart: unless-stopped

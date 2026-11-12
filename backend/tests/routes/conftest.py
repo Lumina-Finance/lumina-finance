@@ -1,3 +1,5 @@
+from datetime import datetime
+from types import ModuleType
 from typing import Annotated
 
 import pytest
@@ -10,6 +12,7 @@ from app.main import app
 from app.models.user import User
 from app.services.email import contract as email_contract
 from tests.conftest import ScopedSession
+from tests.routes.support.clock_helpers import _FixedClock
 from tests.routes.support.mailbox import mailbox
 
 
@@ -59,6 +62,25 @@ def captured_email(monkeypatch):
     mailbox.sent.clear()
     monkeypatch.setattr(email_contract, "_active_sender", mailbox)
     return mailbox
+
+
+@pytest.fixture
+def pin_clock(monkeypatch):
+    """Return a function pinning the time that modules read to one instant, for this test only
+
+    Only the modules named have their datetime replaced with a fixed clock, so every other module
+    and the database's own clock keep the real time
+
+    Returns:
+        A function taking the instant and the modules to pin
+    """
+
+    def pin(instant: datetime, *modules: ModuleType) -> None:
+        """Make each module's datetime.now return the instant"""
+        for module in modules:
+            monkeypatch.setattr(module, "datetime", _FixedClock(instant))
+
+    return pin
 
 
 @pytest.fixture

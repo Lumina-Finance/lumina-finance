@@ -1,14 +1,21 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, startOfDayInTestTimezone } from '../support/api'
-import { openPage, chooseFromDropdown, filterByCategory, loadEveryTransaction, logInViaApi, openModal } from '../support/app'
-import { expectPendingAction, expectTransactionRow, whileApiRequestHeld } from '../support/selectors'
+import { openPage, chooseFromDropdown, filterTransactions, loadEveryTransaction, logInViaApi, openModal } from '../support/app'
+import {
+  expectPendingAction,
+  expectTransactionRow,
+  getTransactionRowButton,
+  MINUS,
+  whileApiRequestHeld,
+} from '../support/selectors'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the category filter and Upcoming header tests, which run at
-// every size: filters show as a sheet on a phone, and the header pins differently by layout. The
-// row layout test resizes the desktop window itself, to widths no project has
+// Runs on desktop only, apart from the category filter, row description and Upcoming header tests. These
+// run at every size: filters show as a sheet on a phone, a row's text sits differently at each width, and the
+// header pins differently by layout. The row layout test resizes the desktop window itself, to widths no
+// project has
 
 test('filters the list down to one category', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -34,7 +41,7 @@ test('filters the list down to one category', AT_EVERY_SIZE, async ({ page, requ
     await expectTransactionRow(page, ids[index], amount)
   }
 
-  await filterByCategory(page, 'Groceries')
+  await filterTransactions(page, 'Category', 'Groceries')
 
   // The list holds the rows it had before Apply for a second, so anything asserted first would
   // be reading the unfiltered list. Waiting for the Dining row to go is what says the filtered
@@ -115,35 +122,39 @@ test('unticks upcoming transactions when the Upcoming section closes', async ({ 
   await expect(page.getByRole('dialog', { name: 'Edit 1 transaction', exact: true })).toBeVisible()
 })
 
-test('shows a hover on an upcoming row in the light theme', async ({ page, request }) => {
-  // Reduced motion opens the section at once, so the rows have stopped moving when their colours are read
-  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
-  const { upcomingId, todayId, upcoming } = await openListWithUpcomingAndToday(page, request)
-  await upcoming.click()
-  await expectTransactionRow(page, upcomingId, '−$45.00')
+for (const selecting of [false, true]) {
+  const where = selecting ? 'in selection mode ' : ''
+  test(`shows a hover on an upcoming row ${where}in the light theme`, async ({ page, request }) => {
+    // Reduced motion opens the section at once, so the rows have stopped moving when their colours are read
+    await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
+    const { upcomingId, todayId, upcoming } = await openListWithUpcomingAndToday(page, request)
+    await upcoming.click()
+    await expectTransactionRow(page, upcomingId, `${MINUS}$45.00`)
+    if (selecting) await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
 
-  // A hovered upcoming row stands out from the section's shading at least as much as a hovered row in the
-  // main list stands out from the page
-  const mainListChange = await hoverChange(page, page.getByTestId(`transaction-row-${todayId}`))
-  expect(mainListChange).toBeGreaterThan(0)
-  expect(await hoverChange(page, page.getByTestId(`transaction-row-${upcomingId}`))).toBeGreaterThanOrEqual(mainListChange)
-})
+    // A hovered upcoming row stands out from the section's shading at least as much as a hovered row in the
+    // main list stands out from the page
+    const mainListChange = await hoverChange(page, page.getByTestId(`transaction-row-${todayId}`))
+    expect(mainListChange).toBeGreaterThan(0)
+    expect(await hoverChange(page, page.getByTestId(`transaction-row-${upcomingId}`))).toBeGreaterThanOrEqual(mainListChange)
+  })
+}
 
 /**
  * Returns how far the colour drawn at the top edge of a row's background moves once the pointer is on the row,
  * as the sum of the change in each colour channel. The point sits in the row's own padding, above its text
  */
-async function hoverChange(page: Page, rowButton: Locator): Promise<number> {
-  // The background belongs to the row around the button, which also holds the checkbox in selection
-  const point = await rowButton.evaluate((button) => {
-    const rect = button.parentElement!.getBoundingClientRect()
+async function hoverChange(page: Page, rowContent: Locator): Promise<number> {
+  // The background belongs to the row around its content. The row also holds the checkbox in selection
+  const point = await rowContent.evaluate((content) => {
+    const rect = content.parentElement!.getBoundingClientRect()
     return { x: rect.left + rect.width / 2, y: rect.top + 3 }
   })
   await page.mouse.move(0, 0)
   const before = await colourAt(page, point.x, point.y)
   await page.mouse.move(point.x, point.y)
   // The hover fades in, so the colour is read once the row is hovered and its fade has ended
-  await expect.poll(() => rowButton.evaluate(({ parentElement: row }) => row!.matches(':hover') && row!.getAnimations().length === 0)).toBe(true)
+  await expect.poll(() => rowContent.evaluate(({ parentElement: row }) => row!.matches(':hover') && row!.getAnimations().length === 0)).toBe(true)
   const after = await colourAt(page, point.x, point.y)
   await page.mouse.move(0, 0)
   return after.reduce((sum, channel, index) => sum + Math.abs(channel - before[index]), 0)
@@ -164,6 +175,46 @@ async function colourAt(page: Page, x: number, y: number): Promise<number[]> {
     return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)]
   }, shot.toString('base64'))
 }
+
+/** Opens the transactions page in selection mode for a new user with three transactions today */
+async function openSelectingListOfThree(page: Page, request: APIRequestContext) {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
+  for (const amount of [-1000, -2000, -3000]) {
+    await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount })
+  }
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const rows = page.getByTestId(/^transaction-row-/)
+  await expect(rows).toHaveCount(3)
+
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  const ticks = page.getByRole('checkbox', { name: /^Select (?!the transactions shown on ).+ on / })
+  await expect(ticks).toHaveCount(3)
+  return { rows, ticks }
+}
+
+test('ticks a row pressed in selection mode rather than opening it', async ({ page, request }) => {
+  const { rows, ticks } = await openSelectingListOfThree(page, request)
+
+  await rows.first().click()
+
+  await expect(ticks.first()).toBeChecked()
+  await expect(ticks.nth(1)).not.toBeChecked()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('ticks the range between on a shift-press without selecting the text it runs across', async ({ page, request }) => {
+  const { rows, ticks } = await openSelectingListOfThree(page, request)
+  await rows.first().click()
+  await expect(ticks.first()).toBeChecked()
+
+  await rows.last().click({ modifiers: ['Shift'] })
+
+  for (const tick of await ticks.all()) await expect(tick).toBeChecked()
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
 
 test('keeps the open Upcoming header on screen through a long run of upcoming transactions', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -216,6 +267,57 @@ test('keeps the open Upcoming header on screen through a long run of upcoming tr
   // Closing from deep inside the section brings the page back to its header, rather than leaving it above
   // the screen or under the toolbar
   expect(await isShowingOnTop(upcoming)).toBe(true)
+})
+
+test('slides selection ticks under the stuck Upcoming header and never ticks a row through it', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
+  const ids: string[] = []
+  for (let day = 20; day >= 1; day -= 1) {
+    ids.push(await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(day) }))
+  }
+  // Past rows keep the page taller than the window, so the run of upcoming rows can scroll under the header
+  const pastIds: string[] = []
+  for (let day = 0; day >= -14; day -= 1) {
+    pastIds.push(await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(day) }))
+  }
+
+  await page.setViewportSize({ ...page.viewportSize()!, height: 600 })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await loadEveryTransaction(page)
+  await expect(page.getByTestId(`transaction-row-${pastIds[pastIds.length - 1]}`)).toBeAttached()
+  const upcoming = page.getByRole('button', { name: /Upcoming/ })
+  await upcoming.click()
+  const body = page.locator(`[id="${await upcoming.getAttribute('aria-controls')}"]`)
+  await expect(body).toHaveCSS('opacity', '1')
+  await expect(body).toHaveCSS('overflow', 'visible')
+
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  const tick = page.getByTestId(`transaction-row-${ids[8]}`).locator('..').getByRole('checkbox')
+  await expect(tick).toBeVisible()
+
+  // Scrolled so the middle row's tick sits level with the middle of the stuck header
+  await page.getByTestId(`transaction-row-${ids[8]}`).evaluate((row) => row.scrollIntoView({ block: 'start' }))
+  await expect.poll(() => isShowingOnTop(upcoming)).toBe(true)
+  const header = (await upcoming.boundingBox())!
+  const tickBox = (await tick.boundingBox())!
+  await page.evaluate((by) => window.scrollBy(0, by), tickBox.y + tickBox.height / 2 - (header.y + header.height / 2))
+  await expect
+    .poll(async () => {
+      const box = (await tick.boundingBox())!
+      const stuck = (await upcoming.boundingBox())!
+      return Math.abs(box.y + box.height / 2 - (stuck.y + stuck.height / 2))
+    })
+    .toBeLessThan(2)
+
+  // The header is what the page shows over the tick, so the tick slid under it, and a press there lands on the header
+  const stuck = (await upcoming.boundingBox())!
+  const point = { x: (await tick.boundingBox())!.x + 4, y: stuck.y + stuck.height / 2 }
+  const shownOverTick = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('button')?.getAttribute('aria-expanded'), point)
+  expect(shownOverTick).toBe('true')
+  await page.mouse.click(point.x, point.y)
+  await expect(upcoming).toHaveAttribute('aria-expanded', 'false')
 })
 
 /**
@@ -370,6 +472,91 @@ test('keeps transaction account controls identifiable as transfer labels change'
   await expect(account).toHaveAccessibleName('Account')
   await expect(counterparty).toHaveCount(0)
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+})
+
+test('describes a focused row by its category, account and amount, in the order its layout shows them', AT_EVERY_SIZE, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Described account' })
+  const id = await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Groceries', amount: -4250,
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expectTransactionRow(page, id, '−$42.50')
+
+  const title = getTransactionRowButton(page.getByTestId(`transaction-row-${id}`))
+
+  // The wide layout shows the category and the account before the amount, and the phone layout the amount first
+  const phone = (page.viewportSize()?.width ?? 0) < 750
+  await expect(title).toHaveAccessibleDescription(
+    phone ? /^−\$42\.50 Groceries Described account\b/ : /^Groceries Described account −\$42\.50\b/,
+  )
+})
+
+// Resizes the desktop window itself, to widths no project has, so it runs on desktop only
+test('describes a wide row by the note and tags its extras column draws at its width', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const user = await signUpUser(request)
+  // Long names take the room of the extras column at 750px and has room for icons only
+  const merchantName = 'Pacific Northwest Organic Grocers'
+  expect((await request.post(`${API_BASE_URL}/merchants`, { headers: asUser(user), data: { name: merchantName } })).status()).toBe(201)
+  const account = await createAccount(request, user, { name: 'Joint Household Chequing' })
+  const tagIds: string[] = []
+  for (const name of ['Family', 'Reviewed']) {
+    const response = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name } })
+    expect(response.status()).toBe(201)
+    tagIds.push((await response.json() as { id: string }).id)
+  }
+  const id = await createTransaction(request, user, {
+    accountId: account.id, categoryName: 'Groceries', amount: -3000, notes: 'Cottage trip', merchantName, tagIds,
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  const row = page.getByTestId(`transaction-row-${id}`)
+  await expectTransactionRow(page, id, '−$30.00')
+  const title = getTransactionRowButton(row)
+  const drawn = (label: string) => row.getByLabel(label, { exact: true }).filter({ visible: true })
+  const noteText = row.getByText('Cottage trip', { exact: true }).filter({ visible: true })
+
+  // A hidden form is left out of the description, so it reads what the row draws: icons here, and the
+  // note and the tag names at 1920px
+  await page.setViewportSize({ ...page.viewportSize()!, width: 750 })
+  await expect(noteText).toHaveCount(0)
+  await expect(drawn('Has note')).toHaveCount(1)
+  await expect(drawn('2 tags')).toHaveCount(1)
+  await expect(title).toHaveAccessibleDescription(/ Has note 2 tags −\$30\.00/)
+  await expect(title).not.toHaveAccessibleDescription(/Cottage trip|Family/)
+
+  await page.setViewportSize({ ...page.viewportSize()!, width: 1920 })
+  await expect(noteText).toHaveCount(1)
+  await expect(drawn('Has note')).toHaveCount(0)
+  await expect(drawn('2 tags')).toHaveCount(0)
+  await expect(title).toHaveAccessibleDescription(/ Cottage trip Family \+1 −\$30\.00/)
+  await expect(title).not.toHaveAccessibleDescription(/Has note|2 tags/)
+})
+
+test('brings the category and account lines of a phone row into view with its title, at the foot of the screen', AT_EVERY_SIZE, async ({ page, request }) => {
+  test.skip(test.info().project.name !== 'phone', 'The title is the first line of the row only in the phone layout, below 750px')
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Foot account' })
+  // One page of rows, more than the screen holds, so the oldest sits below the fold
+  const ids: string[] = []
+  for (let day = 0; day > -15; day -= 1) {
+    ids.push(await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(day) }))
+  }
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expectTransactionRow(page, ids[0], '−$10.00')
+
+  const lastRow = page.getByTestId(`transaction-row-${ids[ids.length - 1]}`)
+  await lastRow.locator('[data-row-title]:visible').focus()
+
+  // Focus brings the title into view as Tab does, and the lines under it, that the title does not
+  // contain, come with it rather than staying below the screen
+  await expect.poll(async () => {
+    const accountLine = await lastRow.getByText('Foot account', { exact: true }).filter({ visible: true }).boundingBox()
+    return accountLine === null ? Infinity : accountLine.y + accountLine.height - page.viewportSize()!.height
+  }).toBeLessThanOrEqual(0)
 })
 
 test('preserves transaction action names through save and delete confirmation', async ({ page, request }) => {

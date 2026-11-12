@@ -4,6 +4,7 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type FocusEvent as ReactFocusEvent,
@@ -17,6 +18,7 @@ import {
   formatIsoDate,
   isPartlyTyped,
   parseIsoDate,
+  parsePastedDate,
   setSegmentDigits,
   shouldAdvanceSegment,
   stepSegment,
@@ -59,6 +61,10 @@ interface DateFieldProps {
   // Lights the field with its focus look without moving focus into it: 'lit' while a change made elsewhere is
   // pointed out, 'fading' while the light eases out again. Left out, or null, the field is as focus makes it
   stepHighlight?: 'lit' | 'fading' | null
+  // Days the calendar refuses. Typing one is still possible, so the form validates the value too
+  isDateDisabled?: (iso: string) => boolean
+  // Why the calendar refuses a day, said when the day is pressed, hovered or focused. Left out, a refused day says nothing
+  getDateDisabledReason?: (iso: string) => string | null
 }
 
 const SEGMENT_PLACEHOLDER: Record<DateSegmentName, string> = { year: 'yyyy', month: 'mm', day: 'dd' }
@@ -95,6 +101,8 @@ export default function DateField({
   describedById,
   keyShortcuts,
   stepHighlight = null,
+  isDateDisabled,
+  getDateDisabledReason,
 }: DateFieldProps) {
   const { user } = useAuth()
   const [segments, setSegments] = useState<DateSegments>(() => parseIsoDate(value))
@@ -171,6 +179,20 @@ export default function DateField({
     commit(next)
 
     if (shouldAdvanceSegment(segment, next[segment])) focusRelative(segment, 1)
+  }
+
+  /**
+   * Fills every segment from a whole date pasted into any one of them, a year-last one read in the
+   * browser's own date order. Other pasted text goes in as typed digits do
+   */
+  const handleSegmentPaste = (event: ReactClipboardEvent<HTMLInputElement>) => {
+    if (readOnly) return
+    const pasted = parsePastedDate(event.clipboardData.getData('text'))
+    if (!pasted) return
+
+    event.preventDefault()
+    overwriteOnNextDigitRef.current = true
+    commit(pasted)
   }
 
   const handleSegmentKeyDown = (segment: DateSegmentName, event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -290,6 +312,7 @@ export default function DateField({
               }}
               onChange={(event) => handleSegmentInput(segment, event.target.value)}
               onKeyDown={(event) => handleSegmentKeyDown(segment, event)}
+              onPaste={handleSegmentPaste}
               className={`app-date-field-segment ${SEGMENT_WIDTH[segment]} ${disabled ? 'cursor-not-allowed' : ''}`}
             />
           </div>
@@ -317,6 +340,8 @@ export default function DateField({
         value={value}
         onSelect={(iso) => commit(parseIsoDate(iso))}
         onClose={() => setPopoverOpen(false)}
+        isDateDisabled={isDateDisabled}
+        getDateDisabledReason={getDateDisabledReason}
       />
     </div>
   )

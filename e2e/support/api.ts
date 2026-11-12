@@ -152,6 +152,22 @@ export function todayInTestTimezone(): string {
 }
 
 /**
+ * Today as the app writes a day with its year, such as Oct 5, 2026, in the zone the user signed up with
+ */
+export function formatToday(): string {
+  return new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', year: 'numeric', timeZone: TEST_TIMEZONE }).format(new Date())
+}
+
+/**
+ * A date as the app writes a day with its year, such as Oct 5, 2026
+ *
+ * @param date - The date as YYYY-MM-DD
+ */
+export function formatDateLabel(date: string): string {
+  return new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`))
+}
+
+/**
  * The date a number of days from today, in the timezone the browser and the seeded data share
  *
  * Steps whole calendar days in UTC, where no daylight saving change can skip or repeat one
@@ -241,6 +257,28 @@ export async function createGroup(request: APIRequestContext, user: TestUser, na
   const response = await request.post(`${API_BASE_URL}/groups`, { headers: asUser(user), data: { name } })
   if (response.status() !== 201) {
     throw new Error(`creating group ${name} answered ${response.status()}: ${await response.text()}`)
+  }
+
+  const body = (await response.json()) as { id: string }
+  return body.id
+}
+
+/**
+ * Create an institution over the API, in Canada with an example.com website.
+ *
+ * @param request - Playwright request context
+ * @param user - Who adds the institution
+ * @param name - Institution name
+ * @returns The institution's id
+ * @throws When creation does not answer 201
+ */
+export async function createInstitution(request: APIRequestContext, user: TestUser, name: string): Promise<string> {
+  const response = await request.post(`${API_BASE_URL}/institutions`, {
+    headers: asUser(user),
+    data: { name, country_code: 'CA', website: 'https://example.com' },
+  })
+  if (response.status() !== 201) {
+    throw new Error(`creating institution ${name} answered ${response.status()}: ${await response.text()}`)
   }
 
   const body = (await response.json()) as { id: string }

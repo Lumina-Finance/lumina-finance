@@ -2,6 +2,9 @@
 export const CONTENT_EASE_MS = 300
 export const CONTENT_EASE_CURVE = [0.22, 1, 0.36, 1] as const
 
+/** How long a small marker, button or label takes to grow or fade in and out, on the same curve */
+export const QUICK_EASE_S = 0.15
+
 /**
  * Whether the person asks for less motion right now. Read at the moment of a change rather than held by
  * a hook, which keeps the setting it saw when the control mounted, so a dialog left open while the

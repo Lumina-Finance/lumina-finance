@@ -166,6 +166,29 @@ export const oidcKeys = {
   identities: () => ['oidc', 'identities'] as const,
 }
 
+export const bankSyncKeys = {
+  all: ['bank-sync'] as const,
+  providers: () => ['bank-sync', 'providers'] as const,
+  connections: () => ['bank-sync', 'connections'] as const,
+  discoveredAccounts: (connectionId: string | null, accountId: string) =>
+    ['bank-sync', 'connections', connectionId, 'accounts', accountId] as const,
+  links: () => ['bank-sync', 'links'] as const,
+  accountAll: ['bank-sync', 'account'] as const,
+  accountStatus: (accountId: string) => ['bank-sync', 'account', accountId] as const,
+  importRange: (accountId: string, provider: string | null) =>
+    ['bank-sync', 'account', accountId, 'import-range', provider] as const,
+  reviewAll: ['bank-sync', 'review'] as const,
+  reviewItemsAll: ['bank-sync', 'review', 'items'] as const,
+  reviewItems: (accountIds: string[] | undefined) => ['bank-sync', 'review', 'items', accountIds ?? 'all'] as const,
+  reviewBacklogsAll: ['bank-sync', 'review', 'backlogs'] as const,
+  reviewBacklogs: (accountIds: string[] | undefined) =>
+    ['bank-sync', 'review', 'backlogs', accountIds ?? 'all'] as const,
+  pendingAll: ['bank-sync', 'pending'] as const,
+  pending: (accountIds: string[] | undefined) => ['bank-sync', 'pending', accountIds ?? 'all'] as const,
+  holdsAll: ['bank-sync', 'holds'] as const,
+  holds: (accountIds: string[] | undefined) => ['bank-sync', 'holds', accountIds ?? 'all'] as const,
+}
+
 export const lastImportKeys = {
   all: ['last-import'] as const,
 

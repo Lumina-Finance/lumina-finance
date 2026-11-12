@@ -146,6 +146,9 @@
     --app-chart-positive: #5d8f6d;
     --app-chart-negative: #ab5e56;
     --app-warning: #d6b400;
+    /* Status dots are small, so waiting-on-review needs a deeper yellow than a fill to hold its own on
+       cream, at least the 3:1 a non-text mark needs (about 3.4:1 on the page background) */
+    --app-warning-dot: #9e8500;
     --app-warning-soft: #d6b40029;
     --app-warning-text: #6f5700;
     /* Muted text on the warning tint, such as the archive warning's explanation, which the tint leaves readable here */
@@ -157,8 +160,26 @@
     /* The gray FX badge's hover and open fill, which its white label sits on */
     --app-fx-gray-fill: var(--app-text-muted);
     --app-negative: #9a3c34;
+    /* Edges items waiting for review. They take the warning hue until the user decides on them */
+    --app-warning-border: #d6b40066;
+    /* Items waiting for review. Light mode keeps the card neutral and marks it with an ochre dashed edge,
+       since a yellow wash turns sickly on the cream background. Dark mode can carry a faint wash */
+    --app-review-bg: #fbf8f0;
+    --app-review-border: #a8840080;
+    --app-review-count-text: #fbf8f0;
+    --app-review-divider: var(--app-border);
+    /* The bank's filing card beside a review item: whiter stock than the app's cards, pale blue ruling
+       and a red rule under its heading, so it reads as a record from outside the ledger */
+    --app-filing-card: #fffdf7;
+    --app-filing-card-rule: #6f9cc438;
+    --app-filing-card-red: #c4574c99;
+    --app-filing-card-shadow: #4b372329;
+    /* The card's labels keep 4.5:1 on its stock in both themes */
+    --app-filing-card-muted: var(--app-text-muted);
     --app-negative-soft: #9a3c341a;
     --app-negative-border: #9a3c344d;
+    /* Bank activity outside the ledger, such as imports and syncs, takes a hue no ledger row uses */
+    --app-bank: #2f6f7a;
     /* Filled destructive buttons need a darker red than negative text to keep white labels readable */
     --app-danger-fill: #9a3c34;
     /* Their fill under the pointer or keyboard focus, darker in both themes, since a lighter red would
@@ -266,6 +287,7 @@
     --app-chart-positive: #5d8f6d;
     --app-chart-negative: #ab5e56;
     --app-warning: #f5d547;
+    --app-warning-dot: #f5d547;
     --app-warning-soft: #f5d5472e;
     --app-warning-text: #f8e28a;
     /* The muted colour falls short of the contrast text needs on the warning tint here, so it is drawn a quarter of
@@ -277,6 +299,17 @@
        the page, which keeps its warm gray */
     --app-fx-gray-fill: color-mix(in srgb, var(--app-text-muted) 70%, var(--app-bg));
     --app-negative: #d8776a;
+    --app-warning-border: #f5d54752;
+    --app-review-bg: #f5d5470d;
+    --app-review-count-text: #1f1800;
+    --app-review-border: var(--app-warning-border);
+    --app-review-divider: var(--app-warning-border);
+    --app-filing-card: #25221d;
+    --app-filing-card-rule: #86aed363;
+    --app-filing-card-red: #d8776a80;
+    --app-filing-card-shadow: #00000080;
+    /* The muted text colour reaches only 4.1:1 on the lighter stock */
+    --app-filing-card-muted: #9c9083;
     --app-negative-soft: #b8584e1f;
     --app-negative-border: #b8584e59;
     --app-danger-fill: #b8584e;
@@ -284,6 +317,7 @@
     --app-button-primary-bg-hover: #d5b978;
     --app-button-primary-text: #100f0e;
     --app-nav-bg: #12100d;
+    --app-bank: #86bac1;
     --app-shadow-soft: 0 2px 20px #00000061, 0 1px 4px #0000003d;
   }
 
@@ -942,9 +976,10 @@
   }
 
   /* Subtle and muted text both fall under 4.5:1 on the accent tint in the dark theme, so a neighbouring month's day
-     under the pointer or keyboard focus reads in the text colour, like any other day */
-  .app-calendar-day[data-outside]:not([data-selected]):hover,
-  .app-calendar-day[data-outside]:not([data-selected]):focus-visible {
+     under the pointer or keyboard focus reads in the text colour, like any other day. A refused one keeps
+     its fade */
+  .app-calendar-day[data-outside]:not([data-selected]):not([data-disabled]):hover,
+  .app-calendar-day[data-outside]:not([data-selected]):not([data-disabled]):focus-visible {
     color: var(--app-text);
   }
 
@@ -966,6 +1001,34 @@
     .app-calendar-day[data-selected]:hover {
       background: var(--app-button-primary-bg-hover);
     }
+  }
+
+  /* A day the field refuses, struck through as well as faded so it does not rest on colour alone.
+     Faded by mixing its colour into the calendar's own background rather than by opacity. Opacity took
+     it below AA. This mix keeps about 5.6:1, and 6.3:1 in dark */
+  .app-calendar-day[data-disabled] {
+    cursor: not-allowed;
+    color: color-mix(in srgb, var(--app-text) 65%, var(--app-input-bg));
+    text-decoration: line-through;
+  }
+
+  @media (hover: hover) {
+    .app-calendar-day[data-disabled]:hover {
+      background: transparent;
+    }
+  }
+
+  .app-calendar-day[data-disabled]:focus-visible {
+    background: transparent;
+  }
+
+  /* A refused day can still be the field's value, such as today before the user picks another, and
+     then keeps the chosen day's colours, pointed at or not, with only the strike marking it refused */
+  .app-calendar-day[data-selected][data-disabled],
+  .app-calendar-day[data-selected][data-disabled]:hover,
+  .app-calendar-day[data-selected][data-disabled]:focus-visible {
+    background: var(--app-button-primary-bg);
+    color: var(--app-button-primary-text);
   }
 
   .app-runway-threshold-input {
@@ -2672,6 +2735,19 @@
     transform: translateY(1px);
   }
 
+  /* Unavailable for a reason, faded as the outlined buttons are and with no hover or press, so only the
+     shared focus ring and the reason's tooltip answer the pointer and the keyboard */
+  .app-icon-button[aria-disabled="true"],
+  .app-icon-button[aria-disabled="true"]:hover,
+  .app-icon-button[aria-disabled="true"]:focus-visible,
+  .app-icon-button[aria-disabled="true"]:active {
+    cursor: not-allowed;
+    color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
+    background: transparent;
+    border-color: transparent;
+    transform: none;
+  }
+
   /* The spending comparison's average toggle, the word AVG in the time selector's type with no frame of its own.
      It answers the pointer as a time period does, lights its text while on, and takes the chosen period's look
      once kept. A fill grows inside it while it is held: letting go early sends the fill back quickly, and a
@@ -3017,15 +3093,16 @@
 
   /* A transaction row is focused through the button inside it, or its checkbox while selecting, and
      neither fills the row, so the ring goes around the row itself, drawn inside the row's edges where
-     the next row and the list's own edge cannot cover it. The row also shows the hover look while its
-     button is focused */
+     the next row and the list's own edge cannot cover it. A bank control in the row draws its own focus
+     and takes no ring here. The row also shows the hover look while any button in it is focused, as
+     it does under the pointer anywhere on it */
   .app-transaction-row {
     transition:
       background-color var(--app-ease-duration) var(--app-ease-curve),
       var(--app-focus-fade);
   }
 
-  .app-transaction-row:has(:focus-visible) {
+  .app-transaction-row:has([data-row-title]:focus-visible, button[role="checkbox"]:focus-visible) {
     outline: var(--app-focus-outline);
     outline-offset: calc(var(--app-focus-offset) * -1);
   }
@@ -3066,7 +3143,7 @@
   }
 
   @media (hover: hover) {
-    label:hover .app-switch-input:not(:disabled) + .app-switch-track {
+    label:hover .app-switch-input:not(:disabled):not([aria-disabled="true"]) + .app-switch-track {
       --app-switch-off: color-mix(in srgb, var(--app-border-strong) 70%, var(--app-text));
       --app-switch-on: color-mix(in srgb, var(--app-accent) 60%, var(--app-text));
     }
@@ -3396,6 +3473,24 @@
     filter: blur(10px);
   }
 
+  /* An index card ruled every 1.75rem, the height of each line written on it, so text sits on the rules */
+  .app-filing-card {
+    background-color: var(--app-filing-card);
+    box-shadow: 0 10px 24px var(--app-filing-card-shadow);
+  }
+
+  .app-filing-card-ruled {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0 calc(1.75rem - 1px),
+      var(--app-filing-card-rule) calc(1.75rem - 1px) 1.75rem
+    );
+
+    /* Ruled across the text only, leaving the card's side margins blank */
+    background-origin: content-box;
+    background-clip: content-box;
+  }
+
   .app-modal-panel {
     @apply rounded-2xl;
     background: var(--app-bg);
@@ -3444,10 +3539,19 @@
   }
 
   @media (max-width: 1049.98px) {
-    body :has(> .app-modal-panel[role="dialog"][aria-modal="true"]) {
+    body :has(> .app-modal-panel[role="dialog"][aria-modal="true"]),
+    body :has(> .app-modal-frame > .app-modal-panel[role="dialog"][aria-modal="true"]) {
       align-items: stretch !important;
       justify-content: stretch !important;
       padding: 0 !important;
+    }
+
+    /* A modal with an aside wraps its panel in a frame. The frame takes the whole screen as the panel does */
+    .app-modal-frame {
+      width: 100dvw !important;
+      max-width: none !important;
+      height: 100dvh !important;
+      max-height: none !important;
     }
 
     .app-modal-panel[role="dialog"][aria-modal="true"] {
@@ -3607,7 +3711,8 @@
   Sans, whose ascent is 0.99em and descent 0.31em: a button or a link with its own box centres the font's
   1.3em in its line box, and an inline link's background covers just the font's own 1.3em. The top is
   rounded to a whole pixel so the line stays crisp. A link with an icon sets --link-underline-start to the
-  icon's width and gap, so the line runs under the label only. A link that wraps draws a line under each of
+  icon's width and gap, so the line runs under the label only, or --link-underline-end for an icon after the
+  label. A link that wraps draws a line under each of
   its lines, while a link with its own box draws one line, so it is for a label that stays on one line.
   These rules live in the utilities layer because the links carry transition utilities, which Tailwind
   orders after components, and a components-layer rule would lose to them
@@ -3618,8 +3723,10 @@
     background-image: linear-gradient(currentColor, currentColor);
     background-repeat: no-repeat;
     background-size: 0px 1px;
-    background-position: calc(50% + var(--link-underline-start, 0px) / 2) calc(0.99em + 2px);
-    background-position: calc(50% + var(--link-underline-start, 0px) / 2) round(calc(0.99em + 2px), 1px);
+    background-position: calc(50% + (var(--link-underline-start, 0px) - var(--link-underline-end, 0px)) / 2)
+      calc(0.99em + 2px);
+    background-position: calc(50% + (var(--link-underline-start, 0px) - var(--link-underline-end, 0px)) / 2)
+      round(calc(0.99em + 2px), 1px);
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
   }
@@ -3657,7 +3764,7 @@
   }
 
   :is(a, button).underline:focus-visible {
-    background-size: calc(100% - var(--link-underline-start, 0px)) 1px;
+    background-size: calc(100% - var(--link-underline-start, 0px) - var(--link-underline-end, 0px)) 1px;
   }
 
   /* A shared button eases every change over the app's duration and curve, while its focus ring still fades
@@ -3700,7 +3807,7 @@
 
   @media (hover: hover) {
     :is(a, button).underline:hover {
-      background-size: calc(100% - var(--link-underline-start, 0px)) 1px;
+      background-size: calc(100% - var(--link-underline-start, 0px) - var(--link-underline-end, 0px)) 1px;
     }
   }
 

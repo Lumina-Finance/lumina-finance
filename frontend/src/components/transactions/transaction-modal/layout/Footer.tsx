@@ -1,15 +1,16 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Check, Trash2 } from 'lucide-react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
-import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
 import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
 import { ARIA_SUBMIT_SHORTCUT } from '@/components/transactions/transaction-modal/utils/shortcuts'
 import type { ModalLevel } from '@/components/modal/Shell'
+import TransactionKeepOpenOption from '@/components/transactions/transaction-modal/controls/KeepOpenOption'
+import { useConfirmingClick } from '@/hooks/useConfirmingClick'
 
-interface TransactionModalFooterProps {
+type TransactionModalFooterProps = {
   level: ModalLevel
   editing: boolean
 
@@ -31,6 +32,9 @@ interface TransactionModalFooterProps {
   // Why the form can't go ahead once a press found a problem, shown in a tooltip while Add stays focusable
   submitBlockedReason?: string
   deleteLoading: boolean
+
+  /** Why Delete is unavailable, shown on it when it is pointed at, focused or tapped */
+  deleteDisabledReason: string | null
   keepOpenAfterCreate: boolean
   onKeepOpenAfterCreateChange: (value: boolean) => void
   onCancel: () => void
@@ -51,14 +55,14 @@ export default function TransactionModalFooter({
   submitLoading,
   submitBlockedReason,
   deleteLoading,
+  deleteDisabledReason,
   keepOpenAfterCreate,
   onKeepOpenAfterCreateChange,
   onCancel,
   onDelete,
 }: TransactionModalFooterProps) {
-  const ids = useTransactionModalIds()
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const deleteButtonRef = useRef<HTMLButtonElement>(null)
+  const [confirmingDelete, setConfirmingDelete] = useConfirmingClick(deleteButtonRef, deleteLoading)
   const idleLabelRef = useRef<HTMLSpanElement>(null)
   const confirmLabelRef = useRef<HTMLSpanElement>(null)
   const [labelWidths, setLabelWidths] = useState<{ idle: number; confirm: number } | null>(null)
@@ -93,36 +97,20 @@ export default function TransactionModalFooter({
     }
   }, [editing])
 
-  useEffect(() => {
-    if (!confirmingDelete || deleteLoading) return
-    const onPointer = (event: PointerEvent) => {
-      if (deleteButtonRef.current && !deleteButtonRef.current.contains(event.target as Node)) {
-        setConfirmingDelete(false)
-      }
-    }
-
-    // Defers listener registration so the click that arms confirmation does not immediately cancel it
-    const timeoutId = window.setTimeout(() => window.addEventListener('pointerdown', onPointer), 0)
-    return () => {
-      window.clearTimeout(timeoutId)
-      window.removeEventListener('pointerdown', onPointer)
-    }
-  }, [confirmingDelete, deleteLoading])
-
   return (
     <div
       className={`flex shrink-0 flex-col gap-3 py-4 sm:flex-row sm:items-center min-[1050px]:py-5 ${MODAL_INSET_CLASS_NAME[level]}`}
       style={{ borderTop: '1px solid var(--app-border)' }}
     >
       {editing && !readOnly ? (
-        <button
+        <DisabledReasonButton
           ref={deleteButtonRef}
           data-testid="transaction-delete"
           aria-label={confirmingDelete ? 'Yes, delete' : 'Delete'}
           aria-busy={deleteButtonLoading}
-          type="button"
           onClick={handleDeleteClick}
           disabled={isPending}
+          disabledReason={deleteDisabledReason}
           className={`app-danger-button overflow-hidden whitespace-nowrap ${
             deleteButtonLoading ? 'app-primary-button-loading shrink-0' : 'w-full sm:w-auto'
           }`}
@@ -168,30 +156,17 @@ export default function TransactionModalFooter({
               </span>
             </span>
           </PendingLabel>
-        </button>
+        </DisabledReasonButton>
       ) : !editing && !hideKeepOpen ? (
-        <div className="min-w-0 sm:max-w-xs">
-          <label htmlFor={ids.keepOpen} className="-ml-1 flex cursor-pointer items-center gap-3 rounded-xl px-1 py-1">
-            <input
-              id={ids.keepOpen}
-              type="checkbox"
-              checked={keepOpenAfterCreate}
-              onChange={(event) => onKeepOpenAfterCreateChange(event.target.checked)}
-              disabled={isPending}
-              className="h-4 w-4 shrink-0 cursor-pointer disabled:cursor-not-allowed"
-              style={{ accentColor: 'var(--app-accent)' }}
-            />
-            <span className="min-w-0">
-              <span className="block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-                Keep modal open after adding
-              </span>
-              <span className="block text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                Keep type, date, account, merchant, and category
-              </span>
-            </span>
-          </label>
-        </div>
+        <TransactionKeepOpenOption
+          label="Keep modal open after adding"
+          description="Keep type, date, account, merchant, and category"
+          checked={keepOpenAfterCreate}
+          disabled={isPending}
+          onChange={onKeepOpenAfterCreateChange}
+        />
       ) : null}
+
       <div className="relative grid grid-cols-2 gap-3 sm:ml-auto sm:flex sm:items-center">
         <button
           type="button"

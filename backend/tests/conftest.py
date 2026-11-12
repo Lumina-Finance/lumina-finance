@@ -2,7 +2,7 @@ import logging
 import os
 from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import datetime
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -20,9 +20,13 @@ from app.db.rls import apply_rls
 from app.models import import_all_models
 from app.models.base import Base
 from app.request_hook import RequestRecord, observe_requests
+from app.services.bank_sync.availability import installed_providers
 from app.services.categories.defaults import seed_system_categories
+from app.services.email import RenderedEmail
+from app.services.email import contract as email_contract
 from app.services.merchants.defaults import seed_system_merchants
 from app.valkey_store import ValkeyStore, use_valkey
+from tests.services.bank_sync.fake_provider import FakeProviderAdapter, remove_provider, use_adapter
 
 # Import all models so Base.metadata has the full schema
 import_all_models()
@@ -209,3 +213,33 @@ def abuse_log_lines() -> Iterator[list[str]]:
         yield lines
     finally:
         abuse_log.removeHandler(collector)
+
+
+@pytest.fixture(autouse=True)
+def no_bank_provider(monkeypatch) -> None:
+    """Leave every provider out, as a server offering no bank sync has none, so a test reads the same whichever provider folders the server has
+
+    A bank test installs the fake provider over this, and a provider's own tests install it again
+    """
+    for provider_id in list(installed_providers()):
+        remove_provider(monkeypatch, provider_id)
+
+
+@pytest.fixture
+def fake_provider(no_bank_provider, monkeypatch) -> FakeProviderAdapter:
+    """Install the scripted fake provider, enabled and offered, as the only provider. Every bank sync test's connections use it"""
+    adapter = FakeProviderAdapter()
+    use_adapter(monkeypatch, adapter)
+    return adapter
+
+
+@pytest.fixture
+def sent_action_emails(monkeypatch) -> list[tuple[str, RenderedEmail]]:
+    """Each email sent while the test runs, as its recipient and message, recorded by a sender installed in place of the configured one"""
+    sent = []
+
+    async def record(recipient: str, message: RenderedEmail) -> None:
+        sent.append((recipient, message))
+
+    monkeypatch.setattr(email_contract, "_active_sender", SimpleNamespace(send=record))
+    return sent

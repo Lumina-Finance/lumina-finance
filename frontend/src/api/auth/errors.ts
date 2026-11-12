@@ -1,39 +1,52 @@
-import { formatList } from '@/utils/formatList';
+import { formatList } from '@/utils/formatList'
 
-export const REFRESH_ALREADY_ROTATED_STATUS = 409;
-export const REFRESH_ALREADY_ROTATED_DETAIL = 'Refresh token was already rotated';
+export const REFRESH_ALREADY_ROTATED_STATUS = 409
+export const REFRESH_ALREADY_ROTATED_DETAIL = 'Refresh token was already rotated'
+
+// What a proxy in front of the app answers with its own page when the app is slow or out of reach.
+// The app sends these too, such as a 502 for a provider it couldn't reach, but always with a detail
+const GATEWAY_STATUSES = new Set([502, 503, 504])
 
 interface ApiErrorOptions {
-  attemptsRemaining?: number;
-  detail?: string;
-  fieldErrors?: ApiFieldError[];
+  attemptsRemaining?: number
+  detail?: string
+  fieldErrors?: ApiFieldError[]
 }
 
 export class ApiError extends Error {
-  status: number;
+  status: number
 
   /** Step-up attempts left before the shared lockout signs the user out, when the response reports it */
-  attemptsRemaining?: number;
+  attemptsRemaining?: number
 
   // Set only where the response body carried a `detail`, so an empty one is the app's own way of
   // knowing the backend offered no explanation. `message` cannot answer that: it falls back to the
   // friendly sentence the client shows when the server said nothing
   /** The backend's own explanation of the failure, where the response carried one */
-  detail?: string;
+  detail?: string
 
   /** The request fields the server's validation refused, where the refusal listed them */
-  fieldErrors?: ApiFieldError[];
+  fieldErrors?: ApiFieldError[]
 
   constructor(message: string, status: number, options: ApiErrorOptions = {}) {
-    super(message);
+    super(message)
     // Without this the class inherits the plain Error name, so a copied bug report cannot tell a
     // request the server refused from a render that threw
-    this.name = 'ApiError';
-    this.status = status;
-    this.attemptsRemaining = options.attemptsRemaining;
-    this.detail = options.detail;
-    this.fieldErrors = options.fieldErrors;
+    this.name = 'ApiError'
+    this.status = status
+    this.attemptsRemaining = options.attemptsRemaining
+    this.detail = options.detail
+    this.fieldErrors = options.fieldErrors
   }
+}
+
+/**
+ * Whether a failed request carries the app's own answer. One that doesn't may still have been
+ * carried out: the browser never got an answer, or a proxy gave up waiting on the app and answered
+ * with its own page while the app went on
+ */
+export function isAnsweredByApp(error: unknown): error is ApiError {
+  return error instanceof ApiError && !(GATEWAY_STATUSES.has(error.status) && error.detail === undefined)
 }
 
 /**
@@ -44,11 +57,11 @@ export function isRefreshAlreadyRotatedError(error: unknown): error is ApiError 
     error instanceof ApiError &&
     error.status === REFRESH_ALREADY_ROTATED_STATUS &&
     error.message === REFRESH_ALREADY_ROTATED_DETAIL
-  );
+  )
 }
 
 /** Why restoring a session on page load failed */
-export type SessionRestoreFailure = 'rejected' | 'rotated' | 'unavailable';
+export type SessionRestoreFailure = 'rejected' | 'rotated' | 'unavailable'
 
 /**
  * Reads a failed session restore as the server refusing the session, a refresh that lost a rotation
@@ -58,23 +71,23 @@ export type SessionRestoreFailure = 'rejected' | 'rotated' | 'unavailable';
  * may sign the user out
  */
 export function getSessionRestoreFailure(error: unknown): SessionRestoreFailure {
-  if (error instanceof ApiError && error.status === 401) return 'rejected';
-  if (isRefreshAlreadyRotatedError(error)) return 'rotated';
-  return 'unavailable';
+  if (error instanceof ApiError && error.status === 401) return 'rejected'
+  if (isRefreshAlreadyRotatedError(error)) return 'rotated'
+  return 'unavailable'
 }
 
 // What a failed request shows when the server sent no explanation of its own, such as a 500 with an
 // empty body or a gateway's page. The status stays on the error for the copied report
-export const NO_EXPLANATION_MESSAGE = 'Oops, something went wrong. Please try again.';
+export const NO_EXPLANATION_MESSAGE = 'Oops, something went wrong. Please try again.'
 
 // Where a field error's location starts with the part of the request it was found in rather than
 // the field's own name
-const REQUEST_PARTS = new Set(['body', 'query', 'path', 'header', 'cookie']);
+const REQUEST_PARTS = new Set(['body', 'query', 'path', 'header', 'cookie'])
 
 /** A request field the server's validation refused, and why */
 export interface ApiFieldError {
-  field: string;
-  message: string;
+  field: string
+  message: string
 }
 
 /**
@@ -82,30 +95,30 @@ export interface ApiFieldError {
  * `{ loc, msg }` entries rather than a sentence
  */
 function readFieldErrors(detail: unknown): ApiFieldError[] | undefined {
-  if (!Array.isArray(detail)) return undefined;
+  if (!Array.isArray(detail)) return undefined
   const fieldErrors = detail.flatMap((entry): ApiFieldError[] => {
-    if (typeof entry !== 'object' || entry === null || typeof entry.msg !== 'string') return [];
-    const loc: unknown[] = Array.isArray(entry.loc) ? entry.loc : [];
-    const names = loc.filter((part): part is string => typeof part === 'string' && !REQUEST_PARTS.has(part));
-    return [{ field: names.at(-1) ?? '', message: entry.msg }];
-  });
-  return fieldErrors.length > 0 ? fieldErrors : undefined;
+    if (typeof entry !== 'object' || entry === null || typeof entry.msg !== 'string') return []
+    const loc: unknown[] = Array.isArray(entry.loc) ? entry.loc : []
+    const names = loc.filter((part): part is string => typeof part === 'string' && !REQUEST_PARTS.has(part))
+    return [{ field: names.at(-1) ?? '', message: entry.msg }]
+  })
+  return fieldErrors.length > 0 ? fieldErrors : undefined
 }
 
 // What a validation refusal shows when none of its entries names a field
-const UNNAMED_FIELDS_MESSAGE = "Oops, some of what you entered wasn't accepted. Please check it and try again.";
+const UNNAMED_FIELDS_MESSAGE = "Oops, some of what you entered wasn't accepted. Please check it and try again."
 
 /**
  * Says which fields a validation refusal named, as "the credit limit and name", leaving out the
  * server's reasons, which are written for developers and stay in the copied report
  */
 function describeRefusedFields(fieldErrors: ApiFieldError[]): string {
-  const names = [...new Set(fieldErrors.map(({ field }) => field.replaceAll('_', ' ').trim()).filter(Boolean))];
-  if (names.length === 0) return UNNAMED_FIELDS_MESSAGE;
-  const list = formatList(names);
+  const names = [...new Set(fieldErrors.map(({ field }) => field.replaceAll('_', ' ').trim()).filter(Boolean))]
+  if (names.length === 0) return UNNAMED_FIELDS_MESSAGE
+  const list = formatList(names)
   return names.length === 1
     ? `Oops, the ${list} wasn't accepted. Please check it and try again.`
-    : `Oops, the ${list} weren't accepted. Please check them and try again.`;
+    : `Oops, the ${list} weren't accepted. Please check them and try again.`
 }
 
 /**
@@ -115,14 +128,18 @@ function describeRefusedFields(fieldErrors: ApiFieldError[]): string {
  * keeps the server's reasons as `fieldErrors`. Anything else, including no body at all, gets the
  * friendly sentence, since a status code is not something a user can act on
  */
-export function buildApiError(status: number, body: unknown, options: Omit<ApiErrorOptions, 'detail' | 'fieldErrors'> = {}): ApiError {
-  const detail = typeof body === 'object' && body !== null ? (body as { detail?: unknown }).detail : undefined;
-  if (typeof detail === 'string' && detail.trim()) return new ApiError(detail, status, { ...options, detail });
+export function buildApiError(
+  status: number,
+  body: unknown,
+  options: Omit<ApiErrorOptions, 'detail' | 'fieldErrors'> = {},
+): ApiError {
+  const detail = typeof body === 'object' && body !== null ? (body as { detail?: unknown }).detail : undefined
+  if (typeof detail === 'string' && detail.trim()) return new ApiError(detail, status, { ...options, detail })
 
-  const fieldErrors = readFieldErrors(detail);
+  const fieldErrors = readFieldErrors(detail)
   if (fieldErrors) {
-    return new ApiError(describeRefusedFields(fieldErrors), status, { ...options, fieldErrors });
+    return new ApiError(describeRefusedFields(fieldErrors), status, { ...options, fieldErrors })
   }
 
-  return new ApiError(NO_EXPLANATION_MESSAGE, status, options);
+  return new ApiError(NO_EXPLANATION_MESSAGE, status, options)
 }

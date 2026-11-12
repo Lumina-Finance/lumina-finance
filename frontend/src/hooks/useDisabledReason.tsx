@@ -91,6 +91,16 @@ export function useControlHint(hint: string | null | undefined, name?: string) {
   return { controlProps, tooltip }
 }
 
+/**
+ * The box a control's reason sits beside on keyboard focus. That is the control's own box, or the
+ * ancestor named by its `data-reason-beside` selector for a control that is only part of what it stands
+ * for. A transaction row's title, for one, places its reason beside the whole row
+ */
+function placeBesideOf(control: HTMLElement): HTMLElement {
+  const selector = control.dataset.reasonBeside
+  return (selector && control.closest<HTMLElement>(selector)) || control
+}
+
 type ControlTooltipOptions = {
   shownById?: string
   keepClearOf?: RefObject<HTMLElement | null>
@@ -122,6 +132,9 @@ function useControlTooltip(
   const descriptionId = shownById ?? ownDescriptionId
   const prefersReducedMotion = useReducedMotion()
   const originRef = useRef<HTMLElement | null>(null)
+  // The control that showed the reason. It is the origin itself unless the control places its reason
+  // beside a box around it (`placeBesideOf`)
+  const controlRef = useRef<HTMLElement | null>(null)
   const [isPinned, setIsPinned] = useState(false)
   // Whether the reason was last placed from the control's edge, as for keyboard focus or a tap, in place of
   // from a pointer over it. Only then is it drawn clear of the control's own box, beside it
@@ -169,14 +182,20 @@ function useControlTooltip(
     hideTooltip()
   }
 
-  function reveal(element: HTMLElement, pointer: { clientX: number; clientY: number }, beside = false) {
+  function reveal(
+    element: HTMLElement,
+    pointer: { clientX: number; clientY: number },
+    beside = false,
+    control = element,
+  ) {
     originRef.current = element
+    controlRef.current = control
     placedBesideRef.current = beside
     showTooltip(activeReason, pointer)
   }
 
-  function revealBeside(element: HTMLElement) {
-    reveal(element, getReasonAnchor(element.getBoundingClientRect()), true)
+  function revealBeside(element: HTMLElement, control = element) {
+    reveal(element, getReasonAnchor(element.getBoundingClientRect()), true, control)
   }
 
   // Put away when the control stops being unavailable, so a reason from before never shows again
@@ -210,7 +229,7 @@ function useControlTooltip(
       // would float over whatever the surface shows in its place
       if (
         origin &&
-        document.activeElement === origin &&
+        document.activeElement === controlRef.current &&
         isBoxInView(origin.getBoundingClientRect(), getClippingBoxes(origin))
       ) {
         updateTooltipPosition(...anchorPoint(origin))
@@ -279,8 +298,9 @@ function useControlTooltip(
           if (!isPinned) hideTooltip()
         },
         onFocus: (event) => {
-          if (!event.currentTarget.matches(':focus-visible')) return
-          revealBeside(event.currentTarget)
+          const control = event.currentTarget
+          if (!control.matches(':focus-visible')) return
+          revealBeside(placeBesideOf(control), control)
         },
         onBlur: dismiss,
       }

@@ -20,6 +20,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
+      // Lets tests in different folders share a helper, since a relative import can't leave its folder
+      '@tests': path.resolve(__dirname, 'tests'),
     },
   },
 })

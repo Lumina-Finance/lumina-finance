@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useLocation, useNavigate, useParams } from 'react-router'
 import { useAccount, useAccounts, useForgetDeletedAccount, type Account } from '@/api/accounts'
+import { useBankProviders } from '@/api/bank-sync'
 import { useImportSources } from '@/api/transaction-imports'
 import { useTaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { Transaction } from '@/api/transactions'
+import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
 import AccountIdentityCard from '@/pages/accounts/detail/components/identity/Card'
 import AccountDetailBackLink from '@/pages/accounts/detail/components/BackLink'
 import AccountDetailLoadingSkeleton from '@/pages/accounts/detail/components/LoadingSkeleton'
@@ -13,7 +15,11 @@ import EditAccountIdentityModal from '@/pages/accounts/detail/components/edit-id
 import MonthlyCashFlowCard from '@/pages/accounts/detail/components/monthly-cash-flow/Card'
 import { TopCategoriesBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopCategoriesCard'
 import { TopMerchantsBySpendingCard } from '@/pages/accounts/detail/components/spending-breakdown/TopMerchantsCard'
-import { ACCOUNT_SKELETON_FADE_MS, EASE } from '@/pages/accounts/detail/constants/accountDetail'
+import {
+  ACCOUNT_SKELETON_FADE_MS,
+  EASE,
+  type AccountDetailArrivalState,
+} from '@/pages/accounts/detail/constants/accountDetail'
 import { IMPORT_ACCOUNT_PARAM } from '@/constants/importAccountParam'
 import TransactionListSection from '@/components/transactions/ListSection'
 import { toTransactionListAccount } from '@/components/transactions/types/transactionList'
@@ -42,6 +48,13 @@ export default function AccountDetailPage() {
   // visit to an account, whether or not the user goes on to import
   useImportSources(true)
 
+  // Read with the account, since the identity card can say an account has no institution only once
+  // the providers show bank sync isn't offered. The page waits for that first answer, so the line is
+  // never blank before it reads No institution. The saved cache holds it for later visits, and a failed
+  // read stops the wait
+  const { isPending: providersPending, failureCount: providersFailures } = useBankProviders()
+  const awaitsProviders = providersPending && providersFailures === 0
+
   // The whole list, not just the account in view, so a transfer's row can name its counterparty
   // account. The transaction modal on this page loads it anyway, so it costs no extra request
   const { data: accounts } = useAccounts()
@@ -52,8 +65,21 @@ export default function AccountDetailPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   // The import step's archived-account notice links here to have the account unarchived, which is
   // done in this modal, so arriving that way opens it
-  const wantsAccountEditModal = (location.state as { editAccount?: boolean } | null)?.editAccount === true
+  const arrival = location.state as AccountDetailArrivalState | null
+  const wantsAccountEditModal = arrival?.editAccount === true
   const [showAccountEditModal, setShowAccountEditModal] = useState(wantsAccountEditModal)
+
+  // Choosing to link a bank right after creating the account arrives here with the link flow to open,
+  // as does a connection made in Settings from this account's flow, which the flow then starts on. The
+  // flow stays mounted once the arrival is taken off the history entry, so it can close as usual
+  const wantsBankLink = arrival?.linkBank === true
+  const [arrivedToLinkBank] = useState(wantsBankLink)
+  const [arrivalConnectionId] = useState(arrival?.linkConnectionId)
+  const [showArrivalLinkFlow, setShowArrivalLinkFlow] = useState(wantsBankLink)
+
+  // Set when the identity card's Bank sync fact opened the edit modal. The modal then shows its Bank link
+  // section
+  const [editShowsBankLink, setEditShowsBankLink] = useState(false)
   const [deleteExitPhase, setDeleteExitPhase] = useState<DeleteExitPhase>('idle')
   const [deletedAccountSnapshot, setDeletedAccountSnapshot] = useState<Account | null>(null)
   const forgetDeletedAccount = useForgetDeletedAccount()
@@ -63,26 +89,28 @@ export default function AccountDetailPage() {
   // answers to the arrival rather than to the modal being open, since the Edit button opens the
   // same modal and would otherwise rewrite the entry every time it was pressed
   useEffect(() => {
-    if (!wantsAccountEditModal) return
+    if (!wantsAccountEditModal && !wantsBankLink) return
     navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null })
-  }, [location.hash, location.pathname, location.search, navigate, wantsAccountEditModal])
+  }, [location.hash, location.pathname, location.search, navigate, wantsAccountEditModal, wantsBankLink])
 
   // The deleted account's queries stay cached while the page shows them on its way out, and go once
   // it has left, however it leaves
-  useEffect(() => () => {
-    if (deletedAccountIdRef.current) forgetDeletedAccount(deletedAccountIdRef.current)
-  }, [forgetDeletedAccount])
+  useEffect(
+    () => () => {
+      if (deletedAccountIdRef.current) forgetDeletedAccount(deletedAccountIdRef.current)
+    },
+    [forgetDeletedAccount],
+  )
 
   const visibleAccount = account ?? (deleteExitPhase !== 'idle' ? deletedAccountSnapshot : null)
-  const linkedTaxAdvantagedCategoryId = visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_category_id : null
-  const {
-    data: linkedTaxAdvantagedCategory,
-    error: linkedTaxAdvantagedCategoryError,
-  } = useTaxAdvantagedCategory(linkedTaxAdvantagedCategoryId)
+  const linkedTaxAdvantagedCategoryId =
+    visibleAccount?.group_id === null ? visibleAccount.tax_advantaged_category_id : null
+  const { data: linkedTaxAdvantagedCategory, error: linkedTaxAdvantagedCategoryError } =
+    useTaxAdvantagedCategory(linkedTaxAdvantagedCategoryId)
 
   // A deletion holds a copy of the account, so this stays false throughout one and the page keeps
   // rendering the copy rather than dropping into the loading branch mid-exit
-  const isAccountLoading = !visibleAccount && !error
+  const isAccountLoading = (!visibleAccount || awaitsProviders) && !error
   const showSkeleton = useSkeletonVisibility(isAccountLoading)
   const prefersReducedMotion = useReducedMotion() ?? false
 
@@ -116,8 +144,9 @@ export default function AccountDetailPage() {
     setShowTxnModal(true)
   }
 
-  const openAccountEditModal = () => {
+  const openAccountEditModal = (showBankLink = false) => {
     if (!visibleAccount) return
+    setEditShowsBankLink(showBankLink)
     setShowAccountEditModal(true)
   }
 
@@ -215,7 +244,8 @@ export default function AccountDetailPage() {
               account={visibleAccount}
               linkedTaxAdvantagedCategory={linkedTaxAdvantagedCategory}
               linkedTaxAdvantagedCategoryError={linkedTaxAdvantagedCategoryError}
-              onEdit={openAccountEditModal}
+              onEdit={() => openAccountEditModal()}
+              onOpenBankSync={() => openAccountEditModal(true)}
             />
 
             <BalanceChartCard account={visibleAccount} />
@@ -264,7 +294,17 @@ export default function AccountDetailPage() {
             onDeleteStarted={handleAccountDeleteStarted}
             onDeleted={handleAccountDeleted}
             onDeleteFailed={handleAccountDeleteFailed}
+            showBankLink={editShowsBankLink}
           />
+
+          {arrivedToLinkBank && (
+            <BankLinkFlowModal
+              open={showArrivalLinkFlow}
+              account={visibleAccount}
+              initialConnectionId={arrivalConnectionId}
+              onClose={() => setShowArrivalLinkFlow(false)}
+            />
+          )}
         </motion.div>
       )}
     </AnimatePresence>

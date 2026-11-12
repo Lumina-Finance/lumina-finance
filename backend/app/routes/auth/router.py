@@ -6,8 +6,8 @@ from fastapi import APIRouter, BackgroundTasks, Body, Cookie, Depends, Request, 
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.database import get_db, get_session_factory
-from app.dependencies import get_authenticated_user, get_current_session_id, get_current_user
+from app.database import current_session_id_ctx, get_db, get_session_factory
+from app.dependencies import get_authenticated_user, get_current_user
 from app.models.user import User
 from app.routes.auth.cookie_helpers import OIDC_REAUTH_STEPUP_COOKIE_KEY
 from app.routes.auth.jwks_helpers import build_jwks_response
@@ -207,7 +207,7 @@ async def change_password_route(
         HTTPException: The current password is incorrect
     """
     # get_current_user has already resolved, so the session id is set for this request
-    current_session_id = get_current_session_id()
+    current_session_id = current_session_id_ctx.get()
     await change_password(db, user, current_session_id, data)
 
 
@@ -242,7 +242,7 @@ async def set_password_route(
         user.id,
         response,
         oidc_reauth_stepup,
-        lambda: set_first_password(db, user, get_current_session_id(), data.new_password),
+        lambda: set_first_password(db, user, current_session_id_ctx.get(), data.new_password),
     )
 
 

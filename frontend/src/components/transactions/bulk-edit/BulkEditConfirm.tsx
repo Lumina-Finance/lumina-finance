@@ -3,10 +3,14 @@ import { PencilLine } from 'lucide-react'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
+import { countNoun } from '@/utils/bankSync'
 
 interface BulkEditConfirmProps {
   open: boolean
   count: number
+
+  /** How many items waiting for review the same edit adds to the ledger, named in the title beside the transactions */
+  reviewCount?: number
   error: string | null
   isApplying: boolean
   onConfirm: () => void
@@ -24,6 +28,7 @@ interface BulkEditConfirmProps {
 export function BulkEditConfirm({
   open,
   count,
+  reviewCount = 0,
   error,
   isApplying,
   onConfirm,
@@ -31,6 +36,9 @@ export function BulkEditConfirm({
 }: BulkEditConfirmProps) {
   const titleId = useId()
   const descriptionId = useId()
+  const transactions = countNoun(count, 'transaction')
+  const title =
+    reviewCount === 0 ? `Change ${transactions}?` : `Add ${countNoun(reviewCount, 'item')} and update ${transactions}?`
 
   return (
     <ModalTitledPanel
@@ -39,12 +47,12 @@ export function BulkEditConfirm({
       titleId={titleId}
       descriptionId={descriptionId}
       eyebrow="Bulk edit"
-      title={`Change ${count} ${count === 1 ? 'transaction' : 'transactions'}?`}
+      title={title}
       RailIcon={PencilLine}
       railLabel="Bulk edit"
       level="stacked"
       closeDisabled={isApplying}
-      footer={(
+      footer={
         <ModalFormFooter
           submitLabel="Confirm"
           submitDisabled={isApplying}
@@ -55,7 +63,7 @@ export function BulkEditConfirm({
           onPrimary={onConfirm}
           primaryOnLeft
         />
-      )}
+      }
     >
       <div id={descriptionId}>
         <WarningCallout>This cannot be undone.</WarningCallout>

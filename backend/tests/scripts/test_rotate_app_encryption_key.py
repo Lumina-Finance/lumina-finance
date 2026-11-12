@@ -18,6 +18,7 @@ from tests.conftest import ScopedSession, engine
 
 _TOTP_SECRET = "JBSWY3DPEHPK3PXP"
 _OIDC_SECRET = "oidc-secret-1"
+_BANK_CREDENTIAL = "https://user:secret@bridge.example/simplefin"
 
 
 @pytest.fixture
@@ -46,7 +47,7 @@ def current_key(key_file, monkeypatch):
 
 
 async def _store_secrets(key: str) -> None:
-    """Write one TOTP secret and one OIDC client secret encrypted under a key"""
+    """Write one TOTP secret, one OIDC client secret and one bank credential encrypted under a key"""
     fernet = Fernet(key.encode())
     async with engine.begin() as connection:
         await connection.execute(
@@ -75,6 +76,13 @@ async def _store_secrets(key: str) -> None:
             ),
             {"secret": fernet.encrypt(_OIDC_SECRET.encode()).decode()},
         )
+        await connection.execute(
+            text(
+                "INSERT INTO bank_connections (id, owner_id, provider, provider_name, credential_encrypted, server_host) "
+                "VALUES (gen_random_uuid(), :user_id, 'simplefin', 'SimpleFIN', :secret, 'bridge.example')"
+            ),
+            {"user_id": user_id, "secret": fernet.encrypt(_BANK_CREDENTIAL.encode()).decode()},
+        )
 
 
 async def _read_stored(table: str, column: str) -> str:
@@ -84,19 +92,21 @@ async def _read_stored(table: str, column: str) -> str:
 
 
 async def test_rotation_re_encrypts_every_labelled_column(current_key):
-    """Both stored secrets read under the new key afterwards and neither under the old one"""
+    """Every stored secret reads under the new key afterwards and none under the old one"""
     await _store_secrets(current_key)
     new_key = generate_encryption_key()
 
     rewritten = await rotate_encryption_key(engine, new_key)
 
     assert rewritten == {
+        ("bank_connections", "credential_encrypted"): 1,
         ("oidc_providers", "client_secret_encrypted"): 1,
         ("totp_credentials", "secret_encrypted"): 1,
     }
     for table, column, expected in (
         ("totp_credentials", "secret_encrypted", _TOTP_SECRET),
         ("oidc_providers", "client_secret_encrypted", _OIDC_SECRET),
+        ("bank_connections", "credential_encrypted", _BANK_CREDENTIAL),
     ):
         stored = await _read_stored(table, column)
         assert Fernet(new_key.encode()).decrypt(stored.encode()).decode() == expected
@@ -207,7 +217,7 @@ async def test_rotation_refuses_while_the_app_role_is_connected(current_key):
     async with ScopedSession() as app_session:
         await app_session.execute(text("SELECT 1"))
 
-        with pytest.raises(RotationError, match="the main app appears to be running"):
+        with pytest.raises(RotationError, match=r"the app or the bank sync worker is still connected to the database\. Stop both"):
             await rotate_encryption_key(engine, generate_encryption_key())
 
     assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
@@ -258,6 +268,7 @@ async def test_rotation_rewrites_nothing_on_an_empty_database(current_key):
     rewritten = await rotate_encryption_key(engine, generate_encryption_key())
 
     assert rewritten == {
+        ("bank_connections", "credential_encrypted"): 0,
         ("oidc_providers", "client_secret_encrypted"): 0,
         ("totp_credentials", "secret_encrypted"): 0,
     }
@@ -482,6 +493,7 @@ async def test_a_key_file_that_cannot_be_removed_still_reports_the_rotation(curr
     rewritten = await rotate_encryption_key(engine, generate_encryption_key())
 
     assert rewritten == {
+        ("bank_connections", "credential_encrypted"): 1,
         ("oidc_providers", "client_secret_encrypted"): 1,
         ("totp_credentials", "secret_encrypted"): 1,
     }

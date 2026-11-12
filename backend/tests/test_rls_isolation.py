@@ -7,19 +7,29 @@ one user's data out of another user's reach at the database level
 """
 
 import uuid
-from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, insert, select, text
 from sqlalchemy.exc import ProgrammingError
 
-from app.database import current_user_id_ctx
-from app.models.account import Account
+from app.models.account import Account, AccountPermission
 from app.models.account_import_layout import AccountImportLayout
 from app.models.account_import_source import AccountImportSource
-from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq
+from app.models.bank_connection import (
+    BankAccountLink,
+    BankConnection,
+    BankExternalAccount,
+    BankLinkState,
+    BankProviderRequest,
+    ProviderRequestPurpose,
+)
+from app.models.bank_hold import BankHold
+from app.models.bank_pending_transaction import BankPendingTransaction
+from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind
+from app.models.bank_transaction import BankTransaction
+from app.models.base import AccountKind, AccountType, CategoryKind, PermissionLevel, RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.cache_state import UserCacheState
 from app.models.category import Category
@@ -27,24 +37,16 @@ from app.models.currency import Currency
 from app.models.group import Group, GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User, UserCreditExcludedAccount
-from tests.conftest import ScopedSession, TestSession
-
-
-@asynccontextmanager
-async def _act_as(user_id):
-    """Yield a scoped session whose statements run as the given user
-
-    The identity is set on the same context variable the app uses, so the session's
-    begin listener stamps it for the policies, mirroring a real request. Nothing is
-    committed here, so a write inside the block is discarded unless the test commits it
-    deliberately, and the per-test truncation clears whatever a test does commit
-    """
-    token = current_user_id_ctx.set(user_id)
-    try:
-        async with ScopedSession() as session:
-            yield session
-    finally:
-        current_user_id_ctx.reset(token)
+from tests.conftest import TestSession
+from tests.routes.support.bank_sync_helpers import (
+    _build_bank_connection,
+    _build_bank_link,
+    _build_bank_transaction,
+    _build_external_account,
+    _build_ledger_transaction,
+    _build_pending_transaction,
+)
+from tests.routes.support.identity_helpers import _act_as
 
 
 def _build_user(email: str) -> User:
@@ -489,3 +491,318 @@ async def test_cache_bump_is_refused_for_a_null_target():
     async with _act_as(None) as session:
         with pytest.raises(ProgrammingError, match="Not authorized"):
             await session.execute(_BUMP_MEMBER_CACHE, {"user_id": None, "group_id": uuid.uuid4()})
+
+
+_BANK_MODELS = [
+    BankConnection,
+    BankProviderRequest,
+    BankExternalAccount,
+    BankAccountLink,
+    BankTransaction,
+    BankPendingTransaction,
+    BankHold,
+    BankSyncJob,
+]
+
+
+async def _count_visible(session, model) -> int:
+    """Return how many rows of a model the session's user can see"""
+    return await session.scalar(select(func.count()).select_from(model))
+
+
+async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnection]:
+    """Create one of each bank sync record for a user in a session, returning the account and connection"""
+    account = _build_account(owner_id, "Everyday")
+    connection = _build_bank_connection(owner_id)
+    session.add_all([account, connection])
+    await session.flush()
+    session.add_all(
+        [
+            BankProviderRequest(owner_id=owner_id, connection_id=connection.id, purpose=ProviderRequestPurpose.SYNC),
+            _build_external_account(connection),
+            _build_bank_link(account, connection),
+            _build_bank_transaction(account),
+            _build_pending_transaction(account, "P-1"),
+            BankHold(
+                owner_id=owner_id,
+                account_id=account.id,
+                provider="fake",
+                external_account_id="ACT-1",
+                external_transaction_hash="h" * 64,
+                hold_date=date(2026, 10, 4),
+                description="CARD CHECK",
+                observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
+            ),
+            BankSyncJob(owner_id=owner_id, connection_id=connection.id, kind=BankSyncJobKind.SCHEDULED),
+        ]
+    )
+    await session.flush()
+    return account, connection
+
+
+def _owned_by(row, owner_id):
+    """Return a row with its owner replaced"""
+    row.owner_id = owner_id
+    return row
+
+
+@pytest.fixture
+async def bank_records(users):
+    """Seed one of each bank sync record for user A, returning A's connection"""
+    user_a, _ = users
+    async with TestSession() as session:
+        _, connection = await _create_bank_records(session, user_a.id)
+        await session.commit()
+    return connection
+
+
+async def test_bank_records_owner_can_create_and_read_back(users):
+    """The owner writes every bank sync record through the app role and reads each back"""
+    user_a, _ = users
+    async with _act_as(user_a.id) as session:
+        await _create_bank_records(session, user_a.id)
+
+        for model in _BANK_MODELS:
+            assert await _count_visible(session, model) == 1
+
+
+@pytest.mark.parametrize("model", _BANK_MODELS, ids=lambda model: model.__tablename__)
+async def test_bank_records_are_invisible_to_other_users(users, bank_records, model):
+    """Another user sees none of a user's bank sync records"""
+    user_a, user_b = users
+    async with _act_as(user_b.id) as session:
+        assert await _count_visible(session, model) == 0
+
+    async with _act_as(user_a.id) as session:
+        assert await _count_visible(session, model) == 1
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda connection, owner_id, _: BankProviderRequest(
+            owner_id=owner_id,
+            connection_id=connection.id,
+            purpose=ProviderRequestPurpose.SYNC,
+        ),
+        lambda connection, owner_id, _: _owned_by(_build_external_account(connection, "ACT-B"), owner_id),
+        lambda connection, _, account: _build_bank_link(account, connection, "ACT-B"),
+        lambda connection, owner_id, _: BankSyncJob(
+            owner_id=owner_id,
+            connection_id=connection.id,
+            kind=BankSyncJobKind.MANUAL,
+        ),
+    ],
+    ids=["provider_request", "external_account", "account_link", "sync_job"],
+)
+async def test_bank_record_naming_another_users_connection_is_refused(users, bank_records, build):
+    """A user can't attach their own records to a connection that isn't theirs
+
+    Foreign keys skip row-level security, so the write check is what stops a guessed connection ID
+    """
+    _, user_b = users
+    async with TestSession() as session:
+        account_b = _build_account(user_b.id, "B Everyday")
+        session.add(account_b)
+        await session.commit()
+
+    async with _act_as(user_b.id) as session:
+        session.add(build(bank_records, user_b.id, account_b))
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda account, connection, owner_id: _owned_by(_build_bank_link(account, connection, "ACT-B"), owner_id),
+        lambda account, _, owner_id: _owned_by(_build_bank_transaction(account, "TRN-B"), owner_id),
+        lambda account, _, owner_id: _owned_by(_build_pending_transaction(account, "P-B"), owner_id),
+        lambda account, _, owner_id: BankHold(
+            owner_id=owner_id,
+            account_id=account.id,
+            provider="fake",
+            external_account_id="ACT-B",
+            external_transaction_hash="b" * 64,
+            hold_date=date(2026, 10, 4),
+            description="CARD CHECK",
+            observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
+        ),
+    ],
+    ids=["account_link", "bank_transaction", "pending_transaction", "bank_hold"],
+)
+async def test_bank_record_on_another_users_account_is_refused(users, bank_records, build):
+    """A user can't put bank records on someone else's account, even as the row's owner"""
+    user_a, user_b = users
+    async with TestSession() as session:
+        account_a = (await session.scalars(select(Account).where(Account.owner_id == user_a.id))).one()
+        connection_b = _build_bank_connection(user_b.id)
+        session.add(connection_b)
+        await session.commit()
+
+    async with _act_as(user_b.id) as session:
+        session.add(build(account_a, connection_b, user_b.id))
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+
+async def test_bank_transaction_naming_another_users_ledger_row_is_refused(users):
+    """A user can't claim someone else's ledger transaction as bank-sourced on their own account"""
+    user_a, user_b = users
+    async with TestSession() as session:
+        system_category_id = await session.scalar(select(Category.id).where(Category.is_system).limit(1))
+        account_a = _build_account(user_a.id, "A Everyday")
+        account_b = _build_account(user_b.id, "B Everyday")
+        session.add_all([account_a, account_b])
+        await session.flush()
+        ledger_row_a = _build_ledger_transaction(account_a, system_category_id)
+        session.add(ledger_row_a)
+        await session.commit()
+
+    async with _act_as(user_b.id) as session:
+        session.add(_build_bank_transaction(account_b, transaction=ledger_row_a))
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+
+@pytest.fixture
+async def group_account(users):
+    """Seed a group account A administers and B holds a write grant on, returning the account
+
+    Both users pass the account check on it, so only the owner condition keeps A's bank rows from B
+    """
+    user_a, user_b = users
+    async with TestSession() as session:
+        group = Group(owner_id=user_a.id, name="A Family")
+        session.add(group)
+        await session.flush()
+        session.add_all([GroupMember(group_id=group.id, user_id=user_a.id, is_admin=True), GroupMember(group_id=group.id, user_id=user_b.id)])
+        account = Account(group_id=group.id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name="Joint", currency="CAD")
+        session.add(account)
+        await session.flush()
+        session.add(AccountPermission(group_id=group.id, user_id=user_b.id, account_id=account.id, level=PermissionLevel.WRITE))
+        await session.commit()
+    return account
+
+
+def _unlinked(link: BankAccountLink) -> BankAccountLink:
+    """Return a link unlinked from a connection since deleted, so it names no connection"""
+    link.state = BankLinkState.UNLINKED
+    link.unlinked_at = datetime(2026, 10, 2, tzinfo=UTC)
+    return link
+
+
+# Bank rows on an account, owned by the given user, none of which names a connection, so the
+# account check and the owner condition are all their policies weigh
+_GROUP_ACCOUNT_ROWS = [
+    pytest.param(lambda account, owner_id: _owned_by(_unlinked(_build_bank_link(account, None)), owner_id), id="account_link"),
+    pytest.param(lambda account, owner_id: _owned_by(_build_bank_transaction(account), owner_id), id="bank_transaction"),
+    pytest.param(lambda account, owner_id: _owned_by(_build_pending_transaction(account, "P-1"), owner_id), id="pending_transaction"),
+]
+
+
+@pytest.mark.parametrize("build", _GROUP_ACCOUNT_ROWS)
+async def test_bank_rows_on_a_shared_group_account_stay_with_their_owner(users, group_account, build):
+    """B can use the joint account but sees none of the bank rows A owns on it"""
+    user_a, user_b = users
+    row = build(group_account, user_a.id)
+    async with TestSession() as session:
+        session.add(row)
+        await session.commit()
+
+    async with _act_as(user_b.id) as session:
+        assert group_account.id in (await session.scalars(select(Account.id))).all()
+        assert await _count_visible(session, type(row)) == 0
+
+    async with _act_as(user_a.id) as session:
+        assert await _count_visible(session, type(row)) == 1
+
+
+async def _insert_without_returning(session, row) -> None:
+    """Insert a row's set columns without RETURNING
+
+    A RETURNING clause makes the new row pass the read policy too, so leaving it out leaves the
+    write check as the only thing that can refuse the row
+    """
+    values = {column.key: getattr(row, column.key) for column in row.__table__.columns if getattr(row, column.key) is not None}
+    await session.execute(insert(type(row)).values(**values))
+
+
+async def _refused_as(user_id, row) -> None:
+    """Assert the write check refuses a user's insert of a row"""
+    async with _act_as(user_id) as session:
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await _insert_without_returning(session, row)
+
+
+@pytest.mark.parametrize("build", _GROUP_ACCOUNT_ROWS)
+async def test_bank_row_owned_by_another_user_on_a_shared_group_account_is_refused(users, group_account, build):
+    """B can't write a bank row in A's name on the joint account they both use"""
+    user_a, user_b = users
+    await _refused_as(user_b.id, build(group_account, user_a.id))
+
+
+async def test_bank_connection_owned_by_another_user_is_refused(users):
+    """A user can't add a connection in someone else's name"""
+    user_a, user_b = users
+    await _refused_as(user_b.id, _build_bank_connection(user_a.id))
+
+
+# Rows tied to a connection, built on B's connection and, for a link, on B's account, so the
+# connection and account checks pass for B and only the owner condition is left to weigh
+_CONNECTION_ROWS = [
+    pytest.param(
+        lambda connection, _: BankProviderRequest(connection_id=connection.id, purpose=ProviderRequestPurpose.SYNC),
+        id="provider_request",
+    ),
+    pytest.param(lambda connection, _: _build_external_account(connection), id="external_account"),
+    pytest.param(lambda connection, _: BankSyncJob(connection_id=connection.id, kind=BankSyncJobKind.MANUAL), id="sync_job"),
+    pytest.param(lambda connection, account: _build_bank_link(account, connection), id="account_link"),
+]
+
+
+@pytest.mark.parametrize("build", _CONNECTION_ROWS)
+async def test_bank_row_on_the_users_own_connection_owned_by_another_user_is_refused(users, build):
+    """B can write the row on their own connection in their own name, but not in A's"""
+    user_a, user_b = users
+    async with TestSession() as session:
+        account_b = _build_account(user_b.id, "B Everyday")
+        connection_b = _build_bank_connection(user_b.id)
+        session.add_all([account_b, connection_b])
+        await session.commit()
+
+    # The same row in B's own name goes in, so only its owner can be what refuses it below
+    async with _act_as(user_b.id) as session:
+        await _insert_without_returning(session, _owned_by(build(connection_b, account_b), user_b.id))
+
+    await _refused_as(user_b.id, _owned_by(build(connection_b, account_b), user_a.id))
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        "SELECT * FROM public.claim_bank_sync_jobs(10)",
+        "SELECT * FROM public.list_due_bank_connections(now())",
+        "SELECT public.record_bank_sync_scan(now())",
+    ],
+    ids=["claim", "list_due", "record_scan"],
+)
+async def test_bank_sync_worker_functions_refuse_a_request_identity(users, bank_records, call):
+    """A request runs as one user, so it can't reach the functions that see every user's jobs"""
+    user_a, _ = users
+    async with _act_as(user_a.id) as session:
+        with pytest.raises(ProgrammingError, match="Only the bank sync worker may call this"):
+            await session.execute(text(call))
+
+
+async def test_bank_sync_heartbeat_is_read_by_the_app_and_written_only_by_the_worker(users):
+    """Any request can tell whether sync is running, while only the worker's scan stamps it"""
+    user_a, _ = users
+    async with _act_as(None) as worker:
+        await worker.execute(text("SELECT public.record_bank_sync_scan(now())"))
+        await worker.commit()
+
+    async with _act_as(user_a.id) as session:
+        assert await _count_visible(session, BankSyncHeartbeat) == 1
+        with pytest.raises(ProgrammingError, match="permission denied"):
+            await session.execute(text("UPDATE bank_sync_heartbeat SET last_scan_at = now()"))

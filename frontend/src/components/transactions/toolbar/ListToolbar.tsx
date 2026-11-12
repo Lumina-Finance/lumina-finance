@@ -1,6 +1,16 @@
 import { useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Check, Download, ListChecks, LoaderCircle, PencilLine, SlidersHorizontal, Trash2, Upload } from 'lucide-react'
+import {
+  Check,
+  CircleX,
+  Download,
+  ListChecks,
+  LoaderCircle,
+  PencilLine,
+  SlidersHorizontal,
+  Trash2,
+  Upload,
+} from 'lucide-react'
 import { DesktopToolbarControls } from '@/components/list-controls/DesktopToolbarControls'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { MobileToolbarActions } from '@/components/list-controls/MobileToolbarActions'
@@ -15,6 +25,8 @@ import { TransactionFilterPanel } from '@/components/transactions/toolbar/Filter
 import { MobileFilterPanel } from '@/components/transactions/toolbar/MobileFilterPanel'
 import { useToolbarStickyOffset } from '@/components/transactions/toolbar/hooks/useStickyOffset'
 import { EXPORT_LABELS } from '@/components/transactions/utils/exportFile'
+import { NOTHING_TICKED_WITH_REVIEW } from '@/components/transactions/bulk-edit/reviewSelection'
+import { NOTHING_TICKED } from '@/components/transactions/bulk-edit/selection'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { joinClassNames } from '@/utils/classNames'
 import {
@@ -22,6 +34,32 @@ import {
   getActiveFilterCount,
   getCategoryOptions,
 } from '@/components/transactions/utils/filterOptions'
+
+// The phone's selection row, worked out from the room each word needs: every control at 44px with a
+// 12px gap, then Edit's word (88px wide with it), Done's (97px) and Filters' (103px), in the order the
+// words drop as the row narrows. Dismiss adds one more square control, so with it each word comes in
+// 3.5rem later, and below 20.25rem its six squares fit only with the gaps cut to 4px. The classes are
+// written out whole, since Tailwind finds them only as they appear in the source
+const PHONE_SELECTION_ROW = {
+  withoutDismiss: {
+    row: 'gap-3',
+    filters: '@min-[26.5rem]/bulk-actions:w-auto @min-[26.5rem]/bulk-actions:px-4',
+    filtersWord: '@min-[26.5rem]/bulk-actions:inline',
+    edit: '@min-[19.5rem]/bulk-actions:px-4',
+    editWord: '@min-[19.5rem]/bulk-actions:inline',
+    done: '@min-[23rem]/bulk-actions:w-auto @min-[23rem]/bulk-actions:px-4',
+    doneWord: '@min-[23rem]/bulk-actions:inline',
+  },
+  withDismiss: {
+    row: 'gap-1 @min-[20.25rem]/bulk-actions:gap-3',
+    filters: '@min-[30rem]/bulk-actions:w-auto @min-[30rem]/bulk-actions:px-4',
+    filtersWord: '@min-[30rem]/bulk-actions:inline',
+    edit: '@min-[23rem]/bulk-actions:px-4',
+    editWord: '@min-[23rem]/bulk-actions:inline',
+    done: '@min-[26.5rem]/bulk-actions:w-auto @min-[26.5rem]/bulk-actions:px-4',
+    doneWord: '@min-[26.5rem]/bulk-actions:inline',
+  },
+}
 
 /**
  * Orchestrates transaction list search, filters, and responsive toolbar layout
@@ -53,9 +91,15 @@ export default function TransactionListToolbar({
   onEditSelection,
   deleteDisabledReason,
   onDeleteSelection,
+  onDismissSelection,
+  dismissDisabledReason,
   onToggleSelecting,
 }: TransactionListToolbarProps) {
   const prefersReducedMotion = useReducedMotion()
+
+  // A list that offers items waiting for review names them too, since either can be ticked
+  const nothingTicked = onDismissSelection ? NOTHING_TICKED_WITH_REVIEW : NOTHING_TICKED
+  const phoneRow = onDismissSelection ? PHONE_SELECTION_ROW.withDismiss : PHONE_SELECTION_ROW.withoutDismiss
 
   // Set from the desktop edit button's own onAnimationStart and onAnimationComplete, so the wrap
   // layout hook holds its measurement still for exactly the span its width is changing
@@ -154,7 +198,7 @@ export default function TransactionListToolbar({
   ) : undefined
 
   // Follows the import button's shape while browsing. In the mobile selection row, Done gains its
-  // word once Edit has enough room; the named container leaves the desktop layout independent.
+  // word once Edit has its own; the named container leaves the desktop layout independent.
   //
   // The icon and the word rise out and the next pair rises in, so pressing it reads as one control
   // changing state. On desktop, the label reserves the longer word's width at both states, so
@@ -163,7 +207,7 @@ export default function TransactionListToolbar({
   const selectAction = onToggleSelecting ? (
     <button
       type="button"
-      className="app-glass-button h-11 w-11 shrink-0 overflow-hidden px-0 @min-[19.5rem]/bulk-actions:w-auto @min-[19.5rem]/bulk-actions:px-4 min-[750px]:w-auto min-[750px]:px-4"
+      className={`app-glass-button h-11 w-11 shrink-0 overflow-hidden px-0 ${phoneRow.done} min-[750px]:w-auto min-[750px]:px-4`}
       onClick={onToggleSelecting}
       aria-pressed={isSelecting}
       aria-label={isSelecting ? 'Stop selecting transactions' : 'Select transactions'}
@@ -178,7 +222,7 @@ export default function TransactionListToolbar({
           transition={{ duration: prefersReducedMotion ? 0 : 0.16, ease: TRANSACTION_LIST_EASE }}
         >
           {isSelecting ? <Check size={18} aria-hidden /> : <ListChecks size={18} aria-hidden />}
-          <span className="hidden text-center @min-[19.5rem]/bulk-actions:inline min-[750px]:inline min-[750px]:w-10">
+          <span className={`hidden text-center ${phoneRow.doneWord} min-[750px]:inline min-[750px]:w-10`}>
             {isSelecting ? 'Done' : 'Select'}
           </span>
         </motion.span>
@@ -189,7 +233,7 @@ export default function TransactionListToolbar({
   // Edit takes the remaining mobile space, retaining its word longer than Done and Filters.
   function renderEditAction(className: string, labelClassName = 'hidden min-[750px]:inline') {
     if (!onEditSelection) return undefined
-    const reason = editDisabledReason ?? (selectedCount === 0 ? 'Tick a transaction first' : undefined)
+    const reason = editDisabledReason ?? (selectedCount === 0 ? nothingTicked : undefined)
     return (
       <DisabledReasonButton
         className={className}
@@ -203,11 +247,13 @@ export default function TransactionListToolbar({
     )
   }
 
-  // Sits beside Edit and follows its rules for being off, square below the 1050px breakpoint, where
-  // the row has no room left for another word
+  // Sits beside Edit, square below the 1050px breakpoint since the row has no room left for another
+  // word. Its reason for being off shows on it when it is pointed at, focused or tapped, as Delete's
+  // does in the transaction modal, since a selection holding a bank-imported row is refused for the
+  // same reason
   function renderDeleteAction(className: string) {
     if (!onDeleteSelection) return undefined
-    const reason = selectedCount === 0 ? 'Tick a transaction first' : deleteDisabledReason
+    const reason = selectedCount === 0 ? nothingTicked : deleteDisabledReason
     return (
       <DisabledReasonButton
         className={className}
@@ -217,6 +263,22 @@ export default function TransactionListToolbar({
       >
         <Trash2 size={18} aria-hidden />
         <span className="hidden min-[1050px]:inline">Delete</span>
+      </DisabledReasonButton>
+    )
+  }
+
+  // Beside Delete and shaped like it, offered only while new items wait for review
+  function renderDismissAction(className: string) {
+    if (!onDismissSelection) return undefined
+    return (
+      <DisabledReasonButton
+        className={className}
+        onClick={onDismissSelection}
+        disabledReason={dismissDisabledReason}
+        aria-label="Dismiss the selected items"
+      >
+        <CircleX size={18} aria-hidden />
+        <span className="hidden min-[1050px]:inline">Dismiss</span>
       </DisabledReasonButton>
     )
   }
@@ -243,6 +305,7 @@ export default function TransactionListToolbar({
           <div className="flex w-max items-center">
             {renderEditAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[750px]:w-auto min-[750px]:px-4')}
             {renderDeleteAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[1050px]:w-auto min-[1050px]:px-4')}
+            {renderDismissAction('app-glass-button h-11 w-11 shrink-0 px-0 mr-3 min-[1050px]:w-auto min-[1050px]:px-4')}
           </div>
         </motion.div>
       )}
@@ -261,6 +324,7 @@ export default function TransactionListToolbar({
         toolbarStuckSentinelRef={shell.toolbarStuckSentinelRef}
         desktopInlineLayout={shell.desktopInlineLayout}
         isToolbarStuck={shell.isToolbarStuck}
+        isTopRowAtMenuButton={shell.isTopRowAtMenuButton}
       >
         <GlassSearchField
           value={search}
@@ -270,36 +334,40 @@ export default function TransactionListToolbar({
           wrapperClassName={getSearchFieldWrapperClassName(shell.isTopRowAtMenuButton, shell.desktopInlineLayout)}
         />
 
-        {/* Query this row's available width, including on an account page. Each threshold reserves
-            room for the higher-priority labels and all four 44px controls before adding a word.
-            Delete stays square at every width */}
+        {/* Query this row's available width, including on an account page, from a box around the row,
+            since the row's own gap narrows with it. Each threshold reserves room for the
+            higher-priority labels and every 44px control before adding a word. Delete, Dismiss and
+            Export stay square at every width */}
         {isSelecting ? (
-          <div className="@container/bulk-actions flex w-full items-center gap-3 min-[750px]:hidden">
-            <button
-              type="button"
-              className="app-glass-button relative h-11 w-11 shrink-0 px-0 @min-[23.5rem]/bulk-actions:w-auto @min-[23.5rem]/bulk-actions:px-4"
-              onClick={shell.openMobileSheet}
-              aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
-            >
-              <SlidersHorizontal size={17} aria-hidden />
-              <span className="hidden @min-[23.5rem]/bulk-actions:inline">Filters</span>
-              {activeFilterCount > 0 && (
-                <span
-                  aria-hidden
-                  className="absolute right-0 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold"
-                  style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
-                >
-                  {activeFilterCount}
-                </span>
+          <div className="@container/bulk-actions w-full min-[750px]:hidden">
+            <div className={`flex items-center ${phoneRow.row}`}>
+              <button
+                type="button"
+                className={`app-glass-button relative h-11 w-11 shrink-0 px-0 ${phoneRow.filters}`}
+                onClick={shell.openMobileSheet}
+                aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
+              >
+                <SlidersHorizontal size={17} aria-hidden />
+                <span className={`hidden ${phoneRow.filtersWord}`}>Filters</span>
+                {activeFilterCount > 0 && (
+                  <span
+                    aria-hidden
+                    className="absolute right-0 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold"
+                    style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
+                  >
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+              {renderEditAction(
+                `app-glass-button h-11 min-w-11 flex-1 gap-2 px-0 ${phoneRow.edit}`,
+                `hidden ${phoneRow.editWord}`,
               )}
-            </button>
-            {renderEditAction(
-              'app-glass-button h-11 min-w-11 flex-1 gap-2 px-0 @min-[16rem]/bulk-actions:px-4',
-              'hidden @min-[16rem]/bulk-actions:inline',
-            )}
-            {renderDeleteAction('app-glass-button h-11 w-11 shrink-0 px-0')}
-            {exportAction}
-            {selectAction}
+              {renderDeleteAction('app-glass-button h-11 w-11 shrink-0 px-0')}
+              {renderDismissAction('app-glass-button h-11 w-11 shrink-0 px-0')}
+              {exportAction}
+              {selectAction}
+            </div>
           </div>
         ) : (
           <MobileToolbarActions

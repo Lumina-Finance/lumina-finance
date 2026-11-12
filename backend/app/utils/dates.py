@@ -1,4 +1,5 @@
 """Date utilities"""
+
 from datetime import date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -33,11 +34,16 @@ def resolve_timezone(tz: str, *, stored_on: str = OWN_PROFILE) -> ZoneInfo:
         return ZoneInfo(tz)
     # ZoneInfo rejects a path-shaped key with ValueError before it looks anything up, and reports an
     # identifier it cannot find with ZoneInfoNotFoundError
-    except (ZoneInfoNotFoundError, ValueError):
+    except ZoneInfoNotFoundError, ValueError:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Timezone '{tz}' saved on {stored_on} is not recognized, so no date could be calculated",
         ) from None
+
+
+def format_day(day: date) -> str:
+    """Return a calendar day the way a message states it, such as Sep 1, 2025"""
+    return f"{day:%b} {day.day}, {day.year}"
 
 
 def get_month_start_date(reference: date | datetime) -> date:

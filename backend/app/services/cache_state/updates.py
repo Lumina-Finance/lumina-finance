@@ -7,8 +7,8 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import current_session_id_ctx
 from app.db.rls.functions import BUMP_GROUP_MEMBER_CACHE
-from app.dependencies import get_current_session_id
 from app.models.cache_state import GroupCacheState, UserCacheState
 
 
@@ -23,6 +23,24 @@ async def mark_user_cache_changed(db: AsyncSession, user_id: uuid.UUID) -> None:
         None
     """
     await _upsert_cache_state(db, UserCacheState, "user_id", user_id)
+
+
+async def mark_user_status_changed(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Record a change bank sync made to what a user's pages show, leaving their ledger as it was
+
+    The pages read it as they read a data change, while the data marker an import's undo compares
+    with stays where it was, so the import can still be undone
+
+    Args:
+        db: Active database session
+        user_id: User whose pages should refresh
+
+    Returns:
+        None
+    """
+    changed_at = sa.func.clock_timestamp()
+    stmt = insert(UserCacheState).values(user_id=user_id, status_changed_at=changed_at)
+    await db.execute(stmt.on_conflict_do_update(index_elements=[UserCacheState.user_id], set_={"status_changed_at": changed_at}))
 
 
 async def mark_group_member_cache_changed(
@@ -110,12 +128,14 @@ async def _upsert_cache_state(
         None
     """
     changed_at = sa.func.clock_timestamp()
-    session_id = get_current_session_id()
-    stmt = insert(model).values({
-        id_column_name: id_value,
-        "changed_at": changed_at,
-        "last_changed_session_id": session_id,
-    })
+    session_id = current_session_id_ctx.get()
+    stmt = insert(model).values(
+        {
+            id_column_name: id_value,
+            "changed_at": changed_at,
+            "last_changed_session_id": session_id,
+        }
+    )
 
     # Upsert the scope cache timestamp so repeated writes refresh the same row
     await db.execute(

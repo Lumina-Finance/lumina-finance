@@ -7,6 +7,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from app.models.base import TransferCounterpartyScope
+from app.schemas.bank_sync import TransactionBankSource
 from app.schemas.fx import FxStatus
 from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
 
@@ -105,6 +106,9 @@ class TransactionResponse(BaseModel):
     tag_ids: list[uuid.UUID] = []
     tags: list[TransactionTagSummary] = []
 
+    # Where a bank-imported transaction came from, null on a manual one
+    bank_source: TransactionBankSource | None = None
+
     model_config = {"from_attributes": True}
 
 
@@ -114,19 +118,16 @@ class LinkRefundRequest(BaseModel):
     original_transaction_id: uuid.UUID
 
 
-class CreateTransactionRequest(BaseModel):
-    """Create a new transaction for the authenticated user."""
+class TransactionEntry(BaseModel):
+    """The values a user enters for a new transaction, apart from its account, currency and FX rate"""
 
-    account_id: uuid.UUID
     dt: date
     category_id: uuid.UUID
     amount: int
-    currency: str = Field(min_length=3, max_length=3)
 
     # Required, unlike the stored column, which stays nullable for the transactions written before
     # this rule and for the ones an import brings in without a merchant
     merchant_id: uuid.UUID
-    fx_rate: float | None = Field(None, gt=0)
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
     tag_ids: list[uuid.UUID] = []
     counterparty_account_id: uuid.UUID | None = None
@@ -134,6 +135,14 @@ class CreateTransactionRequest(BaseModel):
 
     # Saves the new transaction as the refund of this expense in the same request
     refund_of_transaction_id: uuid.UUID | None = None
+
+
+class CreateTransactionRequest(TransactionEntry):
+    """Create a new transaction for the authenticated user."""
+
+    account_id: uuid.UUID
+    currency: str = Field(min_length=3, max_length=3)
+    fx_rate: float | None = Field(None, gt=0)
 
 
 class UpdateTransactionRequest(BaseModel):

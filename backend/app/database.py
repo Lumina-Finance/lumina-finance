@@ -14,6 +14,12 @@ engine = create_async_engine(app_database_url())
 # stamp it onto its connection for the row-level security policies to read
 current_user_id_ctx: ContextVar[uuid.UUID | None] = ContextVar("current_user_id", default=None)
 
+# Holds the sign-in session the current request was authenticated under. Cache change
+# records name it so that session can tell its own changes apart. It lives here rather than beside
+# the authentication dependencies. Those load the token signing keys on import, so code the
+# bank sync worker shares with requests needs no keys. Unset outside a request
+current_session_id_ctx: ContextVar[uuid.UUID | None] = ContextVar("current_session_id", default=None)
+
 # expire_on_commit=False keeps objects usable after commit without re-fetching
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import TransactionRow, { TransactionRowView } from '@/components/transactions/Row'
 import { TRANSACTION_LIST_COLUMNS, TRANSACTION_LIST_SUBGRID } from '@/components/transactions/listLayout'
 import { UpcomingSection } from '@/components/transactions/UpcomingSection'
@@ -24,11 +24,7 @@ function isExactPreview(transaction: Transaction | ExactPreviewTransaction): tra
  * wide, so the wrapper must define the same column tracks the transactions page
  * uses or the cells collapse into a vertical stack
  */
-export function ImportPreviewList({
-  groups,
-}: {
-  groups: PreviewGroup[]
-}) {
+export function ImportPreviewList({ groups }: { groups: PreviewGroup[] }) {
   const { currencies } = useMoneyFormatters()
   const today = useTodayYmd()
   const [isUpcomingExpanded, setIsUpcomingExpanded] = useState(false)
@@ -41,7 +37,11 @@ export function ImportPreviewList({
   // A section that empties closes, so it comes back collapsed as it first appeared
   if (upcomingGroups.length === 0 && isUpcomingExpanded) setIsUpcomingExpanded(false)
 
-  function renderGroups(shownGroups: PreviewGroup[]) {
+  // Each day's heading names the date its rows are described by. The Upcoming days and the rest are
+  // drawn apart, so each set gets ids of its own
+  const dayHeadingIdPrefix = useId()
+
+  function renderGroups(shownGroups: PreviewGroup[], set: 'upcoming' | 'day') {
     return shownGroups.map((group, groupIndex) => (
       <div key={`${group.dateLabel}-${groupIndex}`} className={TRANSACTION_LIST_SUBGRID}>
         <div
@@ -52,6 +52,7 @@ export function ImportPreviewList({
           }}
         >
           <p
+            id={`${dayHeadingIdPrefix}-${set}-${groupIndex}`}
             className="text-sm font-semibold uppercase tracking-wide"
             style={{ color: 'var(--app-text-subtle)' }}
           >
@@ -66,11 +67,19 @@ export function ImportPreviewList({
             category: row.category,
             counterpartyAccountName: row.counterpartyAccountName,
             skipEnterAnimation: true,
+            dateHeadingId: `${dayHeadingIdPrefix}-${set}-${groupIndex}`,
             onOpen: () => undefined,
           }
-          return isExactPreview(row.transaction)
-            ? <TransactionRowView key={row.id} {...props} transaction={row.transaction} amountPresentation={formatPreviewMoney(row.transaction.amount, row.currency, currencies)} />
-            : <TransactionRow key={row.id} {...props} currency={row.currency} transaction={row.transaction} />
+          return isExactPreview(row.transaction) ? (
+            <TransactionRowView
+              key={row.id}
+              {...props}
+              transaction={row.transaction}
+              amountPresentation={formatPreviewMoney(row.transaction.amount, row.currency, currencies)}
+            />
+          ) : (
+            <TransactionRow key={row.id} {...props} currency={row.currency} transaction={row.transaction} />
+          )
         })}
       </div>
     ))
@@ -89,9 +98,9 @@ export function ImportPreviewList({
           onToggle={() => setIsUpcomingExpanded((current) => !current)}
           gridClassName={TRANSACTION_LIST_SUBGRID}
         >
-          {renderGroups(upcomingGroups)}
+          {renderGroups(upcomingGroups, 'upcoming')}
         </UpcomingSection>
-        {renderGroups(pastGroups)}
+        {renderGroups(pastGroups, 'day')}
       </div>
     </div>
   )

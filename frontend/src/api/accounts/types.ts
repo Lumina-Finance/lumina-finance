@@ -104,9 +104,13 @@ export interface CreateAccountPayload {
   institution_id: string | null
   currency: string
   credit_limit: number | null
-  starting_balance: number | null
   notes: string | null
   is_archived: boolean
+}
+
+export type RecordStartingBalancePayload = {
+  /** Minor units as the user states the balance, so a liability's is the amount owed. The backend saves it negated */
+  amount: number
 }
 
 export interface UpdateAccountPayload {

@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from 'react'
 import { Search } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
 
@@ -16,6 +17,9 @@ type GlassSearchFieldProps = {
   // Called on Enter for the surfaces that commit the search on submit instead of filtering as the
   // user types
   onSubmit?: () => void
+  // Hears every key before Enter submits, for a surface with keys of its own, such as a modal whose
+  // Escape clears the search before it closes
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void
 }
 
 /**
@@ -33,6 +37,7 @@ export function GlassSearchField({
   invalid,
   describedBy,
   onSubmit,
+  onKeyDown,
 }: GlassSearchFieldProps) {
   return (
     <div className={joinClassNames('relative min-w-0', wrapperClassName)}>
@@ -52,7 +57,10 @@ export function GlassSearchField({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         onChange={(event) => onValueChange(event.target.value)}
-        onKeyDown={onSubmit ? (event) => { if (event.key === 'Enter') onSubmit() } : undefined}
+        onKeyDown={(event) => {
+          onKeyDown?.(event)
+          if (onSubmit && event.key === 'Enter') onSubmit()
+        }}
       />
     </div>
   )

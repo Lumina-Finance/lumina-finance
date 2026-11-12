@@ -1,0 +1,571 @@
+import { useEffect, useId, useRef, useState } from 'react'
+import { AnimatePresence } from 'motion/react'
+import { CalendarRange, Link2, PauseCircle, TriangleAlert, Unlink } from 'lucide-react'
+import { useNavigate } from 'react-router'
+import type { Account } from '@/api/accounts'
+import {
+  REVIEW_PAUSE_COUNT,
+  REVIEW_RESUME_COUNT,
+  isBankSyncNotSetUp,
+  useBankConnections,
+  type BankBalance,
+  type BankConnection,
+  type BankLink,
+  type BankProvidersResponse,
+  type BalanceMatch,
+  type BankSyncState,
+} from '@/api/bank-sync'
+import { openBankConnections } from '@/components/bank-link-flow/bankConnectionsRequest'
+import { BankSyncNotSetUp } from '@/components/bank-link-flow/BankSyncNotSetUp'
+import { BANK_SYNC_NOT_SET_UP_REASON, GROUP_ACCOUNT_LINK_REASON } from '@/components/bank-link-flow/constants'
+import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
+import { Unfold } from '@/components/display/Unfold'
+import LoadFailure from '@/components/errors/LoadFailure'
+import { InfoCallout } from '@/components/InfoCallout'
+import LoadingRegion from '@/components/loading/Region'
+import { revealInScrollArea } from '@/components/modal/scrollArea'
+import { StepTransition } from '@/components/two-factor/StepTransition'
+import { useAuth } from '@/hooks/useAuth'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { BalanceMatchOffer } from '@/pages/accounts/detail/components/bank-link/BalanceMatchOffer'
+import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
+import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
+import { ImportStartNotice } from '@/pages/accounts/detail/components/bank-link/ImportStartNotice'
+import {
+  CutOffDayReminder,
+  HistoryReminder,
+  REMINDER_ATTRIBUTE,
+} from '@/pages/accounts/detail/components/bank-link/Reminder'
+import type { BankSyncLabel } from '@/pages/accounts/detail/components/bank-link/status'
+import { SyncFact } from '@/pages/accounts/detail/components/bank-link/SyncFact'
+import { SyncNowButton } from '@/pages/accounts/detail/components/bank-link/SyncNowButton'
+import { UnlinkModal } from '@/pages/accounts/detail/components/bank-link/UnlinkModal'
+import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link/useAccountBankLink'
+import { useLingeringImport } from '@/pages/accounts/detail/components/bank-link/useLingeringImport'
+import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
+import { IdentityFacts } from '@/pages/accounts/detail/components/identity/Facts'
+import { RangeImportModal } from '@/pages/accounts/detail/components/bank-link/RangeImportModal'
+import { describeRangeImportBlock, describeSyncNowBlock } from '@/pages/accounts/detail/components/bank-link/syncNow'
+import { PROVIDER_UNAVAILABLE_DETAIL, providerSiteName } from '@/utils/bankSync'
+import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
+
+const ARCHIVED_REASON = 'Archived accounts are read-only'
+const NOTICE_ACTION_CLASS = 'app-primary-button h-9 w-full justify-center whitespace-nowrap px-4 text-sm sm:w-auto'
+const LINK_ACTION_CLASS = 'app-secondary-button h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-auto'
+
+// Long enough for the modal to have opened and put focus in its first field
+const OPENING_FOCUS_DELAY_MS = 260
+
+/** Marks the control the modal focuses as it opens, in place of its first field */
+type InitialFocusProps = { 'data-modal-field-tab-stop'?: 'true'; 'data-modal-initial-focus'?: 'true' }
+
+// Marks each view's actions, the first not held back with its reason taking focus when the view swaps
+// in, ahead of the Sync details icon among the facts above them
+const ACTION_ATTRIBUTE = 'data-bank-link-action'
+const ACTION_PROPS = { [ACTION_ATTRIBUTE]: 'true' }
+
+// The states that are the import's own, the only ones its progress shows under, so a retry or a stop
+// holding the import never reads as importing
+const IMPORT_STATES: ReadonlySet<BankSyncState> = new Set(['importing', 'import_waiting_on_budget'])
+
+type LinkedViewProps = {
+  link: BankLink
+  balance: BankBalance | null
+  balanceMatch: BalanceMatch | null
+
+  /** The account's currency. A live link's bank account shares it */
+  currency: string
+  sync: BankSyncLabel
+  connection: BankConnection | undefined
+  providers: BankProvidersResponse | undefined
+  initialFocus: InitialFocusProps
+  onChooseBankAccount: () => void
+  onAdjustmentRecorded?: () => void
+  onImportRange: () => void
+  onUnlink: () => void
+}
+
+/**
+ * A live link: its facts and status, the import while it is the status, a notice for anything holding
+ * its sync back, the reminders that history may be missing, the bank's balance beside the ledger's
+ * once it has synced, with the balance match offer at its foot while there is a difference to match,
+ * and the actions on the link. A notice's own action comes first, since it is what resumes the sync.
+ * The server leaves the review notices out while only the user can restart the sync, so a stop's
+ * notice shows alone. While the import waits for the user's other accounts to join it, its notice
+ * shows first, with Sync now among the actions starting the import at once. A reminder holds nothing back, so the offer shows beside it. Neither the offer's
+ * button nor a reminder's ✕ are among the view's actions, so the modal opening at the bank link never
+ * starts on Record adjustment or Dismiss, and focus moves on to the link's actions, Sync now first, as
+ * the offer or a reminder holding it folds away, or from one reminder to the next
+ */
+function LinkedView({
+  link,
+  balance,
+  balanceMatch,
+  currency,
+  sync,
+  connection,
+  providers,
+  initialFocus,
+  onChooseBankAccount,
+  onAdjustmentRecorded,
+  onImportRange,
+  onUnlink,
+}: LinkedViewProps) {
+  const navigate = useNavigate()
+  const viewRef = useRef<HTMLDivElement>(null)
+  const actionsRef = useRef<HTMLDivElement>(null)
+  const notSetUpReasonId = useId()
+  const syncNotSetUp = describeSyncNowBlock(link, connection, providers) === BANK_SYNC_NOT_SET_UP_REASON
+  const rangeImportBlock = describeRangeImportBlock(link, connection, providers)
+  const shownImport = useLingeringImport(link.import, link.state)
+  const { state, paused, review_warning: warned } = link.sync
+  const waiting = link.sync.waiting_new_count.toLocaleString()
+
+  // An import that has just finished stays a moment as done, whatever the status has moved on to
+  // While the import waits for more links, the notice is the only word about it. Its progress shows
+  // once it starts
+  const showsImport =
+    shownImport !== null &&
+    link.sync.import_starts_at === null &&
+    (shownImport.state === 'complete' || IMPORT_STATES.has(state))
+
+  // A dismissed reminder folds away with the ✕ holding focus. Focus moves on to the next reminder's ✕,
+  // or with none left, to the link's actions
+  const moveOnFromReminder = (reminder: HTMLElement) => {
+    const later = Array.from(viewRef.current?.querySelectorAll<HTMLElement>(`[${REMINDER_ATTRIBUTE}]`) ?? []).find(
+      (other) => reminder.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+    const dismiss = later?.querySelector<HTMLElement>('button')
+    if (!dismiss) {
+      focusFirstAction(actionsRef.current)
+      return
+    }
+    dismiss.focus({ preventScroll: true })
+    revealInScrollArea(dismiss)
+  }
+
+  return (
+    <div ref={viewRef}>
+      <IdentityFacts
+        className=""
+        wrapsValues
+        facts={[
+          { label: 'Bank account', value: link.external_account_name },
+          { label: 'Institution', value: link.institution_name },
+          { label: 'Through', value: link.provider_name },
+          { label: 'History from', value: formatDateLabel(link.import_start) },
+        ]}
+      >
+        <SyncFact name="Status" sync={sync} showsDetails />
+      </IdentityFacts>
+
+      <AnimatePresence initial={false}>
+        {showsImport && (
+          <Unfold key="import">
+            <ImportProgress progress={shownImport} range={link.range_import} />
+          </Unfold>
+        )}
+        {link.sync.import_starts_at !== null && (
+          <Unfold key="import-start">
+            <ImportStartNotice />
+          </Unfold>
+        )}
+        {!link.provider_available && (
+          <Unfold key="provider-unavailable">
+            <InfoCallout tone="review" icon={TriangleAlert}>
+              {PROVIDER_UNAVAILABLE_DETAIL}
+            </InfoCallout>
+          </Unfold>
+        )}
+        {link.provider_available && state === 'reconnect_needed' && (
+          <Unfold key="reconnect">
+            <InfoCallout
+              tone="stopped"
+              icon={TriangleAlert}
+              action={
+                <button
+                  type="button"
+                  className={NOTICE_ACTION_CLASS}
+                  {...ACTION_PROPS}
+                  {...initialFocus}
+                  onClick={() =>
+                    openBankConnections(navigate, { open: 'connection', connectionId: link.connection_id })
+                  }
+                >
+                  Open settings
+                </button>
+              }
+            >
+              {providerSiteName(link)} rejected the connection this account uses. Automatic sync is stopped for every
+              account on it until you reconnect it in Settings.
+            </InfoCallout>
+          </Unfold>
+        )}
+        {state === 'choose_account' && (
+          <Unfold key="choose-account">
+            <InfoCallout
+              tone="stopped"
+              icon={TriangleAlert}
+              action={
+                <button
+                  type="button"
+                  className={NOTICE_ACTION_CLASS}
+                  {...ACTION_PROPS}
+                  {...initialFocus}
+                  onClick={onChooseBankAccount}
+                >
+                  Choose bank account
+                </button>
+              }
+            >
+              {link.provider_name} now lists {link.external_account_name} differently. Please choose the bank account
+              again to resume syncing.
+            </InfoCallout>
+          </Unfold>
+        )}
+        {state === 'sync_stopped' && link.sync.last_failure && (
+          <Unfold key="sync-stopped">
+            <InfoCallout tone="stopped" icon={TriangleAlert}>
+              {link.sync.last_failure.reason}.
+            </InfoCallout>
+          </Unfold>
+        )}
+        {state === 'bank_signin_needed' && (
+          <Unfold key="bank-sign-in">
+            <InfoCallout tone="stopped" icon={TriangleAlert}>
+              Please sign in to your bank again in {providerSiteName(link)}.
+            </InfoCallout>
+          </Unfold>
+        )}
+        {paused && (
+          <Unfold key="paused">
+            <InfoCallout tone="review" icon={PauseCircle}>
+              Sync is paused with {waiting} items waiting for review. Please review items until {REVIEW_RESUME_COUNT} or
+              fewer are left to resume syncing.
+            </InfoCallout>
+          </Unfold>
+        )}
+        {warned && (
+          <Unfold key="warning">
+            <InfoCallout tone="review" icon={TriangleAlert}>
+              {waiting} new to review. Sync pauses at {REVIEW_PAUSE_COUNT}.
+            </InfoCallout>
+          </Unfold>
+        )}
+        {link.range_outcome && (
+          <Unfold key="range-outcome">
+            <InfoCallout tone="review" icon={TriangleAlert}>
+              {link.range_outcome}.
+            </InfoCallout>
+          </Unfold>
+        )}
+        {link.history_reminder && (
+          <Unfold key="history-reminder">
+            <HistoryReminder
+              accountId={link.account_id}
+              providerName={link.provider_name}
+              reminder={link.history_reminder}
+              onDismissed={moveOnFromReminder}
+            />
+          </Unfold>
+        )}
+        {link.cut_off_day && (
+          <Unfold key="cut-off-day">
+            <CutOffDayReminder
+              accountId={link.account_id}
+              providerName={link.provider_name}
+              day={link.cut_off_day}
+              onDismissed={moveOnFromReminder}
+            />
+          </Unfold>
+        )}
+        {balance && (
+          <Unfold key="balance" clipsOnlyWhileChanging>
+            <BalancePanel
+              balance={balance}
+              currency={currency}
+              providerName={link.provider_name}
+              footer={
+                balanceMatch && (
+                  <BalanceMatchOffer
+                    accountId={link.account_id}
+                    offer={balanceMatch}
+                    currency={currency}
+                    providerName={link.provider_name}
+                    onFolded={() => focusFirstAction(actionsRef.current)}
+                    onRecorded={onAdjustmentRecorded}
+                  />
+                )
+              }
+            />
+          </Unfold>
+        )}
+      </AnimatePresence>
+
+      {/* The link's actions, in one row that wraps, each taking a full row on a phone */}
+      <div ref={actionsRef} className="flex flex-wrap items-center gap-2 pt-4">
+        <SyncNowButton
+          link={link}
+          connection={connection}
+          providers={providers}
+          focusProps={{ ...ACTION_PROPS, ...initialFocus }}
+          notSetUpReasonId={notSetUpReasonId}
+        />
+        {/* Held back, it takes no initial focus, since focus would open its reason over the section */}
+        <DisabledReasonButton
+          className={LINK_ACTION_CLASS}
+          {...ACTION_PROPS}
+          {...(rangeImportBlock === null ? initialFocus : {})}
+          disabledReason={rangeImportBlock}
+          reasonShownById={rangeImportBlock === BANK_SYNC_NOT_SET_UP_REASON ? notSetUpReasonId : undefined}
+          onClick={onImportRange}
+        >
+          <CalendarRange size={14} aria-hidden />
+          Import a date range
+        </DisabledReasonButton>
+        <button type="button" className={LINK_ACTION_CLASS} {...ACTION_PROPS} {...initialFocus} onClick={onUnlink}>
+          <Unlink size={14} aria-hidden />
+          Unlink
+        </button>
+      </div>
+      <AnimatePresence initial={false}>
+        {syncNotSetUp && (
+          <Unfold key="not-set-up">
+            <BankSyncNotSetUp id={notSetUpReasonId} className="pt-3" />
+          </Unfold>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+type BankLinkSectionProps = {
+  account: Account
+  sectionNumber: string
+
+  /** Focuses the section's first control once it shows, for a modal opened at the bank link */
+  autoFocus?: boolean
+
+  /** Runs once the balance match is recorded or the account unlinked, for the modal to close */
+  onFinished?: () => void
+}
+
+/**
+ * Focuses the first action inside the element that isn't held back with its reason, as the modal
+ * passes over a held field, since focus would open the reason over the section. With every action
+ * held, the first takes focus anyway, so it stays inside the dialogue. A view that swaps in taller can
+ * leave the action below what the modal shows, so the modal's scroll area brings it into view
+ */
+function focusFirstAction(container: HTMLElement | null) {
+  const actions = Array.from(container?.querySelectorAll<HTMLElement>(`[${ACTION_ATTRIBUTE}]`) ?? [])
+  const target = actions.find((action) => action.getAttribute('aria-disabled') !== 'true') ?? actions[0]
+  if (!target) return
+  target.focus({ preventScroll: true })
+  revealInScrollArea(target)
+}
+
+/**
+ * The account's bank link in its edit modal: linking it, relinking it after an unlink, its import and
+ * status while linked, and unlinking it. Every change here applies at once, not on saving the modal
+ */
+export function BankLinkSection({ account, sectionNumber, autoFocus = false, onFinished }: BankLinkSectionProps) {
+  const { user } = useAuth()
+  const { ownPersonal, status, statusError, providers, syncLabel } = useAccountBankLink(account)
+  const { data: connections } = useBankConnections()
+  const [linkFlowOpen, setLinkFlowOpen] = useState(false)
+  const [linkFlowKey, setLinkFlowKey] = useState(0)
+
+  // Held past the unlink itself, so the dialogue can finish closing once the link is gone
+  const [unlinking, setUnlinking] = useState<BankLink | null>(null)
+  const [unlinkOpen, setUnlinkOpen] = useState(false)
+
+  // Held past the dialogue's own close in the same way, and remounted for each opening by the link it opened on
+  const [rangeImporting, setRangeImporting] = useState<BankLink | null>(null)
+  const [rangeImportOpen, setRangeImportOpen] = useState(false)
+
+  const link = status?.link ?? null
+  const previous = status?.previous_link ?? null
+  const linkingPaused = isBankSyncNotSetUp(providers)
+  // Both reasons last, so the one that holds the button back is printed under it, with the tooltip
+  // and the button's description pointing at that text
+  const blockReasonId = useId()
+  const linkBlockReason = account.is_archived
+    ? ARCHIVED_REASON
+    : linkingPaused
+      ? BANK_SYNC_NOT_SET_UP_REASON
+      : undefined
+
+  const openLinkFlow = () => {
+    setLinkFlowKey((key) => key + 1)
+    setLinkFlowOpen(true)
+  }
+
+  const viewKey = !ownPersonal ? 'group' : !status ? 'loading' : link ? 'linked' : 'unlinked'
+  const contentRef = useRef<HTMLDivElement>(null)
+  const showsControls = viewKey === 'linked' || viewKey === 'unlinked'
+  const initialFocus: InitialFocusProps = autoFocus
+    ? { 'data-modal-field-tab-stop': 'true', 'data-modal-initial-focus': 'true' }
+    : {}
+
+  // The modal focuses the marked control as it opens. One that shows only once the link has loaded
+  // misses that, so it waits for the modal to have opened and put focus in its first field instead.
+  // A press or a key before then has put focus where the person wants it, so it stays there
+  const [focusOnShow, setFocusOnShow] = useState(autoFocus && !showsControls)
+  useEffect(() => {
+    if (!focusOnShow) return undefined
+    const keepTheirFocus = () => setFocusOnShow(false)
+    document.addEventListener('pointerdown', keepTheirFocus, true)
+    document.addEventListener('keydown', keepTheirFocus, true)
+    return () => {
+      document.removeEventListener('pointerdown', keepTheirFocus, true)
+      document.removeEventListener('keydown', keepTheirFocus, true)
+    }
+  }, [focusOnShow])
+  useEffect(() => {
+    if (!focusOnShow || !showsControls) return undefined
+    const timer = window.setTimeout(() => {
+      setFocusOnShow(false)
+      focusFirstAction(contentRef.current)
+    }, OPENING_FOCUS_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [focusOnShow, showsControls])
+
+  // Linking and unlinking swap the view, taking away the control the dialogue opened from, so focus would
+  // fall to the page once the dialogue or the old view has gone. It moves to the new view's action
+  // instead, after the dialogue has put focus back wherever it still could. Motion reports an exit before
+  // React takes what left off the page, in a render a busy machine can draw a frame ahead of, so the
+  // check waits for that render (the report's own update joins it) rather than for the next frame
+  const [exitsReported, setExitsReported] = useState(0)
+  const restoreLostFocus = () => setExitsReported((count) => count + 1)
+  useEffect(() => {
+    if (exitsReported === 0) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      if (document.activeElement === null || document.activeElement === document.body)
+        focusFirstAction(contentRef.current)
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [exitsReported])
+
+  return (
+    <EditModalSection number={sectionNumber} title="Bank link">
+      <div ref={contentRef}>
+        {ownPersonal && statusError && !status ? (
+          <LoadFailure error={statusError} subject="Bank link" />
+        ) : (
+          <LoadingRegion
+            loading={viewKey === 'loading'}
+            label="Loading bank link"
+            animateLoadingHeight
+            readsLayoutHeight
+            clipsOnlyWhileChanging
+          >
+            <StepTransition
+              stepKey={viewKey}
+              easeContentChanges={false}
+              onExitComplete={restoreLostFocus}
+              respectsReducedMotion
+            >
+              {viewKey === 'loading' && <div className="min-h-16" />}
+              {viewKey === 'group' && (
+                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                  {GROUP_ACCOUNT_LINK_REASON} Its transactions stay manual.
+                </p>
+              )}
+              {/* The reason a pause gives for Link bank account keeps to the section's sides. The Sync
+                    details in the linked view keep to the area the modal marks for a linked account. A short section lacks the room */}
+              {viewKey === 'unlinked' && (
+                <div className="space-y-3" data-tooltip-bounds>
+                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {previous
+                      ? `Previously linked to ${previous.external_account_name} at ${previous.institution_name} through ${previous.provider_name}, until ${formatDate(new Date(previous.unlinked_at), DATE_FORMATS.monthDayYear, user?.tz)}. Reconnecting brings in what the bank reported since.`
+                      : 'Link a bank account to bring in transactions automatically. Each one waits for your review before reaching a balance.'}
+                  </p>
+                  <DisabledReasonButton
+                    className="app-primary-button"
+                    {...ACTION_PROPS}
+                    {...initialFocus}
+                    disabledReason={linkBlockReason}
+                    reasonShownById={linkBlockReason ? blockReasonId : undefined}
+                    onClick={openLinkFlow}
+                  >
+                    <Link2 size={16} aria-hidden />
+                    {previous ? 'Reconnect bank account' : 'Link bank account'}
+                  </DisabledReasonButton>
+                  {account.is_archived ? (
+                    <p id={blockReasonId} className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                      {ARCHIVED_REASON}
+                    </p>
+                  ) : (
+                    linkingPaused && <BankSyncNotSetUp id={blockReasonId} />
+                  )}
+                </div>
+              )}
+              {viewKey === 'linked' && link && (
+                <LinkedView
+                  link={link}
+                  balance={status?.balance ?? null}
+                  balanceMatch={status?.balance_match ?? null}
+                  currency={account.currency}
+                  sync={syncLabel}
+                  connection={connections?.find((connection) => connection.id === link.connection_id)}
+                  providers={providers}
+                  initialFocus={initialFocus}
+                  onChooseBankAccount={openLinkFlow}
+                  onAdjustmentRecorded={onFinished}
+                  onImportRange={() => {
+                    setRangeImporting(link)
+                    setRangeImportOpen(true)
+                  }}
+                  onUnlink={() => {
+                    setUnlinking(link)
+                    setUnlinkOpen(true)
+                  }}
+                />
+              )}
+            </StepTransition>
+          </LoadingRegion>
+        )}
+      </div>
+
+      {ownPersonal && (
+        <BankLinkFlowModal
+          key={linkFlowKey}
+          open={linkFlowOpen}
+          account={account}
+          onClose={() => setLinkFlowOpen(false)}
+          onExitComplete={restoreLostFocus}
+        />
+      )}
+
+      {rangeImporting && (
+        <RangeImportModal
+          open={rangeImportOpen}
+          account={account}
+          link={rangeImporting}
+          connection={connections?.find((connection) => connection.id === rangeImporting.connection_id)}
+          providers={providers}
+          onClose={() => setRangeImportOpen(false)}
+          onExitComplete={() => {
+            setRangeImporting(null)
+            restoreLostFocus()
+          }}
+        />
+      )}
+
+      {unlinking && (
+        <UnlinkModal
+          open={unlinkOpen}
+          account={account}
+          link={unlinking}
+          connection={connections?.find((connection) => connection.id === unlinking.connection_id)}
+          onClose={() => setUnlinkOpen(false)}
+          onUnlinked={onFinished}
+          onExitComplete={() => {
+            setUnlinking(null)
+            restoreLostFocus()
+          }}
+        />
+      )}
+    </EditModalSection>
+  )
+}

@@ -20,7 +20,7 @@ const HOVER_WITHOUT_FOCUS_PAIR = [
   '.group:hover .app-tag-tooltip-glass',
   // A toggle switch's input is hidden, so its focus is the input's and its track is the sibling, which the
   // toggle switch tests below pair with this rule
-  'label:hover .app-switch-input:not(:disabled) + .app-switch-track',
+  'label:hover .app-switch-input:not(:disabled):not([aria-disabled="true"]) + .app-switch-track',
 ]
 
 // The hover rules of selected options in each segmented control, whose fill and text colour keep the text
@@ -521,7 +521,9 @@ describe('button keyboard focus', () => {
   // A toggle switch's track has no border, so it takes the ring around the whole switch, and its fill, off
   // or on, turns stronger under the pointer and on keyboard focus. Its fill used to stay as it was
   describe('toggle switch', () => {
-    const hover = rulesListing('label:hover .app-switch-input:not(:disabled) + .app-switch-track')
+    const hover = rulesListing(
+      'label:hover .app-switch-input:not(:disabled):not([aria-disabled="true"]) + .app-switch-track',
+    )
     const focus = rulesListing('.app-switch-input:focus-visible + .app-switch-track')
 
     it('takes the same stronger fill under the pointer, on a touch screen never, and on keyboard focus', () => {
@@ -563,5 +565,22 @@ describe('button keyboard focus', () => {
     })
     expect(variant).toContain('&:hover')
     expect(variant).toMatch(/&:is\(button, \[role="button"\][^)]*\):focus-visible/)
+  })
+})
+
+describe('refused calendar days', () => {
+  // A neighbouring month's day takes the text colour under the pointer and on keyboard focus. A refused
+  // one must keep its faded colour there, or it reads as a day that can be chosen apart from its strike
+  it('leaves a refused day of a neighbouring month faded under the pointer and on keyboard focus', () => {
+    const lifting: string[] = []
+    stylesheet.walkRules((rule) => {
+      if (declared(rule, 'color') === undefined) return
+      for (const selector of selectorsOf(rule)) {
+        const outsideState =
+          selector.includes('.app-calendar-day[data-outside]') && /:(hover|focus-visible)/.test(selector)
+        if (outsideState && !selector.includes(':not([data-disabled])')) lifting.push(selector)
+      }
+    })
+    expect(lifting).toEqual([])
   })
 })

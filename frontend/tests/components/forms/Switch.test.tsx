@@ -21,17 +21,22 @@ describe('toggle switch', () => {
   })
 
   it('is the switch of the account archive section', () => {
-    expectSharedSwitch(renderToStaticMarkup(
-      <AccountArchiveSection
-        sectionNumber="02"
-        isArchived={false}
-        isArchiving={false}
-        isArchiveBlocked={false}
-        currentBalance={0}
-        currency="CAD"
-        onToggle={() => {}}
-      />,
-    ))
+    expectSharedSwitch(
+      renderToStaticMarkup(
+        <AccountArchiveSection
+          sectionNumber="02"
+          isArchived={false}
+          isArchiving={false}
+          isArchiveBlocked={false}
+          isLinkLoading={false}
+          archiveLinkedReason={null}
+          archiveReason={null}
+          currentBalance={0}
+          currency="CAD"
+          onToggle={() => {}}
+        />,
+      ),
+    )
   })
 
   it('is the switch of the budget archive section', () => {

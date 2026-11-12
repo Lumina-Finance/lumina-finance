@@ -73,6 +73,9 @@ interface DropdownProps {
   /** Keeps the open list exactly as wide as the field, for one inside a panel whose edge it must not pass */
   matchFieldWidth?: boolean
 
+  /** Keeps the open list within the sides of the modal panel the field sits in, and within its height while that leaves five rows */
+  clampToPanel?: boolean
+
   /** Draws the control in the error state, for a field the form has rejected */
   hasError?: boolean
 
@@ -146,6 +149,7 @@ const Dropdown = ({
   className,
   size = 'field',
   matchFieldWidth = false,
+  clampToPanel = false,
   hasError = false,
   labelledBy,
   describedBy,
@@ -197,6 +201,7 @@ const Dropdown = ({
       ? DROPDOWN_RISE_TRANSITION
       : DROPDOWN_SINK_TRANSITION
   const { boxPosition, updateBoxPosition } = useDropdownPosition({
+    clampToPanel,
     matchFieldWidth,
     placed,
     searchable,
@@ -378,17 +383,25 @@ const Dropdown = ({
   const createQuery = searchText.trim()
   const resolvedCreateNewLabel = getCreateNewLabel(createNewLabel, createQuery)
 
+  // Closing unmounts the action pressed, so focus goes back to the trigger before the stacked modal
+  // opens. The modal takes the trigger as its opener and returns focus there once it closes, where
+  // it would otherwise fall to the page
+  const closeForStackedModal = () => {
+    close()
+    triggerRef.current?.focus({ preventScroll: true })
+  }
+
   const handleCreateNew = () => {
     if (!onCreateNew) return
+    closeForStackedModal()
     onCreateNew(createQuery)
-    close()
   }
 
   // Closing is what lets the correction be seen: the open box sits above the stacked modal it
   // opens, and left open it would cover that modal until the first press anywhere inside it
   const handleEditOption = (optionValue: string) => {
     if (!onEditOption) return
-    close()
+    closeForStackedModal()
     onEditOption(optionValue)
   }
 
@@ -513,6 +526,7 @@ const Dropdown = ({
   return (
     <div
       ref={containerRef}
+      data-testid="dropdown-slot"
       className={joinClassNames('app-dropdown-slot', className)}
       style={{ height: collapsedHeight }}
     >

@@ -15,6 +15,7 @@ from app.models.user import User
 from app.permissions import check_transaction_access
 from app.schemas.transaction import BulkDeleteTransactionsRequest, BulkDeleteTransactionsResponse
 from app.services.accounts.snapshots import recompute_account_snapshots
+from app.services.bank_sync.manual_entries import lock_bank_imports, refuse_deleting_bank_imports
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
@@ -31,9 +32,8 @@ async def delete_transaction_for_user(
 ) -> None:
     """Delete one transaction after checking write access
 
-    The service loads the writable transaction, validates its parent account,
-    removes attached tag assignments, deletes the transaction row, rebuilds
-    affected account snapshots, and marks the cache scope changed. Its refund link, if any, goes
+    The service loads the writable transaction, refuses it while it is bank-imported into a linked
+    account, deletes it, marks the cache scope changed and commits. Its refund link, if any, goes
     with it and the transaction on the other side stays. Deleting both is a bulk delete that
     chooses the linked ones
 
@@ -44,7 +44,13 @@ async def delete_transaction_for_user(
 
     Returns:
         None
+
+    Raises:
+        HTTPException 422: The transaction is bank-imported and its account is linked
     """
+    # The delete takes a bank-imported transaction's bank transaction with it, and that is locked first
+    await lock_bank_imports(db, [transaction_id])
+
     # Take the same row lock before tag deletion so an edit and delete cannot interleave
     txn = await check_transaction_access(
         db,
@@ -53,7 +59,31 @@ async def delete_transaction_for_user(
         PermissionLevel.WRITE,
         lock_for_update=True,
     )
+    await refuse_deleting_bank_imports(db, [txn])
+    account = await delete_transaction(db, txn)
 
+    # Mark the affected user or group cache after all delete writes are flushed
+    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
+
+    # Commit tag deletion, transaction deletion, snapshot updates, and cache updates together
+    await db.commit()
+
+
+async def delete_transaction(db: AsyncSession, txn: Transaction) -> Account:
+    """Delete a transaction with its tag assignments and rebuild its account's balances, without committing
+
+    The caller marks the returned account's cache last and commits, so the deletion can be one step
+    of a larger save. A bank-imported transaction is deleted whether or not its account is linked,
+    so a bank removal the user approves applies while the account stays linked. A delete the user
+    asks for directly refuses that first
+
+    Args:
+        db: Active database session
+        txn: The transaction, locked and checked writable by the caller
+
+    Returns:
+        The account the transaction was in
+    """
     # Load the parent account for archive validation and cache scope updates
     account = await get_parent_account_for_transaction(db, txn)
     validate_transaction_account_is_not_archived(account)
@@ -62,7 +92,7 @@ async def delete_transaction_for_user(
     deleted_dt = txn.dt
 
     # Remove tag assignments before deleting the transaction row in the same commit
-    await delete_transaction_tag_assignments(db, transaction_id)
+    await delete_transaction_tag_assignments(db, txn.id)
 
     # Delete the transaction row and flush before rebuilding dependent snapshots
     await db.delete(txn)
@@ -70,12 +100,7 @@ async def delete_transaction_for_user(
 
     # Rebuild balance snapshots from the deleted transaction's day forward
     await recompute_account_snapshots(db, {account_id: deleted_dt})
-
-    # Mark the affected user or group cache after all delete writes are flushed
-    await mark_cache_changed_for_scope(db, user_id=account.owner_id, group_id=account.group_id)
-
-    # Commit tag deletion, transaction deletion, snapshot updates, and cache updates together
-    await db.commit()
+    return account
 
 
 async def bulk_delete_transactions(
@@ -87,8 +112,9 @@ async def bulk_delete_transactions(
 
     Every rule single delete enforces is enforced on every row, and a set holding one row that
     refuses is refused whole. The rows are locked, their accounts checked for write access and
-    archiving, their tag assignments and the rows removed, and the balances rebuilt from each
-    account's earliest deleted day, all in one commit
+    archiving, any bank-imported row in a linked account refused, their tag assignments and the
+    rows removed, and the balances rebuilt from each account's earliest deleted day, all in one
+    commit
 
     Args:
         db: Active database session
@@ -100,19 +126,22 @@ async def bulk_delete_transactions(
 
     Raises:
         HTTPException: A transaction was not found, an account refuses the write, an account
-            belongs to a group, or another change reached one of the transactions first
+            belongs to a group, a bank-imported transaction's account is linked, or another change
+            reached one of the transactions first
     """
     requested_ids = list(dict.fromkeys(data.transaction_ids))
+    await lock_bank_imports(db, requested_ids)
     transactions = await load_locked_transactions(db, user, requested_ids)
     accounts = await load_writable_accounts(db, user, {t.account_id for t in transactions})
     _refuse_grouped_accounts(accounts)
+    await refuse_deleting_bank_imports(db, transactions, in_bulk=True)
 
     await delete_locked_transactions(
         db,
         Transaction.id.in_(requested_ids),
-        accounts,
         [(transaction.account_id, transaction.dt) for transaction in transactions],
     )
+    await mark_accounts_changed(db, accounts)
     await db.commit()
 
     return BulkDeleteTransactionsResponse(
@@ -124,18 +153,18 @@ async def bulk_delete_transactions(
 async def delete_locked_transactions(
     db: AsyncSession,
     condition: ColumnElement[bool],
-    accounts: list[Account],
     deleted_days: list[tuple[uuid.UUID, date]],
 ) -> None:
-    """Delete transactions the caller has already locked and checked, without committing
+    """Delete transactions the caller has already locked and checked, without committing or marking the cache
 
     Their tag assignments and the rows go by the condition rather than by an id list, so a set of
-    any size is two statements. The balances are rebuilt from each account's earliest deleted day
+    any size is two statements. The balances are rebuilt from each account's earliest deleted day.
+    The caller marks the accounts changed once its other writes are done, so the cache rows are the
+    last locks it takes, as every ledger write takes them
 
     Args:
         db: Active database session
         condition: Selects exactly the locked transactions
-        accounts: Every account the transactions are in, already checked for write access
         deleted_days: The account and date of each deleted transaction
 
     Returns:
@@ -155,7 +184,15 @@ async def delete_locked_transactions(
 
     await recompute_account_snapshots(db, snapshot_starts)
 
-    # One mark per scope rather than one per transaction, since every row in a scope shares it
+
+async def mark_accounts_changed(db: AsyncSession, accounts: list[Account]) -> None:
+    """Mark the cache of each scope these accounts are in changed, without committing
+
+    Args:
+        db: Active database session
+        accounts: The accounts a write changed
+    """
+    # One mark per scope rather than one per account, since every account in a scope shares it
     for owner_id, group_id in {(account.owner_id, account.group_id) for account in accounts}:
         await mark_cache_changed_for_scope(db, user_id=owner_id, group_id=group_id)
 

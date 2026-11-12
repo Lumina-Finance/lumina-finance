@@ -1,4 +1,5 @@
 """Account route handlers"""
+
 import uuid
 from datetime import datetime
 from typing import Annotated
@@ -17,12 +18,14 @@ from app.routes.accounts.permissions import router as permissions_router
 from app.routes.accounts.response_loading_helpers import get_account_response_for_user
 from app.routes.accounts.snapshots import router as snapshots_router
 from app.routes.accounts.spending_breakdown_helpers import get_account_spending_breakdown_for_user
+from app.routes.accounts.starting_balance_helpers import record_starting_balance_response
 from app.routes.accounts.update_helpers import update_account_for_user
 from app.schemas.account import (
     AccountResponse,
     AccountsOverview,
     AccountSpendingBreakdown,
     CreateAccountRequest,
+    RecordStartingBalanceRequest,
     UpdateAccountRequest,
 )
 from app.schemas.dashboard import MonthlyIncomeExpense, RangeKind
@@ -161,6 +164,32 @@ async def create_account(
     """
     account = await create_account_for_user(db, user, data)
     return account
+
+
+@router.post("/{account_id}/starting-balance", response_model=AccountResponse)
+async def record_starting_balance(
+    account_id: uuid.UUID,
+    data: RecordStartingBalanceRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Record the starting balance of an account that has no transactions yet
+
+    Args:
+        account_id: Account identifier from the route path
+        data: Starting balance as the user states it
+        user: Authenticated user recording the starting balance
+        db: Active database session
+
+    Returns:
+        Account with derived balance fields
+
+    Raises:
+        HTTPException: The account isn't visible to the user, isn't their own personal account or a
+            group account they administer, or already has transactions, or a stored timezone does
+            not resolve
+    """
+    return await record_starting_balance_response(db, account_id, data, user)
 
 
 @router.patch("/{account_id}", response_model=AccountResponse)

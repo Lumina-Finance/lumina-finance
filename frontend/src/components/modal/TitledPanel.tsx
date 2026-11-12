@@ -1,5 +1,6 @@
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent, ReactNode, Ref } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
+import { ModalFooterSlot } from '@/components/modal/FooterSlot'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { MODAL_TITLE_CLASS_NAME, ModalRail } from '@/components/modal/Rail'
 import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
@@ -51,6 +52,14 @@ interface ModalTitledPanelProps {
   /** Runs once the exit animation has finished, for work that must wait until the modal is fully gone */
   onExitComplete?: () => void
   footer: ReactNode
+  /** Shown beside the panel on wide screens, see ModalShell */
+  aside?: ReactNode
+
+  /** The body between the header and the footer. It scrolls when the content is taller than it */
+  bodyRef?: Ref<HTMLDivElement>
+
+  /** Marks the footer, while the panel fills the screen, as something a message keeps clear of. For a footer that does not mark itself */
+  keepsToastClear?: boolean
   children: ReactNode
 }
 
@@ -76,6 +85,9 @@ export function ModalTitledPanel({
   closeDisabled = false,
   onExitComplete,
   footer,
+  aside,
+  bodyRef,
+  keepsToastClear = false,
   children,
 }: ModalTitledPanelProps) {
   const chrome = CHROME[level]
@@ -118,11 +130,11 @@ export function ModalTitledPanel({
         </div>
       </div>
 
-      <div className={chrome.bodyClassName} data-tooltip-bounds data-dropdown-bounds>
+      <div ref={bodyRef} className={chrome.bodyClassName} data-tooltip-bounds data-dropdown-bounds>
         {children}
       </div>
 
-      {footer}
+      {footer && <ModalFooterSlot keepsToastClear={keepsToastClear}>{footer}</ModalFooterSlot>}
     </>
   )
 
@@ -136,6 +148,7 @@ export function ModalTitledPanel({
       level={level}
       closeDisabled={closeDisabled}
       onExitComplete={onExitComplete}
+      aside={aside}
     >
       {RailIcon && railLabel && <ModalRail level={level} Icon={RailIcon} label={railLabel} insetClassName="pl-4" />}
 

@@ -50,15 +50,7 @@ const SLOT_WIDTH = '100%'
  * constraint: no ancestor may carry a backdrop filter, a filter or a settled transform, any of which
  * would make itself the box these viewport coordinates are measured from.
  */
-export function DropdownBox({
-  boxRef,
-  children,
-  disabled,
-  hasError,
-  open,
-  placed,
-  position,
-}: DropdownBoxProps) {
+export function DropdownBox({ boxRef, children, disabled, hasError, open, placed, position }: DropdownBoxProps) {
   const shouldReduceMotion = useReducedMotion()
 
   // The width is driven as a value of its own rather than through the style, which is what keeps a
@@ -71,7 +63,9 @@ export function DropdownBox({
   // settles when the list does rather than carrying on under a list that has arrived
   const widthTransition = shouldReduceMotion
     ? DROPDOWN_INSTANT_TRANSITION
-    : open ? DROPDOWN_WIDEN_SPRING : DROPDOWN_NARROW_TRANSITION
+    : open
+      ? DROPDOWN_WIDEN_SPRING
+      : DROPDOWN_NARROW_TRANSITION
 
   // Settled here rather than in the effect below, so the width is already right in the frame that
   // takes the box out of the page. Set a moment later, the box would be seen at the whole width of
@@ -93,6 +87,7 @@ export function DropdownBox({
   return (
     <motion.div
       ref={boxRef}
+      data-testid="dropdown-box"
       className={joinClassNames(
         'app-dropdown-glass',
         open && 'app-dropdown-glass-open',
@@ -101,31 +96,33 @@ export function DropdownBox({
         hasError && 'app-dropdown-glass-error',
         disabled && 'app-dropdown-glass-disabled',
       )}
-      style={placed
-        ? {
-          position: 'fixed',
-          // Pinned by whichever of the head's own edges the list grows away from, so the head does
-          // not move by a pixel as the box opens around it
-          bottom: position.openAbove ? position.bottom : undefined,
-          top: position.openAbove ? undefined : position.top,
-          // Pinned by whichever of the slot's own side edges the box grows away from, so that edge
-          // does not move as the box widens, exactly as its upper and lower edges work
-          left: position.openLeftward ? undefined : position.left,
-          right: position.openLeftward ? position.right : undefined,
-          width: boxWidth,
-          // Keeps the spring's overshoot, a few pixels at the end of a long widening, out of the
-          // room the box leaves clear of the edge of the screen
-          maxWidth: position.openWidth,
-          maxHeight: position.boxMaxHeight,
-          // The box is fixed in place rather than portalled, so this orders it against whatever
-          // stacking context it lands in and never against the whole app. Opened from a page that is
-          // the page, which is isolated as one context, so the navigation and a toast still draw over
-          // the open list. Opened inside a modal or the filter sheet, both fixed with a level of
-          // their own, it is that container. What the level buys either way is the box over the
-          // content it grows across, and agreement with the calendar, which takes the same one
-          zIndex: STACKING_LEVELS.popover,
-        }
-        : { position: 'absolute', top: 0, left: 0, right: 0, width: boxWidth }}
+      style={
+        placed
+          ? {
+              position: 'fixed',
+              // Pinned by whichever of the head's own edges the list grows away from, so the head does
+              // not move by a pixel as the box opens around it
+              bottom: position.openAbove ? position.bottom : undefined,
+              top: position.openAbove ? undefined : position.top,
+              // Pinned by whichever of the slot's own side edges the box grows away from, so that edge
+              // does not move as the box widens, exactly as its upper and lower edges work
+              left: position.openLeftward ? undefined : position.left,
+              right: position.openLeftward ? position.right : undefined,
+              width: boxWidth,
+              // Keeps the spring's overshoot, a few pixels at the end of a long widening, out of the
+              // room the box leaves clear of the edge of the screen
+              maxWidth: position.openWidth,
+              maxHeight: position.boxMaxHeight,
+              // The box is fixed in place rather than portalled, so this orders it against whatever
+              // stacking context it lands in and never against the whole app. Opened from a page that is
+              // the page, which is isolated as one context, so the navigation and a toast still draw over
+              // the open list. Opened inside a modal or the filter sheet, both fixed with a level of
+              // their own, it is that container. What the level buys either way is the box over the
+              // content it grows across, and agreement with the calendar, which takes the same one
+              zIndex: STACKING_LEVELS.popover,
+            }
+          : { position: 'absolute', top: 0, left: 0, right: 0, width: boxWidth }
+      }
       // Sinks under a press and springs back when it is let go. Suppressed for as long as the box is
       // floating, where sinking a full-height list reads as it collapsing early rather than as a
       // control being pressed

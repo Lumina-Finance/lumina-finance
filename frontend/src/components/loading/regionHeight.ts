@@ -28,3 +28,42 @@ export function getLoadingRegionHeight({
   // left to the content rather than held
   return contentHeight > 0 ? contentHeight : null
 }
+
+/**
+ * Reports the content's height now and each time it changes, until the returned function stops it
+ *
+ * By default the height is the box on screen, read a frame after each change. With `readsLayoutHeight`
+ * it is the layout height instead. A dialogue still scaling in does not shrink that height. The observer
+ * reports only layout changes, so a height read part way through that entrance would be held short
+ * of the content, clipping it, until the content next changed size. Observing also reports the height
+ * the content already has. That is the first one held
+ */
+export function observeContentHeight(
+  element: HTMLElement,
+  onHeight: (height: number) => void,
+  readsLayoutHeight: boolean,
+): () => void {
+  if (readsLayoutHeight) {
+    const observer = new ResizeObserver(([entry]) => onHeight(entry.borderBoxSize[0].blockSize))
+    observer.observe(element)
+    return () => observer.disconnect()
+  }
+
+  let frameId: number | null = null
+  const updateHeight = () => {
+    if (frameId !== null) window.cancelAnimationFrame(frameId)
+    frameId = window.requestAnimationFrame(() => {
+      frameId = null
+      onHeight(element.getBoundingClientRect().height)
+    })
+  }
+
+  updateHeight()
+  const observer = new ResizeObserver(updateHeight)
+  observer.observe(element)
+
+  return () => {
+    if (frameId !== null) window.cancelAnimationFrame(frameId)
+    observer.disconnect()
+  }
+}

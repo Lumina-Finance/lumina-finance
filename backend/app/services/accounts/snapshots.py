@@ -8,7 +8,7 @@ for the same account serialize until their caller commits or rolls back
 
 import hashlib
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
 
 from fastapi import HTTPException, status
@@ -113,6 +113,15 @@ async def recompute_account_snapshots(
 
     for account_id, from_dt in snapshot_starts.items():
         await _recompute_account_snapshots_from(db, account_id, from_dt)
+
+
+def sort_by_snapshot_lock(account_ids: Iterable[uuid.UUID]) -> list[uuid.UUID]:
+    """Return the accounts in the order every rebuild takes their locks
+
+    A save that rebuilds several accounts one at a time goes through them in this order, so it never
+    holds one account's lock while waiting for another that a rebuild of several at once already holds
+    """
+    return sorted(set(account_ids), key=_snapshot_lock_key)
 
 
 def _snapshot_lock_key(account_id: uuid.UUID) -> int:

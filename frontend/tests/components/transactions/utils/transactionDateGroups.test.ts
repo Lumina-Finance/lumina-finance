@@ -38,6 +38,7 @@ function createTransaction(overrides: Partial<Transaction>): Transaction {
     updated_at: '2026-06-01T00:00:00Z',
     tag_ids: [],
     tags: [],
+    bank_source: null,
     ...overrides,
   }
 }

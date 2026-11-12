@@ -3,7 +3,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openModal, openPage } from '../support/app'
+import { logInViaApi, openModal, openPage, readSettledBox } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 function saveButton(dialog: Locator) {
@@ -80,12 +80,18 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await press('$37.19').hover()
   await expect(tooltip).toHaveText(OVER_THE_EXPENSE)
   await expect(tooltip).toHaveCSS('opacity', '1')
-  await expect(press('$37.19')).toHaveAccessibleDescription(OVER_THE_EXPENSE)
+  // The title is described by what the row shows beside it, starting with the amount, then by the reason
+  await expect(press('$37.19')).toHaveAccessibleDescription(
+    new RegExp(`^\\+\\$37\\.19 .*${OVER_THE_EXPENSE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
+  )
   // The greyed look eases in and out rather than snapping, at the app's disabled strength
-  // Only what the row's button holds fades. The button itself, which draws the keyboard focus ring, stays at full strength
+  // The row's whole content fades, its amount and category cells with its title. The row itself and the
+  // title button stay at full strength, and the row draws the keyboard focus ring
   const greyed = picker.getByTestId('link-candidate').first()
-  await expect(greyed.locator('button > *').first()).toHaveCSS('transition-property', 'opacity')
-  await expect(greyed.locator('button > *').first()).toHaveCSS('opacity', '0.5')
+  const content = greyed.locator('[data-row-content]')
+  await expect(content).toHaveCSS('transition-property', 'opacity')
+  await expect(content).toHaveCSS('opacity', '0.5')
+  await expect(content.getByText('+$37.19').first()).toBeVisible()
   await expect(greyed.locator('button')).toHaveCSS('opacity', '1')
   await expect(greyed.locator('> div')).toHaveCSS('opacity', '1')
   await press('$37.19').click({ force: true })
@@ -95,6 +101,17 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await press('$37.19').focus()
   await page.keyboard.press('Enter')
   await expect(press('$37.19')).toHaveAttribute('aria-pressed', 'false')
+  // Keyboard focus sets the reason beside the whole row, clear of the category and account the title sits over
+  await press('$20.00').focus()
+  await page.keyboard.press('Shift+Tab')
+  await expect(press('$37.19')).toBeFocused()
+  await expect(tooltip).toHaveCSS('opacity', '1')
+  // Read once the reason stops gliding from where the earlier hover showed it
+  const reasonBox = await readSettledBox(tooltip)
+  const rowBox = (await content.boundingBox())!
+  const isClearOfRow = reasonBox.y >= rowBox.y + rowBox.height || reasonBox.y + reasonBox.height <= rowBox.y
+    || reasonBox.x >= rowBox.x + rowBox.width || reasonBox.x + reasonBox.width <= rowBox.x
+  expect(isClearOfRow, `reason ${JSON.stringify(reasonBox)} clear of row ${JSON.stringify(rowBox)}`).toBe(true)
 
   // Two rows can be picked together. The $20.00 pick leaves $17.13, the $15.00 pick $2.13, which fits nothing else
   await press('$20.00').click()
@@ -493,7 +510,10 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   await expectOnlyPickableRows(picker, ['+$37.19', '+$20.00', '+$15.00'], 3713)
   const rows = picker.getByTestId('link-candidate')
 
-  // The greyed $37.19 row is first. Tab from Filters lands on it, with its ring drawn and its reason shown
+  // The greyed $37.19 row is first. Tab from Filters lands on it, with its ring drawn and its reason shown.
+  // The picker puts focus on its search field a frame after it opens, so that comes first, or it can take
+  // focus back from Filters on a busy host
+  await expect(picker.getByPlaceholder('Merchant or note…')).toBeFocused()
   await picker.getByRole('button', { name: 'Transaction filters' }).focus()
   await page.keyboard.press('Tab')
   const greyed = rows.first().getByRole('button')

@@ -69,6 +69,7 @@ const transaction: Transaction = {
   updated_at: '2026-09-18T12:00:00Z',
   tag_ids: [],
   tags: [],
+  bank_source: null,
 }
 
 describe('actual transaction mutation lookup refresh boundaries', () => {

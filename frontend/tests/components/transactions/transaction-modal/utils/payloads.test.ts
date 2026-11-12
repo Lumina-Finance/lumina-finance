@@ -1,12 +1,14 @@
 /**
  * Tests the payloads the transaction modal sends, so an edit patch carries only what changed, a
- * transfer pair writes each leg recording the other, and the counterparty selection reaches the API as
- * an id and a scope
+ * transfer pair writes each leg recording the other, the counterparty selection reaches the API as
+ * an id and a scope, and Add to ledger sends the amount as entered without naming an account or
+ * currency. The server takes them from the bank item
  */
 import { describe, expect, it } from 'vitest'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { buildInitialTransactionForm } from '@/components/transactions/transaction-modal/utils/initialForm'
 import {
+  buildAddReviewItemPayload,
   buildCreateTransactionPayload,
   buildSymmetricTransferPayloads,
   buildUpdateTransactionPatch,
@@ -65,12 +67,18 @@ describe('transaction modal payloads', () => {
     })
 
     expect(buildUpdateTransactionPatch(unchangedForm, transaction, 2)).toBeNull()
-    expect(buildUpdateTransactionPatch({
-      ...unchangedForm,
-      amount: '200.00',
-      direction: 'credit',
-      tag_ids: ['business'],
-    }, transaction, 2)).toEqual({
+    expect(
+      buildUpdateTransactionPatch(
+        {
+          ...unchangedForm,
+          amount: '200.00',
+          direction: 'credit',
+          tag_ids: ['business'],
+        },
+        transaction,
+        2,
+      ),
+    ).toEqual({
       amount: 20000,
       tag_ids: ['business'],
     })
@@ -110,10 +118,7 @@ describe('transaction modal payloads', () => {
 
     // The direction says what happens to the account above, so on a credit the money arrives there
     // and leaves the other, rather than the recorded account always being the one debited
-    const [creditFrom, creditTo] = buildSymmetricTransferPayloads(
-      { ...baseForm, direction: 'credit' as const },
-      2,
-    )
+    const [creditFrom, creditTo] = buildSymmetricTransferPayloads({ ...baseForm, direction: 'credit' as const }, 2)
     expect(creditFrom).toMatchObject({ account_id: 'checking', amount: 5000 })
     expect(creditTo).toMatchObject({ account_id: 'savings', amount: -5000 })
   })
@@ -160,25 +165,63 @@ describe('transaction modal payloads', () => {
     expect(buildUpdateTransactionPatch(unchangedForm, transaction, 2)).toBeNull()
 
     // Recording a different account sends the new pair
-    expect(buildUpdateTransactionPatch(
-      { ...unchangedForm, counterparty_account_id: 'joint-savings' },
-      transaction,
-      2,
-    )).toMatchObject({ counterparty_account_id: 'joint-savings', counterparty_account_scope: 'tracked' })
+    expect(
+      buildUpdateTransactionPatch({ ...unchangedForm, counterparty_account_id: 'joint-savings' }, transaction, 2),
+    ).toMatchObject({ counterparty_account_id: 'joint-savings', counterparty_account_scope: 'tracked' })
 
     // Clearing the field back to unanswered sends nulls rather than omitting them
-    expect(buildUpdateTransactionPatch(
-      { ...unchangedForm, counterparty_account_id: '' },
-      transaction,
-      2,
-    )).toMatchObject({ counterparty_account_id: null, counterparty_account_scope: null })
+    expect(
+      buildUpdateTransactionPatch({ ...unchangedForm, counterparty_account_id: '' }, transaction, 2),
+    ).toMatchObject({ counterparty_account_id: null, counterparty_account_scope: null })
 
     // Moving to a non-transfer category leaves the pair out entirely, since the backend clears it itself
-    expect(buildUpdateTransactionPatch(
-      { ...unchangedForm, kind: 'expense', category_id: 'groceries' },
-      transaction,
-      2,
-    )).toEqual({ category_id: 'groceries' })
+    expect(
+      buildUpdateTransactionPatch({ ...unchangedForm, kind: 'expense', category_id: 'groceries' }, transaction, 2),
+    ).toEqual({ category_id: 'groceries' })
+  })
+})
+
+describe('the Add to ledger payload', () => {
+  // A bank item for $42.10 out, its merchant and category chosen
+  const reviewForm = {
+    kind: 'expense' as const,
+    direction: 'debit' as const,
+    account_id: 'everyday',
+    category_id: 'groceries',
+    merchant_id: 'countdown',
+    amount: '42.10',
+    currency: 'CAD',
+    notes: '',
+    date: '2026-09-21',
+    tag_ids: [],
+    symmetric_transfer: false,
+    counterparty_account_id: '',
+  }
+
+  it('sends the amount as entered, signed by its direction, and leaves the account and currency to the item', () => {
+    expect(buildAddReviewItemPayload({ ...reviewForm, amount: '40.00' }, 2)).toEqual({
+      dt: '2026-09-21',
+      category_id: 'groceries',
+      merchant_id: 'countdown',
+      amount: -4000,
+      notes: null,
+    })
+  })
+
+  it("sends a transfer's other account as an id and a scope", () => {
+    expect(
+      buildAddReviewItemPayload(
+        {
+          ...reviewForm,
+          kind: 'transfer',
+          direction: 'credit',
+          category_id: 'transfer',
+          amount: '500.00',
+          counterparty_account_id: 'savings',
+        },
+        2,
+      ),
+    ).toMatchObject({ amount: 50000, counterparty_account_id: 'savings', counterparty_account_scope: 'tracked' })
   })
 })
 

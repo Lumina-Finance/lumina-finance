@@ -1,9 +1,6 @@
-import { useMemo, useState, type FormEvent } from 'react'
-import {
-  useDeleteAccount,
-  useUpdateAccount,
-  type Account,
-} from '@/api/accounts'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useReducedMotion } from 'motion/react'
+import { useDeleteAccount, useUpdateAccount, type Account } from '@/api/accounts'
 import { useCurrencies } from '@/api/currency'
 import { FormError } from '@/components/forms/FormError'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -15,11 +12,7 @@ import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import InstitutionModal from '@/components/reference-modals/InstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { ModalShell } from '@/components/modal/Shell'
-import {
-  DEFAULT_MINOR_UNIT_EXPONENT,
-  findCurrencyExponent,
-  fromMinorUnits,
-} from '@/utils/moneyInput'
+import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { ACTION_LOADING_MIN_MS, LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
 import {
@@ -29,7 +22,11 @@ import {
   EDIT_ACCOUNT_IDENTITY_CONTROL_IDS,
   EDIT_ACCOUNT_IDENTITY_FIELD_IDS,
   EDIT_ACCOUNT_IDENTITY_FIELDS,
+  getArchiveBlockedByLinkReason,
+  getArchiveReason,
 } from '@/pages/accounts/detail/constants/accountDetail'
+import { BankLinkSection } from '@/pages/accounts/detail/components/bank-link/Section'
+import { useAccountBankLink } from '@/pages/accounts/detail/components/bank-link/useAccountBankLink'
 import {
   createIdentityFormValues,
   getIdentityFieldErrors,
@@ -54,10 +51,18 @@ type EditAccountIdentityModalProps = {
   onDeleteStarted: (account: Account) => void
   onDeleted: (account: Account) => void
   onDeleteFailed: () => void
+
+  /** Brings the Bank link section into view on opening, for an opening from the card's Bank sync fact */
+  showBankLink?: boolean
 }
 
 // Set on the heading inside the header component, which the dialog is labelled by
 const EDIT_ACCOUNT_IDENTITY_TITLE_ID = 'edit-account-identity-title'
+
+// The Bank link section is scrolled to once the panel has finished coming in, since a scroll measured
+// while the panel still moves lands short. The gap leaves the section's heading clear of the header
+const BANK_LINK_SCROLL_DELAY_MS = 260
+const BANK_LINK_SCROLL_GAP_PX = 16
 
 /**
  * Coordinates account identity edits, archive changes, and destructive deletion from one modal workflow
@@ -74,6 +79,7 @@ export default function EditAccountIdentityModal({
   onDeleteStarted,
   onDeleted,
   onDeleteFailed,
+  showBankLink = false,
 }: EditAccountIdentityModalProps) {
   const { data: currencies = [] } = useCurrencies()
   const currencyState = useCurrencyListState()
@@ -85,19 +91,46 @@ export default function EditAccountIdentityModal({
     error: taxAdvantagedCategoriesError,
     isError: taxAdvantagedCategoriesFailed,
   } = useTaxAdvantagedCategories()
-  const [form, setForm] = useState<IdentityFormValues>(() => (
-    createIdentityFormValues(account, currencies)
-  ))
+  const [form, setForm] = useState<IdentityFormValues>(() => createIdentityFormValues(account, currencies))
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteStage, setDeleteStage] = useState<DeleteStage>('idle')
   const [deleteNameInput, setDeleteNameInput] = useState('')
   const [saveDelayPending, setSaveDelayPending] = useState(false)
   const institutionModal = useInstitutionModal(institutions)
+  const {
+    shown: showsBankLinkSection,
+    ownPersonal,
+    status: bankStatus,
+    statusError: bankStatusError,
+  } = useAccountBankLink(account)
+  const bankLink = bankStatus?.link ?? null
+  const prefersReducedMotion = useReducedMotion()
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const bankLinkSectionRef = useRef<HTMLDivElement>(null)
+
+  // Scrolled by hand inside the modal's own scroll area, since scrollIntoView also scrolls the page behind
+  useEffect(() => {
+    if (!open || !showBankLink) return undefined
+    const timer = window.setTimeout(() => {
+      const area = scrollAreaRef.current
+      const section = bankLinkSectionRef.current
+      if (!area || !section) return
+      const offset = section.getBoundingClientRect().top - area.getBoundingClientRect().top
+      area.scrollTo({
+        top: area.scrollTop + offset - BANK_LINK_SCROLL_GAP_PX,
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      })
+    }, BANK_LINK_SCROLL_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [open, showBankLink, prefersReducedMotion])
 
   const isRevolving = account.account_kind === 'revolving'
-  const canLinkTaxAdvantagedCategory = account.account_kind === 'asset' && account.group_id === null && !account.is_archived
-  const selectedCurrencySymbol = currencies.some((currency) => currency.id === account.currency) ? formatCurrencySymbol(account.currency) : ''
+  const canLinkTaxAdvantagedCategory =
+    account.account_kind === 'asset' && account.group_id === null && !account.is_archived
+  const selectedCurrencySymbol = currencies.some((currency) => currency.id === account.currency)
+    ? formatCurrencySymbol(account.currency)
+    : ''
   const knownCreditLimitExponent = findCurrencyExponent(currencies, account.currency)
   const isCreditLimitLocked = isRevolving && knownCreditLimitExponent === null
   const refusal = useRefusedSubmit<(typeof EDIT_ACCOUNT_IDENTITY_FIELDS)[number]>(
@@ -112,19 +145,19 @@ export default function EditAccountIdentityModal({
     DELETE_ACCOUNT_CONTROL_IDS,
   )
 
-  const readyCreditLimit = knownCreditLimitExponent === null
-    ? null
-    : fromMinorUnits(account.credit_limit, knownCreditLimitExponent)
+  const readyCreditLimit =
+    knownCreditLimitExponent === null ? null : fromMinorUnits(account.credit_limit, knownCreditLimitExponent)
 
   // Each opening reseeds the form, so it also gets one new chance to restore a blank stored limit
   useRestoreOnceWhenReady({
     open,
     shouldRestore: isCreditLimitLocked && account.credit_limit !== null,
     readyValue: readyCreditLimit,
-    restore: (creditLimit) => setForm((current) => ({
-      ...current,
-      credit_limit: creditLimit,
-    })),
+    restore: (creditLimit) =>
+      setForm((current) => ({
+        ...current,
+        credit_limit: creditLimit,
+      })),
   })
 
   // The modal stays mounted between openings, so everything typed, failed or half-confirmed last time is
@@ -273,9 +306,27 @@ export default function EditAccountIdentityModal({
   const saveLoading = (updateAccount.isPending && deleteStage === 'idle') || saveDelayPending
   const isBusy = updateAccount.isPending || saveDelayPending || deleteLoading
   const hasEditableAccountContext = canLinkTaxAdvantagedCategory || isRevolving
-  const visibilitySectionNumber = hasEditableAccountContext ? '03' : '02'
+  // Sections number in order, so each one after a section the account leaves out moves up
+  const bankLinkSectionIndex = hasEditableAccountContext ? 3 : 2
+  const bankLinkSectionNumber = String(bankLinkSectionIndex).padStart(2, '0')
+  const visibilitySectionNumber = String(bankLinkSectionIndex + (showsBankLinkSection ? 1 : 0)).padStart(2, '0')
   const isArchiving = !account.is_archived && form.is_archived
-  const isArchiveBlocked = !account.is_archived && account.has_transactions_after_today
+
+  const archiveLinkedReason =
+    bankLink && !account.is_archived ? getArchiveBlockedByLinkReason(bankLink.provider_name) : null
+
+  // Left until the account is unlinked, so the switch gives one reason at a time
+  const isArchiveBlocked = !archiveLinkedReason && !account.is_archived && account.has_transactions_after_today
+
+  // The one reason archiving is unavailable, if any. The switch prints it and the delete panel's shortcut points to it
+  const archiveReason = getArchiveReason(archiveLinkedReason, isArchiveBlocked)
+
+  // A link holds archiving back, so archiving waits until the link has been read, but only where a
+  // link could exist. With bank sync not offered, a link that is still unread can't be there, so
+  // archiving doesn't wait. A read that failed leaves archiving to the server. It refuses
+  // a linked account with its reason
+  const isLinkLoading =
+    showsBankLinkSection && ownPersonal && !account.is_archived && bankStatus === undefined && bankStatusError === null
 
   /**
    * Blocks closing while a mutation is pending so user intent and network state cannot diverge
@@ -301,18 +352,18 @@ export default function EditAccountIdentityModal({
         {/* No layout animation here, for the reason given beside the panel in components/modal/Shell.tsx.
             The sections that appear and disappear animate their own height instead, and this form follows
             them because it is sized by what it holds */}
-        <form
-          onSubmit={handleSubmit}
-          className="flex min-h-0 w-full flex-col"
-          noValidate
-        >
-          <EditModalHeader
-            accountType={account.account_type}
-            isBusy={isBusy}
-            onClose={requestClose}
-          />
+        <form onSubmit={handleSubmit} className="flex min-h-0 w-full flex-col" noValidate>
+          <EditModalHeader accountType={account.account_type} isBusy={isBusy} onClose={requestClose} />
 
-          <div className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7" data-dropdown-bounds>
+          {/* The tooltips of a linked account flip and shift to stay within what this area shows, since the
+              Sync details and balance reasons need the room. Any other account's tooltips rise over the
+              header */}
+          <div
+            ref={scrollAreaRef}
+            className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7"
+            data-tooltip-bounds={bankLink ? true : undefined}
+            data-dropdown-bounds
+          >
             <div className="space-y-5">
               <AccountIdentitySection
                 form={form}
@@ -340,11 +391,25 @@ export default function EditAccountIdentityModal({
                 />
               )}
 
+              {showsBankLinkSection && (
+                <div ref={bankLinkSectionRef}>
+                  <BankLinkSection
+                    account={account}
+                    sectionNumber={bankLinkSectionNumber}
+                    autoFocus={showBankLink}
+                    onFinished={requestClose}
+                  />
+                </div>
+              )}
+
               <AccountArchiveSection
                 sectionNumber={visibilitySectionNumber}
                 isArchived={form.is_archived}
                 isArchiving={isArchiving}
                 isArchiveBlocked={isArchiveBlocked}
+                isLinkLoading={isLinkLoading}
+                archiveLinkedReason={archiveLinkedReason}
+                archiveReason={archiveReason}
                 currentBalance={account.current_balance}
                 currency={account.currency}
                 onToggle={handleArchiveToggle}
@@ -362,7 +427,8 @@ export default function EditAccountIdentityModal({
                 isBusy={isBusy}
                 nameError={deleteRefusal.errors.deleteName}
                 blockedReason={deleteRefusal.blockedReason}
-                isArchiveBlocked={isArchiveBlocked}
+                isLinkLoading={isLinkLoading}
+                archiveReason={archiveReason}
                 onArchiveInstead={handleArchiveInstead}
                 onContinue={() => {
                   setDeleteStage('type-name')
@@ -383,6 +449,7 @@ export default function EditAccountIdentityModal({
             saveBlockedReason={refusal.blockedReason}
             onCancel={requestClose}
             onStartDelete={handleStartDeleteAccount}
+            keepsToastClear={showsBankLinkSection}
           />
         </form>
       </ModalShell>

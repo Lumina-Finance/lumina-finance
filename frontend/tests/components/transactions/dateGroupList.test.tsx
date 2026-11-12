@@ -48,6 +48,7 @@ function transaction(id: string, amount: number): Transaction {
     updated_at: '2026-10-03T00:00:00Z',
     tag_ids: [],
     tags: [],
+    bank_source: null,
   }
 }
 
@@ -207,5 +208,29 @@ describe('a transaction with no exchange rate', () => {
 
     expect(unavailableCount(markup)).toBe(2)
     expect(markup.split('FX status for Oct 3, 2026').length - 1).toBe(1)
+  })
+})
+
+describe('day headings as the name of a row’s date', () => {
+  it('describe each row’s button by its own day, in the Upcoming section and the rest alike', () => {
+    const day = (dateLabel: string, id: string, amount: number) => ({
+      dateLabel,
+      transactions: [transaction(id, amount)],
+    })
+    const markup = renderHeadings([], {
+      dateGroups: [day('Oct 3, 2026', 'a', -100), day('Oct 2, 2026', 'b', 200)],
+      upcomingDateGroups: [day('Oct 9, 2026', 'u', 300)],
+      today: '2026-10-01',
+      isUpcomingExpanded: true,
+      onToggleUpcoming: () => {},
+    })
+
+    // The last id each title button is described by, after its category, account and amount, as the text it points at
+    const days = [...markup.matchAll(/<button [^>]*aria-describedby="(?:[^" ]+ )+([^" ]+)"/g)].map(
+      ([, id]) => markup.split(`id="${id}"`)[1]?.match(/^[^>]*>([^<]*)</)?.[1],
+    )
+
+    // A title for each of the row's two layouts, the Upcoming day's row first
+    expect(days).toEqual(['Oct 9, 2026', 'Oct 3, 2026', 'Oct 2, 2026'].flatMap((label) => [label, label]))
   })
 })

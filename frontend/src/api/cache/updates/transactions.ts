@@ -4,6 +4,8 @@ import {
   invalidateAccountBalances,
   invalidateAccountSpending,
   invalidateAccounts,
+  invalidateAllAccountBalances,
+  invalidateBankReviewItems,
   invalidateBudgets,
   invalidateDashboardBalance,
   invalidateDashboardBudgets,
@@ -84,6 +86,10 @@ const MERCHANT_ACTIVITY_FIELDS = new Set<keyof UpdateTransactionPayload>([
 // Usage is ranked by decayed transaction count, excluding Balance Adjustment categories
 const MERCHANT_USAGE_FIELDS = new Set<keyof UpdateTransactionPayload>(['dt', 'category_id', 'merchant_id'])
 
+// A waiting bank item shows its transaction's ledger date and amount, and goes once the transaction
+// moves out of its account
+const REVIEW_ITEM_FIELDS = new Set<keyof UpdateTransactionPayload>(['account_id', 'dt', 'amount'])
+
 function patchTouches(patch: UpdateTransactionPayload, fields: Set<keyof UpdateTransactionPayload>): boolean {
   return Object.keys(patch).some((key) => fields.has(key as keyof UpdateTransactionPayload))
 }
@@ -122,6 +128,38 @@ export function findCachedTransaction(queryClient: QueryClient, transactionId: s
     }
   }
   return undefined
+}
+
+/**
+ * Finds several cached transactions in one pass over the cache, as `findCachedTransaction` finds
+ * one, so a bulk action over many rows doesn't scan every cached list once for each
+ *
+ * @param queryClient - The client holding the cached transactions
+ * @param transactionIds - The transactions to find
+ * @returns Each transaction in the order asked, or undefined where none is cached
+ */
+export function findCachedTransactions(
+  queryClient: QueryClient,
+  transactionIds: readonly string[],
+): (Transaction | undefined)[] {
+  const wanted = new Set(transactionIds)
+  const found = new Map<string, Transaction>()
+  const transactionQueries = queryClient.getQueriesData<Transaction | Transaction[] | InfiniteData<Transaction[]>>({
+    queryKey: transactionKeys.all,
+    exact: false,
+  })
+
+  // The first copy found wins, the one findCachedTransaction would return
+  const keep = (transaction: Transaction) => {
+    if (wanted.has(transaction.id) && !found.has(transaction.id)) found.set(transaction.id, transaction)
+  }
+  for (const [, data] of transactionQueries) {
+    if (!data) continue
+    if (isInfiniteTransactionsData(data)) data.pages.forEach((page) => page.forEach(keep))
+    else if (Array.isArray(data)) data.forEach(keep)
+    else keep(data)
+  }
+  return transactionIds.map((id) => found.get(id))
 }
 
 /**
@@ -178,6 +216,43 @@ function withoutLinksTo(transaction: Transaction, removed: Set<string>): Transac
 }
 
 /**
+ * Puts the server's copy of a transaction in place of the cached one in every list and detail
+ *
+ * For a change that leaves every ledger value as it was, such as a review decision that only clears
+ * the Needs review marker, so the rows update without the lists refetching
+ *
+ * Only a list works out a row's amount in its account's currency and in the base currency, and its
+ * day's total adds them up, so the server's copy comes back without them and each row keeps its own. A
+ * caller whose change moves the amount or the date reads the lists again for new ones
+ */
+export function replaceCachedTransaction(queryClient: QueryClient, transaction: Transaction): void {
+  const replace = (item: Transaction): Transaction =>
+    item.id === transaction.id
+      ? { ...transaction, account_amount: item.account_amount, base_currency_amount: item.base_currency_amount }
+      : item
+  const transactionQueries = queryClient.getQueriesData<Transaction | Transaction[] | InfiniteData<Transaction[]>>({
+    queryKey: transactionKeys.all,
+    exact: false,
+  })
+
+  for (const [queryKey, data] of transactionQueries) {
+    if (!data) continue
+    if (isInfiniteTransactionsData(data)) {
+      if (!data.pages.some((page) => page.some((item) => item.id === transaction.id))) continue
+      queryClient.setQueryData<InfiniteData<Transaction[]>>(queryKey, {
+        ...data,
+        pages: data.pages.map((page) => page.map(replace)),
+      })
+    } else if (Array.isArray(data)) {
+      if (!data.some((item) => item.id === transaction.id)) continue
+      queryClient.setQueryData<Transaction[]>(queryKey, data.map(replace))
+    } else if (data.id === transaction.id) {
+      queryClient.setQueryData<Transaction>(queryKey, transaction)
+    }
+  }
+}
+
+/**
  * Reads cached account plan links without triggering a network request during invalidation
  */
 function getCachedAccountTaxAdvantagedCategoryId(
@@ -207,7 +282,7 @@ export interface AccountActivityInvalidationOptions {
 }
 
 /**
- * Invalidates exact account balances when account IDs are known, or falls back to the account list
+ * Invalidates exact account balances when account IDs are known, or falls back to every account's
  */
 function invalidateTransactionAccountBalances(queryClient: QueryClient, accountIds: string[]) {
   if (accountIds.length > 0) {
@@ -215,7 +290,7 @@ function invalidateTransactionAccountBalances(queryClient: QueryClient, accountI
     return
   }
 
-  invalidateAccounts(queryClient)
+  invalidateAllAccountBalances(queryClient)
 }
 
 /**
@@ -252,6 +327,39 @@ function invalidateTaxAdvantagedActivity(queryClient: QueryClient, accountIds: s
     accountIds.map((accountId) => getCachedAccountTaxAdvantagedCategoryId(queryClient, accountId)),
   )
   invalidateTaxAdvantagedCategories(queryClient, categoryIds)
+}
+
+/**
+ * Refreshes the review inbox when any of the transactions came from the bank, as when one is deleted,
+ * alone or among others, since that deletes any item waiting about it too
+ *
+ * @param transactions - The transactions as cached before the change, any of them unknown to the
+ * cache left undefined
+ */
+export function invalidateReviewIfFromBank(
+  queryClient: QueryClient,
+  transactions: ReadonlyArray<Pick<Transaction, 'bank_source'> | undefined>,
+): void {
+  if (transactions.some((transaction) => transaction?.bank_source)) invalidateBankReviewItems(queryClient)
+}
+
+/**
+ * Refreshes the review inbox when an edit reaches what a waiting item shows of a bank-imported
+ * transaction
+ *
+ * An item shows its transaction's ledger date and amount. The server reads them from the ledger each
+ * time it lists the item, and a move out of its account drops the transaction's bank record and the
+ * item with it. Any other field, such as the category, tags or notes, leaves every item as it was
+ *
+ * @param transactions - The transactions the edit reached, as cached before it and as the server
+ * answered, any of them unknown to the cache left undefined
+ */
+export function invalidateReviewOfEditedBankTransactions(
+  queryClient: QueryClient,
+  transactions: ReadonlyArray<Pick<Transaction, 'bank_source'> | undefined>,
+  patch: UpdateTransactionPayload,
+): void {
+  if (patchTouches(patch, REVIEW_ITEM_FIELDS)) invalidateReviewIfFromBank(queryClient, transactions)
 }
 
 /**
@@ -339,6 +447,17 @@ export function invalidatePatchedTransactionData(
 
 /**
  * Invalidates the cached views a bulk transaction edit changed
+ */
+export function invalidateBulkUpdatedTransactionData(
+  queryClient: QueryClient,
+  payload: BulkUpdateTransactionsPayload,
+  accountIds: string[],
+) {
+  invalidatePatchedTransactionData(queryClient, readBulkEditAsPatch(payload), accountIds)
+}
+
+/**
+ * Reads a bulk edit as the single-transaction patch whose fields it could change on any row
  *
  * The field sets above are written against a single-transaction patch, so the bulk request has to
  * be read in those terms first. Its tag field is named differently and would otherwise match
@@ -346,11 +465,7 @@ export function invalidatePatchedTransactionData(
  * account activity, leaving the figures on the Accounts page wrong until something else refetched
  * them
  */
-export function invalidateBulkUpdatedTransactionData(
-  queryClient: QueryClient,
-  payload: BulkUpdateTransactionsPayload,
-  accountIds: string[],
-) {
+export function readBulkEditAsPatch(payload: BulkUpdateTransactionsPayload): UpdateTransactionPayload {
   const patch: UpdateTransactionPayload = {}
   if (payload.category_id !== undefined) patch.category_id = payload.category_id
   if (payload.merchant_id !== undefined) patch.merchant_id = payload.merchant_id
@@ -370,6 +485,5 @@ export function invalidateBulkUpdatedTransactionData(
   // Every bulk edit drops a counterparty account left recorded under a category that does not
   // record one, so the totals reading that field are refreshed whatever the request set
   patch.counterparty_account_id = null
-
-  invalidatePatchedTransactionData(queryClient, patch, accountIds)
+  return patch
 }

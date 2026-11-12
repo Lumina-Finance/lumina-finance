@@ -3,7 +3,9 @@
 The database records the key's fingerprint, written by the migration that introduced the hashes.
 The app refuses to start under any other key, and provisioning refuses to generate one over a
 database that has a key. An operator who has lost the key accepts the cost of a new one with
-reset-key: every statement imported again then brings back the transactions already saved from it
+reset-key: every statement imported again then brings back the transactions already saved from it, and
+bank sync sends the transactions it fetches again back for review and stops correcting or removing the
+ones already saved
 """
 
 import asyncio
@@ -22,6 +24,14 @@ FINGERPRINT_TABLE = "bank_transaction_key_fingerprint"
 # What the container's maintenance command is called, run with the stack stopped
 RESET_COMMAND = "docker compose run --rm app reset-bank-transaction-hash-key"
 
+# What a reset costs, as a clause that follows "accept that". A bank sync hashes its provider IDs under
+# this key as well, and each sync fetches the last days again
+RESET_COST = (
+    "statements imported again will bring back the transactions already saved from them, "
+    "bank sync will send its recently fetched transactions back for review even where you approved them, "
+    "and the bank's corrections and removals will stop reaching the transactions already saved"
+)
+
 
 def _key_locations() -> str:
     """Name the two places a key is read from"""
@@ -32,8 +42,7 @@ def _way_forward() -> str:
     """Say how to recover, and what the one way that keeps no key costs"""
     return (
         f"Restore that key to {_key_locations()}. If it is lost, run `{RESET_COMMAND}` to start over "
-        f"with the key now set, or a new one, and accept that statements imported again will bring "
-        f"back the transactions already saved from them"
+        f"with the key now set, or a new one, and accept that {RESET_COST}"
     )
 
 
@@ -123,8 +132,9 @@ async def verify_key_matches_hashes(connection: AsyncConnection) -> None:
 async def reset_key(engine: AsyncEngine) -> None:
     """Bind the database to the key now set, or a newly generated one, giving up the old hashes
 
-    The transactions keep their old hashes, which no statement will match again, so each one
-    imported again is brought in as new. A generated key is persisted only once its fingerprint is
+    The transactions keep their old hashes. No statement or bank sync will match them again, so
+    each one imported or fetched again is brought in as new, and the bank's later corrections and
+    removals for them find no transaction. A generated key is persisted only once its fingerprint is
     recorded, so a reset that fails before then changes nothing. One that fails while writing the
     key file leaves the database recording a key that is not saved, and runs again once the
     problem is fixed and any partly written key file is deleted
@@ -146,10 +156,7 @@ async def reset_key(engine: AsyncEngine) -> None:
         bank_transaction_key.persist_key(generated)
         print(f"Generated bank transaction hash key at {bank_transaction_key.KEY_FILE}", file=sys.stderr)
 
-    print(
-        "Recorded the bank transaction hash key now in use. Statements imported again will bring back the transactions already saved from them",
-        file=sys.stderr,
-    )
+    print(f"Recorded the bank transaction hash key now in use. As a result, {RESET_COST}", file=sys.stderr)
 
 
 async def _run_ensure_key() -> None:

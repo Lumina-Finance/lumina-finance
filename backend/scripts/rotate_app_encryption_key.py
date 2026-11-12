@@ -46,10 +46,7 @@ async def _count_app_connections(connection: AsyncConnection) -> int:
     database would refuse on any cluster hosting a second deployment using these role names
     """
     return await connection.scalar(
-        text(
-            "SELECT count(*) FROM pg_stat_activity "
-            "WHERE usename = :app_user AND datname = current_database() AND pid <> pg_backend_pid()"
-        ),
+        text("SELECT count(*) FROM pg_stat_activity WHERE usename = :app_user AND datname = current_database() AND pid <> pg_backend_pid()"),
         {"app_user": APP_DB_USER},
     )
 
@@ -57,15 +54,18 @@ async def _count_app_connections(connection: AsyncConnection) -> int:
 async def _refuse_while_the_app_is_running(connection: AsyncConnection) -> None:
     """Raise while the app role still holds a connection to this database
 
+    The app and the bank sync worker both connect as the app role, and the worker reconnects
+    within seconds, so the message asks for both to be stopped
+
     Raises:
-        RotationError: The app is still connected, so a secret written during the rotation
-            would be encrypted under the old key onto a row already rewritten
+        RotationError: The app or the worker is still connected, so a secret written during the
+            rotation would be encrypted under the old key onto a row already rewritten
     """
     if await _count_app_connections(connection):
         raise RotationError(
-            "Refusing to rotate: the main app appears to be running. Main app must be stopped "
-            "before rotating any keys. If you are seeing this after stopping the app, please "
-            "restart the pg database and try again with key rotation"
+            "Refusing to rotate: the app or the bank sync worker is still connected to the database. "
+            "Stop both before rotating the key. If both are already stopped, restart PostgreSQL to "
+            "close their leftover connections, then try again"
         )
 
 
@@ -101,7 +101,6 @@ async def _rewrite_column(
         try:
             plaintext = current.decrypt(row.value.encode())
         except InvalidToken as error:
-
             # InvalidToken carries no message, so raising it as it stands would give the
             # operator a traceback naming neither the column nor the fact that the
             # transaction takes every other rewrite back with it
@@ -225,10 +224,7 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
     current_key = _resolve_current_key()
 
     if current_key is not None and current_key == new_key:
-        raise RotationError(
-            "Refusing to rotate: the new key is the key already in use, so this would report "
-            "success while changing nothing"
-        )
+        raise RotationError("Refusing to rotate: the new key is the key already in use, so this would report success while changing nothing")
 
     import_all_models()
     columns = find_encrypted_columns(Base.metadata)
@@ -242,7 +238,6 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
             return None
 
         if current_key is None:
-
             # Reported here rather than where the key was resolved, so a run that turned out
             # to be finishing an interrupted rotation is never stopped by it
             encryption.resolve_encryption_key(generate=False)
@@ -257,15 +252,11 @@ async def rotate_encryption_key(engine: AsyncEngine, new_key: str) -> dict[tuple
 
     current = Fernet(current_key.encode())
     async with engine.begin() as connection:
-
         # Re-checked inside the transaction, since the app can reconnect between the first
         # count and here. It narrows the window rather than closing it
         await _refuse_while_the_app_is_running(connection)
 
-        rewritten = {
-            (table, column): await _rewrite_column(connection, table, column, current, replacement)
-            for table, column in columns
-        }
+        rewritten = {(table, column): await _rewrite_column(connection, table, column, current, replacement) for table, column in columns}
         await record_fingerprint(connection, new_key)
 
     _delete_stale_key_file()
@@ -281,11 +272,9 @@ def _delete_stale_key_file() -> None:
     try:
         encryption.KEY_FILE.unlink()
     except FileNotFoundError:
-
         # The deployment configures its key through the environment, so there is no file
         return
     except OSError as error:
-
         # The rotation has already committed, so a file that cannot be removed is a note for
         # the operator rather than a failure. Raising would report the whole run as failed
         print(f"Could not remove the stale key file at {encryption.KEY_FILE}: {error}", file=sys.stderr)
@@ -351,7 +340,6 @@ def main() -> None:
     try:
         asyncio.run(_run_rotation(new_key))
     except RuntimeError as error:
-
         # RotationError and the errors raised while resolving a key are both RuntimeError,
         # and an operator has to act on either. Framed for the same reason as the closing
         # instruction: a bare traceback among the compose output is the thing they miss

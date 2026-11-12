@@ -16,6 +16,8 @@ from typing import NamedTuple
 from sqlalchemy import Connection, text
 
 from app.config.imports import ABANDONED_RUN_AGE, IMPORT_UNDO_WINDOW
+from app.models.bank_connection import FRESH_DISCOVERY_AGE
+from app.models.bank_sync_job import CLAIM_RANK
 
 # Schema-qualified helper names, the single source reused by the policies and the
 # application call sites so a rename is one edit rather than a search across files
@@ -30,6 +32,39 @@ USER_TZ = "public.user_tz"
 BUMP_GROUP_MEMBER_CACHE = "public.bump_group_member_cache"
 BUDGET_SPEND_ROWS = "public.budget_spend_rows"
 PRUNE_EXPIRED_IMPORT_RUNS = "public.prune_expired_import_runs"
+CLAIM_BANK_SYNC_JOBS = "public.claim_bank_sync_jobs"
+LIST_DUE_BANK_CONNECTIONS = "public.list_due_bank_connections"
+RECORD_BANK_SYNC_SCAN = "public.record_bank_sync_scan"
+PRUNE_FINISHED_BANK_SYNC_JOBS = "public.prune_finished_bank_sync_jobs"
+MIGRATION_REVISIONS = "public.migration_revisions"
+
+# The worker functions see across users. Only the worker, connecting with no request
+# identity, may do that. Refusing a call made under an identity keeps a request from reaching them
+_REFUSE_UNDER_A_REQUEST_IDENTITY = f"""
+        IF {CURRENT_USER_ID}() IS NOT NULL THEN
+            RAISE EXCEPTION 'Only the bank sync worker may call this'
+                USING ERRCODE = 'insufficient_privilege';
+        END IF;"""
+
+# A claimed job's kind ranked in claim order, from the job model's ranking. The merge of new work into a
+# queued job ranks by the model in Python, and the claim function holds this copy, so a change to the
+# ranking reaches a database only through a migration that recreates the helpers
+_CLAIM_RANK_OF_KIND = "CASE j.kind " + " ".join(f"WHEN '{kind}' THEN {rank}" for kind, rank in CLAIM_RANK.items()) + " END"
+
+# The connection model's age at which a listing is no longer fresh, as an interval. The link flow
+# compares against the model in Python, and the due scan function holds this copy, so a change to the
+# age reaches a database only through a migration that recreates the helpers
+_FRESH_DISCOVERY_AGE = f"interval '{int(FRESH_DISCOVERY_AGE.total_seconds())} seconds'"
+
+# How long a claimed job holds its claim before another run may take it. The worker's job time limit is
+# set well inside it, so a job is stopped before a later attempt could claim it. Copied into the claim
+# function, so a change reaches a database only through a migration that recreates the helpers
+_JOB_LEASE = "interval '10 minutes'"
+
+# How long a finished job row is kept before the expired-record cleanup deletes it, the retention the
+# design sets for job rows. Copied into the function that prunes them, so a change reaches a database
+# only through a migration that recreates the helpers
+_FINISHED_JOB_RETENTION = "interval '30 days'"
 
 # Signatures the app no longer creates, dropped wherever the helpers are applied or revoked.
 # bump_user_cache stamped whatever user id it was given, and the app role can execute every
@@ -279,6 +314,134 @@ _HELPERS: tuple[_Helper, ...] = (
     $$
     """,
         f"{PRUNE_EXPIRED_IMPORT_RUNS}()",
+    ),
+    # The bank sync worker's functions are plpgsql and their bodies are resolved only when they run,
+    # because the bootstrap migration creates every helper before the bank sync tables exist.
+    # Each returns only what the worker needs to go on as the owning user
+    #
+    # Claim the next due jobs across every user, initial and manual first. A queued job waits
+    # while its connection has a job running, and a running job whose lease ran out is claimed
+    # again as a new attempt, so a crashed worker's job resumes and its first runner can tell it
+    # no longer holds it. SKIP LOCKED keeps two workers claiming at once from taking one job
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {CLAIM_BANK_SYNC_JOBS}(p_limit integer)
+    RETURNS TABLE (job_id uuid, owner_id uuid, connection_id uuid, kind text, discover boolean, attempt integer)
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+    #variable_conflict use_column
+    BEGIN{_REFUSE_UNDER_A_REQUEST_IDENTITY}
+
+        RETURN QUERY
+        WITH claimable AS (
+            SELECT j.id FROM public.bank_sync_jobs j
+            WHERE (
+                j.status = 'queued' AND j.run_after <= now()
+                AND NOT EXISTS (
+                    SELECT 1 FROM public.bank_sync_jobs r
+                    WHERE r.connection_id = j.connection_id AND r.status = 'running'
+                )
+            ) OR (j.status = 'running' AND j.lease_expires_at <= now())
+            ORDER BY
+                {_CLAIM_RANK_OF_KIND},
+                j.run_after,
+                j.created_at
+            LIMIT p_limit
+            FOR UPDATE OF j SKIP LOCKED
+        )
+        UPDATE public.bank_sync_jobs j
+        SET status = 'running', attempt = j.attempt + 1, lease_expires_at = now() + {_JOB_LEASE}
+        FROM claimable c
+        WHERE j.id = c.id
+        RETURNING j.id, j.owner_id, j.connection_id, j.kind::text, j.discover, j.attempt;
+    END
+    $$
+    """,
+        f"{CLAIM_BANK_SYNC_JOBS}(integer)",
+    ),
+    # The connections due for a scheduled sync, by id and owner only. A rejected credential
+    # stops automatic sync until the user reconnects. A connection whose bank accounts were never
+    # listed, such as one whose claim stopped mid-listing, is due once nothing is queued or running
+    # for it and FRESH_DISCOVERY_AGE has passed since it was claimed or its last listing failed
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {LIST_DUE_BANK_CONNECTIONS}(p_now timestamptz)
+    RETURNS TABLE (connection_id uuid, owner_id uuid)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+    #variable_conflict use_column
+    BEGIN{_REFUSE_UNDER_A_REQUEST_IDENTITY}
+
+        RETURN QUERY
+        SELECT c.id, c.owner_id FROM public.bank_connections c
+        WHERE c.credential_rejected_at IS NULL
+            AND (
+                c.next_sync_at <= p_now
+                OR (
+                    c.discovered_at IS NULL
+                    AND GREATEST(c.created_at, c.discovery_failed_at) <= p_now - {_FRESH_DISCOVERY_AGE}
+                    AND NOT EXISTS (
+                        SELECT 1 FROM public.bank_sync_jobs j
+                        WHERE j.connection_id = c.id AND j.status IN ('queued', 'running')
+                    )
+                )
+            )
+        ORDER BY c.next_sync_at;
+    END
+    $$
+    """,
+        f"{LIST_DUE_BANK_CONNECTIONS}(timestamptz)",
+    ),
+    # Stamp the worker's heartbeat after a due scan. The heartbeat is its table's one row, id 1
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {RECORD_BANK_SYNC_SCAN}(p_now timestamptz) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+    BEGIN{_REFUSE_UNDER_A_REQUEST_IDENTITY}
+
+        INSERT INTO public.bank_sync_heartbeat (id, last_scan_at) VALUES (1, p_now)
+        ON CONFLICT (id) DO UPDATE SET last_scan_at = EXCLUDED.last_scan_at;
+    END
+    $$
+    """,
+        f"{RECORD_BANK_SYNC_SCAN}(timestamptz)",
+    ),
+    # Deletes every user's jobs finished longer ago than the retention. A sweep with no request
+    # identity could not see them through the owner policy. The retention is written into the body rather
+    # than taken as an argument, since the app role can execute every helper and must not be able to
+    # choose a shorter one. Written in plpgsql so creating it does not check the table exists
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {PRUNE_FINISHED_BANK_SYNC_JOBS}() RETURNS integer
+    LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+    DECLARE
+        pruned integer;
+    BEGIN
+        WITH deleted AS (
+            DELETE FROM public.bank_sync_jobs WHERE finished_at < now() - {_FINISHED_JOB_RETENTION} RETURNING 1
+        )
+        SELECT count(*)::integer INTO pruned FROM deleted;
+        RETURN pruned;
+    END
+    $$
+    """,
+        f"{PRUNE_FINISHED_BANK_SYNC_JOBS}()",
+    ),
+    # The revisions the database is migrated to. The worker compares them with the head it
+    # ships before it starts. The app role can't read the migration history itself, and the
+    # revision says nothing about any user, so this one refuses no one. A database never
+    # migrated, such as the test schema built from the models, has no history and returns none
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {MIGRATION_REVISIONS}() RETURNS SETOF text
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+    BEGIN
+        IF to_regclass('public.alembic_version') IS NULL THEN
+            RETURN;
+        END IF;
+        RETURN QUERY SELECT version_num::text FROM public.alembic_version;
+    END
+    $$
+    """,
+        f"{MIGRATION_REVISIONS}()",
     ),
 )
 

@@ -1,3 +1,4 @@
+import type { AddReviewItemPayload } from '@/api/bank-sync'
 import type {
   CreateTransactionPayload,
   Transaction,
@@ -50,6 +51,21 @@ export function buildCreateTransactionPayload(
   // Every other category rejects the pair outright, so it is only ever sent for a transfer
   if (form.kind === 'transfer') Object.assign(payload, splitCounterpartyAccountSelection(form.counterparty_account_id))
   return payload
+}
+
+/**
+ * Builds the Add to ledger payload for a bank item after the form has passed validation
+ *
+ * The transaction goes into the item's own account in that account's currency. The server
+ * takes both from the item, so the payload names neither
+ */
+export function buildAddReviewItemPayload(
+  form: TransactionFormValues,
+  selectedCurrencyExponent: number,
+): AddReviewItemPayload {
+  const { dt, category_id, merchant_id, amount, notes, tag_ids, counterparty_account_id, counterparty_account_scope } =
+    buildCreateTransactionPayload(form, selectedCurrencyExponent)
+  return { dt, category_id, merchant_id, amount, notes, tag_ids, counterparty_account_id, counterparty_account_scope }
 }
 
 /**
