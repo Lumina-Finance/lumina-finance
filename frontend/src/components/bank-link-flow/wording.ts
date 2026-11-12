@@ -21,17 +21,17 @@ export const LINK_FLOW_WORDING: Record<LinkFlowMode, { title: string; submitLabe
   link: {
     title: 'Link bank account',
     submitLabel: 'Link and import',
-    confirmation: 'Linked to a bank account. Syncing starts shortly.',
+    confirmation: 'Link ready. Syncing starts soon.',
   },
   relink: {
     title: 'Reconnect bank account',
     submitLabel: 'Relink',
-    confirmation: 'Relinked to a bank account. Syncing starts shortly.',
+    confirmation: 'Relink ready. Syncing starts soon.',
   },
   choose_again: {
     title: 'Choose bank account again',
     submitLabel: 'Relink',
-    confirmation: 'Relinked to a bank account. Syncing starts shortly.',
+    confirmation: 'Relink ready. Syncing starts soon.',
   },
 }
 

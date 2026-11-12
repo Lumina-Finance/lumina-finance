@@ -220,9 +220,9 @@ describe('a removal', () => {
 
     const rows = FIELDS.map((field) => rowOf(markup, field))
     expect(rows.map(({ cells }) => cells.slice(1).map(({ text }) => text))).toEqual([
-      ['Sep 21, 2026', 'Gone from the bank'],
-      [`${MINUS}$18.00`, 'Gone from the bank'],
-      ['UBER TRIP', 'Gone from the bank'],
+      ['Sep 21, 2026', 'Gone'],
+      [`${MINUS}$18.00`, 'Gone'],
+      ['UBER TRIP', 'Gone'],
     ])
     expect(rows.map(({ tint }) => tint)).toEqual([undefined, undefined, undefined])
     expect(rows.map(({ note }) => note)).toEqual([undefined, undefined, undefined])

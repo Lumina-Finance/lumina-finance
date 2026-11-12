@@ -204,7 +204,7 @@ test('adds a connection with a nickname and lists it with its bank accounts', NE
   await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
-  await expect(toast(page, 'Joint banks connected with 2 bank accounts.')).toBeVisible()
+  await expect(toast(page, 'Connected to Joint banks with 2 bank accounts.')).toBeVisible()
   await expect(dialog).toBeHidden()
   const row = connectionRow(section, 'Joint banks')
   await expect(row).toContainText('0 of 2')
@@ -425,7 +425,7 @@ test('waits on after a gateway timeout, and closes as connected once the server 
 
   listed = true
   await expect(dialog).toBeHidden()
-  await expect(toast(page, 'SimpleFIN connected with 2 bank accounts.')).toBeVisible()
+  await expect(toast(page, 'Connected to SimpleFIN with 2 bank accounts.')).toBeVisible()
   await expect(connectionRow(section, 'SimpleFIN')).toContainText('0 of 2')
   expect(failedClaims).toEqual([])
 })
@@ -477,7 +477,7 @@ test('takes a nickname of any length typed and refuses one over the limit once C
   await nickname.fill('n'.repeat(64))
   await expect(nickname).not.toHaveAttribute('aria-invalid')
   await add.getByRole('button', { name: 'Connect' }).click()
-  await expect(toast(page, `${'n'.repeat(64)} connected with 2 bank accounts.`)).toBeVisible()
+  await expect(toast(page, `Connected to ${'n'.repeat(64)} with 2 bank accounts.`)).toBeVisible()
 
   const dialog = await openConnection(page, section, 'n'.repeat(64))
   await dialog.getByRole('button', { name: 'Rename' }).click()
@@ -841,10 +841,10 @@ test('links a bank account from the connection, importing from the start chosen'
     start_date: firstOfMonthsAgo(3),
   })
   await expect(dialog.getByRole('status').filter({ hasText: 'Linking…' })).toBeVisible()
-  await expect(toast(page, 'Linked to a bank account. Syncing starts shortly.')).toBeVisible()
+  await expect(toast(page, 'Link ready. Syncing starts soon.')).toBeVisible()
   await expect(flow).toBeHidden()
   // The connection fills the screen on a phone but has no footer, so the message stays in the corner
-  await expectMessageInCorner(toast(page, 'Linked to a bank account. Syncing starts shortly.'))
+  await expectMessageInCorner(toast(page, 'Link ready. Syncing starts soon.'))
   await expect(dialog.getByRole('link', { name: 'Household' })).toBeVisible()
   await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('1 of 2 linked')
 

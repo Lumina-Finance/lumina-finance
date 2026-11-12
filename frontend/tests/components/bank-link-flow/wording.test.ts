@@ -70,17 +70,17 @@ describe('the link flow wording', () => {
       {
         title: 'Link bank account',
         submitLabel: 'Link and import',
-        confirmation: 'Linked to a bank account. Syncing starts shortly.',
+        confirmation: 'Link ready. Syncing starts soon.',
       },
       {
         title: 'Reconnect bank account',
         submitLabel: 'Relink',
-        confirmation: 'Relinked to a bank account. Syncing starts shortly.',
+        confirmation: 'Relink ready. Syncing starts soon.',
       },
       {
         title: 'Choose bank account again',
         submitLabel: 'Relink',
-        confirmation: 'Relinked to a bank account. Syncing starts shortly.',
+        confirmation: 'Relink ready. Syncing starts soon.',
       },
     ])
   })

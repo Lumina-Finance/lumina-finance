@@ -153,7 +153,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
         <div className="overflow-hidden rounded-xl border" style={{ borderColor: 'var(--app-border)' }}>
           <table className="w-full table-fixed border-collapse text-sm">
             {/* The labels column fits its longest word, wrapping "Bank description", so the values have the
-                room. A removal's bank column fits "Gone from the bank" on one line on a phone */}
+                room. A removal's bank column fits "Gone" on one line on a phone */}
             <colgroup>
               <col className="w-25" />
               <col />
@@ -209,7 +209,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
                     </td>
                     {isRemoval ? (
                       <td className={`${CELL_CLASS_NAME} py-2.5`} style={{ color: 'var(--app-text-muted)' }}>
-                        Gone from the bank
+                        Gone
                       </td>
                     ) : (
                       <td

@@ -136,7 +136,7 @@ async function linkFromEditAccount(page: Page, request: APIRequestContext): Prom
     answer.url() === `${API_BASE_URL}/accounts/${everyday.id}/bank-link` && answer.request().method() === 'POST')
   await flow.getByRole('button', { name: 'Link and import' }).click()
   expect((await linked).ok()).toBe(true)
-  const message = toast(page, 'Linked to a bank account. Syncing starts shortly.')
+  const message = toast(page, 'Link ready. Syncing starts soon.')
   await runClockUntil(page, async () => await flow.isHidden() && await message.isVisible()
     && await message.evaluate((element) => getComputedStyle(element).opacity) === '1')
   return { dialog, message }
@@ -358,7 +358,7 @@ test('links an account from its page, from choosing the bank account to its impo
       external_account_id: externalIdOf(connection, SAMPLE_CHEQUING),
       start_date: firstOfMonthsAgo(3),
     })
-    await expect(toast(page, 'Linked to a bank account. Syncing starts shortly.')).toBeVisible()
+    await expect(toast(page, 'Link ready. Syncing starts soon.')).toBeVisible()
     await expect(flow).toBeHidden()
     await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
     await expect(fact(dialog, 'Institution')).toHaveText(SAMPLE_BANK)
@@ -483,7 +483,7 @@ test('reminds the user the import waits for more links in the Bank link section,
   await chooseFirstStart(flow)
   await flow.getByRole('button', { name: 'Link and import' }).click()
 
-  await expect(toast(page, 'Linked to a bank account. Syncing starts shortly.')).toBeVisible()
+  await expect(toast(page, 'Link ready. Syncing starts soon.')).toBeVisible()
   await expect(flow).toBeHidden()
   await expect(dialog.getByText(IMPORT_REMINDER)).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Start now' })).toHaveCount(0)
@@ -569,8 +569,8 @@ test("brings an account sent to settings for its first connection back to its li
   // The account's page opens with its link flow over it, listing the new connection's bank accounts,
   // and the confirmation leaves out where to link them
   await expect(page).toHaveURL(new RegExp(`/accounts/${everyday.id}$`))
-  await expect(toast(page, 'SimpleFIN connected with 2 bank accounts.')).toBeVisible()
-  await expect(toast(page, 'SimpleFIN connected')).not.toContainText('Please link each bank account')
+  await expect(toast(page, 'Connected to SimpleFIN with 2 bank accounts.')).toBeVisible()
+  await expect(toast(page, 'Connected to SimpleFIN')).not.toContainText('Please link each bank account')
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
   await expect(flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) })).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
   await expect(page.getByRole('dialog')).toHaveCount(1)
@@ -791,7 +791,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', NE
   await chooseFirstStart(flow)
   await flow.getByRole('button', { name: 'Relink' }).click()
 
-  await expect(toast(page, 'Relinked to a bank account. Syncing starts shortly.')).toBeVisible()
+  await expect(toast(page, 'Relink ready. Syncing starts soon.')).toBeVisible()
   await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
 })
 

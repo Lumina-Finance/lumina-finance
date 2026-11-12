@@ -191,7 +191,7 @@ test('removes a transaction the bank no longer reports, reading the ledger again
   const dialog = await openComparison(page, 'UBER TRIP', 'Review bank removal')
 
   // On one line in each row, even on a phone
-  const gone = dialog.getByRole('cell', { name: 'Gone from the bank' })
+  const gone = dialog.getByRole('cell', { name: 'Gone', exact: true })
   await expect(gone).toHaveCount(3)
   for (const cell of await gone.all()) expect(await linesOf(cell)).toBe(1)
 
