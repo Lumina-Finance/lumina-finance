@@ -132,24 +132,24 @@ describe('the summary of an edit that adds items waiting for review', () => {
 
 describe('the toasts after a bulk decision', () => {
   it('says how many were added and updated, and how many still wait', () => {
-    expect(describeBulkAdd(4, 0, null)).toBe('4 items added to your ledger.')
+    expect(describeBulkAdd(4, 0, null)).toBe('Added 4 items to your ledger.')
     expect(describeBulkAdd(2, 1, null)).toBe(
-      "2 items added to your ledger. 1 item couldn't be added and still waits for review.",
+      "Added 2 items to your ledger. 1 item couldn't be added and still waits for review.",
     )
-    expect(describeBulkAdd(2, 0, 3)).toBe('2 items added to your ledger and 3 transactions updated.')
+    expect(describeBulkAdd(2, 0, 3)).toBe('Added 2 items to your ledger and updated 3 transactions.')
     expect(describeBulkAdd(1, 2, 1)).toBe(
-      "1 item added to your ledger and 1 transaction updated. 2 items couldn't be added and still wait for review.",
+      "Added 1 item to your ledger and updated 1 transaction. 2 items couldn't be added and still wait for review.",
     )
   })
 
   it('says the items went in when the ledger update was then refused', () => {
     expect(describeAddedButNotUpdated(2, 'A transaction was changed elsewhere.')).toBe(
-      "2 items added to your ledger, but the ticked transactions weren't updated. A transaction was changed elsewhere.",
+      "Added 2 items to your ledger, but the app didn't update the ticked transactions. A transaction was changed elsewhere.",
     )
   })
 
   it('says how many were dismissed, and how many still wait', () => {
-    expect(describeBulkDismiss(5, 0)).toBe('5 items dismissed.')
-    expect(describeBulkDismiss(1, 1)).toBe("1 item dismissed. 1 item couldn't be dismissed and still waits for review.")
+    expect(describeBulkDismiss(5, 0)).toBe('Dismissed 5 items.')
+    expect(describeBulkDismiss(1, 1)).toBe("Dismissed 1 item. 1 item couldn't be dismissed and still waits for review.")
   })
 })

@@ -171,7 +171,7 @@ test('adds the ticked items to the ledger at their bank amounts once a merchant 
 
   // Items waiting for review aren't in the ledger, so they can't be deleted or exported
   const deleteAction = page.getByRole('button', { name: 'Delete the selected transactions', exact: true })
-  await expect(deleteAction).toHaveAccessibleDescription('Items waiting for review are dismissed, not deleted')
+  await expect(deleteAction).toHaveAccessibleDescription('Items waiting for review need Dismiss, not Delete')
   await expect(page.getByRole('button', { name: 'Export selected', exact: true })).toHaveAccessibleDescription(
     "Items waiting for review aren't in your ledger yet",
   )
@@ -209,7 +209,7 @@ test('adds the ticked items to the ledger at their bank amounts once a merchant 
   expect((await saved).status()).toBe(200)
 
   await expect(edit).toBeHidden()
-  await expect(page.getByText('2 items added to your ledger.', { exact: true })).toBeVisible()
+  await expect(page.getByText('Added 2 items to your ledger.', { exact: true })).toBeVisible()
   expect(await readWaiting(request, user, everyday.id)).toEqual([CAFE.description])
 
   const groceries = await findReferenceId(request, user, 'categories', 'Groceries')
@@ -227,7 +227,7 @@ test('adds a ticked item and updates a ticked ledger transaction in one edit', N
 
   // A ledger transaction in the selection can't be dismissed
   const dismiss = page.getByRole('button', { name: 'Dismiss the selected items', exact: true })
-  await expect(dismiss).toHaveAccessibleDescription('Only items waiting for review can be dismissed')
+  await expect(dismiss).toHaveAccessibleDescription('Dismiss works only on items waiting for review')
 
   await page.getByRole('button', { name: 'Edit the selected transactions', exact: true }).click()
   const edit = page.getByRole('dialog', { name: 'Add 1 item and update 1 transaction', exact: true })
@@ -244,7 +244,7 @@ test('adds a ticked item and updates a ticked ledger transaction in one edit', N
   expect((await added).status()).toBe(200)
   expect((await updated).status()).toBe(200)
 
-  await expect(page.getByText('1 item added to your ledger and 1 transaction updated.', { exact: true })).toBeVisible()
+  await expect(page.getByText('Added 1 item to your ledger and updated 1 transaction.', { exact: true })).toBeVisible()
   const dining = await findReferenceId(request, user, 'categories', 'Dining')
   expect(await readWaiting(request, user, everyday.id)).toEqual([])
   expect((await readTransaction(request, user, ledgerId)).category_id).toBe(dining)
@@ -289,7 +289,7 @@ test('dismisses the ticked items together and leaves the ledger as it was', NEED
   await confirmation.getByRole('button', { name: 'Dismiss', exact: true }).click()
   expect((await saved).status()).toBe(200)
 
-  await expect(page.getByText('2 items dismissed.', { exact: true })).toBeVisible()
+  await expect(page.getByText('Dismissed 2 items.', { exact: true })).toBeVisible()
   expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
   expect(await readLedger(request, user, everyday.id)).toEqual([])
 })

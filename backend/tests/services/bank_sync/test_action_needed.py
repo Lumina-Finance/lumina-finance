@@ -141,7 +141,7 @@ async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(conne
             "Please sign in to Chase again in Fake Bank Online. Syncing has stopped for:\n\n"
             "- Card\n"
             "- Everyday\n\n"
-            "Lumina Finance checks each day and resumes syncing once you have.",
+            "Lumina Finance checks each day and resumes syncing after you sign in again.",
         ),
         (
             "owner0@example.com",

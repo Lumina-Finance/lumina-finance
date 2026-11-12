@@ -115,15 +115,15 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
 
   switch (sync.state) {
     case 'reconnect_needed':
-      return label('stopped', 'Reconnect needed', [`Please reconnect ${link.provider_name} in Settings`, failure])
+      return label('stopped', 'Needs reconnection', [`Please reconnect ${link.provider_name} in Settings`, failure])
     case 'bank_signin_needed':
-      return label('stopped', 'Bank sign-in needed', ['The app checks again each day', failure])
+      return label('stopped', 'Needs bank sign-in', ['The app checks again each day', failure])
     // The attempt that found the bank account missing can only read its absence as an error of its
     // own, such as refused dates, which the change of listing explains instead, so it isn't repeated
     case 'choose_account':
       return label('stopped', 'Choose bank account', [`${link.provider_name} now lists it differently`])
     case 'sync_stopped':
-      return label('stopped', 'Sync failed', [sync.last_failure!.reason, synced])
+      return label('stopped', 'Sync failure', [sync.last_failure!.reason, synced])
     case 'importing': {
       const range = link.range_import
         ? `Imports transactions from ${formatDateLabel(link.range_import.first_day)} to ${formatDateLabel(link.range_import.last_day)}`
@@ -164,7 +164,7 @@ function describeLinkSync(link: BankLink, timeZone: string | undefined): BankSyn
     // A failure no retry follows, such as a payment problem the user settles with the provider, waits
     // for the daily sync. A success clears the failure, so the link is behind until then and says so
     case 'synced':
-      if (sync.last_failure) return label('review', 'Last sync failed', [sync.last_failure.reason, synced, next])
+      if (sync.last_failure) return label('review', 'Last sync failure', [sync.last_failure.reason, synced, next])
       return label('ok', synced, [next])
   }
 }
@@ -186,8 +186,8 @@ export function describeBankSync(
   timeZone?: string,
 ): BankSyncLabel {
   if (!ownPersonal) return { label: 'Manual only', tone: 'off', pulse: false, details: [] }
-  if (!status) return { label: failed ? "Couldn't check" : 'Checking…', tone: 'off', pulse: false, details: [] }
-  if (!status.link) return { label: 'Not linked', tone: 'off', pulse: false, details: [] }
+  if (!status) return { label: failed ? 'Status unavailable' : 'Checking…', tone: 'off', pulse: false, details: [] }
+  if (!status.link) return { label: 'No bank link', tone: 'off', pulse: false, details: [] }
   return describeLinkSync(status.link, timeZone)
 }
 
@@ -204,6 +204,6 @@ export function describeImportHeading(progress: BankImportProgress, range: BankR
   if (range) return `${done ? 'Imported' : 'Importing'} ${formatDateRangeLabel(range.first_day, range.last_day)}`
   const from = formatDateLabel(progress.requested_start)
   if (progress.kind === 'initial') return `${done ? 'Imported' : 'Importing'} from ${from}`
-  if (progress.kind === 'relink') return `${done ? 'Caught up' : 'Catching up'} since the account was unlinked`
+  if (progress.kind === 'relink') return `${done ? 'Caught up' : 'Catching up'} since the unlink`
   return `${done ? 'Caught up' : 'Catching up'} from ${from}`
 }

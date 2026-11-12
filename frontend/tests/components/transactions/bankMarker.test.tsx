@@ -54,14 +54,14 @@ describe('bank marker', () => {
     const markup = renderRow({ providerName: 'SimpleFIN', isEdited: false, needsReview: false })
 
     expect(markup.split('aria-label="From SimpleFIN"')).toHaveLength(LAYOUTS + 1)
-    expect(markup).not.toContain('You edited a value the bank supplied')
+    expect(markup).not.toContain('You edited a value from the bank')
     expect(markup).not.toContain('Needs review')
   })
 
   it('adds the edited note and the Needs review marker when they apply, outside the row button', () => {
     const markup = renderRow({ providerName: 'SimpleFIN', isEdited: true, needsReview: true, onShowReview: () => {} })
 
-    expect(markup.split('You edited a value the bank supplied')).toHaveLength(LAYOUTS + 1)
+    expect(markup.split('You edited a value from the bank')).toHaveLength(LAYOUTS + 1)
     expect(markup).toContain('aria-label="Needs review. Show the waiting item"')
     expect(hasNestedButton(markup)).toBe(false)
   })

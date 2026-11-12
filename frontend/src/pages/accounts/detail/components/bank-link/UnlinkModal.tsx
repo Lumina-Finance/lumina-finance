@@ -49,7 +49,7 @@ export function UnlinkModal({
     setError(null)
     unlink.mutate(account.id, {
       onSuccess: () => {
-        showToast({ status: 'success', text: `${account.name} unlinked.` })
+        showToast({ status: 'success', text: `Unlinked ${account.name}.` })
         onClose()
         onUnlinked?.()
       },
@@ -90,8 +90,8 @@ export function UnlinkModal({
     >
       <div className="space-y-2 pb-2">
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          New transactions from the bank stop coming into {account.name}. Every transaction already in {account.name}{' '}
-          and every item waiting for review is kept.
+          New transactions from the bank stop coming into {account.name}. Unlinking keeps every transaction already in{' '}
+          {account.name} and every item waiting for review.
         </p>
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
           To disconnect {name} from every account, please open the connection in{' '}

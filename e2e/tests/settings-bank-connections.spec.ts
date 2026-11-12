@@ -41,7 +41,7 @@ const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SAMPLE_VISA = 'Rewards Visa'
 const NOT_SET_UP = "Bank sync isn't set up on this server yet."
 const PROVIDER_GONE =
-  "This provider is no longer available on this server, so this connection doesn't sync. Disconnecting keeps everything already imported."
+  'This provider is no longer available on this server, so syncing is off for this connection. Disconnecting keeps its transactions and waiting items.'
 
 // Where a connection is claimed, and the list read
 const CONNECTIONS_URL = `${API_BASE_URL}/bank-sync/connections`
@@ -163,7 +163,7 @@ async function holdRenamesUntilFailed(page: Page): Promise<() => void> {
 
 /**
  * Claims a connection to Harbour Bank whose bank login needs signing in again. The import a
- * link to Household queues finds this, so its status reads Bank sign-in needed with a note beside it
+ * link to Household queues finds this, so its status reads Needs bank sign-in with a note beside it
  */
 async function claimConnectionNeedingSignIn(request: APIRequestContext, user: TestUser): Promise<void> {
   const [household, scenario] = await Promise.all([
@@ -726,7 +726,7 @@ test("says a connection's provider is gone from the server, holding Reconnect ba
   // The held-back Reconnect gives the same reason, as its description
   await expect(dialog.getByRole('paragraph').filter({ hasText: PROVIDER_GONE })).toBeInViewport()
   await expect(fact(dialog, 'Status')).toHaveText('Provider unavailable')
-  await expect(fact(dialog, 'Requests, 24 hours')).toHaveText('None sent')
+  await expect(fact(dialog, 'Requests, 24 hours')).toHaveText('No requests yet')
   // The folded row writes its note once for a phone and once beside the count, showing one at each size
   await expect(dialog.getByRole('button', { name: '1 institution' })).toContainText('1 of 2 linked · Nothing links or syncs here now')
 
@@ -841,10 +841,10 @@ test('links a bank account from the connection, importing from the start chosen'
     start_date: firstOfMonthsAgo(3),
   })
   await expect(dialog.getByRole('status').filter({ hasText: 'Linking…' })).toBeVisible()
-  await expect(toast(page, 'Linked. Syncing starts shortly.')).toBeVisible()
+  await expect(toast(page, 'Linked to a bank account. Syncing starts shortly.')).toBeVisible()
   await expect(flow).toBeHidden()
   // The connection fills the screen on a phone but has no footer, so the message stays in the corner
-  await expectMessageInCorner(toast(page, 'Linked. Syncing starts shortly.'))
+  await expectMessageInCorner(toast(page, 'Linked to a bank account. Syncing starts shortly.'))
   await expect(dialog.getByRole('link', { name: 'Household' })).toBeVisible()
   await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('1 of 2 linked')
 
@@ -870,7 +870,7 @@ test("says which bank accounts can't be linked", NEEDS_BANK_SYNC, async ({ page,
   await expect(usd.getByRole('combobox')).toHaveCount(0)
   const miles = dialog.getByRole('listitem').filter({ hasText: 'Flight Miles' })
   await expect(miles).toContainText('Custom currency')
-  await expect(miles).toContainText("Can't be linked")
+  await expect(miles).toContainText('Link unavailable')
 })
 
 test('finds a connection by its linked account or nickname, and disconnects it after asking again, then focuses the next connection', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -912,7 +912,7 @@ test('finds a connection by its linked account or nickname, and disconnects it a
   await expect(dialog.getByRole('button', { name: 'Yes, disconnect' })).toBeVisible()
   await dialog.getByRole('button', { name: 'Yes, disconnect' }).click()
 
-  await expect(toast(page, 'Joint banks disconnected. 1 account unlinked.')).toBeVisible()
+  await expect(toast(page, 'Disconnected from Joint banks and unlinked 1 account.')).toBeVisible()
   await expect(dialog).toBeHidden()
   await expect(connectionRow(section, 'Joint banks')).toHaveCount(0)
   await expect(connectionRow(section, 'Travel cards')).toBeFocused()
@@ -979,14 +979,14 @@ test('reconnects a rejected connection, and shows the account to choose again un
   // SimpleFIN lists the Visa differently after the reconnect, so its account has to choose it again
   await changeBridgeBankAccountId(request, scenario.id, visa.external_id, `${visa.external_id}-relisted`)
   const section = await openBankConnections(page, user)
-  await expect(connectionRow(section, 'SimpleFIN')).toContainText('Reconnect needed')
+  await expect(connectionRow(section, 'SimpleFIN')).toContainText('Needs reconnection')
   const dialog = await openConnection(page, section, 'SimpleFIN')
-  await expect(fact(dialog, 'Status')).toHaveText('Reconnect needed')
+  await expect(fact(dialog, 'Status')).toHaveText('Needs reconnection')
   await expect(dialog.getByText('SimpleFIN rejected this connection')).toBeVisible()
   await expect(dialog.getByRole('textbox', { name: 'Find an institution' })).toHaveCount(0)
   const folded = dialog.getByRole('region', { name: '1 institution', exact: true })
   // One line, beside the name from 640px and under it on phones, so exactly one copy shows at any width
-  await expect(folded.getByText('2 of 2 linked · Linking resumes after you reconnect', { exact: true }).filter({ visible: true })).toHaveCount(1)
+  await expect(folded.getByText('2 of 2 linked · Linking resumes after a reconnection', { exact: true }).filter({ visible: true })).toHaveCount(1)
   await folded.getByRole('button', { name: /^1 institution/ }).click()
   await expect(dialog.getByRole('link', { name: 'Household' })).toBeVisible()
 
@@ -997,12 +997,12 @@ test('reconnects a rejected connection, and shows the account to choose again un
   await form.getByRole('textbox', { name: 'Setup token' }).fill(await createBridgeSetupToken(request, scenario.id))
   await form.getByRole('button', { name: 'Reconnect', exact: true }).click()
 
-  await expect(toast(page, '1 account resumes syncing.')).toBeVisible()
+  await expect(toast(page, 'Syncing resumes for 1 account.')).toBeVisible()
   await expect(form).toBeHidden()
   await expect(fact(dialog, 'Status')).toHaveText('OK')
   await expect(dialog.getByText('Needs attention')).toBeVisible()
   await expect(dialog.getByText('All good')).toBeVisible()
-  const mismatch = dialog.getByRole('region', { name: 'Mismatch detected' })
+  const mismatch = dialog.getByRole('region', { name: 'Bank account mismatch' })
   await expect(mismatch).toContainText('Choose bank account')
   await expect(mismatch).toContainText(`Was ${SAMPLE_VISA}`)
   await expect(mismatch.getByRole('link', { name: 'Travel Visa' })).toBeVisible()
@@ -1030,7 +1030,7 @@ test('says to try again when Reconnect loses its answer, and shows the connectio
   })
   const section = await openBankConnections(page, user)
   const row = connectionRow(section, 'SimpleFIN')
-  await expect(row).toContainText('Reconnect needed')
+  await expect(row).toContainText('Needs reconnection')
 
   const dialog = await openConnection(page, section, 'SimpleFIN')
   await dialog.getByRole('button', { name: 'Reconnect', exact: true }).click()
@@ -1044,7 +1044,7 @@ test('says to try again when Reconnect loses its answer, and shows the connectio
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
   await expect(row).toContainText('OK')
-  await expect(row).not.toContainText('Reconnect needed')
+  await expect(row).not.toContainText('Needs reconnection')
 })
 
 test('shows a bank that needs signing in to on the connection and its institution', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -1052,9 +1052,9 @@ test('shows a bank that needs signing in to on the connection and its institutio
   await claimConnectionNeedingSignIn(request, user)
   const section = await openBankConnections(page, user)
 
-  await expect(connectionRow(section, 'SimpleFIN')).toContainText('Bank sign-in needed')
+  await expect(connectionRow(section, 'SimpleFIN')).toContainText('Needs bank sign-in')
   const dialog = await openConnection(page, section, 'SimpleFIN')
-  await expect(fact(dialog, 'Status')).toContainText('Bank sign-in needed')
+  await expect(fact(dialog, 'Status')).toContainText('Needs bank sign-in')
   await dialog.getByRole('button', { name: 'Status details' }).click()
   await expect(dialog.getByText(`Sign in to ${SAMPLE_BANK} again`)).toBeVisible()
   await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('Sign in again in SimpleFIN Bridge')
@@ -1286,7 +1286,7 @@ test('disables Add a connection when no provider is open to new connections', NE
   const section = await openBankConnections(page, user)
 
   await expect(section.getByRole('button', { name: 'Add a connection' })).toBeDisabled()
-  await expect(section.getByText('No bank provider is open to new connections right now. Existing connections keep working.')).toBeVisible()
+  await expect(section.getByText('No bank provider is open to new connections right now. Existing connections carry on as before.')).toBeVisible()
 })
 
 test('opens a link to the section with it at the top, though it shows only once the providers answer', NEEDS_BANK_SYNC, async ({ page, request }) => {

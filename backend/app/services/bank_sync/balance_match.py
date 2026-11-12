@@ -27,7 +27,7 @@ from app.services.bank_sync.links import lock_live_link
 from app.services.cache_state import mark_user_cache_changed
 
 # Why recording is refused while nothing is offered, or once the offer the user was shown has moved
-NOTHING_TO_MATCH = "There is no difference to match"
+NOTHING_TO_MATCH = "There is no difference between the balances"
 MATCH_MOVED = "The difference has changed. Please check the new amount and try again"
 
 

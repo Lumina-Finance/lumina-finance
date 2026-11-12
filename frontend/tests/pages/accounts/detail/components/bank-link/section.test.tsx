@@ -320,7 +320,7 @@ describe('BankLinkSection', () => {
     [
       'less history than it asked for',
       { requested_start: '2026-06-01', earliest_returned: '2026-06-09' },
-      'Less history than requested',
+      'Less history than your chosen start',
       `SimpleFIN returned transactions from ${unbroken('Jun 9, 2026')}, not ${unbroken('Jun 1, 2026')}. The bank probably keeps no more history.`,
     ],
     [
@@ -337,16 +337,16 @@ describe('BankLinkSection', () => {
       expect(markup).toContain(`>${title}</p>`)
       expect(markup).toContain(`>${escaped(body)}</p>`)
       expect(markup.match(/aria-label="Dismiss"/g)).toHaveLength(1)
-      expect(markup).not.toContain('Some transactions may be missing')
+      expect(markup).not.toContain('You may be missing some transactions')
     },
   )
 
   it('reminds of a day that brought back as many transactions as the provider sends at once, with a ✕ to dismiss it', () => {
     read.status = createStatus({ link: createLink({ cut_off_day: '2026-10-03' }) })
     const markup = renderSection()
-    expect(markup).toContain('>Some transactions may be missing</p>')
+    expect(markup).toContain('>You may be missing some transactions</p>')
     expect(markup).toContain(
-      `>SimpleFIN sent its maximum number of transactions for ${unbroken('Oct 3, 2026')}, so some may be missing. Please check that day&#x27;s transactions.</p>`,
+      `>SimpleFIN sent its maximum number of transactions for ${unbroken('Oct 3, 2026')}, so that day may have more transactions. Please check that day&#x27;s transactions.</p>`,
     )
     expect(markup.match(/aria-label="Dismiss"/g)).toHaveLength(1)
     expect(markup).not.toContain('history the bank keeps')
@@ -371,7 +371,7 @@ describe('BankLinkSection', () => {
     const markup = renderSection(createAccount({ current_balance: 100000 }))
     const order = [
       'No history returned yet',
-      'Some transactions may be missing',
+      'You may be missing some transactions',
       'As of ',
       'Adds a balance adjustment',
     ].map((text) => markup.indexOf(text))
@@ -537,13 +537,13 @@ describe('BankLinkSection', () => {
           sync: createSync({ state: 'importing', last_success_at: null, sync_running: true }),
         }),
       }),
-      'The import is still running',
+      'The import is still in progress',
     ],
-    ['a sync runs', linkSynced(createSync({ state: 'syncing', sync_running: true })), 'A sync is already running'],
+    ['a sync runs', linkSynced(createSync({ state: 'syncing', sync_running: true })), 'A sync is already in progress'],
     [
       'a sync runs under a bank sign-in that shows over it, since a second sync would spend another request',
       linkSynced(createSync({ state: 'bank_signin_needed', sync_running: true })),
-      'A sync is already running',
+      'A sync is already in progress',
     ],
     [
       'the connection needs reconnecting',
@@ -802,6 +802,6 @@ describe('the import start reminder', () => {
     const markup = renderSection()
     expect(markup).not.toContain(escaped(REMINDER))
     expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
-    expect(markup).toContain('The import is still running')
+    expect(markup).toContain('The import is still in progress')
   })
 })

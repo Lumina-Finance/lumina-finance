@@ -164,7 +164,7 @@ async def test_claim_with_the_provider_withdrawn_is_refused(client, fake_provide
     refused = await _claim(client, headers)
 
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "Fake Bank is not offered for new connections. Existing connections keep working"
+    assert refused.json()["detail"] == "Fake Bank is not offered for new connections. Existing connections carry on as before"
     assert await _stored_connections() == []
 
 

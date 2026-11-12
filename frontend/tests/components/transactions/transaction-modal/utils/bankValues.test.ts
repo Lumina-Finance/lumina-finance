@@ -57,7 +57,8 @@ describe('bank value captions', () => {
       date: null,
       amount: {
         value: `${MINUS}CA$42.505`,
-        unavailableReason: "The bank's amount has more decimal places than CAD allows, so the amount can't be restored",
+        unavailableReason:
+          "The bank's amount has more decimal places than CAD allows, so the app can't restore the amount",
       },
     })
   })
@@ -70,7 +71,7 @@ describe('bank value captions', () => {
 describe('review amount note', () => {
   it('says why a bank item opens with its amount empty', () => {
     expect(getReviewAmountNote({ amount: null }, 'CAD')).toBe(
-      "The bank's amount has more decimal places than CAD allows, so please enter the amount to add",
+      "The bank's amount has more decimal places than CAD allows, so please enter the amount by hand",
     )
   })
 

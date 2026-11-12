@@ -41,7 +41,7 @@ from app.services.bank_sync.provider_requests import record_provider_request
 from app.services.bank_sync.providers.contract import ClaimRefused, ProviderAdapter, ProviderUnreachable
 from app.services.cache_state.updates import mark_user_cache_changed
 
-WORKING_CONNECTION_DETAIL = "This connection is working, so it doesn't need reconnecting"
+WORKING_CONNECTION_DETAIL = "This connection is working, so it needs no reconnection"
 
 
 async def claim_connection(db: AsyncSession, user: User, request: CreateBankConnectionRequest) -> BankConnectionResponse:
@@ -74,7 +74,7 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
     if not is_offered(request.provider):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"{adapter.provider_name} is not offered for new connections. Existing connections keep working",
+            detail=f"{adapter.provider_name} is not offered for new connections. Existing connections carry on as before",
         )
 
     credential = await _claim_credential(adapter, request.credentials)

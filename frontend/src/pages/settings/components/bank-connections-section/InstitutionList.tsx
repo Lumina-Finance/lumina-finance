@@ -111,7 +111,7 @@ function BankAccountRow({ bankAccount, overLimit, heldReason, linking, accountNa
         <>
           <span aria-hidden />
           <span className="px-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            Can&apos;t be linked
+            Link unavailable
           </span>
         </>
       ) : (
@@ -393,13 +393,13 @@ export function InstitutionList({
   // First, since nothing on these syncs until each account gets its bank account back
   const chooseAgain = connection.choose_again_links
   const mismatchMatches = matchesSearch(
-    ['Mismatch detected', ...chooseAgain.map((link) => link.external_account_name)],
+    ['Bank account mismatch', ...chooseAgain.map((link) => link.external_account_name)],
     query,
   )
   if (chooseAgain.length > 0 && mismatchMatches) {
     entries.unshift({
       key: 'mismatch',
-      name: 'Mismatch detected',
+      name: 'Bank account mismatch',
       problem: 'Choose bank account',
       hintLabel: 'Why this happened',
       hint: describeMismatch(connection, accountNameFor),

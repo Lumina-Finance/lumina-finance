@@ -52,7 +52,7 @@ from tests.services.bank_sync.fake_provider import _bank_account
 # Everyday's import starts on 1 June, so its balance match is dated 31 May
 _ADJUSTMENT_DATE = "2026-05-31"
 
-_NOTHING_TO_MATCH = "There is no difference to match"
+_NOTHING_TO_MATCH = "There is no difference between the balances"
 _MATCH_MOVED = "The difference has changed. Please check the new amount and try again"
 
 # When Fake Bank reported a transaction removed, the morning after the balance

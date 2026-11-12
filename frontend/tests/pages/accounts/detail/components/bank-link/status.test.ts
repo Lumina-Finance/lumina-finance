@@ -105,7 +105,7 @@ describe('describeBankSync without a live link', () => {
       details: [],
     })
     expect(describeBankSync(true, undefined, true)).toEqual({
-      label: "Couldn't check",
+      label: 'Status unavailable',
       tone: 'off',
       pulse: false,
       details: [],
@@ -114,13 +114,13 @@ describe('describeBankSync without a live link', () => {
 
   it('labels an account without a live link as not linked, whether or not it was linked before', () => {
     expect(describeBankSync(true, createStatus(), false)).toEqual({
-      label: 'Not linked',
+      label: 'No bank link',
       tone: 'off',
       pulse: false,
       details: [],
     })
     expect(describeBankSync(true, createStatus({ previous_link: createPreviousLink() }), false).label).toBe(
-      'Not linked',
+      'No bank link',
     )
   })
 })
@@ -142,7 +142,7 @@ describe('describeBankSync for a live link', () => {
       'a synced link whose last attempt failed, waiting on its daily sync',
       { sync: createSync({ last_failure: FAILURE }) },
       {
-        label: 'Last sync failed',
+        label: 'Last sync failure',
         tone: 'review',
         pulse: false,
         details: [FAILURE.reason, 'Synced 1 hour ago', 'Next sync in 3 hours'],
@@ -162,7 +162,7 @@ describe('describeBankSync for a live link', () => {
       'a rejected connection',
       { sync: createSync({ state: 'reconnect_needed', last_failure: FAILURE, next_attempt_at: null }) },
       {
-        label: 'Reconnect needed',
+        label: 'Needs reconnection',
         tone: 'stopped',
         pulse: false,
         details: ['Please reconnect SimpleFIN in Settings', FAILURE_LINE],
@@ -180,7 +180,7 @@ describe('describeBankSync for a live link', () => {
       'a bank asking the user to sign in again',
       { sync: createSync({ state: 'bank_signin_needed', last_failure: FAILURE }) },
       {
-        label: 'Bank sign-in needed',
+        label: 'Needs bank sign-in',
         tone: 'stopped',
         pulse: false,
         details: ['The app checks again each day', FAILURE_LINE],
@@ -199,7 +199,7 @@ describe('describeBankSync for a live link', () => {
         }),
       },
       {
-        label: 'Sync failed',
+        label: 'Sync failure',
         tone: 'stopped',
         pulse: false,
         details: ['SimpleFIN refused the dates asked for. Use Sync now to try again', 'Synced 1 hour ago'],
@@ -344,9 +344,9 @@ describe('describeImportHeading', () => {
   })
 
   it('describes a relink catching up since the unlink, then caught up', () => {
-    expect(describeImportHeading(createImport({ kind: 'relink' }))).toBe('Catching up since the account was unlinked')
+    expect(describeImportHeading(createImport({ kind: 'relink' }))).toBe('Catching up since the unlink')
     expect(describeImportHeading(createImport({ kind: 'relink', state: 'complete' }))).toBe(
-      'Caught up since the account was unlinked',
+      'Caught up since the unlink',
     )
   })
 

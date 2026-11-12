@@ -50,7 +50,7 @@ _BLUE_BOTTLE = "SQ *BLUE BOTTLE"
 # Both decisions, by the path each posts to
 _DECISIONS = ["accept-change", "keep-current"]
 
-_NOT_IN_LEDGER = "This item isn't in your ledger, so there's no bank change to decide"
+_NOT_IN_LEDGER = "This item isn't in your ledger, so no bank change is awaiting a decision"
 
 
 @dataclass(frozen=True)

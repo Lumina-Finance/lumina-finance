@@ -40,7 +40,7 @@ import { API_BASE_URL } from '../support/target'
 // an item left out keeps the amount and asks for a review first
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SYNCED_STATUS = /Synced (just now|\d+ minutes? ago)\./
-const NOTHING_TO_MATCH = 'There is no difference to match'
+const NOTHING_TO_MATCH = 'There is no difference between the balances'
 
 // The width from which the amount and the button share a row
 const OFFER_ROW_MIN_WIDTH = 640

@@ -54,7 +54,7 @@ _GROCERIES = "FRESHCO GROCERIES"
 # Both decisions, by the path each posts to
 _DECISIONS = ["remove-from-ledger", "keep-transaction"]
 
-_NOT_IN_LEDGER = "This item isn't in your ledger, so there's no bank change to decide"
+_NOT_IN_LEDGER = "This item isn't in your ledger, so no bank change is awaiting a decision"
 _NO_REMOVAL = "This transaction has no bank removal waiting, so the transaction stays in your ledger"
 _REMOVAL_WAITING = "This transaction has a bank removal waiting. Please decide the removal first"
 

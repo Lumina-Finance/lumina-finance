@@ -201,7 +201,7 @@ export default function NewAccountPromptModal({ open, account, onClose, onExitCo
       onSubmit={handleSubmit}
       titleId="new-account-prompt-title"
       title={offersLink ? 'Keep it up to date' : 'Add a starting balance'}
-      eyebrow={`${account.name} created`}
+      eyebrow={`Created ${account.name}`}
       RailIcon={Landmark}
       railLabel="Account"
       closeDisabled={recordStartingBalance.isPending}

@@ -51,7 +51,7 @@ describe('whether the ticked transactions can be deleted together', () => {
       linksByAccount,
     )
 
-    expect(reason).toBe("Transactions from SimpleFIN can't be deleted while Everyday is linked")
+    expect(reason).toBe("While Everyday is linked, you can't delete transactions from SimpleFIN")
   })
 
   it.each([

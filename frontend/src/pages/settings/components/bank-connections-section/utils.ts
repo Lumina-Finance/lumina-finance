@@ -134,8 +134,8 @@ function listSignInInstitutions(connection: BankConnection): string[] {
 export function describeConnectionStatus(connection: BankConnection): { tone: SyncStatusTone; label: string } {
   // Nothing the user does here resumes it, but nothing is broken either, so it takes the watch colour
   if (!connection.provider_available) return { tone: 'review', label: 'Provider unavailable' }
-  if (connection.status === 'credential_rejected') return { tone: 'stopped', label: 'Reconnect needed' }
-  if (listSignInInstitutions(connection).length > 0) return { tone: 'stopped', label: 'Bank sign-in needed' }
+  if (connection.status === 'credential_rejected') return { tone: 'stopped', label: 'Needs reconnection' }
+  if (listSignInInstitutions(connection).length > 0) return { tone: 'stopped', label: 'Needs bank sign-in' }
   return { tone: 'ok', label: 'OK' }
 }
 
@@ -192,10 +192,10 @@ export function describeConnected(connection: BankConnection, backToLinkFlow = f
   const name = connectionName(connection)
   if (connection.discovery_pending && connection.accounts.length === 0) {
     return backToLinkFlow
-      ? `${name} connected. Its bank accounts will appear shortly.`
-      : `${name} connected. Its bank accounts will appear here shortly.`
+      ? `Connected to ${name}. Its bank accounts will appear shortly.`
+      : `Connected to ${name}. Its bank accounts will appear here shortly.`
   }
-  const connected = `${name} connected with ${countNoun(connection.accounts.length, 'bank account')}.`
+  const connected = `Connected to ${name} with ${countNoun(connection.accounts.length, 'bank account')}.`
   return backToLinkFlow ? connected : `${connected} Please link each bank account from the matching account's page.`
 }
 
@@ -204,7 +204,7 @@ export function describeConnected(connection: BankConnection, backToLinkFlow = f
  * syncing and how many need their bank account chosen again, or that they wait on a listing still to run
  */
 export function describeReconnected(result: ReconnectConnectionResult): string {
-  const parts = [`${connectionName(result.connection)} reconnected.`]
+  const parts = [`Reconnected to ${connectionName(result.connection)}.`]
   if (result.accounts_pending) {
     parts.push('Linked accounts pick up once their bank accounts are listed again.')
     return parts.join(' ')
@@ -212,7 +212,7 @@ export function describeReconnected(result: ReconnectConnectionResult): string {
 
   const resumed = result.resumed_account_ids.length
   const chooseAgain = result.choose_again_account_ids.length
-  if (resumed > 0) parts.push(`${countNoun(resumed, 'account')} ${resumed === 1 ? 'resumes' : 'resume'} syncing.`)
+  if (resumed > 0) parts.push(`Syncing resumes for ${countNoun(resumed, 'account')}.`)
   if (chooseAgain > 0) {
     parts.push(
       `${countNoun(chooseAgain, 'account')} ${chooseAgain === 1 ? 'needs its bank account' : 'need their bank accounts'} chosen again.`,

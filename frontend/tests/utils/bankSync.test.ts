@@ -44,10 +44,10 @@ describe('credentialNoun', () => {
 describe('describeDisconnectEffect', () => {
   it('says before a disconnect which accounts it unlinks and what they keep', () => {
     expect(describeDisconnectEffect(2)).toBe(
-      'Disconnecting unlinks 2 accounts. Their transactions and waiting items are kept.',
+      'Disconnecting unlinks 2 accounts but keeps their transactions and waiting items.',
     )
     expect(describeDisconnectEffect(1)).toBe(
-      'Disconnecting unlinks 1 account. Its transactions and waiting items are kept.',
+      'Disconnecting unlinks 1 account but keeps its transactions and waiting items.',
     )
   })
 
@@ -60,8 +60,8 @@ describe('describeDisconnected', () => {
   it('counts the accounts a disconnect unlinked, and leaves the count out when there were none', () => {
     const joint = connection({ nickname: 'Joint banks' })
 
-    expect(describeDisconnected(joint, 2)).toContain('Joint banks disconnected. 2 accounts unlinked.')
-    expect(describeDisconnected(joint, 1)).toContain(' 1 account unlinked.')
+    expect(describeDisconnected(joint, 2)).toContain('Disconnected from Joint banks and unlinked 2 accounts.')
+    expect(describeDisconnected(joint, 1)).toContain(' and unlinked 1 account.')
     expect(describeDisconnected(joint, 0)).not.toContain('unlinked')
   })
 

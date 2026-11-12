@@ -13,7 +13,7 @@ import { formatBankAmount, formatReviewDate } from '@/components/transactions/ut
 import { formatRelativeTime } from '@/utils/relativeTime'
 
 // Beside the count on the closed strip, and inside the opened one on phones. It doesn't fit beside the count there
-const EXPLANATION = 'Left out of your balance until settled'
+const EXPLANATION = 'Not counted until the bank posts them'
 
 type BankPendingStripProps = {
   /** The pending transactions in scope, newest first, each of an account the caller can name */

@@ -58,7 +58,7 @@ export function BankMarker({ providerName, isEdited, needsReview, onShowReview }
           clearsStickyBars
         >
           <span className="block">From {providerName}</span>
-          {isEdited && <span className="mt-0.5 block">You edited a value the bank supplied</span>}
+          {isEdited && <span className="mt-0.5 block">You edited a value from the bank</span>}
         </IconTooltip>
         <Grows show={isEdited} className="pointer-events-none absolute -right-1 -top-0.5 h-1.5 w-1.5">
           <span

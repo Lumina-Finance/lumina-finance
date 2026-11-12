@@ -18,7 +18,8 @@ import TransactionBankSourcePanel from '@/components/transactions/transaction-mo
 import TransactionBankValueCaption from '@/components/transactions/transaction-modal/controls/BankValueCaption'
 
 const MINUS = String.fromCodePoint(0x2212)
-const UNSTORABLE_REASON = "The bank's amount has more decimal places than CAD allows, so the amount can't be restored"
+const UNSTORABLE_REASON =
+  "The bank's amount has more decimal places than CAD allows, so the app can't restore the amount"
 
 // Static rendering escapes the apostrophes in the reason, so markup is matched against the escaped text
 const RENDERED_UNSTORABLE_REASON = UNSTORABLE_REASON.replaceAll("'", '&#x27;')

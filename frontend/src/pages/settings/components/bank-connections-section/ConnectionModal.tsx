@@ -283,7 +283,7 @@ export function ConnectionModal({
       </ConnectionFact>
       <ConnectionFact label="Requests, 24 hours" wide hint={describeRequestBudget(connection)}>
         {requestLimit === null ? (
-          <span className="block">None sent</span>
+          <span className="block">No requests yet</span>
         ) : (
           <>
             {/* Says used, since the connection's row beside it counts the requests left */}
@@ -443,7 +443,7 @@ export function ConnectionModal({
               <p className="mt-1.5 max-w-sm text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 {isUnavailable
                   ? PROVIDER_UNAVAILABLE_DETAIL
-                  : 'Every linked account has stopped syncing. Please reconnect to pick up where syncing stopped.'}
+                  : 'Every linked account has stopped syncing. Please reconnect to pick up where syncing left off.'}
               </p>
               <DisabledReasonButton
                 type="button"
@@ -461,7 +461,7 @@ export function ConnectionModal({
                 entry={{
                   key: 'folded',
                   name: countNoun(institutionCount, 'institution'),
-                  countNote: isUnavailable ? 'Nothing links or syncs here now' : 'Linking resumes after you reconnect',
+                  countNote: isUnavailable ? 'Nothing links or syncs here now' : 'Linking resumes after a reconnection',
                   linked: linkedCount,
                   total: bankAccountCount,
                   body: institutionList,

@@ -28,7 +28,7 @@ import { API_BASE_URL } from '../support/target'
 // covered by backend and unit tests
 const SAMPLE_CHEQUING = 'Everyday Chequing'
 const SYNCED_STATUS = /Synced (just now|\d+ minutes? ago)\./
-const LESS_HISTORY = 'Less history than requested'
+const LESS_HISTORY = 'Less history than your chosen start'
 const NO_HISTORY = 'No history returned yet'
 const LIMIT_NOTE = 'The bank probably keeps no more history.'
 const DISMISS_FAILED_MESSAGE = 'The reminder could not be dismissed. Please try again.'

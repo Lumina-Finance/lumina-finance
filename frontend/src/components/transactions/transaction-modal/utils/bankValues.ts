@@ -58,10 +58,10 @@ export function getBankValueCaptions(
  */
 export function getReviewAmountNote(bank: { amount: number | null }, currency: string): string | null {
   if (bank.amount !== null) return null
-  return `The bank's amount has more decimal places than ${currency} allows, so please enter the amount to add`
+  return `The bank's amount has more decimal places than ${currency} allows, so please enter the amount by hand`
 }
 
 /** Why the bank's amount can't be restored, in the words the server refuses that restore with */
 function getUnstorableAmountReason(currency: string): string {
-  return `The bank's amount has more decimal places than ${currency} allows, so the amount can't be restored`
+  return `The bank's amount has more decimal places than ${currency} allows, so the app can't restore the amount`
 }

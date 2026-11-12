@@ -60,7 +60,7 @@ const refusals = [
         resolution: 'dismiss',
         accountId: 'account-1',
       }),
-    new ApiError("This item is already in your ledger, so the item can't be dismissed", 409),
+    new ApiError("This item is already in your ledger, so you can't dismiss the item", 409),
   ],
   [
     'a bulk add with a category refused for the items',

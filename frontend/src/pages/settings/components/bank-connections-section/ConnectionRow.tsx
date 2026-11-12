@@ -115,7 +115,7 @@ export function ConnectionRow({ connection, layoutKey, isLast, prefersReducedMot
             </span>
           ) : (
             <span className="min-w-0 truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              None sent
+              None yet
             </span>
           )}
           <span className="min-w-0 truncate text-sm">{added}</span>

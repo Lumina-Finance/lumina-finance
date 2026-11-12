@@ -519,7 +519,7 @@ test('stops on a rejected connection, with a notice that leads to Settings to re
   await waitForConnection(request, user, connection.id, (current) => current.status === 'credential_rejected')
 
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, 'Reconnect needed')
+  const dialog = await openBankLink(page, account.id, 'Needs reconnection')
   // The notice's full wording is the Bank link section's unit tests' to hold
   const notice = dialog.getByText(/^SimpleFIN Bridge rejected the connection this account uses\./)
   const openSettings = dialog.getByRole('button', { name: 'Open settings' })
@@ -575,7 +575,7 @@ test('stops on a bank asking for its sign-in, saying where to sign in again', NE
   await waitForConnection(request, user, connection.id, (current) => current.accounts.some((bankAccount) => bankAccount.signin_needed))
 
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, 'Bank sign-in needed')
+  const dialog = await openBankLink(page, account.id, 'Needs bank sign-in')
   await expect(dialog.getByText('Please sign in to your bank again in SimpleFIN Bridge.', { exact: true })).toBeVisible()
 })
 

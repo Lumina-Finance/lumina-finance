@@ -123,7 +123,7 @@ describe('NewAccountPromptModal', () => {
   it('asks how the account stays up to date, with linking chosen and no starting balance yet', () => {
     const markup = renderPrompt()
     expect(markup).toContain('Keep it up to date')
-    expect(markup).toContain('Everyday created')
+    expect(markup).toContain('Created Everyday')
     expect(getRadio(markup, 'Link a bank account')).toContain('aria-checked="true"')
     expect(getRadio(markup, 'Link a bank account')).toContain(LINK_DESCRIPTION)
     expect(getRadio(markup, 'Keep it manual')).toContain('aria-checked="false"')

@@ -98,7 +98,7 @@ export function BalancePanel({ balance, currency, providerName, footer }: Balanc
             color="var(--app-text-muted)"
             hint={{
               label: 'Why the balance is unavailable',
-              text: `${providerName}'s balance can't be read exactly in ${currency}, so no comparison is shown`,
+              text: `${providerName}'s balance can't be read exactly in ${currency}, so the app shows no comparison`,
             }}
           />
         ) : (
@@ -126,7 +126,7 @@ export function BalancePanel({ balance, currency, providerName, footer }: Balanc
           <CaptionPart>
             <LabelWithHint
               label="Available balance unavailable"
-              hint={`${providerName}'s available balance can't be read exactly in ${currency}. Your ledger isn't affected.`}
+              hint={`${providerName}'s available balance can't be read exactly in ${currency}. This doesn't change your ledger.`}
               hintLabel="Why the available balance is unavailable"
               hintPlacement="top"
             />

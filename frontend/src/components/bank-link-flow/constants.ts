@@ -74,5 +74,5 @@ export const RESTORE_DISMISSED_WARNING =
  * @param lastDay - The range's last day, as a label
  */
 export function rangeEndsBeforeTodayNote(lastDay: string): string {
-  return `Days between ${lastDay} and today won't be imported. Syncing carries on from today.`
+  return `The app won't import the days between ${lastDay} and today. Syncing carries on from today.`
 }

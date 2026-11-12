@@ -27,5 +27,5 @@ export function getBankDeleteRefusal({
 }: GetBankDeleteRefusalOptions): string | null {
   if (!transaction?.bank_source || !sourceAccount || !linksByAccount.has(transaction.account_id)) return null
 
-  return `Imported from ${transaction.bank_source.provider_name}. Please edit this transaction instead while ${sourceAccount.name} is linked`
+  return `Imported from ${transaction.bank_source.provider_name}. While ${sourceAccount.name} is linked, please edit this transaction instead`
 }

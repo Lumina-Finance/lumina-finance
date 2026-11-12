@@ -53,13 +53,13 @@ REVIEW_ITEM_NOT_FOUND = "Review item not found"
 BANK_SOURCE_NOT_FOUND = "Bank source not found"
 
 # Why restoring refuses a bank amount the account's currency can't hold without rounding
-_UNSTORABLE_RESTORE_DETAIL = "The bank's amount has more decimal places than {currency} allows, so the amount can't be restored"
+_UNSTORABLE_RESTORE_DETAIL = "The bank's amount has more decimal places than {currency} allows, so the app can't restore the amount"
 
 # Why an added item refuses a transfer counterparty the user can see but doesn't own alone
 _COUNTERPARTY_NOT_OWN_DETAIL = "Transfers from a bank item can't go to an account shared with a group"
 
 # Why the decisions on a correction or removal refuse an item that never reached the ledger
-_NOT_IN_LEDGER_DETAIL = "This item isn't in your ledger, so there's no bank change to decide"
+_NOT_IN_LEDGER_DETAIL = "This item isn't in your ledger, so no bank change is awaiting a decision"
 
 # Why removing refuses a transaction the bank hasn't asked to remove, or whose removal the user kept
 _NO_REMOVAL_DETAIL = "This transaction has no bank removal waiting, so the transaction stays in your ledger"
@@ -131,7 +131,7 @@ async def dismiss_review_item(db: AsyncSession, user: User, item_id: uuid.UUID) 
     if record.disposition == BankTransactionDisposition.DISMISSED:
         return
     if record.disposition == BankTransactionDisposition.ACCEPTED:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This item is already in your ledger, so the item can't be dismissed")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This item is already in your ledger, so you can't dismiss the item")
 
     await write_dismissal(db, record)
     await lift_review_pauses(db, user.id, links)

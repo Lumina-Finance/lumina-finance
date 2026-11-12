@@ -131,8 +131,8 @@ export function StartStep({
       </div>
       {uncoveredUntil && range.ledger_floor && (
         <InfoCallout>
-          {formatDateLabel(range.ledger_floor)} to {formatDateLabel(uncoveredUntil)} won't be imported. Please add any
-          transactions from those days by hand.
+          The app won't import {formatDateLabel(range.ledger_floor)} to {formatDateLabel(uncoveredUntil)}. Please add
+          any transactions from those days by hand.
         </InfoCallout>
       )}
     </div>

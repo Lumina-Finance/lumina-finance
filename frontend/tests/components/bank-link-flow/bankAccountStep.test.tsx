@@ -131,7 +131,7 @@ describe('the bank account step', () => {
           balance: 900,
           linkable: false,
           unavailable_reason: 'custom_currency',
-          unavailable_message: "Uses a currency of its own that Lumina Finance can't track",
+          unavailable_message: 'Uses a currency of its own, so no link is possible',
         }),
       ],
     })
@@ -148,7 +148,7 @@ describe('the bank account step', () => {
     const points = cardFor(markup, 'Points')
     expect(points).toContain('aria-disabled="true"')
     expect(points).not.toContain('9.00')
-    expect(points).toContain('Uses a currency of its own that Lumina Finance can&#x27;t track')
+    expect(points).toContain('Uses a currency of its own, so no link is possible')
   })
 
   it('leaves a bank account that can be linked as a plain card with a radio and no lock', () => {

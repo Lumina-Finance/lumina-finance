@@ -33,15 +33,15 @@ type Decision = {
 // Each kind's two decisions: the one leaving the ledger as it is, then the one the bank asks for
 const DECISIONS: Record<'correction' | 'removal', { keep: Decision; apply: Decision }> = {
   correction: {
-    keep: { resolution: 'keep-current', label: 'Keep current value', toast: 'Current values kept.' },
-    apply: { resolution: 'accept-change', label: 'Accept bank change', toast: 'Bank change applied.' },
+    keep: { resolution: 'keep-current', label: 'Keep current value', toast: 'Kept the current values.' },
+    apply: { resolution: 'accept-change', label: 'Accept bank change', toast: 'Applied the bank change.' },
   },
   removal: {
-    keep: { resolution: 'keep-transaction', label: 'Keep transaction', toast: 'Transaction kept.' },
+    keep: { resolution: 'keep-transaction', label: 'Keep transaction', toast: 'Kept the transaction.' },
     apply: {
       resolution: 'remove-from-ledger',
       label: 'Remove from ledger',
-      toast: 'Transaction removed from the ledger.',
+      toast: 'Removed the transaction from the ledger.',
     },
   },
 }
@@ -147,13 +147,13 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
         <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
           {isRemoval
             ? `${item.provider_name} no longer reports this transaction. Nothing changes unless you remove the transaction.`
-            : `${item.provider_name} sent new values for a transaction you already approved. Nothing changes unless you accept.`}
+            : `${item.provider_name} sent new values for a transaction you already approved. Nothing changes unless you accept the new values.`}
         </p>
 
         <div className="overflow-hidden rounded-xl border" style={{ borderColor: 'var(--app-border)' }}>
           <table className="w-full table-fixed border-collapse text-sm">
             {/* The labels column fits its longest word, wrapping "Bank description", so the values have the
-                room. A removal's bank column fits "No longer reported" on one line on a phone */}
+                room. A removal's bank column fits "Gone from the bank" on one line on a phone */}
             <colgroup>
               <col className="w-25" />
               <col />
@@ -209,7 +209,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
                     </td>
                     {isRemoval ? (
                       <td className={`${CELL_CLASS_NAME} py-2.5`} style={{ color: 'var(--app-text-muted)' }}>
-                        No longer reported
+                        Gone from the bank
                       </td>
                     ) : (
                       <td
@@ -235,7 +235,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
                   {isKept && (
                     <tr>
                       <td colSpan={3} className="px-4 pb-2.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                        Your own value, kept if you accept.
+                        Accepting keeps your own value.
                       </td>
                     </tr>
                   )}

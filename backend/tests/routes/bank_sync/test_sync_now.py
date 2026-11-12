@@ -167,10 +167,10 @@ async def test_sync_now_joins_the_sync_already_queued_for_the_connection(client)
     ("values", "connection_values", "running", "detail"),
     [
         # A worker fetching the import's next part runs a sync too. The import's own reason outranks the sync's
-        pytest.param({}, {}, True, "The import is still running", id="importing"),
-        pytest.param(_SYNCED, {}, True, "A sync is already running", id="syncing"),
+        pytest.param({}, {}, True, "The import is still in progress", id="importing"),
+        pytest.param(_SYNCED, {}, True, "A sync is already in progress", id="syncing"),
         # The bank sign-in shows over the sync, but a second sync would only spend another request
-        pytest.param(_SYNCED | _SIGNIN_NEEDED, {}, True, "A sync is already running", id="syncing-while-the-bank-needs-a-sign-in"),
+        pytest.param(_SYNCED | _SIGNIN_NEEDED, {}, True, "A sync is already in progress", id="syncing-while-the-bank-needs-a-sign-in"),
         pytest.param(_SYNCED, {"credential_rejected_at": _NOW}, False, "Please reconnect Fake Bank in Settings first", id="reconnect-needed"),
         pytest.param(
             {"state": BankLinkState.CHOOSE_ACCOUNT, "importing": False},
@@ -391,7 +391,7 @@ async def test_sync_now_is_refused_once_the_import_has_started(client):
     refused = await _sync_now(client, headers, everyday)
 
     assert refused.status_code == 409, refused.text
-    assert refused.json()["detail"] == "The import is still running"
+    assert refused.json()["detail"] == "The import is still in progress"
 
 
 @pytest.mark.usefixtures("_import_wait_clock")

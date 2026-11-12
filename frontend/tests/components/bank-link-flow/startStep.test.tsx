@@ -112,7 +112,7 @@ describe('the start step', () => {
     const today = renderStep({}, CUSTOM_START, { from: '2026-03-01', to: '2026-10-05' })
 
     expect(before).toContain(
-      'Days between May 31, 2026 and today won&#x27;t be imported. Syncing carries on from today.',
+      'The app won&#x27;t import the days between May 31, 2026 and today. Syncing carries on from today.',
     )
     expect(today).not.toContain('Syncing carries on from today')
   })

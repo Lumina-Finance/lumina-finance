@@ -159,9 +159,9 @@ async def test_range_import_leaves_a_queued_import_starting_when_it_was_due(clie
 @pytest.mark.parametrize(
     ("values", "connection_values", "running", "detail"),
     [
-        pytest.param(_SYNCED | _RUNNING | {"importing": True}, {}, False, "A date range import is already running", id="range-running"),
-        pytest.param({}, {}, False, "The import is still running", id="importing"),
-        pytest.param(_SYNCED, {}, True, "A sync is already running", id="syncing"),
+        pytest.param(_SYNCED | _RUNNING | {"importing": True}, {}, False, "A date range import is already in progress", id="range-running"),
+        pytest.param({}, {}, False, "The import is still in progress", id="importing"),
+        pytest.param(_SYNCED, {}, True, "A sync is already in progress", id="syncing"),
         pytest.param(_SYNCED, {"credential_rejected_at": _NOW}, False, "Please reconnect Fake Bank in Settings first", id="reconnect-needed"),
         pytest.param(
             {"state": BankLinkState.CHOOSE_ACCOUNT, "importing": False},

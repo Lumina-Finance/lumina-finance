@@ -18,12 +18,20 @@ export const LINK_FLOW_STEP_NAMES: Record<LinkFlowStep, string> = {
 
 /** The flow's title, its last button and the confirmation once it links, by why it links */
 export const LINK_FLOW_WORDING: Record<LinkFlowMode, { title: string; submitLabel: string; confirmation: string }> = {
-  link: { title: 'Link bank account', submitLabel: 'Link and import', confirmation: 'Linked. Syncing starts shortly.' },
-  relink: { title: 'Reconnect bank account', submitLabel: 'Relink', confirmation: 'Relinked. Syncing starts shortly.' },
+  link: {
+    title: 'Link bank account',
+    submitLabel: 'Link and import',
+    confirmation: 'Linked to a bank account. Syncing starts shortly.',
+  },
+  relink: {
+    title: 'Reconnect bank account',
+    submitLabel: 'Relink',
+    confirmation: 'Relinked to a bank account. Syncing starts shortly.',
+  },
   choose_again: {
     title: 'Choose bank account again',
     submitLabel: 'Relink',
-    confirmation: 'Relinked. Syncing starts shortly.',
+    confirmation: 'Relinked to a bank account. Syncing starts shortly.',
   },
 }
 
@@ -85,7 +93,8 @@ export function describeConnectFirst(
 ): { message: string; canOpenSettings: boolean } {
   if (connections.some((connection) => connection.status === 'credential_rejected')) {
     return {
-      message: 'Your bank connection was rejected. Please reconnect in Settings, then come back to link this account.',
+      message:
+        'The provider rejected your bank connection. Please reconnect in Settings, then come back to link this account.',
       canOpenSettings: true,
     }
   }

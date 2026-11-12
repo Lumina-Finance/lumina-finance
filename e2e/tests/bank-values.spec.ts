@@ -23,7 +23,7 @@ const BANK_DESCRIPTION = 'HARBOUR CAFE #12 VANCOUVER'
 // Where the modal has room for the bank's filing card beside it
 const ASIDE_MIN_WIDTH = 1320
 const RESTORE_FAILED = 'The bank value for this transaction is no longer available'
-const UNSTORABLE_REASON = 'The bank\'s amount has more decimal places than CAD allows, so the amount can\'t be restored'
+const UNSTORABLE_REASON = 'The bank\'s amount has more decimal places than CAD allows, so the app can\'t restore the amount'
 
 // The day the bank booked the transaction on, and the earlier one a test moves it to
 const BANK_DATE = daysFromTodayInTestTimezone(-3)

@@ -26,10 +26,10 @@ export function describeTickLimit(offersReview: boolean): string {
 }
 
 /** Why Delete is off while an item waiting for review is ticked */
-export const REVIEW_ITEMS_NOT_DELETED = 'Items waiting for review are dismissed, not deleted'
+export const REVIEW_ITEMS_NOT_DELETED = 'Items waiting for review need Dismiss, not Delete'
 
 /** Why Dismiss is off while a ledger transaction is ticked */
-export const ONLY_REVIEW_ITEMS_DISMISSED = 'Only items waiting for review can be dismissed'
+export const ONLY_REVIEW_ITEMS_DISMISSED = 'Dismiss works only on items waiting for review'
 
 /** Why Edit is off while a ticked item waiting for review has a bank amount its currency can't hold */
 export const REVIEW_ITEMS_NEED_THEIR_OWN_AMOUNT = 'Items missing an amount are added one at a time'
@@ -115,8 +115,8 @@ function describeSkipped(skipped: number, verb: string): string {
  * @param updated - How many ledger transactions were updated, or null when none were ticked
  */
 export function describeBulkAdd(added: number, skipped: number, updated: number | null): string {
-  const addedText = `${countNoun(added, 'item')} added to your ledger`
-  const updatedText = updated === null ? '' : ` and ${countNoun(updated, 'transaction')} updated`
+  const addedText = `Added ${countNoun(added, 'item')} to your ledger`
+  const updatedText = updated === null ? '' : ` and updated ${countNoun(updated, 'transaction')}`
   return `${addedText}${updatedText}.${describeSkipped(skipped, 'added')}`
 }
 
@@ -128,7 +128,7 @@ export function describeBulkAdd(added: number, skipped: number, updated: number 
  * @param reason - What the server said about the update
  */
 export function describeAddedButNotUpdated(added: number, reason: string): string {
-  return `${countNoun(added, 'item')} added to your ledger, but the ticked transactions weren't updated. ${reason}`
+  return `Added ${countNoun(added, 'item')} to your ledger, but the app didn't update the ticked transactions. ${reason}`
 }
 
 /**
@@ -138,5 +138,5 @@ export function describeAddedButNotUpdated(added: number, reason: string): strin
  * @param skipped - How many items sent were skipped
  */
 export function describeBulkDismiss(dismissed: number, skipped: number): string {
-  return `${countNoun(dismissed, 'item')} dismissed.${describeSkipped(skipped, 'dismissed')}`
+  return `Dismissed ${countNoun(dismissed, 'item')}.${describeSkipped(skipped, 'dismissed')}`
 }

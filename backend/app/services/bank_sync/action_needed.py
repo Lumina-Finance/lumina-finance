@@ -57,7 +57,7 @@ _RECONNECT_CLOSING_UNLINKED = "Please reconnect in Settings before linking accou
 # leaves out the institution's name, since it comes from the provider
 _SIGNIN_SUBJECT = "Sign in to your bank again in {site}"
 _SIGNIN_LEAD = "Please sign in to {institution} again in {site}. Syncing has stopped for:"
-_SIGNIN_CLOSING = "Lumina Finance checks each day and resumes syncing once you have."
+_SIGNIN_CLOSING = "Lumina Finance checks each day and resumes syncing after you sign in again."
 
 # The Choose bank account email, one per account a sync's listing moved there, worded as the
 # settings section explains it. The subject leaves out the names, since they come from the user and the provider

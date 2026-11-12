@@ -16,7 +16,7 @@ from tests.routes.support.bank_sync_helpers import _build_bank_link, _commit_lis
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 from tests.routes.support.manual_entry_helpers import _commit_link, _ledger, _unlink
 
-_ARCHIVE_REFUSED = "This account is linked to Fake Bank. Please unlink the account before archiving"
+_ARCHIVE_REFUSED = "This account is linked to Fake Bank. Please unlink the account first"
 
 
 async def _is_archived(account_id: str) -> bool:

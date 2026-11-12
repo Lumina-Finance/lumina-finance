@@ -152,7 +152,7 @@ describe('bank connection status', () => {
   it('reads Bank sign-in needed and names each institution waiting on one once', () => {
     const signedOut = connection({ accounts: [...HARBOUR, ...TIDEWATER] })
 
-    expect(describeConnectionStatus(signedOut)).toEqual({ tone: 'stopped', label: 'Bank sign-in needed' })
+    expect(describeConnectionStatus(signedOut)).toEqual({ tone: 'stopped', label: 'Needs bank sign-in' })
     expect(describeSignInDetail(signedOut)).toBe(
       'Please sign in to Harbour Bank and Tidewater Credit Union again in SimpleFIN Bridge. The app checks again each day.',
     )
@@ -163,7 +163,7 @@ describe('bank connection status', () => {
       describeConnectionStatus(connection({ status: 'credential_rejected', accounts: [bankAccount({})] })),
     ).toEqual({
       tone: 'stopped',
-      label: 'Reconnect needed',
+      label: 'Needs reconnection',
     })
   })
 })
@@ -191,26 +191,28 @@ describe('bank connection search', () => {
 describe('bank connection confirmations', () => {
   it('counts the bank accounts a new connection reaches', () => {
     expect(describeConnected(connection({ nickname: 'Joint banks', accounts: [...HARBOUR, ...TIDEWATER] }))).toBe(
-      "Joint banks connected with 4 bank accounts. Please link each bank account from the matching account's page.",
+      "Connected to Joint banks with 4 bank accounts. Please link each bank account from the matching account's page.",
     )
   })
 
   it('counts a lone bank account in the singular', () => {
-    expect(describeConnected(connection({ accounts: [bankAccount({})] }))).toContain('connected with 1 bank account.')
+    expect(describeConnected(connection({ accounts: [bankAccount({})] }))).toContain(
+      'Connected to SimpleFIN with 1 bank account.',
+    )
   })
 
   it('says the bank accounts are on the way when the claim could not list them yet', () => {
     expect(describeConnected(connection({ discovery_pending: true }))).toBe(
-      'SimpleFIN connected. Its bank accounts will appear here shortly.',
+      'Connected to SimpleFIN. Its bank accounts will appear here shortly.',
     )
   })
 
   it('leaves out where to link the bank accounts when going back to the link flow', () => {
     expect(describeConnected(connection({ nickname: 'Joint banks', accounts: [...HARBOUR, ...TIDEWATER] }), true)).toBe(
-      'Joint banks connected with 4 bank accounts.',
+      'Connected to Joint banks with 4 bank accounts.',
     )
     expect(describeConnected(connection({ discovery_pending: true }), true)).toBe(
-      'SimpleFIN connected. Its bank accounts will appear shortly.',
+      'Connected to SimpleFIN. Its bank accounts will appear shortly.',
     )
   })
 
@@ -229,11 +231,11 @@ describe('bank connection confirmations', () => {
     })
 
     expect(describeReconnected(result(2, 1))).toBe(
-      'SimpleFIN reconnected. 2 accounts resume syncing. 1 account needs its bank account chosen again.',
+      'Reconnected to SimpleFIN. Syncing resumes for 2 accounts. 1 account needs its bank account chosen again.',
     )
-    expect(describeReconnected(result(1, 2))).toContain('1 account resumes syncing.')
+    expect(describeReconnected(result(1, 2))).toContain('Syncing resumes for 1 account.')
     expect(describeReconnected(result(1, 2))).toContain('2 accounts need their bank accounts chosen again.')
-    expect(describeReconnected(result(0, 0))).toBe('SimpleFIN reconnected.')
+    expect(describeReconnected(result(0, 0))).toBe('Reconnected to SimpleFIN.')
   })
 
   it('says linked accounts wait on a listing when the reconnect could not list the bank accounts', () => {
@@ -244,7 +246,7 @@ describe('bank connection confirmations', () => {
         choose_again_account_ids: [],
         accounts_pending: true,
       }),
-    ).toBe('SimpleFIN reconnected. Linked accounts pick up once their bank accounts are listed again.')
+    ).toBe('Reconnected to SimpleFIN. Linked accounts pick up once their bank accounts are listed again.')
   })
 })
 

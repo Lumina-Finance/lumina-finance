@@ -480,7 +480,7 @@ test('opens an amount its currency cannot hold empty, and adds the item once one
   await expect(dialog.getByRole('tab', { name: 'Expense', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(form.amount).toHaveValue('')
   // Says why it starts empty, before anything is pressed
-  const why = "The bank's amount has more decimal places than CAD allows, so please enter the amount to add"
+  const why = "The bank's amount has more decimal places than CAD allows, so please enter the amount by hand"
   await expect(form.amount).toHaveAccessibleDescription(why)
 
   await chooseFromDropdown(dialog, 'Merchant', 'Unknown')

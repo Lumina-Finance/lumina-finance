@@ -124,7 +124,7 @@ async function linkFromEditAccount(page: Page, request: APIRequestContext): Prom
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.clock.install()
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
 
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
@@ -136,7 +136,7 @@ async function linkFromEditAccount(page: Page, request: APIRequestContext): Prom
     answer.url() === `${API_BASE_URL}/accounts/${everyday.id}/bank-link` && answer.request().method() === 'POST')
   await flow.getByRole('button', { name: 'Link and import' }).click()
   expect((await linked).ok()).toBe(true)
-  const message = toast(page, 'Linked. Syncing starts shortly.')
+  const message = toast(page, 'Linked to a bank account. Syncing starts shortly.')
   await runClockUntil(page, async () => await flow.isHidden() && await message.isVisible()
     && await message.evaluate((element) => getComputedStyle(element).opacity) === '1')
   return { dialog, message }
@@ -289,7 +289,7 @@ test('links an account from its page, from choosing the bank account to its impo
   ])
   const connection = await claimSetupToken(request, user, scenario.setupToken)
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
 
   const linkButton = dialog.getByRole('button', { name: 'Link bank account' })
   await expect(linkButton).toBeInViewport()
@@ -298,7 +298,7 @@ test('links an account from its page, from choosing the bank account to its impo
   // Every open lands there, not only the first
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
-  await page.getByRole('button', { name: 'Bank sync: Not linked. Open bank link' }).click()
+  await page.getByRole('button', { name: 'Bank sync: No bank link. Open bank link' }).click()
   await expect(linkButton).toBeFocused()
   await expect(dialog.getByText('Link a bank account to bring in transactions automatically. Each one waits for your review before reaching a balance.')).toBeVisible()
   await linkButton.click()
@@ -358,7 +358,7 @@ test('links an account from its page, from choosing the bank account to its impo
       external_account_id: externalIdOf(connection, SAMPLE_CHEQUING),
       start_date: firstOfMonthsAgo(3),
     })
-    await expect(toast(page, 'Linked. Syncing starts shortly.')).toBeVisible()
+    await expect(toast(page, 'Linked to a bank account. Syncing starts shortly.')).toBeVisible()
     await expect(flow).toBeHidden()
     await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
     await expect(fact(dialog, 'Institution')).toHaveText(SAMPLE_BANK)
@@ -475,7 +475,7 @@ test('reminds the user the import waits for more links in the Bank link section,
   await claimSetupToken(request, user, scenario.setupToken)
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
   await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
@@ -483,7 +483,7 @@ test('reminds the user the import waits for more links in the Bank link section,
   await chooseFirstStart(flow)
   await flow.getByRole('button', { name: 'Link and import' }).click()
 
-  await expect(toast(page, 'Linked. Syncing starts shortly.')).toBeVisible()
+  await expect(toast(page, 'Linked to a bank account. Syncing starts shortly.')).toBeVisible()
   await expect(flow).toBeHidden()
   await expect(dialog.getByText(IMPORT_REMINDER)).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Start now' })).toHaveCount(0)
@@ -517,14 +517,14 @@ test("lists the bank accounts that can't be linked with the reason for each", NE
     startDate: todayInTestTimezone(),
   })
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
 
   const reasons = [
     [SAMPLE_CHEQUING, 'Already linked to Household'],
     ['US Dollar Savings', 'In USD, but Everyday is in CAD'],
-    ['Flight Miles', "Uses a currency of its own that Lumina Finance can't track"],
+    ['Flight Miles', 'Uses a currency of its own, so no link is possible'],
   ]
   for (const [name, reason] of reasons) {
     const card = flow.getByRole('radio', { name: new RegExp(`^${name}`) })
@@ -558,7 +558,7 @@ test("brings an account sent to settings for its first connection back to its li
     createSampleBridgeScenario(request),
   ])
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   await page.getByRole('dialog', { name: 'Link bank account' }).getByRole('button', { name: 'Open settings' }).click()
 
@@ -587,7 +587,7 @@ test('brings an account sent to settings for another connection back to its link
   await addBridgeBankAccount(request, lakeside.id, { connId: login, name: 'Joint Savings', currency: 'CAD' })
   await claimSetupToken(request, user, sample.setupToken)
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
 
   // With a connection already there, the flow still offers adding another one in Settings
@@ -608,7 +608,7 @@ test('sends an account with no connection to settings first', NEEDS_BANK_SYNC, a
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
 
@@ -648,7 +648,7 @@ test('fits the link flow button to the label it shows, easing its width as the l
   ])
   await claimSetupToken(request, user, scenario.setupToken)
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
 
@@ -678,7 +678,7 @@ test('opens custom dates at today and keeps From within the range', NEEDS_BANK_S
   ])
   await claimSetupToken(request, user, scenario.setupToken)
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
   await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
@@ -772,7 +772,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', NE
   await unlink.getByRole('button', { name: 'Unlink', exact: true }).click()
 
   // Both dialogues close once the account is unlinked
-  await expect(toast(page, 'Everyday unlinked.')).toBeVisible()
+  await expect(toast(page, 'Unlinked Everyday.')).toBeVisible()
   await expect(unlink).toBeHidden()
   await expect(dialog).toBeHidden()
   await page.getByRole('button', { name: /^Bank sync: / }).click()
@@ -791,7 +791,7 @@ test('unlinks the account alone, then reconnects it with the relink wording', NE
   await chooseFirstStart(flow)
   await flow.getByRole('button', { name: 'Relink' }).click()
 
-  await expect(toast(page, 'Relinked. Syncing starts shortly.')).toBeVisible()
+  await expect(toast(page, 'Relinked to a bank account. Syncing starts shortly.')).toBeVisible()
   await expect(fact(dialog, 'Bank account')).toHaveText(SAMPLE_CHEQUING)
 })
 
@@ -970,7 +970,7 @@ test('opens the link flow on the new account’s page when the new-account promp
   await create.getByRole('button', { name: 'Create account' }).click()
 
   const prompt = page.getByRole('dialog', { name: 'Keep it up to date' })
-  await expect(prompt.getByText('Everyday created')).toBeVisible()
+  await expect(prompt.getByText('Created Everyday')).toBeVisible()
   await expect(prompt.getByRole('radio', { name: /^Link a bank account/ })).toBeChecked()
   await expect(prompt.getByLabel('Starting balance', { exact: true })).toBeHidden()
   await prompt.getByRole('button', { name: 'Continue' }).click()
@@ -984,7 +984,7 @@ test('opens the link flow on the new account’s page when the new-account promp
   await flow.getByRole('button', { name: 'Cancel' }).click()
   await expect(flow).toBeHidden()
   await page.reload()
-  await expect(page.getByRole('button', { name: /^Bank sync: Not linked/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Bank sync: No bank link/ })).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
@@ -996,7 +996,7 @@ test.describe("the reason on Link bank account while bank sync isn't set up", ()
       body.sync_running = false
     })
     await logInViaApi(page, user)
-    await openBankLink(page, everyday.id, 'Not linked')
+    await openBankLink(page, everyday.id, 'No bank link')
   })
 
   test('prints under the button with a link to Settings, Bank connections', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page }) => {
@@ -1076,7 +1076,7 @@ test('holds linking back on an archived account with the reason beside it, listi
   expect(archived.ok()).toBe(true)
   const listings = watchListings(page)
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
 
   const link = dialog.getByRole('button', { name: 'Link bank account' })
   await expect(link).toBeFocused()
@@ -1115,7 +1115,7 @@ test('points from the Unlink dialogue to the connection in Settings, where it is
   await connectionModal.getByRole('button', { name: 'Disconnect' }).click()
   await connectionModal.getByRole('button', { name: 'Yes, disconnect' }).click()
 
-  await expect(toast(page, 'SimpleFIN disconnected. 1 account unlinked.')).toBeVisible()
+  await expect(toast(page, 'Disconnected from SimpleFIN and unlinked 1 account.')).toBeVisible()
   await expect.poll(() => readConnection(request, user, connection.id)).toBeUndefined()
 })
 
@@ -1131,7 +1131,7 @@ test('lists the bank accounts of the connection switched to, dropping the one ch
   await claimSetupToken(request, user, sample.setupToken)
   await claimSetupToken(request, user, lakeside.setupToken, 'Lakeside')
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'Not linked')
+  const dialog = await openBankLink(page, everyday.id, 'No bank link')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
 
@@ -1229,7 +1229,7 @@ test('sets the Bank sync fact on a row of its own across the identity card', AT_
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${everyday.id}`)
-  const bankSync = bankSyncFact(page, 'Not linked')
+  const bankSync = bankSyncFact(page, 'No bank link')
   await expect(bankSync).toBeVisible()
 
   const facts = identityCard(page).locator('dl')

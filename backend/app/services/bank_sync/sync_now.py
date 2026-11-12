@@ -38,14 +38,14 @@ from app.services.cache_state import mark_user_status_changed
 
 # Why a sync can't start now in each state that holds it back, as the Sync now button says it
 _REFUSALS: dict[BankSyncState, str] = {
-    "importing": "The import is still running",
+    "importing": "The import is still in progress",
     "reconnect_needed": "Please reconnect {provider} in Settings first",
     "choose_account": "Please choose the bank account again first",
     "paused": f"Paused until {RESUME_AT} or fewer items wait for review",
 }
 
 # Why a sync can't start while a worker already syncs the account, whatever its state shows
-_SYNC_RUNNING = "A sync is already running"
+_SYNC_RUNNING = "A sync is already in progress"
 
 # Why a sync can't start while the connection's request budget is spent, and when it can. The budget
 # counts the last 24 hours rather than a calendar day

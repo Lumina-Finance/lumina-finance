@@ -32,7 +32,7 @@ export function describeHistoryReminder(reminder: BankHistoryReminder, providerN
     }
   }
   return {
-    title: 'Less history than requested',
+    title: 'Less history than your chosen start',
     body: `${providerName} returned transactions from ${unbrokenDate(reminder.earliest_returned)}, not ${requested}. ${HISTORY_LIMIT_NOTE}`,
   }
 }
@@ -43,7 +43,7 @@ export function describeHistoryReminder(reminder: BankHistoryReminder, providerN
  */
 export function describeCutOffDay(day: string, providerName: string): ReminderCopy {
   return {
-    title: 'Some transactions may be missing',
-    body: `${providerName} sent its maximum number of transactions for ${unbrokenDate(day)}, so some may be missing. Please check that day's transactions.`,
+    title: 'You may be missing some transactions',
+    body: `${providerName} sent its maximum number of transactions for ${unbrokenDate(day)}, so that day may have more transactions. Please check that day's transactions.`,
   }
 }

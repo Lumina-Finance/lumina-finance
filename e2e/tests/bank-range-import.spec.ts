@@ -76,7 +76,7 @@ test('links with a date range ending before today, then imports a range again br
   await logInViaApi(page, user)
 
   // Linking with a date range says syncing picks up from today and leaves the days after To alone
-  const dialog = await openBankLink(page, accountId, 'Not linked')
+  const dialog = await openBankLink(page, accountId, 'No bank link')
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
   await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
@@ -87,7 +87,7 @@ test('links with a date range ending before today, then imports a range again br
   await expect(dateRange).toBeChecked()
   await typeDate(page, 'From', LINK_FROM)
   await typeDate(page, 'To', LINK_TO)
-  await expect(flow.getByText(`Days between ${formatDateLabel(LINK_TO)} and today won't be imported. Syncing carries on from today.`)).toBeVisible()
+  await expect(flow.getByText(`The app won't import the days between ${formatDateLabel(LINK_TO)} and today. Syncing carries on from today.`)).toBeVisible()
 
   const linked = page.waitForResponse((answer) => answer.url() === `${API_BASE_URL}/accounts/${accountId}/bank-link` && answer.request().method() === 'POST')
   await flow.getByRole('button', { name: 'Link and import' }).click()

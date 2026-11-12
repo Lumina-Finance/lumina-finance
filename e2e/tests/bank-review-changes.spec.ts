@@ -145,7 +145,7 @@ test("accepts a bank change over an amount the user edited, writing the bank's a
 
   const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
   await dialog.getByRole('button', { name: 'Accept bank change' }).click()
-  await expect(toast(page, 'Bank change applied.')).toBeVisible()
+  await expect(toast(page, 'Applied the bank change.')).toBeVisible()
   await expect(dialog).toBeHidden()
 
   // The ledger holds the bank's amount, no longer the user's own
@@ -167,7 +167,7 @@ test("keeps the current value, counting it as edited, clearing the marker and ke
   const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
   const ledgerReads = watchLedgerReads(page)
   await dialog.getByRole('button', { name: 'Keep current value' }).click()
-  await expect(toast(page, 'Current values kept.')).toBeVisible()
+  await expect(toast(page, 'Kept the current values.')).toBeVisible()
   await expect(dialog).toBeHidden()
 
   await expect(reviewBlock(page)).toBeHidden()
@@ -191,13 +191,13 @@ test('removes a transaction the bank no longer reports, reading the ledger again
   const dialog = await openComparison(page, 'UBER TRIP', 'Review bank removal')
 
   // On one line in each row, even on a phone
-  const gone = dialog.getByRole('cell', { name: 'No longer reported' })
+  const gone = dialog.getByRole('cell', { name: 'Gone from the bank' })
   await expect(gone).toHaveCount(3)
   for (const cell of await gone.all()) expect(await linesOf(cell)).toBe(1)
 
   const ledgerReads = watchLedgerReads(page)
   await dialog.getByRole('button', { name: 'Remove from ledger' }).click()
-  await expect(toast(page, 'Transaction removed from the ledger.')).toBeVisible()
+  await expect(toast(page, 'Removed the transaction from the ledger.')).toBeVisible()
   await expect(dialog).toBeHidden()
   expect(decisions).toEqual(['remove-from-ledger'])
   await expect(reviewBlock(page)).toBeHidden()
@@ -216,7 +216,7 @@ test('keeps a transaction the bank no longer reports, clearing the marker withou
   const dialog = await openComparison(page, 'UBER TRIP', 'Review bank removal')
   const ledgerReads = watchLedgerReads(page)
   await dialog.getByRole('button', { name: 'Keep transaction' }).click()
-  await expect(toast(page, 'Transaction kept.')).toBeVisible()
+  await expect(toast(page, 'Kept the transaction.')).toBeVisible()
   await expect(dialog).toBeHidden()
   expect(decisions).toEqual(['keep-transaction'])
 
@@ -336,7 +336,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
     if (colorScheme === 'light') expect(await dialog.evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true)
     const texts = [
-      dialog.getByText('SimpleFIN sent new values for a transaction you already approved. Nothing changes unless you accept.'),
+      dialog.getByText('SimpleFIN sent new values for a transaction you already approved. Nothing changes unless you accept the new values.'),
       ...await dialog.getByRole('columnheader').all(),
       ...await dialog.getByRole('rowheader').all(),
       ...await dialog.getByRole('cell').all(),

@@ -166,7 +166,7 @@ export function BankConnectionsSection() {
 
           {noneOffered && (
             <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              No bank provider is open to new connections right now. Existing connections keep working.
+              No bank provider is open to new connections right now. Existing connections carry on as before.
             </p>
           )}
 

@@ -26,7 +26,7 @@ from app.services.bank_sync.providers.contract import ProviderAdapter, is_iso_cu
 from app.services.bank_sync.providers.registry import load_adapters
 
 # What a connection whose provider is no longer installed says in place of syncing
-PROVIDER_GONE_DETAIL = "This provider is no longer available on this server, so this connection doesn't sync"
+PROVIDER_GONE_DETAIL = "This provider is no longer available on this server, so syncing is off for this connection"
 
 
 @dataclass(frozen=True)
@@ -269,7 +269,7 @@ def find_unavailability(
         The reason and its sentence, or None
     """
     if not is_iso_currency_code(bank_account.currency):
-        return Unavailability(UnavailableReason.CUSTOM_CURRENCY, "Uses a currency of its own that Lumina Finance can't track")
+        return Unavailability(UnavailableReason.CUSTOM_CURRENCY, "Uses a currency of its own, so no link is possible")
     if bank_account.currency != account.currency:
         return Unavailability(
             UnavailableReason.CURRENCY_MISMATCH,

@@ -21,7 +21,7 @@ import { API_BASE_URL } from '../support/target'
 // part reaching today comes back with 1,000 transactions until today alone is kept. Nothing booked
 // came back either, so the history reminder shows above it. Which days are flagged, and the cache
 // writes behind a dismissal, are covered by backend and unit tests
-const CUT_OFF = 'Some transactions may be missing'
+const CUT_OFF = 'You may be missing some transactions'
 const NO_HISTORY = 'No history returned yet'
 
 // SimpleFIN's reported limit on the transactions one response holds
@@ -76,7 +76,7 @@ test('reminds that some of today\'s transactions may be missing once today alone
 
   const note = reminderNote(dialog, CUT_OFF)
   await expect(note).toContainText(
-    `SimpleFIN sent its maximum number of transactions for ${formatDateLabel(todayInTestTimezone())}, so some may be missing. Please check that day's transactions.`,
+    `SimpleFIN sent its maximum number of transactions for ${formatDateLabel(todayInTestTimezone())}, so that day may have more transactions. Please check that day's transactions.`,
   )
   await expect(note.getByRole('button', { name: 'Dismiss' })).toBeVisible()
   expect((await readReminders(request, setup.user, setup.accountId)).cut_off_day).toBe(todayInTestTimezone())

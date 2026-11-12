@@ -35,10 +35,10 @@ const SAMPLE_COFFEE = 'EFTPOS BEAN THERE CAFE'
 const IMPORT_START_DAYS_AGO = 10
 
 const MESSAGE_FROM_TODAY = `SimpleFIN supplies this account's transactions from ${formatToday()} to today`
-const MOVE_REFUSAL = 'Transactions from SimpleFIN stay in Everyday while the account is linked'
-const ARCHIVE_LINKED_REASON = 'This account is linked to SimpleFIN. Please unlink the account before archiving.'
-const DELETE_LINKED_REASON = 'Imported from SimpleFIN. Please edit this transaction instead while Everyday is linked'
-const BULK_DELETE_LINKED_REASON = "Transactions from SimpleFIN can't be deleted while Everyday is linked"
+const MOVE_REFUSAL = 'While the account is linked, transactions from SimpleFIN stay in Everyday'
+const ARCHIVE_LINKED_REASON = 'This account is linked to SimpleFIN. Please unlink the account first.'
+const DELETE_LINKED_REASON = 'Imported from SimpleFIN. While Everyday is linked, please edit this transaction instead'
+const BULK_DELETE_LINKED_REASON = "While Everyday is linked, you can't delete transactions from SimpleFIN"
 
 // Where the pointer first rests on Delete, measured in from the button's top-left corner, and how far
 // it then moves down to see the reason follow, staying inside the button's 40px height. A move
@@ -441,7 +441,7 @@ test('greys out Archive with its reason while the account is linked, and offers 
   await openPage(page, `/accounts/${account.id}`)
 
   // The switch is held back until the link is read, so the read has to arrive first
-  await expect(page.getByRole('button', { name: /^Bank sync: Not linked/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Bank sync: No bank link/ })).toBeVisible()
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
   await expect(archive).toBeEnabled()
   await expect(archiveReason).toBeHidden()
@@ -549,7 +549,7 @@ test('offers Archive once the link fails to load', NEEDS_BANK_SYNC, async ({ pag
     route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }))
   await logInViaApi(page, user)
   await openPage(page, `/accounts/${account.id}`)
-  await expect(page.getByRole('button', { name: "Bank sync: Couldn't check. Open bank link" })).toBeVisible()
+  await expect(page.getByRole('button', { name: "Bank sync: Status unavailable. Open bank link" })).toBeVisible()
   const dialog = await openEditAccount(page)
   await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
 

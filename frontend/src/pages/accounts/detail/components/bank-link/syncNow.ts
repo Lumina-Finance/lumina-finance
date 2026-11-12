@@ -36,8 +36,8 @@ export function describeSyncNowBlock(
 ): string | null {
   if (link.sync.import_starts_at !== null) return null
   if (!link.provider_available) return PROVIDER_UNAVAILABLE_DETAIL
-  if (link.sync.state === 'importing') return 'The import is still running'
-  if (link.sync.state === 'syncing' || link.sync.sync_running) return 'A sync is already running'
+  if (link.sync.state === 'importing') return 'The import is still in progress'
+  if (link.sync.state === 'syncing' || link.sync.sync_running) return 'A sync is already in progress'
   switch (link.sync.state) {
     case 'reconnect_needed':
       return `Please reconnect ${link.provider_name} in Settings first`
@@ -61,7 +61,7 @@ export function describeSyncNowBlock(
 }
 
 /** Why a date range can't be imported while another runs on the account, as the server says it */
-export const RANGE_IMPORT_RUNNING_REASON = 'A date range import is already running'
+export const RANGE_IMPORT_RUNNING_REASON = 'A date range import is already in progress'
 
 /**
  * Why Import a date range can't start on a live link, or null while it can
@@ -80,7 +80,7 @@ export function describeRangeImportBlock(
   providers: BankProvidersResponse | undefined,
 ): string | null {
   if (link.range_import) return RANGE_IMPORT_RUNNING_REASON
-  if (link.provider_available && link.sync.import_starts_at !== null) return 'The import is still running'
+  if (link.provider_available && link.sync.import_starts_at !== null) return 'The import is still in progress'
   return describeSyncNowBlock(link, connection, providers)
 }
 

@@ -57,7 +57,7 @@ vi.mock('@/components/modal/TitledPanel', () => ({
 import { BankComparisonModal } from '@/components/transactions/bank-review/ComparisonModal'
 
 const EDITED_NOTE = "You edited this. Accepting replaces your value with the bank's."
-const KEPT_NOTE = 'Your own value, kept if you accept.'
+const KEPT_NOTE = 'Accepting keeps your own value.'
 const FIELDS = ['date', 'amount', 'description'] as const
 const TINT = 'var(--app-warning-soft)'
 
@@ -143,7 +143,7 @@ describe('a correction', () => {
 
     expect(markup).toContain('<p>Correction from SimpleFIN</p><h2>Review bank change</h2>')
     expect(markup).toContain(
-      'SimpleFIN sent new values for a transaction you already approved. Nothing changes unless you accept.',
+      'SimpleFIN sent new values for a transaction you already approved. Nothing changes unless you accept the new values.',
     )
     expect(columnHeadings(markup)).toEqual(['Field', 'In your ledger', 'From bank'])
     expect([...markup.matchAll(/data-testid="comparison-(\w+)"/g)].map(([, field]) => field)).toEqual([...FIELDS])
@@ -220,9 +220,9 @@ describe('a removal', () => {
 
     const rows = FIELDS.map((field) => rowOf(markup, field))
     expect(rows.map(({ cells }) => cells.slice(1).map(({ text }) => text))).toEqual([
-      ['Sep 21, 2026', 'No longer reported'],
-      [`${MINUS}$18.00`, 'No longer reported'],
-      ['UBER TRIP', 'No longer reported'],
+      ['Sep 21, 2026', 'Gone from the bank'],
+      [`${MINUS}$18.00`, 'Gone from the bank'],
+      ['UBER TRIP', 'Gone from the bank'],
     ])
     expect(rows.map(({ tint }) => tint)).toEqual([undefined, undefined, undefined])
     expect(rows.map(({ note }) => note)).toEqual([undefined, undefined, undefined])

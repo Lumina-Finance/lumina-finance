@@ -32,7 +32,7 @@ export function connectionName(connection: Pick<BankConnection, 'nickname' | 'pr
  * says so, and Sync now and Reconnect are held back
  */
 export const PROVIDER_UNAVAILABLE_DETAIL =
-  "This provider is no longer available on this server, so this connection doesn't sync. Disconnecting keeps everything already imported."
+  'This provider is no longer available on this server, so syncing is off for this connection. Disconnecting keeps its transactions and waiting items.'
 
 /**
  * Names a provider's credential mid-sentence, as in "a new setup token", keeping a leading acronym such as "API key" as it is
@@ -54,8 +54,8 @@ export function countNoun(count: number, singular: string, plural = `${singular}
  */
 export function describeDisconnectEffect(linkedCount: number): string | null {
   if (linkedCount === 0) return null
-  const theirs = linkedCount === 1 ? 'Its' : 'Their'
-  return `Disconnecting unlinks ${countNoun(linkedCount, 'account')}. ${theirs} transactions and waiting items are kept.`
+  const theirs = linkedCount === 1 ? 'its' : 'their'
+  return `Disconnecting unlinks ${countNoun(linkedCount, 'account')} but keeps ${theirs} transactions and waiting items.`
 }
 
 /**
@@ -63,6 +63,6 @@ export function describeDisconnectEffect(linkedCount: number): string | null {
  * were any, and saying the provider keeps sharing until its access is revoked there too
  */
 export function describeDisconnected(connection: BankConnection, unlinkedCount: number): string {
-  const unlinked = unlinkedCount === 0 ? '' : ` ${countNoun(unlinkedCount, 'account')} unlinked.`
-  return `${connectionName(connection)} disconnected.${unlinked} Please also revoke Lumina Finance's access in ${providerSiteName(connection)} to stop sharing data.`
+  const unlinked = unlinkedCount === 0 ? '' : ` and unlinked ${countNoun(unlinkedCount, 'account')}`
+  return `Disconnected from ${connectionName(connection)}${unlinked}. Please also revoke Lumina Finance's access in ${providerSiteName(connection)} to stop sharing data.`
 }

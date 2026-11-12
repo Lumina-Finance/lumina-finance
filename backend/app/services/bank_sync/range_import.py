@@ -33,7 +33,7 @@ from app.services.cache_state import mark_user_status_changed
 from app.utils.dates import resolve_timezone
 
 # Why a range can't start while another runs on the account
-RANGE_RUNNING = "A date range import is already running"
+RANGE_RUNNING = "A date range import is already in progress"
 
 
 async def import_bank_range(db: AsyncSession, user: User, account_id: uuid.UUID, request: ImportBankRangeRequest) -> BankLinkResponse:

@@ -72,7 +72,7 @@ export const ARCHIVE_BLOCKED_BY_LATER_TRANSACTIONS_REASON =
 // Archiving writes a balance adjustment dated today, a day a linked account's bank supplies, so a
 // linked account is unlinked first. The server refuses the archive in the same words
 export function getArchiveBlockedByLinkReason(providerName: string): string {
-  return `This account is linked to ${providerName}. Please unlink the account before archiving.`
+  return `This account is linked to ${providerName}. Please unlink the account first.`
 }
 
 /**

@@ -16,7 +16,7 @@ import { AT_EVERY_SIZE_NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 // Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge from the day its
 // one transaction was booked. The user adds that transaction to the ledger as the bank sent it, and
 // changes its amount where a test needs the dot, so each row carries the source the server gives it
-const EDITED_NOTE = 'You edited a value the bank supplied'
+const EDITED_NOTE = 'You edited a value from the bank'
 
 // The day the bank booked its $42.50 grocery spend, the first day Everyday imports from. A manual row
 // goes on an earlier day, since the bank supplies every day from this one on

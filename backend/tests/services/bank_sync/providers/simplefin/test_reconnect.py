@@ -45,7 +45,7 @@ from tests.services.bank_sync.fake_provider import use_adapter
 from tests.services.bank_sync.providers.simplefin.stand_ins import AccountsTimeOut, FakeBridgeScenario, PausedBridge, simplefin_adapter
 from tests.services.bank_sync.support import _jobs
 
-_WORKING = "This connection is working, so it doesn't need reconnecting"
+_WORKING = "This connection is working, so it needs no reconnection"
 _ALREADY_USED = "This setup token has already been used. Please create a new one in SimpleFIN Bridge"
 _NOT_FOUND = "Bank connection not found"
 _SIGNIN_SINCE = datetime(2026, 9, 30, tzinfo=UTC)

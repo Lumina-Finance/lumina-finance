@@ -67,9 +67,21 @@ describe('the link flow wording', () => {
     ].map((status) => LINK_FLOW_WORDING[getLinkFlowMode(status)])
 
     expect(wording).toEqual([
-      { title: 'Link bank account', submitLabel: 'Link and import', confirmation: 'Linked. Syncing starts shortly.' },
-      { title: 'Reconnect bank account', submitLabel: 'Relink', confirmation: 'Relinked. Syncing starts shortly.' },
-      { title: 'Choose bank account again', submitLabel: 'Relink', confirmation: 'Relinked. Syncing starts shortly.' },
+      {
+        title: 'Link bank account',
+        submitLabel: 'Link and import',
+        confirmation: 'Linked to a bank account. Syncing starts shortly.',
+      },
+      {
+        title: 'Reconnect bank account',
+        submitLabel: 'Relink',
+        confirmation: 'Relinked to a bank account. Syncing starts shortly.',
+      },
+      {
+        title: 'Choose bank account again',
+        submitLabel: 'Relink',
+        confirmation: 'Relinked to a bank account. Syncing starts shortly.',
+      },
     ])
   })
 
