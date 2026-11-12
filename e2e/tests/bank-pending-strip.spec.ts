@@ -136,13 +136,13 @@ test('shows the pending count closed, and each pending transaction newest first 
   const toggle = strip.getByRole('button', { name: /^3 pending/ })
   const rows = strip.getByRole('listitem')
   await expect(toggle).toHaveAttribute('aria-expanded', 'false')
-  await expect(toggle).toHaveAccessibleName(isPhoneLayout(page) ? '3 pending' : '3 pending · Not counted until the bank posts them')
+  await expect(toggle).toHaveAccessibleName(isPhoneLayout(page) ? '3 pending' : '3 pending · Not in your balance until settlement')
   await expect(rows).toHaveCount(0)
 
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
   await expect(rows).toHaveCount(3)
-  const explanationInside = strip.getByText('Not counted until the bank posts them.')
+  const explanationInside = strip.getByText('Not in your balance until settlement.')
   if (isPhoneLayout(page)) await expect(explanationInside).toBeVisible()
   else await expect(explanationInside).toBeHidden()
   await expect(rows.nth(0)).toContainText('UBER TRIP')
@@ -382,7 +382,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     // can hover gives it
     const toggleTexts = [
       strip.getByText('2 pending', { exact: true }),
-      strip.getByText('Not counted until the bank posts them').filter({ visible: true }),
+      strip.getByText('Not in your balance until settlement').filter({ visible: true }),
     ]
     for (const text of toggleTexts) {
       expect((await faintestText(text)).contrast, await text.textContent() ?? '').toBeGreaterThanOrEqual(4.5)

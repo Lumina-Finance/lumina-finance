@@ -343,10 +343,10 @@ describe('describeImportHeading', () => {
     expect(describeImportHeading(createImport({ state: 'complete' }))).toBe('Imported from Jun 1, 2026')
   })
 
-  it('describes a relink catching up since the unlink, then caught up', () => {
-    expect(describeImportHeading(createImport({ kind: 'relink' }))).toBe('Catching up since the unlink')
+  it('describes a relink catching up from the unlink date, then caught up', () => {
+    expect(describeImportHeading(createImport({ kind: 'relink' }))).toBe('Catching up from the unlink date')
     expect(describeImportHeading(createImport({ kind: 'relink', state: 'complete' }))).toBe(
-      'Caught up since the unlink',
+      'Caught up from the unlink date',
     )
   })
 

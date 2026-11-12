@@ -204,6 +204,6 @@ export function describeImportHeading(progress: BankImportProgress, range: BankR
   if (range) return `${done ? 'Imported' : 'Importing'} ${formatDateRangeLabel(range.first_day, range.last_day)}`
   const from = formatDateLabel(progress.requested_start)
   if (progress.kind === 'initial') return `${done ? 'Imported' : 'Importing'} from ${from}`
-  if (progress.kind === 'relink') return `${done ? 'Caught up' : 'Catching up'} since the unlink`
+  if (progress.kind === 'relink') return `${done ? 'Caught up' : 'Catching up'} from the unlink date`
   return `${done ? 'Caught up' : 'Catching up'} from ${from}`
 }

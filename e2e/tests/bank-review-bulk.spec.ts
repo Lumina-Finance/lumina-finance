@@ -171,7 +171,7 @@ test('adds the ticked items to the ledger at their bank amounts once a merchant 
 
   // Items waiting for review aren't in the ledger, so they can't be deleted or exported
   const deleteAction = page.getByRole('button', { name: 'Delete the selected transactions', exact: true })
-  await expect(deleteAction).toHaveAccessibleDescription('Items waiting for review need Dismiss, not Delete')
+  await expect(deleteAction).toHaveAccessibleDescription('Use Dismiss, not Delete, for items waiting for review')
   await expect(page.getByRole('button', { name: 'Export selected', exact: true })).toHaveAccessibleDescription(
     "Items waiting for review aren't in your ledger yet",
   )

@@ -3,7 +3,7 @@ import type { BankConnection, BankLink, BankProvidersResponse } from '@/api/bank
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { useSyncNow } from '@/pages/accounts/detail/components/bank-link/useSyncNow'
 
-const HINTS = { idle: 'Sync now', loading: 'Starting sync', success: 'Sync started' } as const
+const HINTS = { idle: 'Sync now', loading: 'Starting sync', success: 'Sync underway' } as const
 
 type SyncNowIconButtonProps = {
   link: BankLink

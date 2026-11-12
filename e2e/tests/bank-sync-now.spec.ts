@@ -54,7 +54,7 @@ test('checks nothing in a background tab while the sync runs, and shows it Synce
   const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
 
   // The one button, whatever it reads as the sync starts
-  const syncNow = dialog.getByRole('button', { name: /^(Sync now|Starting sync|Sync started)$/ })
+  const syncNow = dialog.getByRole('button', { name: /^(Sync now|Starting sync|Sync underway)$/ })
   await expect(syncNow).toHaveAccessibleName('Sync now')
   const syncedBefore = await readLastSuccess(request, user, account.id)
   const usedBefore = (await readConnection(request, user, connection.id))!.request_budget.used
@@ -106,7 +106,7 @@ test('syncs from the icon beside the Bank sync label, saying what it does under 
   const syncedBefore = await readLastSuccess(request, user, account.id)
   const usedBefore = (await readConnection(request, user, connection.id))!.request_budget.used
 
-  const icon = page.getByRole('button', { name: /^(Sync now|Starting sync|Sync started)$/ })
+  const icon = page.getByRole('button', { name: /^(Sync now|Starting sync|Sync underway)$/ })
   await expect(icon).toHaveAccessibleName('Sync now')
   await icon.hover()
   await expect(page.getByTestId('control-hint-tooltip').filter({ hasText: 'Sync now' })).toHaveCSS('opacity', '1')

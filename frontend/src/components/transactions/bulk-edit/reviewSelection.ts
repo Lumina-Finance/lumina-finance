@@ -26,7 +26,7 @@ export function describeTickLimit(offersReview: boolean): string {
 }
 
 /** Why Delete is off while an item waiting for review is ticked */
-export const REVIEW_ITEMS_NOT_DELETED = 'Items waiting for review need Dismiss, not Delete'
+export const REVIEW_ITEMS_NOT_DELETED = 'Use Dismiss, not Delete, for items waiting for review'
 
 /** Why Dismiss is off while a ledger transaction is ticked */
 export const ONLY_REVIEW_ITEMS_DISMISSED = 'Dismiss works only on items waiting for review'

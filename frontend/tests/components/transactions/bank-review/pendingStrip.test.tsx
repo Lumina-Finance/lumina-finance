@@ -85,7 +85,7 @@ describe('the closed strip', () => {
     expect(markup).toContain('aria-label="Pending bank transactions"')
     expect(markup).toMatch(/<button[^>]*aria-expanded="false"/)
     expect(markup).toContain('>2 pending<')
-    expect(markup).toContain('> · Not counted until the bank posts them<')
+    expect(markup).toContain('> · Not in your balance until settlement<')
     expect(markup).not.toContain('<li')
   })
 })
@@ -102,7 +102,7 @@ describe('the opened strip', () => {
   })
 
   it('says inside the strip that they are outside the balance', () => {
-    expect(renderStrip([UBER], { open: true })).toContain('>Not counted until the bank posts them.<')
+    expect(renderStrip([UBER], { open: true })).toContain('>Not in your balance until settlement.<')
   })
 
   it("writes each amount in its own account's currency, and one the currency can't hold exactly as the bank sent it", () => {

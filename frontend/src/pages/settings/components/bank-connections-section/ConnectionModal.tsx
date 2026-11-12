@@ -462,7 +462,7 @@ export function ConnectionModal({
                 entry={{
                   key: 'folded',
                   name: countNoun(institutionCount, 'institution'),
-                  countNote: isUnavailable ? 'Nothing links or syncs here now' : 'Linking resumes after a reconnection',
+                  countNote: isUnavailable ? 'Nothing links or syncs here now' : 'Linking needs a reconnection',
                   linked: linkedCount,
                   total: bankAccountCount,
                   body: institutionList,

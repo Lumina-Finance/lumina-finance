@@ -17,7 +17,7 @@
  * on the wrong request limit, a reason of two
  * sentences ending without the full stop the others of two have, held back by a bank
  * sign-in, left greyed once its requests free up, spinning while bank sync isn't set up, even for this
- * window's press, held back by the sync its own press started rather than reading Sync started, or
+ * window's press, held back by the sync its own press started rather than reading Sync underway, or
  * dropping the focus it holds or the width it measures while the sync starts. Opening the flow, the tooltip,
  * unlinking, pressing Sync now and dismissing a reminder run in the browser
  */
@@ -183,7 +183,7 @@ function getButton(markup: string, label: string): string {
 function getSyncNowButton(markup: string): string {
   return (
     markup.match(
-      /<button(?:(?!<\/button>).)*(?:Sync now|aria-label="Starting sync"|aria-label="Sync started")(?:(?!<\/button>).)*<\/button>/s,
+      /<button(?:(?!<\/button>).)*(?:Sync now|aria-label="Starting sync"|aria-label="Sync underway")(?:(?!<\/button>).)*<\/button>/s,
     )?.[0] ?? ''
   )
 }
@@ -727,7 +727,7 @@ describe('BankLinkSection', () => {
 
 // What this window's own press shows lives in the button's state. A static render can't drive it
 describe('describeSyncNow', () => {
-  it("reads Sync started once the worker has started this window's sync, rather than as held back by it", () => {
+  it("reads Sync underway once the worker has started this window's sync, rather than as held back by it", () => {
     const link = createLink({ sync: createSync({ state: 'syncing', sync_running: true }) })
     expect(describeSyncNow('success', link, createConnection(), createProviders())).toEqual({
       status: 'success',

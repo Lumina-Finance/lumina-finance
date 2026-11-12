@@ -986,7 +986,7 @@ test('reconnects a rejected connection, and shows the account to choose again un
   await expect(dialog.getByRole('textbox', { name: 'Find an institution' })).toHaveCount(0)
   const folded = dialog.getByRole('region', { name: '1 institution', exact: true })
   // One line, beside the name from 640px and under it on phones, so exactly one copy shows at any width
-  await expect(folded.getByText('2 of 2 linked · Linking resumes after a reconnection', { exact: true }).filter({ visible: true })).toHaveCount(1)
+  await expect(folded.getByText('2 of 2 linked · Linking needs a reconnection', { exact: true }).filter({ visible: true })).toHaveCount(1)
   await folded.getByRole('button', { name: /^1 institution/ }).click()
   await expect(dialog.getByRole('link', { name: 'Household' })).toBeVisible()
 
