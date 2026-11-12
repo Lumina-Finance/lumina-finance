@@ -31,6 +31,7 @@ import { InstitutionList, InstitutionRow } from '@/pages/settings/components/ban
 import { NicknameTitle } from '@/pages/settings/components/bank-connections-section/NicknameTitle'
 import {
   countLinkedBankAccounts,
+  countRequestsLeft,
   describeConnectionStatus,
   describeInstitutionAllowance,
   describeRequestBudget,
@@ -81,19 +82,19 @@ function ConnectionFact({
 }
 
 /**
- * The rolling request count Lumina Finance allows the connection, as a thin meter that turns red once
- * it is spent
+ * The rolling request count Lumina Finance allows the connection, as a thin meter that empties as
+ * requests are spent and turns red once none are left
  */
 function RequestBudgetMeter({
-  used,
+  left,
   limit,
   prefersReducedMotion,
 }: {
-  used: number
+  left: number
   limit: number
   prefersReducedMotion: boolean | null
 }) {
-  const exhausted = used >= limit
+  const exhausted = left <= 0
   return (
     <span
       className="block h-1 overflow-hidden rounded-full"
@@ -104,7 +105,7 @@ function RequestBudgetMeter({
         className="block h-full rounded-full"
         style={{ background: exhausted ? 'var(--app-negative)' : 'var(--app-text-muted)' }}
         initial={false}
-        animate={{ width: `${Math.min(used / limit, 1) * 100}%` }}
+        animate={{ width: `${Math.min(left / limit, 1) * 100}%` }}
         transition={{ duration: prefersReducedMotion ? 0 : 0.5, ease: CONTENT_EASE_CURVE }}
       />
     </span>
@@ -212,7 +213,7 @@ export function ConnectionModal({
   const statusDetail = describeSignInDetail(connection)
   const institutionCount = new Set(connection.accounts.map((bankAccount) => bankAccount.institution_name)).size
   const { linked: linkedCount, total: bankAccountCount } = countLinkedBankAccounts(connection)
-  const { limit: requestLimit, used: requestsUsed } = connection.request_budget
+  const requests = countRequestsLeft(connection)
   const institutionLimit = provider?.institution_limit ?? null
   const institutionsInUse = provider?.institutions_in_use ?? []
   const allowance = describeInstitutionAllowance(provider, connection.provider_name)
@@ -282,18 +283,18 @@ export function ConnectionModal({
         {allowance.value}
       </ConnectionFact>
       <ConnectionFact label="Requests, 24 hours" wide hint={describeRequestBudget(connection)}>
-        {requestLimit === null ? (
+        {requests === null ? (
           <span className="block">No requests yet</span>
         ) : (
           <>
-            {/* Says used, since the connection's row beside it counts the requests left */}
+            {/* Counts the requests left, as the connection's row does */}
             <span className="block tabular-nums">
-              {requestsUsed} of {requestLimit} used
+              {requests.left} of {requests.limit} left
             </span>
             <span className="mt-1.5 block">
               <RequestBudgetMeter
-                used={requestsUsed}
-                limit={requestLimit}
+                left={requests.left}
+                limit={requests.limit}
                 prefersReducedMotion={prefersReducedMotion}
               />
             </span>

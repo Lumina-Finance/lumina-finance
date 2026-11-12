@@ -677,8 +677,8 @@ test("shows a connection's facts", NEEDS_BANK_SYNC, async ({ page, request }) =>
   await expect(fact(dialog, 'Server')).not.toBeEmpty()
   await expect(fact(dialog, 'Added')).toHaveText(formatToday())
   await expect(fact(dialog, 'Institutions linked')).toHaveText('1 · no limit')
-  // Used, since the row counts the requests left, and the two read as one count disagreeing
-  await expect(fact(dialog, 'Requests, 24 hours')).toHaveText(/^\d+ of 20 used$/)
+  // Left, as the row counts them
+  await expect(fact(dialog, 'Requests, 24 hours')).toHaveText(/^\d+ of 20 left$/)
   await expect(dialog.getByRole('region', { name: 'Institutions · 1 of 2 bank accounts linked' })).toBeVisible()
 })
 
