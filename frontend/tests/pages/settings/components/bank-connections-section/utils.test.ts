@@ -6,22 +6,15 @@
  * under Mismatch detected
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type {
-  BankConnection,
-  BankProvider,
-  ConnectionBankAccount,
-  CredentialField,
-  ReconnectConnectionResult,
-} from '@/api/bank-sync'
+import type { BankConnection, BankProvider, ConnectionBankAccount, CredentialField } from '@/api/bank-sync'
 import {
+  buildAuthorizationStart,
   countLinkedBankAccounts,
   countRequestsLeft,
-  describeConnected,
   describeConnectionStatus,
   describeInstitutionAllowance,
   describeLinkingHeld,
   describeMismatch,
-  describeReconnected,
   describeRequestBudget,
   describeCredentialLength,
   getCredentialProblems,
@@ -29,6 +22,7 @@ import {
   describeSignInDetail,
   groupInstitutions,
   isClaimSettled,
+  markServerRefusal,
   matchesConnectionSearch,
   matchesInstitutionSearch,
   submitsCredential,
@@ -188,65 +182,11 @@ describe('bank connection search', () => {
   })
 })
 
-describe('bank connection confirmations', () => {
-  it('counts the bank accounts a new connection reaches', () => {
-    expect(describeConnected(connection({ nickname: 'Joint banks', accounts: [...HARBOUR, ...TIDEWATER] }))).toBe(
-      "Connected to Joint banks with 4 bank accounts. Please link each bank account from the matching account's page.",
-    )
-  })
-
-  it('counts a lone bank account in the singular', () => {
-    expect(describeConnected(connection({ accounts: [bankAccount({})] }))).toContain(
-      'Connected to SimpleFIN with 1 bank account.',
-    )
-  })
-
-  it('says the bank accounts are on the way when the claim could not list them yet', () => {
-    expect(describeConnected(connection({ discovery_pending: true }))).toBe(
-      'Connected to SimpleFIN. Its bank accounts will appear here shortly.',
-    )
-  })
-
-  it('leaves out where to link the bank accounts when going back to the link flow', () => {
-    expect(describeConnected(connection({ nickname: 'Joint banks', accounts: [...HARBOUR, ...TIDEWATER] }), true)).toBe(
-      'Connected to Joint banks with 4 bank accounts.',
-    )
-    expect(describeConnected(connection({ discovery_pending: true }), true)).toBe(
-      'Connected to SimpleFIN. Its bank accounts will appear shortly.',
-    )
-  })
-
+describe('bank connection claims', () => {
   it('takes a connection as added once its bank accounts are listed or a listing is due, never partway', () => {
     expect(isClaimSettled(connection({ accounts: [bankAccount({})] }))).toBe(true)
     expect(isClaimSettled(connection({ discovery_pending: true }))).toBe(true)
     expect(isClaimSettled(connection())).toBe(false)
-  })
-
-  it('counts the accounts a reconnect resumes and those that need their bank account chosen again', () => {
-    const result = (resumed: number, chooseAgain: number): ReconnectConnectionResult => ({
-      connection: connection(),
-      resumed_account_ids: Array.from({ length: resumed }, (_, index) => `resumed-${index}`),
-      choose_again_account_ids: Array.from({ length: chooseAgain }, (_, index) => `choose-${index}`),
-      accounts_pending: false,
-    })
-
-    expect(describeReconnected(result(2, 1))).toBe(
-      'Reconnected to SimpleFIN. Syncing resumes for 2 accounts. 1 account needs its bank account chosen again.',
-    )
-    expect(describeReconnected(result(1, 2))).toContain('Syncing resumes for 1 account.')
-    expect(describeReconnected(result(1, 2))).toContain('2 accounts need their bank accounts chosen again.')
-    expect(describeReconnected(result(0, 0))).toBe('Reconnected to SimpleFIN.')
-  })
-
-  it('says linked accounts wait on a listing when the reconnect could not list the bank accounts', () => {
-    expect(
-      describeReconnected({
-        connection: connection(),
-        resumed_account_ids: [],
-        choose_again_account_ids: [],
-        accounts_pending: true,
-      }),
-    ).toBe('Reconnected to SimpleFIN. Linked accounts pick up once their bank accounts are listed again.')
   })
 })
 
@@ -553,5 +493,52 @@ describe('describeLinkingHeld', () => {
     expect(held({ status: 'credential_rejected' }, { linkingPaused: true })).toBe(
       "Bank sync isn't set up on this server yet.",
     )
+  })
+})
+
+describe('buildAuthorizationStart', () => {
+  it('sends a new connection with its nickname and the account whose link flow sent the user', () => {
+    expect(
+      buildAuthorizationStart({
+        provider: 'signin_bank',
+        credentials: { application_key: 'k' },
+        nickname: 'Joint',
+        returnToAccountId: 'account-1',
+      }),
+    ).toEqual({
+      provider: 'signin_bank',
+      credentials: { application_key: 'k' },
+      nickname: 'Joint',
+      return_account_id: 'account-1',
+    })
+  })
+
+  it('names the connection being reconnected and leaves out the nickname it keeps', () => {
+    expect(
+      buildAuthorizationStart({
+        provider: 'signin_bank',
+        credentials: { application_key: 'k' },
+        nickname: '',
+        reconnectingId: 'connection-1',
+      }),
+    ).toEqual({ provider: 'signin_bank', credentials: { application_key: 'k' }, connection_id: 'connection-1' })
+  })
+})
+
+describe('markServerRefusal', () => {
+  const keys = ['application_id', 'private_key', 'country', 'bank']
+
+  it('marks only the fields a refusal names, with its message on the last of them as the form draws them', () => {
+    expect(markServerRefusal(keys, ['bank', 'country'])).toEqual({
+      marked: new Set(['country', 'bank']),
+      messageOn: 'bank',
+    })
+  })
+
+  it.each([
+    ['names no field', undefined],
+    ['names only fields the form lacks', ['nickname']],
+  ])('marks every field, with the message on the last, when the refusal %s', (_case, refusedFields) => {
+    expect(markServerRefusal(keys, refusedFields)).toEqual({ marked: new Set(keys), messageOn: 'bank' })
   })
 })

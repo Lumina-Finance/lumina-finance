@@ -4,13 +4,33 @@ import {
   type BankConnection,
   type BankProvider,
   type ConnectionBankAccount,
+  type BankProviderId,
   type CredentialField,
-  type ReconnectConnectionResult,
+  type StartBankAuthorizationPayload,
 } from '@/api/bank-sync'
 import { BANK_SYNC_NOT_SET_UP_REASON } from '@/components/bank-link-flow/constants'
 import type { SyncStatusTone } from '@/components/display/SyncStatusDot'
-import { connectionName, countNoun, credentialNoun, providerSiteName } from '@/utils/bankSync'
+import { countNoun, credentialNoun, providerSiteName } from '@/utils/bankSync'
 import { formatRelativeFutureTime } from '@/utils/relativeTime'
+
+/** The fields the server's refusal marks, and the one its message is drawn on */
+export interface ServerRefusalMarks {
+  marked: Set<string>
+  messageOn: string | null
+}
+
+/**
+ * Which credential fields the server's refusal marks: those it named, or every field when it named none
+ * the form has. Its message is drawn once, on the last marked field in the form's order
+ *
+ * @param keys - The form's credential fields, by key, in the order the form draws them
+ * @param refusedFields - The fields the refusal named, if any
+ */
+export function markServerRefusal(keys: string[], refusedFields: string[] | undefined): ServerRefusalMarks {
+  const named = keys.filter((key) => refusedFields?.includes(key))
+  const marked = named.length > 0 ? named : keys
+  return { marked: new Set(marked), messageOn: marked.at(-1) ?? null }
+}
 
 /**
  * Says what is wrong with a value pasted in one of the provider's fields before it is sent, or null
@@ -59,9 +79,37 @@ export function getNicknameProblem(nickname: string): string | undefined {
 }
 
 /**
- * Tells whether a key pressed in a credential field connects, which a plain Enter does since no
- * provider's token or key spans lines. Enter with a modifier, or while an input method is composing,
- * stays with the field
+ * What starting a sign-in at the bank sends. A new connection carries the user's nickname for it, and a
+ * reconnection names the connection and keeps its nickname. The account whose link flow sent the user
+ * rides along so the return goes back to it
+ *
+ * @param credentials - The fields' values, already trimmed
+ */
+export function buildAuthorizationStart({
+  provider,
+  credentials,
+  nickname,
+  reconnectingId,
+  returnToAccountId,
+}: {
+  provider: BankProviderId
+  credentials: Record<string, string>
+  nickname: string
+  reconnectingId?: string
+  returnToAccountId?: string | null
+}): StartBankAuthorizationPayload {
+  return {
+    provider,
+    credentials,
+    ...(reconnectingId ? { connection_id: reconnectingId } : { nickname }),
+    ...(returnToAccountId ? { return_account_id: returnToAccountId } : {}),
+  }
+}
+
+/**
+ * Tells whether a key pressed in a credential field connects. A plain Enter connects, since a
+ * credential is pasted whole and never typed across lines, though a pasted key may span them. Enter
+ * with a modifier, or while an input method is composing, stays with the field
  */
 export function submitsCredential(event: {
   key: string
@@ -181,44 +229,6 @@ export function matchesConnectionSearch(
  */
 export function isClaimSettled(connection: BankConnection): boolean {
   return connection.accounts.length > 0 || connection.discovery_pending
-}
-
-/**
- * The confirmation once a connection is added. A claim whose listing of bank accounts failed keeps
- * the connection and lists them in the background, so it says they are on the way rather than none.
- * Going back to an account's link flow, it leaves out where to link them and where they appear
- */
-export function describeConnected(connection: BankConnection, backToLinkFlow = false): string {
-  const name = connectionName(connection)
-  if (connection.discovery_pending && connection.accounts.length === 0) {
-    return backToLinkFlow
-      ? `Connected to ${name}. Its bank accounts will appear shortly.`
-      : `Connected to ${name}. Its bank accounts will appear here shortly.`
-  }
-  const connected = `Connected to ${name} with ${countNoun(connection.accounts.length, 'bank account')}.`
-  return backToLinkFlow ? connected : `${connected} Please link each bank account from the matching account's page.`
-}
-
-/**
- * The confirmation once a rejected connection takes a new credential: how many of its accounts resume
- * syncing and how many need their bank account chosen again, or that they wait on a listing still to run
- */
-export function describeReconnected(result: ReconnectConnectionResult): string {
-  const parts = [`Reconnected to ${connectionName(result.connection)}.`]
-  if (result.accounts_pending) {
-    parts.push('Linked accounts pick up once their bank accounts are listed again.')
-    return parts.join(' ')
-  }
-
-  const resumed = result.resumed_account_ids.length
-  const chooseAgain = result.choose_again_account_ids.length
-  if (resumed > 0) parts.push(`Syncing resumes for ${countNoun(resumed, 'account')}.`)
-  if (chooseAgain > 0) {
-    parts.push(
-      `${countNoun(chooseAgain, 'account')} ${chooseAgain === 1 ? 'needs its bank account' : 'need their bank accounts'} chosen again.`,
-    )
-  }
-  return parts.join(' ')
 }
 
 /**

@@ -35,6 +35,7 @@ const BudgetsPage = lazyPage(() => import('@/pages/budgets/BudgetsPage'))
 const InsightsPage = lazyPage(() => import('@/pages/insights/InsightsPage'))
 const SettingsPage = lazyPage(() => import('@/pages/settings/SettingsPage'))
 const ImportsPage = lazyPage(() => import('@/pages/imports/ImportsPage'))
+const BankAuthorizationPage = lazyPage(() => import('@/pages/settings/BankAuthorizationPage'))
 const AuthPage = lazyPage(() => import('@/pages/auth/AuthPage'))
 const ResetPasswordPage = lazyPage(() => import('@/pages/auth/ResetPasswordPage'))
 const ConfirmEmailPage = lazyPage(() => import('@/pages/auth/ConfirmEmailPage'))
@@ -478,6 +479,7 @@ function AnimatedRoutes() {
           <Route path="/insights" element={<InsightsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/imports" element={<ImportsPage />} />
+          <Route path="/settings/bank-authorization" element={<BankAuthorizationPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

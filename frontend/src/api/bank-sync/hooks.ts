@@ -39,8 +39,10 @@ import {
   importBankRange,
   fetchReviewBacklogs,
   fetchReviewPage,
+  finishBankAuthorization,
   reconnectBankConnection,
   recordBalanceMatch,
+  startBankAuthorization,
   resolveReviewItem,
   restoreBankValue,
   syncBankLink,
@@ -357,6 +359,31 @@ export function reconnectBankConnectionMutationOptions(queryClient: QueryClient)
 export function useReconnectBankConnection() {
   const queryClient = useQueryClient()
   return useMutation(reconnectBankConnectionMutationOptions(queryClient))
+}
+
+/**
+ * Starts the sign-in at the bank, failing at once while offline. It saves nothing, so no list is read
+ * again, and the page leaves for the bank on success
+ */
+export function useStartBankAuthorization() {
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof startBankAuthorization>[0]) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => startBankAuthorization(payload)),
+    networkMode: 'always',
+  })
+}
+
+/**
+ * Finishes the sign-in with what the bank returned. Like a claim, it reads the connections again
+ * however it ends, since the server may have saved one though its answer never reached the browser
+ */
+export function useFinishBankAuthorization() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: finishBankAuthorization,
+    networkMode: 'always',
+    onSettled: () => refreshBankLinkState(queryClient),
+  })
 }
 
 /**

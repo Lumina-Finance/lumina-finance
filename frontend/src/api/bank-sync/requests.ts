@@ -18,11 +18,15 @@ import type {
   ClaimCredentialPayload,
   DiscoveredBankAccounts,
   EditableBankField,
+  FinishBankAuthorizationPayload,
+  FinishBankAuthorizationResult,
   ImportBankRangePayload,
   LinkBankAccountPayload,
   BankHold,
   PendingBankTransaction,
   ReconnectConnectionResult,
+  StartBankAuthorizationPayload,
+  StartBankAuthorizationResult,
   UnlinkResult,
 } from '@/api/bank-sync/types'
 import type { Transaction } from '@/api/transactions/types'
@@ -77,6 +81,25 @@ export function fetchBankConnections(signal?: AbortSignal) {
  */
 export function claimCredential(payload: ClaimCredentialPayload) {
   return post<BankConnection>('/bank-sync/connections', payload, { timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS })
+}
+
+/**
+ * Starts the user's sign-in at their bank, answering with the bank's address to send the browser to
+ */
+export function startBankAuthorization(payload: StartBankAuthorizationPayload) {
+  return post<StartBankAuthorizationResult>('/bank-sync/authorizations', payload, {
+    timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS,
+  })
+}
+
+/**
+ * Finishes a sign-in at the bank with what the bank returned, saving or reconnecting the connection.
+ * The server spends the sign-in on its first answer, so a second try is refused
+ */
+export function finishBankAuthorization(payload: FinishBankAuthorizationPayload) {
+  return post<FinishBankAuthorizationResult>('/bank-sync/authorizations/finish', payload, {
+    timeoutMs: PROVIDER_REQUEST_TIMEOUT_MS,
+  })
 }
 
 /**

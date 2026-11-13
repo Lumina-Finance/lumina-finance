@@ -56,6 +56,23 @@ describe('the bank connections request', () => {
     })
   })
 
+  it("replaces the return page's own history entry when asked, so Back never reaches a spent bank return", () => {
+    const navigate = vi.fn()
+    returnToBankLink(navigate, 'account-1', 'conn-2', { replace: true })
+
+    expect(navigate).toHaveBeenCalledWith('/accounts/account-1', {
+      state: { linkBank: true, linkConnectionId: 'conn-2' },
+      replace: true,
+    })
+  })
+
+  it("returns to the account's link flow without a connection when the bank added none", () => {
+    const navigate = vi.fn()
+    returnToBankLink(navigate, 'account-1', null, { replace: true })
+
+    expect(navigate).toHaveBeenCalledWith('/accounts/account-1', { state: { linkBank: true }, replace: true })
+  })
+
   it('reads nothing from state that is not a request', () => {
     expect(readBankConnectionsRequest(null)).toBeNull()
     expect(readBankConnectionsRequest(undefined)).toBeNull()

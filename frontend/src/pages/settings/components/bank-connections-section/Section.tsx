@@ -265,6 +265,7 @@ export function BankConnectionsSection() {
         onConnected={
           returnToAccountId ? (connectionId) => returnToBankLink(navigate, returnToAccountId, connectionId) : undefined
         }
+        returnToAccountId={returnToAccountId}
         onClaimUnanswered={() => setClaimUnansweredAt(Date.now())}
       />
     </section>

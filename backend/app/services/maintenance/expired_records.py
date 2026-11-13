@@ -24,6 +24,7 @@ from app.services.auth.sessions import delete_expired_auth_sessions, delete_expi
 from app.services.auth.signup import delete_stale_signup_email_sends
 from app.services.auth.two_factor import prune_stale_factor_staging
 from app.services.auth.webauthn import delete_expired_webauthn_challenges
+from app.services.bank_sync.authorization import delete_expired_bank_authorizations
 from app.services.bank_sync.jobs import delete_finished_bank_sync_jobs
 from app.services.importers.shared.run_staging import delete_expired_import_runs
 
@@ -55,6 +56,7 @@ EXPIRED_RECORD_KINDS: tuple[ExpiredRecordKind, ...] = (
     ExpiredRecordKind("two-factor staging", prune_stale_factor_staging),
     ExpiredRecordKind("import runs", delete_expired_import_runs),
     ExpiredRecordKind("finished bank sync jobs", delete_finished_bank_sync_jobs),
+    ExpiredRecordKind("bank sign-ins", delete_expired_bank_authorizations),
 )
 
 

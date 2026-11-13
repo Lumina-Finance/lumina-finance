@@ -75,6 +75,7 @@ async def test_providers_list_offers_pluggy_with_its_three_fields_and_steps(clie
         "site": "pluggy.ai",
         "description": "One Pluggy application reaches all your Brazilian banks.",
         "in_beta": True,
+        "authorizes_at_bank": False,
         "credential_fields": [
             {"key": "client_id", "label": "Client ID", "placeholder": "Paste the client ID", "max_length": 128},
             {"key": "client_secret", "label": "Client secret", "placeholder": "Paste the client secret", "max_length": 128},

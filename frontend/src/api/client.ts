@@ -5,6 +5,9 @@ import { fetchFromServer, type ServerRequestInit } from './server'
 // Step-up 401s report how many tries remain before the shared lockout signs the user out everywhere
 const ATTEMPTS_REMAINING_HEADER = 'X-Auth-Attempts-Remaining'
 
+// A refused bank sign-in start names the form fields it is about, by key and comma-separated
+const REFUSED_FIELDS_HEADER = 'X-Refused-Fields'
+
 interface AuthBindings {
   getAccessToken: () => string | null
   /** When the access token stops being accepted on this device's clock, or null when unknown */
@@ -126,8 +129,14 @@ export async function authenticatedRequest(path: string, options: ServerRequestI
     const body: unknown = await res.json().catch(() => null)
     const attemptsHeader = res.headers.get(ATTEMPTS_REMAINING_HEADER)
     const attemptsRemaining = attemptsHeader !== null ? Number(attemptsHeader) : undefined
+    const refusedFields = res.headers
+      .get(REFUSED_FIELDS_HEADER)
+      ?.split(',')
+      .map((key) => key.trim())
+      .filter(Boolean)
     throw buildApiError(res.status, body, {
       attemptsRemaining: Number.isNaN(attemptsRemaining) ? undefined : attemptsRemaining,
+      refusedFields: refusedFields?.length ? refusedFields : undefined,
     })
   }
 

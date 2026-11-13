@@ -53,7 +53,12 @@ async def test_providers_list_offers_lunch_flow_with_its_api_key_steps(client, m
 
     assert response.status_code == 200, response.text
     [lunchflow] = [provider for provider in response.json()["providers"] if provider["id"] == "lunchflow"]
-    assert (lunchflow["name"], lunchflow["connects_from"], lunchflow["offered"]) == ("Lunch Flow", "settings", True)
+    assert (lunchflow["name"], lunchflow["connects_from"], lunchflow["offered"], lunchflow["authorizes_at_bank"]) == (
+        "Lunch Flow",
+        "settings",
+        True,
+        False,
+    )
 
     # The dialogue draws the form from the field's structure and the limit the claim itself enforces
     [field] = lunchflow["credential_fields"]

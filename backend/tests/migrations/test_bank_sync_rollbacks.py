@@ -43,6 +43,15 @@ _CONNECTION = (
 )
 _CONNECTIONS_REVISION = "5b8e2d4f7a13"
 
+# A bank sign-in, still open or past its expiry, as the revision that adds the table stores one
+_AUTHORIZATIONS_REVISION = "d4b9e1a7c3f6"
+_AUTHORIZATION = (
+    "INSERT INTO bank_authorizations (id, owner_id, provider, credentials_encrypted, state_hash, expires_at) "
+    "VALUES (gen_random_uuid(), :user_id, 'simplefin', 'not-a-real-token', 'a-state-hash', now() {expiry})"
+)
+_OPEN_AUTHORIZATION = _AUTHORIZATION.format(expiry="+ interval '10 minutes'")
+_EXPIRED_AUTHORIZATION = _AUTHORIZATION.format(expiry="- interval '1 minute'")
+
 # The functions the sync jobs migration adds for the worker. Its rollback drops them
 _WORKER_FUNCTIONS = (
     "claim_bank_sync_jobs",
@@ -138,6 +147,14 @@ _ROLLBACKS = [
         _WORKER_FUNCTIONS,
         id="sync_jobs",
     ),
+    pytest.param(
+        _AUTHORIZATIONS_REVISION,
+        (_OPEN_AUTHORIZATION,),
+        ("bank_authorizations",),
+        "the bank sign-ins that users have not yet returned from",
+        ("prune_expired_bank_authorizations",),
+        id="open_authorizations",
+    ),
 ]
 
 # The revision that adds the description a user kept over the bank's, and the one before it
@@ -168,6 +185,20 @@ async def _functions_present(database_name: str, names: tuple[str, ...]) -> set[
         async with engine.connect() as connection:
             found = await connection.scalars(
                 text("SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname = ANY(:names)"),
+                {"names": list(names)},
+            )
+            return set(found)
+    finally:
+        await engine.dispose()
+
+
+async def _tables_present(database_name: str, names: tuple[str, ...]) -> set[str]:
+    """Return which of the named tables a generated database's public schema holds"""
+    engine = _create_engine_for_database(database_name)
+    try:
+        async with engine.connect() as connection:
+            found = await connection.scalars(
+                text("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY(:names)"),
                 {"names": list(names)},
             )
             return set(found)
@@ -218,6 +249,24 @@ async def _bank_transactions_shape(database_name: str) -> tuple[list[str], str |
             return list(columns), check
     finally:
         await engine.dispose()
+
+
+async def test_authorizations_rollback_clears_expired_sign_ins_and_drops_the_table():
+    """A sign-in past its expiry can never be finished, so it doesn't hold the rollback back"""
+    await _recreate_database(_DATABASE_NAME)
+    try:
+        _run_alembic_upgrade(_DATABASE_NAME, revision=_AUTHORIZATIONS_REVISION)
+        await _execute(_DATABASE_NAME, (*_OWNER, _EXPIRED_AUTHORIZATION))
+
+        rolled_back = _run_alembic(_DATABASE_NAME, "downgrade", "-1")
+        functions = await _functions_present(_DATABASE_NAME, ("prune_expired_bank_authorizations",))
+        tables = await _tables_present(_DATABASE_NAME, ("bank_authorizations",))
+    finally:
+        await _drop_database(_DATABASE_NAME)
+
+    assert rolled_back.returncode == 0, rolled_back.stdout + rolled_back.stderr
+    assert functions == set()
+    assert tables == set()
 
 
 async def test_kept_description_rollback_restores_the_bank_transactions_it_found():

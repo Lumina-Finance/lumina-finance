@@ -39,6 +39,7 @@ from app.services.bank_sync.discovery import run_discovery
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.provider_requests import record_provider_request
 from app.services.bank_sync.providers.contract import ClaimRefused, ProviderAdapter, ProviderUnreachable
+from app.services.bank_sync.release import release_stored_credential
 from app.services.cache_state.updates import mark_user_cache_changed
 
 WORKING_CONNECTION_DETAIL = "This connection is working, so it needs no reconnection"
@@ -69,17 +70,43 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
             is saved and the credential can be tried again
     """
     adapter = get_enabled_adapter(request.provider)
+    _refuse_pasting(adapter)
     require_bank_linking(user.id)
     nickname = read_nickname(request.nickname)
-    if not is_offered(request.provider):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"{adapter.provider_name} is not offered for new connections. Existing connections carry on as before",
-        )
+    require_offered(request.provider, adapter)
 
     credential = await _claim_credential(adapter, request.credentials)
+    return await save_claimed_connection(db, user, adapter, nickname=nickname, credential=credential)
+
+
+async def save_claimed_connection(
+    db: AsyncSession,
+    user: User,
+    adapter: ProviderAdapter,
+    *,
+    nickname: str | None,
+    credential: str,
+) -> BankConnectionResponse:
+    """Keep a claimed credential as a new connection and discover its bank accounts
+
+    Once the provider has handed over the access, the connection is kept even when its discovery
+    fails, and a job flagged to discover its bank accounts is queued
+
+    Args:
+        db: Active database session
+        user: The user connecting
+        adapter: The provider the credential was claimed from
+        nickname: The nickname to store, as read_nickname gave it
+        credential: The access the provider handed over
+
+    Returns:
+        The new connection, with the bank accounts found or a pending discovery
+
+    Raises:
+        HTTPException 404: The connection was disconnected while its bank accounts were listed
+    """
     now = datetime.now(UTC)
-    connection = BankConnection(owner_id=user.id, provider=request.provider, provider_name=adapter.provider_name, nickname=nickname)
+    connection = BankConnection(owner_id=user.id, provider=adapter.provider_id, provider_name=adapter.provider_name, nickname=nickname)
     _store_credential(connection, adapter, credential)
     db.add(connection)
     await db.flush()
@@ -135,14 +162,58 @@ async def reconnect_connection(
         HTTPException 502: The provider couldn't be reached or gave no usable answer, so nothing
             is saved and the credential can be tried again
     """
+    adapter = await check_reconnectable(db, user, connection_id)
+    _refuse_pasting(adapter)
+    credential = await _claim_credential(adapter, request.credentials)
+    return await save_reconnected_connection(db, user, adapter, connection_id=connection_id, credential=credential)
+
+
+async def check_reconnectable(db: AsyncSession, user: User, connection_id: uuid.UUID) -> ProviderAdapter:
+    """Return the adapter of a connection that may take a new credential, before any credential is claimed
+
+    Raises:
+        HTTPException 403: The user may not link bank accounts
+        HTTPException 404: The connection doesn't exist or is another user's
+        HTTPException 409: The connection's provider is no longer installed, or its credential still works
+        HTTPException 422: The provider isn't enabled
+    """
     require_bank_linking(user.id)
     connection = await get_own_connection(db, user.id, connection_id)
     if adapter_for(connection.provider) is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PROVIDER_GONE_DETAIL)
     adapter = get_enabled_adapter(connection.provider)
     _refuse_working(connection)
-    credential = await _claim_credential(adapter, request.credentials)
+    return adapter
 
+
+async def save_reconnected_connection(
+    db: AsyncSession,
+    user: User,
+    adapter: ProviderAdapter,
+    *,
+    connection_id: uuid.UUID,
+    credential: str,
+) -> ReconnectBankConnectionResponse:
+    """Replace a rejected connection's credential with a claimed one, and say which linked accounts resume
+
+    The credential it replaces is given back to the provider once the new one is committed
+
+    Args:
+        db: Active database session
+        user: The connection's owner
+        adapter: The connection's provider
+        connection_id: The connection to reconnect
+        credential: The access the provider handed over
+
+    Returns:
+        The connection, the accounts that resume and the ones whose bank account must be chosen
+        again, or that both are known only once a sync lists the bank accounts
+
+    Raises:
+        HTTPException 404: The connection doesn't exist, is another user's, or was disconnected
+            while its bank accounts were listed
+        HTTPException 409: The connection's credential works again
+    """
     # Checked again under a lock, since nothing is locked while the provider answers: a second
     # reconnect sent at the same time finds the first one's credential working, and a connection
     # disconnected meanwhile is not found. Locked for update, as counting the listing locks it
@@ -150,6 +221,7 @@ async def reconnect_connection(
     now = datetime.now(UTC)
     connection = await get_own_connection(db, user.id, connection_id, lock={})
     _refuse_working(connection)
+    replaced = connection.credential_encrypted
     _store_credential(connection, adapter, credential)
     connection.credential_rejected_at = None
     if adapter.claim_is_counted:
@@ -164,12 +236,42 @@ async def reconnect_connection(
     # Again, for what the discovery and the links' restart wrote, with the cache row locked last
     await mark_user_cache_changed(db, user.id)
     await db.commit()
-    return ReconnectBankConnectionResponse(
+    response = ReconnectBankConnectionResponse(
         connection=(await build_connection_responses(db, user.id, [connection]))[0],
         resumed_account_ids=resumed if listed else [],
         choose_again_account_ids=choose_again if listed else [],
         accounts_pending=not listed,
     )
+
+    # After the response is built, since a failure here rolls back and expires what the response read
+    await release_stored_credential(adapter.provider_id, replaced)
+    return response
+
+
+def require_offered(provider: str, adapter: ProviderAdapter) -> None:
+    """Refuse a new connection through a provider withdrawn from new connections
+
+    Raises:
+        HTTPException 403: The provider isn't offered for new connections
+    """
+    if not is_offered(provider):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"{adapter.provider_name} is not offered for new connections. Existing connections carry on as before",
+        )
+
+
+def _refuse_pasting(adapter: ProviderAdapter) -> None:
+    """Refuse a pasted credential for a provider that connects by signing in at the bank
+
+    Raises:
+        HTTPException 422: The provider connects through a bank sign-in
+    """
+    if adapter.authorizes_at_bank:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{adapter.provider_name} connects by signing in at your bank, not by pasting a credential",
+        )
 
 
 def credential_noun(label: str) -> str:

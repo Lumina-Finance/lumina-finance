@@ -83,6 +83,13 @@ async def _store_secrets(key: str) -> None:
             ),
             {"user_id": user_id, "secret": fernet.encrypt(_BANK_CREDENTIAL.encode()).decode()},
         )
+        await connection.execute(
+            text(
+                "INSERT INTO bank_authorizations (id, owner_id, provider, credentials_encrypted, state_hash, expires_at) "
+                "VALUES (gen_random_uuid(), :user_id, 'simplefin', :secret, 'a-state-hash', now() + interval '10 minutes')"
+            ),
+            {"user_id": user_id, "secret": fernet.encrypt(_BANK_CREDENTIAL.encode()).decode()},
+        )
 
 
 async def _read_stored(table: str, column: str) -> str:
@@ -99,6 +106,7 @@ async def test_rotation_re_encrypts_every_labelled_column(current_key):
     rewritten = await rotate_encryption_key(engine, new_key)
 
     assert rewritten == {
+        ("bank_authorizations", "credentials_encrypted"): 1,
         ("bank_connections", "credential_encrypted"): 1,
         ("oidc_providers", "client_secret_encrypted"): 1,
         ("totp_credentials", "secret_encrypted"): 1,
@@ -107,6 +115,7 @@ async def test_rotation_re_encrypts_every_labelled_column(current_key):
         ("totp_credentials", "secret_encrypted", _TOTP_SECRET),
         ("oidc_providers", "client_secret_encrypted", _OIDC_SECRET),
         ("bank_connections", "credential_encrypted", _BANK_CREDENTIAL),
+        ("bank_authorizations", "credentials_encrypted", _BANK_CREDENTIAL),
     ):
         stored = await _read_stored(table, column)
         assert Fernet(new_key.encode()).decrypt(stored.encode()).decode() == expected
@@ -268,6 +277,7 @@ async def test_rotation_rewrites_nothing_on_an_empty_database(current_key):
     rewritten = await rotate_encryption_key(engine, generate_encryption_key())
 
     assert rewritten == {
+        ("bank_authorizations", "credentials_encrypted"): 0,
         ("bank_connections", "credential_encrypted"): 0,
         ("oidc_providers", "client_secret_encrypted"): 0,
         ("totp_credentials", "secret_encrypted"): 0,
@@ -493,6 +503,7 @@ async def test_a_key_file_that_cannot_be_removed_still_reports_the_rotation(curr
     rewritten = await rotate_encryption_key(engine, generate_encryption_key())
 
     assert rewritten == {
+        ("bank_authorizations", "credentials_encrypted"): 1,
         ("bank_connections", "credential_encrypted"): 1,
         ("oidc_providers", "client_secret_encrypted"): 1,
         ("totp_credentials", "secret_encrypted"): 1,

@@ -71,6 +71,7 @@ from app.services.bank_sync.pending import replace_pending_transactions
 from app.services.bank_sync.provider_requests import read_request_budget
 from app.services.bank_sync.providers.contract import ProviderAdapter
 from app.services.bank_sync.range_days import forget_range, start_range
+from app.services.bank_sync.release import release_stored_credential
 from app.services.bank_sync.review_pause import lock_account_links
 from app.services.cache_state.updates import mark_user_cache_changed, mark_user_status_changed
 from app.utils.dates import resolve_timezone
@@ -377,10 +378,15 @@ async def disconnect_connection(db: AsyncSession, user: User, connection_id: uui
     )
     ended = linked.all()
     await _end_links(db, ended, now=datetime.now(UTC))
+    provider, credential = connection.provider, connection.credential_encrypted
     await db.delete(connection)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
-    return UnlinkResponse(unlinked_account_ids=[link.account_id for link in ended])
+    response = UnlinkResponse(unlinked_account_ids=[link.account_id for link in ended])
+
+    # After the response is built, since a failure here rolls back and expires what the response read
+    await release_stored_credential(provider, credential)
+    return response
 
 
 async def _end_links(db: AsyncSession, ended: Sequence[BankAccountLink], *, now: datetime) -> None:

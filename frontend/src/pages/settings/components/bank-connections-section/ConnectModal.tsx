@@ -6,6 +6,7 @@ import {
   UNANSWERED_CLAIM_WATCH_MS,
   useClaimCredential,
   useReconnectBankConnection,
+  useStartBankAuthorization,
   type BankConnection,
   type BankProvider,
   type BankProviderId,
@@ -21,14 +22,20 @@ import { useAuth } from '@/hooks/useAuth'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useToast } from '@/hooks/useToast'
 import {
-  describeConnected,
-  describeReconnected,
+  buildAuthorizationStart,
   getCredentialProblems,
   getNicknameProblem,
   isClaimSettled,
+  markServerRefusal,
   submitsCredential,
 } from '@/pages/settings/components/bank-connections-section/utils'
-import { connectionName, credentialNoun } from '@/utils/bankSync'
+import {
+  connectionName,
+  credentialNoun,
+  describeConnected,
+  describeReconnected,
+  fillRedirectUrl,
+} from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 const FIELD_IDS = {
@@ -106,6 +113,12 @@ type ConnectModalProps = {
    */
   onConnected?: (connectionId: string) => void
 
+  /**
+   * The account whose link flow sent the user here. A provider that signs in at the bank sends the
+   * user away, so the return page needs it to go back to that flow
+   */
+  returnToAccountId?: string | null
+
   /** Told when a claim ends without the app's answer, while the server may still be saving its connection */
   onClaimUnanswered: () => void
 }
@@ -130,31 +143,37 @@ export function ConnectModal({
   level = 'page',
   onClose,
   onConnected,
+  returnToAccountId,
   onClaimUnanswered,
 }: ConnectModalProps) {
   const { showToast } = useToast()
   const { user } = useAuth()
   const claim = useClaimCredential()
   const reconnect = useReconnectBankConnection()
+  const startAuthorization = useStartBankAuthorization()
+
+  // Set once the browser is on its way to the bank, so the form stays held until the page is left
+  const [leavingForBank, setLeavingForBank] = useState(false)
   const [providerId, setProviderId] = useState<BankProviderId | null>(providers[0]?.id ?? null)
   const [values, setValues] = useState<Record<string, string>>({})
   const [nickname, setNickname] = useState('')
 
-  // The server's own refusal of the credential. It speaks of the credentials as a whole, so every
-  // field is marked and the message is drawn once, on the last. A value too long is refused before
+  // The server's own refusal of the credential. It marks the fields it names, or every field when it
+  // names none, and its message is drawn once, on the last marked. A value too long is refused before
   // any press goes through, as a problem of its own field
-  const [fieldError, setFieldError] = useState<string | null>(null)
+  const [fieldError, setFieldError] = useState<{ message: string; fields?: string[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [unanswered, setUnanswered] = useState<UnansweredClaim | null>(null)
 
   // The wait reads as the claim still in flight, since from the user's side it is: it lasts no longer
   // than a claim answered in time may take. Unlike a claim in flight, it can be closed, since the
   // section lists the connection if one comes
-  const sending = claim.isPending || reconnect.isPending
+  const sending = claim.isPending || reconnect.isPending || startAuthorization.isPending || leavingForBank
   const busy = sending || unanswered !== null
   const saved = unanswered ? connections?.find((connection) => !unanswered.knownIds.has(connection.id)) : undefined
   const settled = saved !== undefined && isClaimSettled(saved)
   const provider = reconnecting ? reconnectingProvider : providers.find((entry) => entry.id === providerId)
+  const signsInAtBank = provider?.authorizes_at_bank === true
   const providerName = reconnecting?.provider_name ?? provider?.name ?? ''
   const site = reconnecting?.provider_site ?? provider?.site ?? ''
   const fields = provider?.credential_fields ?? FALLBACK_FIELDS
@@ -162,6 +181,12 @@ export function ConnectModal({
   // The messages that speak of the credential as one thing name the provider's first field
   const noun = credentialNoun(fields[0].label)
   const trimmed = Object.fromEntries(fields.map((field) => [field.key, (values[field.key] ?? '').trim()]))
+  const serverMarks = fieldError
+    ? markServerRefusal(
+        fields.map((field) => field.key),
+        fieldError.fields,
+      )
+    : null
 
   // Without a provider there is nothing to fill in, so Connect says so before any press, the way any
   // held-back button does. An empty field is only marked once a press finds it
@@ -182,7 +207,7 @@ export function ConnectModal({
 
   const reportAnswered = (cause: ApiError) => {
     if (cause.status === 422) {
-      setFieldError(cause.message)
+      setFieldError({ message: cause.message, fields: cause.refusedFields })
       return
     }
     setError(cause.message)
@@ -193,6 +218,28 @@ export function ConnectModal({
     if (busy || !refusal.guard()) return
     setFieldError(null)
     setError(null)
+
+    // Nothing is saved until the user returns from the bank, so a start that goes unanswered is safe to
+    // send again: the server drops the earlier sign-in the new one replaces
+    if (signsInAtBank && provider) {
+      startAuthorization.mutate(
+        buildAuthorizationStart({
+          provider: provider.id,
+          credentials: trimmed,
+          nickname,
+          reconnectingId: reconnecting?.id,
+          returnToAccountId,
+        }),
+        {
+          onSuccess: ({ url }) => {
+            setLeavingForBank(true)
+            window.location.assign(url)
+          },
+          onError: (cause) => (isAnsweredByApp(cause) ? reportAnswered(cause) : setError(UNANSWERED_RECONNECT_MESSAGE)),
+        },
+      )
+      return
+    }
 
     if (reconnecting) {
       reconnect.mutate(
@@ -276,12 +323,12 @@ export function ConnectModal({
       closeDisabled={sending}
       footer={
         <ModalFormFooter
-          submitLabel={reconnecting ? 'Reconnect' : 'Connect'}
+          submitLabel={signsInAtBank ? 'Go to your bank' : reconnecting ? 'Reconnect' : 'Connect'}
           submitDisabled={busy}
           cancelDisabled={sending}
           submitReason={heldBackReason}
           submitBlockedReason={refusal.blockedReason}
-          submitWidthClassName="w-full sm:w-32"
+          submitWidthClassName={signsInAtBank ? 'w-full sm:w-auto' : 'w-full sm:w-32'}
           error={error}
           holdsButtonWidth
           level={level}
@@ -342,18 +389,22 @@ export function ConnectModal({
         )}
         {reconnecting ? (
           <WarningCallout>
-            {site} no longer accepts this connection. Please create a new {noun} in {site} and paste the {noun} below.
+            {signsInAtBank
+              ? `${site} no longer accepts this connection. Please fill in the details below, then sign in at your bank again.`
+              : `${site} no longer accepts this connection. Please create a new ${noun} in ${site} and paste the ${noun} below.`}
           </WarningCallout>
         ) : (
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            One connection covers every bank account you added in {site}. Each account then links to a bank account from
-            the account&apos;s own page.
+            {signsInAtBank
+              ? 'One connection covers the bank accounts you share when you sign in at your bank.'
+              : `One connection covers every bank account you added in ${site}.`}{' '}
+            Each account then links to a bank account from the account&apos;s own page.
           </p>
         )}
         {provider && provider.connect_steps.length > 0 && (
           <ol className="list-decimal space-y-1 pl-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
             {provider.connect_steps.map((step) => (
-              <li key={step}>{step}</li>
+              <li key={step}>{fillRedirectUrl(step, window.location.origin)}</li>
             ))}
           </ol>
         )}
@@ -361,8 +412,8 @@ export function ConnectModal({
           const refusedMessage = refusal.errors[field.key]
           const refused = Boolean(refusedMessage)
           const refusedErrorId = `${credentialFieldId(field.key)}-error`
-          const refusedByServer = fieldError !== null
-          const serverMessage = refusedByServer && field.key === fields[fields.length - 1].key ? fieldError : null
+          const refusedByServer = serverMarks?.marked.has(field.key) === true
+          const serverMessage = fieldError && field.key === serverMarks?.messageOn ? fieldError.message : null
           const invalid = refused || refusedByServer
           const message = refusedMessage ?? serverMessage
           const messageId = refused ? refusedErrorId : CREDENTIAL_ERROR_ID

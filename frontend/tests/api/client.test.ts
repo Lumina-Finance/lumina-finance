@@ -303,6 +303,25 @@ describe('authenticatedFetch', () => {
     await expect(authenticatedFetch('/bank-review/items/item-1/dismiss', { method: 'POST' })).resolves.toBeUndefined()
   })
 
+  it.each([
+    ['names some fields', 'country, bank', ['country', 'bank']],
+    ['names none', null, undefined],
+  ])('keeps the fields a refusal %s', async (_case, header, expected) => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "Enable Banking doesn't list that bank" }), {
+        status: 422,
+        headers: header === null ? undefined : { 'X-Refused-Fields': header },
+      }),
+    )
+
+    const error = await authenticatedFetch('/bank-sync/authorizations', { method: 'POST' }).catch(
+      (thrown: unknown) => thrown,
+    )
+
+    expect(error).toMatchObject({ message: "Enable Banking doesn't list that bank", status: 422 })
+    expect((error as ApiError).refusedFields).toEqual(expected)
+  })
+
   it('does not refresh or resend a wrong-credential 401 that lacks the bearer challenge', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,

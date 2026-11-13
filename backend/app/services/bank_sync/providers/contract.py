@@ -155,11 +155,27 @@ class FetchResult:
     possibly_cut_off: bool = False
 
 
+# The response header a refused sign-in start names its fields in, by key and comma-separated, so the
+# connect form marks only those. Without it the refusal is about the fields as a whole
+REFUSED_FIELDS_HEADER = "X-Refused-Fields"
+
+
 class ClaimRefused(Exception):
     """The credential the user supplied can't be claimed, for a reason the user can act on
 
     The message is that reason, written for the user, and names at most the provider's host
     """
+
+    def __init__(self, message: str, *, fields: tuple[str, ...] = ()) -> None:
+        """Hold the reason
+
+        Args:
+            message: The reason, written for the user
+            fields: The keys of the credential fields the reason is about, when it isn't about them all.
+                A sign-in start sends them to the connect form
+        """
+        super().__init__(message)
+        self.fields = fields
 
 
 class ProviderUnreachable(Exception):
@@ -221,6 +237,11 @@ class ProviderAdapter(ABC):
     claim_is_counted: ClassVar[bool] = True
     connects_from: ClassVar[ConnectsFrom]
 
+    # Whether the user connects by signing in at their bank and returning, rather than pasting a credential.
+    # Such a provider implements start_authorization and claim_authorized, and its credential fields hold
+    # what the app needs before the user leaves, such as an application's key
+    authorizes_at_bank: ClassVar[bool] = False
+
     @classmethod
     def on_startup(cls) -> None:
         """Run as the app and the bank sync worker start, such as to warn about a testing-only setting
@@ -244,6 +265,50 @@ class ProviderAdapter(ABC):
             ClaimRefused: The supplied credential can't be used, such as one already claimed
             ProviderUnreachable: The provider couldn't be reached or gave no usable answer
         """
+
+    async def start_authorization(self, supplied: Mapping[str, str], *, redirect_url: str, state: str) -> str:
+        """Ask the provider to start a bank sign-in, for a provider whose authorizes_at_bank is set
+
+        Args:
+            supplied: Each of the provider's credential fields by its key, none blank or over its
+                longest, as the engine checked them
+            redirect_url: The address the bank sends the user back to, which the provider must accept
+            state: The random value the bank hands back with the user, which the engine finds the
+                sign-in by
+
+        Returns:
+            The bank's address to send the user to
+
+        Raises:
+            ClaimRefused: The provider can't start it for what the user supplied
+            ProviderUnreachable: The provider couldn't be reached or gave no usable answer
+        """
+        raise NotImplementedError(f"{self.provider_name} connects by pasting a credential")
+
+    async def claim_authorized(self, supplied: Mapping[str, str], *, code: str) -> str:
+        """Exchange the code the bank sent the user back with for the access the app stores
+
+        Args:
+            supplied: The credential fields the sign-in was started with
+            code: The one-time code from the bank's return
+
+        Returns:
+            The credential to store encrypted and pass to discover and fetch
+
+        Raises:
+            ClaimRefused: The code can't be used, such as one already used or expired
+            ProviderUnreachable: The provider couldn't be reached or gave no usable answer
+        """
+        raise NotImplementedError(f"{self.provider_name} connects by pasting a credential")
+
+    async def release_credential(self, credential: str) -> None:
+        """Give back a credential the app no longer keeps, such as a session the provider holds open
+
+        The engine calls it after a claim whose connection wasn't saved, once a reconnect has replaced
+        a credential and when a connection is disconnected, and ignores any failure. It does nothing
+        unless the provider holds something open for a credential
+        """
+        return
 
     @abstractmethod
     def server_host(self, credential: str) -> str:

@@ -66,6 +66,7 @@ async def test_providers_list_offers_akahu_with_its_two_token_fields_and_steps(c
         "site": "my.akahu.nz",
         "description": "Lumina Finance reads the accounts you connect to your Akahu personal app.",
         "in_beta": True,
+        "authorizes_at_bank": False,
         "credential_fields": [
             {"key": "app_id_token", "label": "App ID token", "placeholder": "Paste the token", "max_length": 512},
             {"key": "user_access_token", "label": "User access token", "placeholder": "Paste the token", "max_length": 512},

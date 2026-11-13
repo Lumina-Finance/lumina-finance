@@ -31,6 +31,7 @@ _FAKE = {
     "site": "Fake Bank Online",
     "description": "One access key reaches every account you hold at Fake Bank.",
     "in_beta": False,
+    "authorizes_at_bank": False,
     "credential_fields": [{"key": "access_key", "label": "Access key", "placeholder": "Paste the key", "max_length": 512}],
     "connect_steps": ["Sign in to Fake Bank Online.", "Create an access key and paste it here."],
     "connects_from": "settings",
@@ -76,6 +77,18 @@ async def test_providers_offer_an_installed_provider_with_its_credential_steps_a
 
     assert response.status_code == 200, response.text
     assert response.json() == {"may_link": True, "sync_running": True, "providers": [_FAKE]}
+
+
+async def test_providers_mark_a_provider_that_signs_in_at_the_bank_and_clear_the_flag_on_the_others(client, authorizing_provider):
+    """The connect form branches on the flag, and a provider that takes a pasted credential says it does not sign in at the bank"""
+    headers, _ = await _sign_up(client)
+
+    response = await client.get("/bank-sync/providers", headers=headers)
+
+    assert {provider["id"]: provider["authorizes_at_bank"] for provider in response.json()["providers"]} == {
+        "signin_bank": True,
+        "fake": False,
+    }
 
 
 async def test_providers_mark_a_provider_in_beta(client, monkeypatch):
