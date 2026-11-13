@@ -1,6 +1,6 @@
 # Added to docker/compose.yml for the browser tests written for a server offering no bank sync.
-# SimpleFIN, Lunch Flow, Akahu and Pluggy are each on unless switched off, so switching all four off leaves
-# no provider enabled, and the app starts no bank sync worker
+# SimpleFIN, Lunch Flow, Akahu, Pluggy and Enable Banking are each on unless switched off, so switching all
+# five off leaves no provider enabled, and the app starts no bank sync worker
 services:
   app:
     environment:
@@ -8,3 +8,4 @@ services:
       BANK_SYNC_LUNCHFLOW_ENABLED: "false"
       BANK_SYNC_AKAHU_ENABLED: "false"
       BANK_SYNC_PLUGGY_ENABLED: "false"
+      BANK_SYNC_ENABLE_BANKING_ENABLED: "false"

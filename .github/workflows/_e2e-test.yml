@@ -44,9 +44,9 @@ jobs:
     # Every matrix job starts its own application and database on its runner, and runs its tests
     # against two servers in turn. The first offers no bank sync, with no provider enabled and so no
     # bank sync worker, for every test but those tagged as needing bank sync. The same stack then
-    # restarts with SimpleFIN, Lunch Flow, Akahu and Pluggy on, the worker running inside the app as it
-    # does by default, and the fake SimpleFIN Bridge, Lunch Flow, Akahu and Pluggy the tagged tests
-    # connect bank accounts through
+    # restarts with SimpleFIN, Lunch Flow, Akahu, Pluggy and Enable Banking on, the worker running inside
+    # the app as it does by default, and the fake SimpleFIN Bridge, Lunch Flow, Akahu, Pluggy and Enable
+    # Banking the tagged tests connect bank accounts through
     env:
       APP_IMAGE_TAG: ci
       DB_HOST: postgres
@@ -102,35 +102,36 @@ jobs:
       # too, so a run reports both halves
       - name: Restart the stack with bank sync
         if: ${{ !cancelled() && steps.no-bank-sync-tests.outcome != 'skipped' }}
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml up -d
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml up -d
 
       - name: Wait for the stack with bank sync
         if: ${{ !cancelled() && steps.no-bank-sync-tests.outcome != 'skipped' }}
         uses: ./.github/actions/e2e-health
         with:
           health-url: http://localhost:8080/api/health
-          compose-files: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml
+          compose-files: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml
 
       # The worker counts as running once its first scan for due work stamps its heartbeat. That
       # comes after it has waited for the app to migrate the database
       - name: Wait for bank sync
         if: ${{ !cancelled() && steps.no-bank-sync-tests.outcome != 'skipped' }}
         run: |
-          compose="docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml"
+          compose="docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml"
           for attempt in $(seq 1 30); do
             if ${compose} exec -T app python -m app.worker check-health \
               && curl -fsS -o /dev/null http://localhost:8790/docs \
               && curl -fsS -o /dev/null http://localhost:8791/docs \
               && curl -fsS -o /dev/null http://localhost:8792/docs \
-              && curl -fsS -o /dev/null http://localhost:8793/docs; then
-              echo "The bank sync worker and the fake SimpleFIN Bridge, Lunch Flow, Akahu and Pluggy are running"
+              && curl -fsS -o /dev/null http://localhost:8793/docs \
+              && curl -fsS -o /dev/null http://localhost:8794/docs; then
+              echo "The bank sync worker and the fake SimpleFIN Bridge, Lunch Flow, Akahu, Pluggy and Enable Banking are running"
               exit 0
             fi
             echo "Attempt ${attempt}: bank sync not ready yet"
             sleep 5
           done
           echo "Bank sync never became ready, dumping logs"
-          ${compose} logs app fake-simplefin-bridge fake-lunchflow fake-akahu fake-pluggy
+          ${compose} logs app fake-simplefin-bridge fake-lunchflow fake-akahu fake-pluggy fake-enable-banking
           exit 1
 
       # A shard can hold none of the tests needing bank sync, so finding none passes. The contract
@@ -148,13 +149,14 @@ jobs:
           E2E_FAKE_LUNCHFLOW_URL: http://localhost:8791
           E2E_FAKE_AKAHU_URL: http://localhost:8792
           E2E_FAKE_PLUGGY_URL: http://localhost:8793
+          E2E_FAKE_ENABLE_BANKING_URL: http://localhost:8794
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-bank-sync
         run: npx playwright test --project=${{ matrix.suite.project }} --shard=${{ matrix.suite.shard }}/${{ matrix.suite.shards }} --pass-with-no-tests --output=test-results-bank-sync
 
       # The report shows only what the browser saw, so a failed request is explained by the app's own log
       - name: Dump container logs from the server with bank sync
         if: ${{ failure() && steps.bank-sync-tests.outcome == 'failure' }}
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml logs || true
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml logs || true
 
       # Setup failures do not produce an E2E report
       - name: Keep the reports from a failed run
@@ -169,7 +171,7 @@ jobs:
 
       - name: Tear down the stack
         if: always()
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml down -v
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml down -v
 
   # The packaged image serves the app and the API from one origin, so the tests that need two run
   # here. The frontend is built a second time to reach the API at another address of the same stack,
