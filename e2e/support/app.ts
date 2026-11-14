@@ -608,7 +608,11 @@ export async function readSettledScrollingBox(inside: Locator): Promise<Scrollin
 
 /**
  * Wait until an element stops moving, such as a calendar easing in or a tooltip gliding to a new place,
- * and read where it rests. Two reads in a row that agree mean it has stopped
+ * and read where it rests. It has stopped once the animations on it, its parts and what holds it have
+ * ended and two reads in a row agree
+ *
+ * An animation the browser has started but not yet run holds the element where it was, so two reads
+ * alone can agree on a place it is about to leave
  *
  * @param element - The element to measure
  * @returns The element's resting box
@@ -616,6 +620,14 @@ export async function readSettledScrollingBox(inside: Locator): Promise<Scrollin
 export async function readSettledBox(element: Locator): Promise<NonNullable<Awaited<ReturnType<Locator['boundingBox']>>>> {
   let last: Awaited<ReturnType<Locator['boundingBox']>> = null
   await expect.poll(async () => {
+    await element.evaluate(async (node) => {
+      const moving = document.getAnimations().filter((animation) => {
+        const target = animation.effect instanceof KeyframeEffect ? animation.effect.target : null
+        return target !== null && (target.contains(node) || node.contains(target))
+          && animation.effect?.getComputedTiming().endTime !== Infinity
+      })
+      await Promise.all(moving.map((animation) => animation.finished.catch(() => undefined)))
+    })
     const current = await element.boundingBox()
     const isStill = current !== null && JSON.stringify(current) === JSON.stringify(last)
     last = current
