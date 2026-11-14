@@ -25,7 +25,8 @@ RUN npm run build:app
 # Backend dependencies
 FROM dhi.io/python:${PYTHON_VERSION}-debian13-sfw-dev AS backend-deps
 
-ARG UV_VERSION=0.12.0
+# The same uv as the setup-uv steps in the backend workflows, so a relock anywhere writes one lockfile format
+ARG UV_VERSION=0.13.7
 
 WORKDIR /app/backend
 
