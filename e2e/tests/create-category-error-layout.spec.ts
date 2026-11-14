@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { logInViaApi, openPage, readSettledBox } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs at every size: the Icon box sits beside the name field at every width, a phone included
@@ -43,14 +43,11 @@ for (const [language, words] of Object.entries(LANGUAGES)) {
     const iconBox = dialog.getByRole('button', { name: 'Select New category icon' })
     const nameInput = dialog.getByRole('textbox', { name: 'Category name', exact: true })
 
-    // The dialog scales in as it opens, so the starting position is read once it has stopped moving
-    await expect.poll(async () => {
-      const first = await readBox(iconBox)
-      await page.waitForTimeout(250)
-      const second = await readBox(iconBox)
-      return first.x === second.x && first.y === second.y
-    }).toBe(true)
-    const start = await readBox(iconBox)
+    // The dialogue slides and scales in as it opens, so the starting positions are read once the opening has ended.
+    // Two reads that agree can't tell ended from not yet begun, as a busy runner may not draw for a while, so the
+    // test waits until the dialogue carries no transform
+    await expect(dialog).toHaveCSS('transform', 'none')
+    const start = await readSettledBox(iconBox)
     const startName = await readBox(nameInput)
     expect(startName.x, 'name input starts beside the Icon box').toBeGreaterThanOrEqual(start.x + start.width)
     expect(startName.y, 'name input top level with the Icon box top').toBe(start.y)
