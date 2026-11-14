@@ -199,8 +199,11 @@ test('keeps keyboard focus on Delete after a refused delete', async ({ page, req
   await page.getByRole('button', { name: 'Delete the selected transactions', exact: true }).click()
 
   const confirm = page.getByRole('dialog', { name: 'Delete 1 transaction?', exact: true })
+  const cancel = confirm.getByRole('button', { name: 'Cancel', exact: true })
   const remove = confirm.getByRole('button', { name: 'Delete', exact: true })
-  // The confirmation opens on Cancel, which Delete sits before
+  // The confirmation opens on Cancel, with Delete just before Cancel. Focus reaches Cancel a frame after the
+  // confirmation shows, so Shift+Tab waits until Cancel has focus
+  await expect(cancel).toBeFocused()
   await page.keyboard.press('Shift+Tab')
   await expect(remove).toBeFocused()
   await page.keyboard.press('Enter')
