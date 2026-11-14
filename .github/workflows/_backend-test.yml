@@ -23,6 +23,8 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.3.2
         with:
+          # The same uv as UV_VERSION in docker/Dockerfile
+          version: "0.13.7"
           enable-cache: true
 
       - name: Sync locked dependencies
@@ -93,6 +95,8 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.3.2
         with:
+          # The same uv as UV_VERSION in docker/Dockerfile
+          version: "0.13.7"
           enable-cache: true
 
       # Tests need the restricted app role to exercise row-level security
