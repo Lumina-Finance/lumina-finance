@@ -11,7 +11,7 @@ import {
   type SeededAccount,
   type TestUser,
 } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openModal, openPage, waitForRequestsSoFar } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openModal, openPage, readSettledBox, waitForRequestsSoFar } from '../support/app'
 import {
   fetchOnOwnConnection,
   isRead,
@@ -654,48 +654,71 @@ test.describe('on a short phone screen', AT_EVERY_SIZE_NEEDS_BANK_SYNC, () => {
   })
 })
 
-// Dismiss widens to Yes, dismiss and back over the app's ease rather than jumping. Its width is read on every
-// frame the page draws until it has held still a while after changing, so a width that jumps shows its new
-// width on the first frame it moves
+// Dismiss widens to Yes, dismiss and back over the app's ease rather than jumping. The ease is caught as the app
+// starts it, before any frame is drawn, and the button's width read at its start and a quarter of the way through,
+// so a busy runner that draws few frames can't make an ease look like a jump. A jump starts no ease and so fails the test
 test('eases Dismiss to Yes, dismiss and back rather than jumping between their widths', NEEDS_BANK_SYNC, async ({ page, request }) => {
   await start(page, request, [COUNTDOWN])
   await openPage(page, '/transactions')
   const dialog = await openReview(page, COUNTDOWN.description)
   const form = formOf(dialog)
   await expect(form.dismiss).toBeVisible()
-  const recordWidths = () =>
-    form.dismiss.or(form.confirmDismiss).evaluate(
-      (button) =>
-        new Promise<number[]>((resolve) => {
-          const widths: number[] = []
-          let lastChange: number | null = null
-          const started = performance.now()
-          const frame = () => {
-            const width = button.getBoundingClientRect().width
-            if (widths.length > 0 && Math.abs(width - widths[widths.length - 1]) > 0.1) lastChange = performance.now()
-            widths.push(width)
-            const settled = lastChange !== null && performance.now() - lastChange > 500
-            if (settled || performance.now() - started > 5000) resolve(widths)
-            else requestAnimationFrame(frame)
-          }
-          requestAnimationFrame(frame)
+  // Watches the button through its next change of label. The width ease the app starts with that change is moved
+  // to its start and then to a quarter of its length to read the drawn width at each, then returned to the time the
+  // ease had reached, so the ease carries on unchanged. The ease's curve covers most of the change by halfway, so a
+  // quarter leaves room beside the 1px tolerance. A change with no ease gives null
+  const catchEase = () =>
+    form.dismiss.or(form.confirmDismiss).evaluateHandle((button) => {
+      const label = button.getAttribute('aria-label')
+      return {
+        widths: new Promise<{ start: number; quarter: number } | null>((resolve) => {
+          const observer = new MutationObserver(() => {
+            if (button.getAttribute('aria-label') === label) return
+            observer.disconnect()
+            const ease = button.getAnimations().find((animation) => animation.id === 'eased-width')
+            if (!ease) {
+              resolve(null)
+              return
+            }
+            const playedTo = ease.currentTime
+            const widthAt = (time: number) => {
+              ease.currentTime = time
+              return button.getBoundingClientRect().width
+            }
+            const start = widthAt(0)
+            const quarter = widthAt(Number(ease.effect!.getComputedTiming().duration) / 4)
+            ease.currentTime = playedTo
+            resolve({ start, quarter })
+          })
+          observer.observe(button, { attributes: true, attributeFilter: ['aria-label'] })
         }),
-    )
-  // The first width the button takes once it starts moving. A jump makes that its final width
-  const firstMove = (widths: number[]) => widths.find((width) => Math.abs(width - widths[0]) > 1)
+      }
+    })
 
-  const narrow = (await form.dismiss.boundingBox())!.width
-  const widening = recordWidths()
+  // The dialogue slides and scales in as it opens, beside the filing card or alone, so the narrow width waits until
+  // nothing around the button carries a transform. Two reads that agree can't tell ended from not yet begun
+  await expect.poll(() => form.dismiss.evaluate((button) => {
+    for (let node = button.parentElement; node; node = node.parentElement) {
+      if (getComputedStyle(node).transform !== 'none') return false
+    }
+    return true
+  })).toBe(true)
+  const narrow = (await readSettledBox(form.dismiss)).width
+  const widening = await catchEase()
   await form.dismiss.click()
-  const wideningWidths = await widening
   await expect(form.confirmDismiss).toBeVisible()
-  const wide = (await form.confirmDismiss.boundingBox())!.width
+  const wideningEase = await widening.evaluate((watch) => watch.widths)
+  const wide = (await readSettledBox(form.confirmDismiss)).width
   expect(wide).toBeGreaterThan(narrow + 10)
-  expect(firstMove(wideningWidths), JSON.stringify(wideningWidths)).toBeLessThan(wide - 1)
+  expect(wideningEase, 'Dismiss eases to Yes, dismiss').not.toBeNull()
+  expect(Math.abs(wideningEase!.start - narrow)).toBeLessThanOrEqual(1)
+  expect(wideningEase!.quarter).toBeLessThan(wide - 1)
 
-  const narrowing = recordWidths()
+  const narrowing = await catchEase()
   await dialog.getByRole('heading', { name: 'Review bank item' }).click()
-  const narrowingWidths = await narrowing
   await expect(form.dismiss).toBeVisible()
-  expect(firstMove(narrowingWidths), JSON.stringify(narrowingWidths)).toBeGreaterThan(narrow + 1)
+  const narrowingEase = await narrowing.evaluate((watch) => watch.widths)
+  expect(narrowingEase, 'Yes, dismiss eases back to Dismiss').not.toBeNull()
+  expect(Math.abs(narrowingEase!.start - wide)).toBeLessThanOrEqual(1)
+  expect(narrowingEase!.quarter).toBeGreaterThan(narrow + 1)
 })
