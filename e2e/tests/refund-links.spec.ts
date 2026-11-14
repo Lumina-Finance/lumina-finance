@@ -3,7 +3,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { logInViaApi, openPage, readSettledBox } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // The link icon a list row shows on a refund and on the expense it refunds
@@ -409,12 +409,12 @@ for (const size of [
         const search = dialog.querySelector('input[placeholder="Merchant or note…"]')
         return [explanation, search, filters].map((node) => node!.getBoundingClientRect().top - dialogTop)
       }, phone)
-    // Read once the dialog has finished opening, as its entrance animation leaves these a fraction of a pixel off
-    await picker.evaluate((dialog) => Promise.all(
-      dialog.getAnimations({ subtree: true })
-        .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
-        .map((animation) => animation.finished),
-    ))
+    // Read once the dialogue has finished opening, as its entrance animation leaves these a fraction of a pixel off.
+    // The dialogue's slide and scale clearing is the one sign the entrance has ended, since a busy runner may not have
+    // begun the entrance yet. Anything else moving in the dialogue then comes to rest, including an animation the app
+    // cancels on the way
+    await expect(picker).toHaveCSS('transform', 'none')
+    await readSettledBox(picker)
     const resting = await tops()
 
     // Opening Filters from a body scrolled down is the case that moved the header, since the pinned block un-sticks
