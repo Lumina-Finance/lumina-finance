@@ -608,11 +608,13 @@ export async function readSettledScrollingBox(inside: Locator): Promise<Scrollin
 
 /**
  * Wait until an element stops moving, such as a calendar easing in or a tooltip gliding to a new place,
- * and read where it rests. It has stopped once the animations on it, its parts and what holds it have
- * ended and two reads in a row agree
+ * and read where it rests. It has stopped once every ending animation on it, its parts and what holds it
+ * is over and two reads in a row give the same box
  *
- * An animation the browser has started but not yet run holds the element where it was, so two reads
- * alone can agree on a place it is about to leave
+ * An animation the browser has queued but not yet started holds the element in its old place, so two
+ * reads alone can match on a place the element is about to leave. Animations that never end, such as a
+ * spinner, stay out of the wait, since waiting on them would stall every read. Movement no animation
+ * drives shows only through the two reads
  *
  * @param element - The element to measure
  * @returns The element's resting box
