@@ -135,7 +135,14 @@ describe('a refund of an expense', () => {
 describe('the form a new bank item opens with', () => {
   const item = {
     account_id: 'everyday',
-    bank: { date: '2026-09-21', amount: -1250, raw_amount: null, description: 'COUNTDOWN 123' },
+    bank: {
+      date: '2026-09-21',
+      amount: -1250,
+      raw_amount: null,
+      description: 'COUNTDOWN 123',
+      note: 'COUNTDOWN 123',
+      merchant: null,
+    },
   }
   const withBank = (bank: Partial<BankValues>) => ({ ...item, bank: { ...item.bank, ...bank } })
 

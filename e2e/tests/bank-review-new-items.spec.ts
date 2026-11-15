@@ -539,16 +539,19 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(await dialog.evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true)
     }
 
-    // The card's labels are set in capitals, but the provider's name inside one keeps its own case
-    const descriptionLabel = card.getByText('Description from SimpleFIN', { exact: true })
-    expect(await descriptionLabel.evaluate((label) => (label as HTMLElement).innerText)).toMatch(/SimpleFIN$/)
+    // The bank's merchant is a row like the others and its note closes the card under its own label, both
+    // labels set in capitals. SimpleFIN names no merchant, so its row shows a dash
+    for (const label of ['Merchant', 'Note']) {
+      const term = card.getByText(label, { exact: true })
+      expect(await term.evaluate((shown) => (shown as HTMLElement).innerText)).toBe(label.toUpperCase())
+    }
+    await expect(card.getByRole('definition').first()).toHaveText('—')
 
     const texts = [
       page.getByText('SimpleFIN', { exact: true }).filter({ visible: true }).first(),
       card.getByText('Harbour Bank', { exact: true }),
       card.getByText('New', { exact: true }),
       card.getByText('Everyday Chequing', { exact: true }),
-      card.getByText('Description from SimpleFIN', { exact: true }),
       card.getByText(COUNTDOWN.description, { exact: true }),
       ...await card.locator('dt, dd').all(),
     ]

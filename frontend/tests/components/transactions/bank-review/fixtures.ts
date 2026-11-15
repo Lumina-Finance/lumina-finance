@@ -46,7 +46,14 @@ export function createReviewItem(
   accountId: string,
   overrides: Partial<BankReviewItem> = {},
 ): BankReviewItem {
-  const bank = { date: '2026-09-21', amount: -1250, raw_amount: null, description: `GROCER ${id}` }
+  const bank = {
+    date: '2026-09-21',
+    amount: -1250,
+    raw_amount: null,
+    description: `GROCER ${id}`,
+    note: null,
+    merchant: null,
+  }
   return {
     id,
     kind,

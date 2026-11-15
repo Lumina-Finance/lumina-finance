@@ -45,7 +45,14 @@ describe('why Edit is off for items waiting for review', () => {
 
   // The bank sent -12.345 to an account in cents, so the item's amount has to be typed in
   const unpriced = createReviewItem('b', 'new', 'everyday', {
-    bank: { date: '2026-09-21', amount: null, raw_amount: '-12.345', description: 'GROCER b' },
+    bank: {
+      date: '2026-09-21',
+      amount: null,
+      raw_amount: '-12.345',
+      description: 'GROCER b',
+      note: 'GROCER b',
+      merchant: null,
+    },
   })
 
   it('stays on while every ticked item has a bank amount', () => {
