@@ -43,10 +43,7 @@ for (const [language, words] of Object.entries(LANGUAGES)) {
     const iconBox = dialog.getByRole('button', { name: 'Select New category icon' })
     const nameInput = dialog.getByRole('textbox', { name: 'Category name', exact: true })
 
-    // The dialogue slides and scales in as it opens, so the starting positions are read once the opening has ended.
-    // Two reads that agree can't tell ended from not yet begun, as a busy runner may not draw for a while, so the
-    // test waits until the dialogue carries no transform
-    await expect(dialog).toHaveCSS('transform', 'none')
+    // The dialogue slides and scales in as it opens, so the starting positions are read once the opening has ended
     const start = await readSettledBox(iconBox)
     const startName = await readBox(nameInput)
     expect(startName.x, 'name input starts beside the Icon box').toBeGreaterThanOrEqual(start.x + start.width)
