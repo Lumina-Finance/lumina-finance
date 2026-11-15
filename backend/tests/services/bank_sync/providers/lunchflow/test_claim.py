@@ -40,6 +40,16 @@ async def test_claim_proves_the_key_with_one_accounts_request_and_stores_only_th
     assert API_KEY not in str(request.url)
 
 
+async def test_claim_accepts_a_key_of_exactly_the_longest_length_the_form_allows():
+    """The Connect dialogue's limit is 512 characters, so a key of that length is sent and one a character longer is refused"""
+    api = LunchFlowApi().serve("/accounts", accounts_body(account()))
+
+    stored = await lunchflow_adapter(api.transport).claim({"api_key": "k" * 512})
+
+    assert stored == "k" * 512
+    assert [request.headers["x-api-key"] for request in api.requests] == ["k" * 512]
+
+
 @pytest.mark.parametrize("status", [401, 403])
 async def test_claim_with_a_key_lunch_flow_rejects_says_to_create_a_new_one(status):
     """A rejected key is the user's to replace, so it is refused with where to make another"""

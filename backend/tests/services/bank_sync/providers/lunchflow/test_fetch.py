@@ -6,6 +6,7 @@ that stop only one, and the signs a response was cut short or its rows can't be 
 """
 
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -352,10 +353,11 @@ async def test_fetch_sends_only_for_the_accounts_asked_for():
     ("start", "end"),
     [
         (datetime(2026, 10, 1), datetime(2026, 10, 2, tzinfo=UTC)),
+        (datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 10, 2)),
         (datetime(2026, 10, 2, tzinfo=UTC), datetime(2026, 10, 2, tzinfo=UTC)),
         (_START, _START + timedelta(days=91)),
     ],
-    ids=["naive", "empty", "over-the-limit"],
+    ids=["naive-start", "naive-end", "empty", "over-the-limit"],
 )
 async def test_fetch_refuses_a_window_that_is_naive_empty_or_longer_than_the_limit(start, end):
     """The engine never sends one, so a caller that does is told, and nothing is sent"""
@@ -410,3 +412,97 @@ async def test_fetch_is_possibly_cut_off_when_only_one_of_its_accounts_is(cut_of
 
     assert result.possibly_cut_off is True
     assert [len(found.records) for found in result.accounts] == [1, 1]
+
+
+async def test_fetch_accepts_a_window_of_exactly_the_limit_and_refuses_one_second_more():
+    """The limit is the longest window Lunch Flow's answer is kept to, so 90 days is sent and 90 days and a second isn't"""
+    api = _api_with_one_account()
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+
+    result = await _fetch(lunchflow_adapter(api.transport), "11", start=start, end=start + timedelta(days=90))
+
+    assert result.request_error is None
+    [request] = [request for request in api.requests if request.url.path.endswith("/transactions")]
+    assert (request.url.params["from"], request.url.params["to"]) == ("2026-09-30", "2026-12-29")
+    with pytest.raises(ValueError, match="Lunch Flow window"):
+        await _fetch(lunchflow_adapter(api.transport), "11", start=start, end=start + timedelta(days=90, seconds=1))
+
+
+async def test_fetch_dates_the_window_in_the_users_timezone_when_it_is_another_day_in_utc():
+    """A window starting at 10 pm on 30 September in Toronto asks for that day, not for the 1 October it is in UTC"""
+    api = _api_with_one_account()
+    start = datetime(2026, 10, 1, 2, tzinfo=UTC)
+    end = datetime(2026, 10, 2, 2, tzinfo=UTC)
+
+    await _fetch(lunchflow_adapter(api.transport), "11", start=start, end=end)
+
+    [request] = [request for request in api.requests if request.url.path.endswith("/transactions")]
+    assert (request.url.params["from"], request.url.params["to"]) == ("2026-09-30", "2026-10-01")
+
+
+@pytest.mark.parametrize("amount", ["1e40", "-1e40", "1e100000", "123456789012345678901234567890123", "-123456789012345678901234567890123.45"])
+async def test_fetch_keeps_an_amount_too_large_to_be_money_as_raw_text_and_unstored(amount):
+    """Writing out a figure like 1e100000 in full could fill memory, so it is kept short, and neither it nor a balance of it is stored"""
+    api = _api_with_one_account(transaction("t1", amount), balance=amount)
+
+    result = await _fetch(lunchflow_adapter(api.transport), "11")
+
+    [chequing] = result.accounts
+    [record] = chequing.records
+    assert chequing.balance is None
+    assert record.amount is None
+    assert Decimal(record.raw_amount) == Decimal(amount)
+    assert len(record.raw_amount) < 60
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+@pytest.mark.parametrize("where", ["balance", "transactions"])
+async def test_fetch_with_nan_or_infinity_in_an_answer_reports_the_account_as_unknown(where, constant):
+    """JSON has no such numbers, so an answer holding one is unreadable rather than a figure to store"""
+    chequing = account(11)
+    api = LunchFlowApi().serve("/accounts", accounts_body(chequing)).serve_account(chequing)
+    if where == "balance":
+        api.serve("/accounts/11/balance", f'{{"balance": {{"amount": {constant}, "currency": "CAD"}}}}')
+    else:
+        api.serve("/accounts/11/transactions", transactions_body(transaction("t1", constant)))
+
+    result = await _fetch(lunchflow_adapter(api.transport), "11")
+
+    assert result.accounts == ()
+    assert result.account_errors["11"].kind is ProviderErrorKind.UNKNOWN
+
+
+async def test_fetch_reads_trailing_zeros_but_never_rounds_away_a_decimal_the_currency_lacks():
+    """-4.500 is -450 cents, and 1500.5 yen has no whole yen to be stored as, so only its raw amount is kept"""
+    cad = _api_with_one_account(transaction("t1", "-4.500"))
+    yen = _api_with_one_account(
+        transaction("t1", "-1500.5", currency="JPY"), transaction("t2", "-1500.0", currency="JPY"), currency="JPY", balance="120000"
+    )
+
+    [cad_account] = (await _fetch(lunchflow_adapter(cad.transport), "11")).accounts
+    [yen_account] = (await _fetch(lunchflow_adapter(yen.transport), "11")).accounts
+
+    assert [(record.amount, record.raw_amount) for record in cad_account.records] == [(-450, "-4.500")]
+    assert [(record.amount, record.raw_amount) for record in yen_account.records] == [(None, "-1500.5"), (-1500, "-1500.0")]
+
+
+async def test_fetch_reads_a_transaction_with_no_currency_no_names_no_total_and_a_number_for_an_id():
+    """Each field Lunch Flow may leave out has a reading: the account's currency, an empty description, a complete answer and the id as text"""
+    chequing = account(11)
+    api = LunchFlowApi().serve("/accounts", accounts_body(chequing))
+    transactions = (
+        f'{{"transactions": [{transaction("t1", "-4.50", currency=None)}, '
+        f"{transaction('t2', merchant=None, description=None)}, "
+        '{"id": 77, "amount": 1.25, "date": "2026-10-02"}]}'
+    )
+    api.serve_account(chequing, transactions=transactions)
+
+    result = await _fetch(lunchflow_adapter(api.transport), "11")
+
+    [found] = result.accounts
+    assert [(record.external_id, record.amount, record.description) for record in found.records] == [
+        ("t1", -450, "EFTPOS BEAN THERE CAFE"),
+        ("t2", -450, ""),
+        ("77", 125, ""),
+    ]
+    assert result.possibly_cut_off is False

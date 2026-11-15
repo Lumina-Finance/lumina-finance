@@ -128,6 +128,17 @@ async def test_discovery_leaves_a_balance_unread_when_its_currency_is_not_the_ac
     assert [(found.external_id, found.balance, found.currency_raw) for found in result.accounts] == [("11", None, "CAD"), ("12", None, "XYZ")]
 
 
+async def test_discovery_stores_a_balance_that_names_no_currency_in_the_currency_the_account_list_sent():
+    """Lunch Flow's reference leaves the balance's currency optional, and the account's own currency then reads it"""
+    chequing = account(11, currency="CAD")
+    api = LunchFlowApi().serve("/accounts", accounts_body(chequing))
+    api.serve("/accounts/11/balance", '{"balance": {"amount": 12.50}}')
+
+    result = await lunchflow_adapter(api.transport).discover(API_KEY, currency_exponents=_EXPONENTS)
+
+    assert [(found.currency, found.balance) for found in result.accounts] == [("CAD", 1250)]
+
+
 async def test_discovery_with_a_rejected_key_fails_the_request_for_the_user_to_reconnect():
     """A 401 at the listing is the credential being rejected, with no accounts"""
     api = LunchFlowApi().serve("/accounts", '{"error": "Unauthorized", "message": "Invalid API key"}', 401)

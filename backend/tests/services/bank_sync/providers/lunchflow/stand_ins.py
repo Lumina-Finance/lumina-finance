@@ -71,13 +71,16 @@ def transaction(
     amount: str = "-4.50",
     *,
     account_id: int = 11,
-    currency: str = "CAD",
+    currency: str | None = "CAD",
     date: str = "2026-10-01",
     merchant: str | None = "Bean There",
     description: str | None = "EFTPOS BEAN THERE CAFE",
     pending: bool = False,
 ) -> str:
-    """Return one transaction as GET /accounts/{id}/transactions sends it, the amount written as given"""
+    """Return one transaction as GET /accounts/{id}/transactions sends it, the amount written as given
+
+    A currency of None leaves the field out, and an id of None leaves the id out
+    """
 
     def text(value: str | None) -> str:
         """Write a string or null"""
@@ -86,12 +89,13 @@ def transaction(
     fields = [
         f'"accountId": {account_id}',
         f'"amount": {amount}',
-        f'"currency": "{currency}"',
         f'"date": "{date}"',
         f'"merchant": {text(merchant)}',
         f'"description": {text(description)}',
         f'"isPending": {"true" if pending else "false"}',
     ]
+    if currency is not None:
+        fields.insert(2, f'"currency": "{currency}"')
     if transaction_id is not None:
         fields.insert(0, f'"id": {text(transaction_id)}')
     return "{" + ", ".join(fields) + "}"
