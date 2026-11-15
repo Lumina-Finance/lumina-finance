@@ -71,8 +71,15 @@ class WireAccount(_Model):
     name: str
     status: str
     attributes: tuple[str, ...] = ()
-    balance: _Balance
+
+    # Akahu's reference doesn't require it, and it is the only source of the account's currency
+    balance: _Balance | None = None
     refreshed: _Refreshed = _Refreshed()
+
+    @property
+    def has_currency(self) -> bool:
+        """Whether Akahu listed a balance, which is the only place it gives the account's currency"""
+        return self.balance is not None
 
 
 class _AccountList(_Answer):
@@ -92,14 +99,18 @@ class _Cursor(_Model):
 
 class _TransactionList(_Answer):
     items: list[_WireTransaction]
-    cursor: _Cursor = _Cursor()
+
+    # Akahu's reference doesn't say whether the cursor can be null or left out, and either means the last page
+    cursor: _Cursor | None = None
 
 
 class _WirePending(_Model):
-    account: str = Field(alias="_account")
-    date: dt.datetime
+    """A pending transaction, none of whose fields Akahu's reference requires"""
+
+    account: str | None = Field(default=None, alias="_account")
+    date: dt.datetime | None = None
     description: str = ""
-    amount: Decimal
+    amount: Decimal | None = None
 
 
 class _PendingList(_Answer):
@@ -114,6 +125,16 @@ class TransactionPage:
 
     # None on the last page
     next_cursor: str | None
+
+
+@dataclass(frozen=True)
+class PendingTransactions:
+    """The pending records read for each account, and how many items the answer left unusable"""
+
+    records: dict[str, tuple[ProviderRecord, ...]]
+
+    # Items missing their date, amount or account, which can't be placed on an account or stored
+    skipped_incomplete: int
 
 
 def _read_json(body: bytes) -> object:
@@ -193,13 +214,15 @@ def read_transaction_page(body: bytes, account: WireAccount, *, exponent: int | 
         )
         for item in answer.items
     )
-    return TransactionPage(records, answer.cursor.next)
+    return TransactionPage(records, answer.cursor.next if answer.cursor is not None else None)
 
 
 def read_pending(
     body: bytes, accounts: Mapping[str, WireAccount], *, currency_exponents: Mapping[str, int], timezone: ZoneInfo
-) -> dict[str, tuple[ProviderRecord, ...]]:
+) -> PendingTransactions:
     """Read the answer to GET /transactions/pending into pending records, by the id of the account each belongs to
+
+    An item missing its date, amount or account is left out and counted, since Akahu requires none of them
 
     Akahu gives a pending transaction no id, so each is given one worked out from its account, date,
     amount and description, and its place among identical ones. It holds only within this answer.
@@ -223,10 +246,15 @@ def read_pending(
 
     seen: Counter[str] = Counter()
     records: dict[str, list[ProviderRecord]] = {account_id: [] for account_id in accounts}
+    skipped_incomplete = 0
     for item in answer.items:
-        account = accounts.get(item.account)
-        if account is None:
+        # An item that names another account isn't this fetch's, however complete it is
+        if item.account is not None and item.account not in accounts:
             continue
+        if item.account is None or item.date is None or item.amount is None:
+            skipped_incomplete += 1
+            continue
+        account = accounts[item.account]
         identity = f"{item.account}|{item.date.astimezone(dt.UTC).isoformat()}|{_plain(item.amount)}|{item.description}"
         place = seen[identity]
         seen[identity] += 1
@@ -240,7 +268,7 @@ def read_pending(
                 pending=True,
             )
         )
-    return {account_id: tuple(found) for account_id, found in records.items()}
+    return PendingTransactions({account_id: tuple(found) for account_id, found in records.items()}, skipped_incomplete)
 
 
 def external_account(
@@ -260,9 +288,12 @@ def external_account(
         records: The records a fetch brought back for it
         has_balance: False for an account that needs reconnecting, as its balance is out of date
     """
+    listed = account.balance
+    if listed is None:
+        raise ValueError("An account Akahu lists without a balance has no currency to be stored with")
     currency = _currency_of(account)
     exponent = exponent_of(account, currency_exponents)
-    available = _minor_units(account.balance.available, currency, exponent) if account.balance.available is not None else None
+    available = _minor_units(listed.available, currency, exponent) if listed.available is not None else None
     return ExternalAccount(
         external_id=account.id,
         name=account.name,
@@ -270,10 +301,10 @@ def external_account(
         institution_name=account.connection.name,
         login_key=account.connection.id,
         currency=currency,
-        currency_raw=account.balance.currency,
-        balance=_minor_units(account.balance.current, currency, exponent) if has_balance else None,
+        currency_raw=listed.currency,
+        balance=_minor_units(listed.current, currency, exponent) if has_balance else None,
         available_balance=available if has_balance else None,
-        available_balance_unreadable=has_balance and account.balance.available is not None and available is None,
+        available_balance_unreadable=has_balance and listed.available is not None and available is None,
         balance_at=(account.refreshed.balance or balance_at) if has_balance else balance_at,
         records=tuple(records),
     )
@@ -286,8 +317,8 @@ def exponent_of(account: WireAccount, currency_exponents: Mapping[str, int]) -> 
 
 
 def _currency_of(account: WireAccount) -> str | None:
-    """Return the account's ISO 4217 code, or None for a currency that isn't one"""
-    return account.balance.currency if is_iso_currency_code(account.balance.currency) else None
+    """Return the account's ISO 4217 code, or None for a currency that isn't one or an account listed without a balance"""
+    return account.balance.currency if account.balance is not None and is_iso_currency_code(account.balance.currency) else None
 
 
 def _date_of(moment: dt.datetime, timezone: ZoneInfo) -> dt.date:

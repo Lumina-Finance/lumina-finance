@@ -52,16 +52,25 @@ def account(
     available: str | None = "90.00",
     currency: str = "NZD",
     balance_refreshed: str | None = "2026-10-03T21:00:00.000Z",
+    has_balance: bool = True,
 ) -> str:
-    """Return one account as GET /accounts lists it, with the extra fields the adapter must not keep"""
+    """Return one account as GET /accounts lists it, with the extra fields the adapter must not keep
+
+    Akahu doesn't require a balance, so has_balance=False lists the account without one
+    """
     available_text = "null" if available is None else available
+    balance = (
+        f'"balance": {{"current": {current}, "available": {available_text}, "currency": "{currency}", "overdrawn": false}}, '
+        if has_balance
+        else ""
+    )
     refreshed = "" if balance_refreshed is None else f', "balance": "{balance_refreshed}"'
     return (
         f'{{"_id": "{account_id}", "_authorisation": "auth_1", '
         f'"connection": {{"_id": "{connection_id}", "name": "{connection_name}", "logo": "https://static.akahu.io/harbour.png"}}, '
         f'"name": "{name}", "status": "{status}", "type": "CHECKING", "formatted_account": "12-3456-7890123-00", '
         f'"attributes": [{attributes}], '
-        f'"balance": {{"current": {current}, "available": {available_text}, "currency": "{currency}", "overdrawn": false}}, '
+        f"{balance}"
         '"meta": {"holder": "Jane Q Holder", "address": {"suburb": "Karori"}}, '
         f'"refreshed": {{"meta": "2026-10-03T21:00:00.000Z"{refreshed}}}}}'
     )

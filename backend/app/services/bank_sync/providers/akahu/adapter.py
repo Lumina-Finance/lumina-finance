@@ -32,6 +32,7 @@ from app.services.bank_sync.providers.akahu.config import (
 from app.services.bank_sync.providers.akahu.wire import (
     ACTIVE_STATUS,
     TRANSACTIONS_ATTRIBUTE,
+    PendingTransactions,
     UnreadableResponse,
     WireAccount,
     exponent_of,
@@ -91,6 +92,9 @@ _TIMED_OUT_MESSAGE = "Akahu did not respond in time"
 _SERVER_NOT_ALLOWED_MESSAGE = "This Lumina Finance server is not set up to contact {host}"
 _RECONNECT_MESSAGE = "Akahu says this bank needs a reconnection. Please reconnect it in your Akahu personal app, then sync again"
 _MISSING_ACCOUNT_MESSAGE = "Akahu didn't return this account"
+_NO_CURRENCY_MESSAGE = "Akahu didn't say which currency this account is in"
+_SKIPPED_ONE_PENDING_MESSAGE = "1 pending transaction from Akahu isn't shown: it's missing a date, an amount or an account"
+_SKIPPED_PENDING_MESSAGE = "{count} pending transactions from Akahu aren't shown: they're missing a date, an amount or an account"
 _PENDING_UNAVAILABLE_MESSAGE = "Lumina Finance couldn't read Akahu's pending transactions"
 _CUT_OFF_MESSAGE = "Akahu sent more pages of transactions than Lumina Finance reads at once"
 
@@ -204,13 +208,20 @@ class AkahuAdapter(ProviderAdapter):
             listed = await self._list_accounts(_tokens_of(credential))
         except _Failed as failed:
             return FetchResult(request_error=failed.error)
-        return FetchResult(
-            accounts=tuple(
-                external_account(account, currency_exponents=currency_exponents, balance_at=read_at, has_balance=_is_active(account))
-                for account in listed
-            ),
-            login_errors=_login_errors(listed),
-        )
+
+        # An account listed without a balance is left out, since a bank account is stored with a
+        # currency and only the balance gives it. An inactive one needs no error of its own, as its
+        # bank's login error already asks for the reconnection
+        accounts: list[ExternalAccount] = []
+        account_errors: dict[str, ProviderError] = {}
+        for account in listed:
+            if account.has_currency:
+                accounts.append(
+                    external_account(account, currency_exponents=currency_exponents, balance_at=read_at, has_balance=_is_active(account))
+                )
+            elif _is_active(account):
+                account_errors[account.id] = ProviderError(ProviderErrorKind.UNKNOWN, _NO_CURRENCY_MESSAGE)
+        return FetchResult(accounts=tuple(accounts), account_errors=account_errors, login_errors=_login_errors(listed))
 
     @override
     async def fetch(
@@ -239,7 +250,9 @@ class AkahuAdapter(ProviderAdapter):
         try:
             listed = await self._list_accounts(tokens)
             chosen = [account for account in listed if account.id in account_ids]
-            readable = [account for account in chosen if _is_active(account) and TRANSACTIONS_ATTRIBUTE in account.attributes]
+            readable = [
+                account for account in chosen if account.has_currency and _is_active(account) and TRANSACTIONS_ATTRIBUTE in account.attributes
+            ]
             reads = await self._per_account(
                 readable, lambda account: self._read_account(tokens, account, params, exponent_of(account, currency_exponents), timezone)
             )
@@ -251,6 +264,10 @@ class AkahuAdapter(ProviderAdapter):
         account_errors: dict[str, ProviderError] = {}
         is_cut_off = False
         for account in chosen:
+            if not account.has_currency:
+                if _is_active(account):
+                    account_errors[account.id] = ProviderError(ProviderErrorKind.UNKNOWN, _NO_CURRENCY_MESSAGE)
+                continue
             read = reads.get(account.id)
             if isinstance(read, _Failed):
                 account_errors[account.id] = read.error
@@ -258,7 +275,7 @@ class AkahuAdapter(ProviderAdapter):
             if read is not None and pending_failure is not None:
                 account_errors[account.id] = pending_failure.error
                 continue
-            records = (*read.records, *pending.get(account.id, ())) if read is not None else ()
+            records = (*read.records, *pending.records.get(account.id, ())) if read is not None else ()
             is_cut_off = is_cut_off or (read is not None and read.is_cut_off)
             accounts.append(
                 external_account(
@@ -270,12 +287,21 @@ class AkahuAdapter(ProviderAdapter):
         for account_id in account_ids:
             if account_id not in listed_ids:
                 account_errors[account_id] = ProviderError(ProviderErrorKind.UNKNOWN, _MISSING_ACCOUNT_MESSAGE)
-        warnings = (ProviderError(ProviderErrorKind.UNKNOWN, _CUT_OFF_MESSAGE),) if is_cut_off else ()
+        warnings: list[ProviderError] = []
+        if is_cut_off:
+            warnings.append(ProviderError(ProviderErrorKind.UNKNOWN, _CUT_OFF_MESSAGE))
+        if pending.skipped_incomplete:
+            message = (
+                _SKIPPED_ONE_PENDING_MESSAGE
+                if pending.skipped_incomplete == 1
+                else _SKIPPED_PENDING_MESSAGE.format(count=pending.skipped_incomplete)
+            )
+            warnings.append(ProviderError(ProviderErrorKind.UNKNOWN, message))
         return FetchResult(
             accounts=tuple(accounts),
             account_errors=account_errors,
             login_errors=_login_errors(chosen),
-            warnings=warnings,
+            warnings=tuple(warnings),
             possibly_cut_off=is_cut_off,
         )
 
@@ -305,7 +331,7 @@ class AkahuAdapter(ProviderAdapter):
         include_pending: bool,
         currency_exponents: Mapping[str, int],
         timezone: ZoneInfo,
-    ) -> tuple[dict[str, tuple[ProviderRecord, ...]], _Failed | None]:
+    ) -> tuple[PendingTransactions, _Failed | None]:
         """Read the pending transactions of the accounts, since Akahu answers for every account at once
 
         Returns:
@@ -314,20 +340,21 @@ class AkahuAdapter(ProviderAdapter):
         Raises:
             _Failed: A failure that ends the request
         """
+        none_read = PendingTransactions({}, 0)
         if not include_pending or not accounts:
-            return {}, None
+            return none_read, None
         try:
             body = await self._get(tokens, "/transactions/pending")
             return read_pending(
                 body, {account.id: account for account in accounts}, currency_exponents=currency_exponents, timezone=timezone
             ), None
         except UnreadableResponse:
-            return {}, _Failed(ProviderError(ProviderErrorKind.UNKNOWN, _UNREADABLE_MESSAGE))
+            return none_read, _Failed(ProviderError(ProviderErrorKind.UNKNOWN, _UNREADABLE_MESSAGE))
         except _Failed as failed:
             if failed.ends_request:
                 raise
             # The failure it wraps decides whether this is an outage
-            return {}, _Failed(ProviderError(failed.error.kind, _PENDING_UNAVAILABLE_MESSAGE))
+            return none_read, _Failed(ProviderError(failed.error.kind, _PENDING_UNAVAILABLE_MESSAGE))
 
     async def _list_accounts(self, tokens: _Tokens) -> tuple[WireAccount, ...]:
         """List the accounts the personal app reaches

@@ -114,8 +114,8 @@ async def test_a_pending_request_that_fails_without_an_outage_keeps_that_kind():
 
 
 async def test_an_unreadable_pending_answer_is_unknown():
-    """A body that isn't the documented shape isn't an outage"""
-    api = _api().serve("/transactions/pending", '{"success": true, "items": [{"nonsense": 1}]}')
+    """A body that isn't the documented shape isn't an outage, though an item missing fields is only left out"""
+    api = _api().serve("/transactions/pending", '{"success": true, "items": [{"_account": "acc_chq", "amount": "not a number"}]}')
 
     result = await fetch(akahu_adapter(api.transport), "acc_chq", include_pending=True)
 
