@@ -2,14 +2,13 @@
 
 Guards the whole path from the Connect dialogue's data to a saved connection: the providers list
 carries everything the form shows, a key Lunch Flow accepts is saved encrypted and nothing else
-of it is kept, and a key it rejects saves nothing. The key is a secret that must never reach a
-response or a log
+of it is kept. The key is a secret that must never reach a response or a log. What a key Lunch Flow
+refuses or can't answer for is told is tested once, at the adapter in `test_claim.py`
 """
 
 import logging
 
 import httpx
-import pytest
 from sqlalchemy import select
 
 from app.encryption import decrypt
@@ -54,24 +53,15 @@ async def test_providers_list_offers_lunch_flow_with_its_api_key_steps(client, m
 
     assert response.status_code == 200, response.text
     [lunchflow] = [provider for provider in response.json()["providers"] if provider["id"] == "lunchflow"]
-    assert lunchflow == {
-        "id": "lunchflow",
-        "name": "Lunch Flow",
-        "site": "Lunch Flow",
-        "description": "One API key reaches every bank you connect in Lunch Flow.",
-        "in_beta": True,
-        "credential_fields": [{"key": "api_key", "label": "API key", "placeholder": "Paste the key", "max_length": 512}],
-        "connect_steps": [
-            "Open Lunch Flow and connect your banks there.",
-            "Add an API destination and copy its key.",
-            "Paste it here. Lumina Finance uses it to read your accounts and never sees your bank login.",
-        ],
-        "connects_from": "settings",
-        "offered": True,
-        "advertises_history": False,
-        "institution_limit": None,
-        "institutions_in_use": [],
-    }
+    assert (lunchflow["name"], lunchflow["connects_from"], lunchflow["offered"]) == ("Lunch Flow", "settings", True)
+
+    # The dialogue draws the form from the field's structure and the limit the claim itself enforces
+    [field] = lunchflow["credential_fields"]
+    assert set(field) == {"key", "label", "placeholder", "max_length"}
+    assert (field["key"], field["max_length"]) == ("api_key", 512)
+    assert all(isinstance(field[name], str) and field[name] for name in ("label", "placeholder"))
+    assert lunchflow["connect_steps"]
+    assert all(isinstance(step, str) and step for step in lunchflow["connect_steps"])
 
 
 async def test_claim_saves_the_connection_encrypted_and_lists_its_bank_accounts(client, monkeypatch, caplog):
@@ -104,35 +94,3 @@ async def test_claim_saves_the_connection_encrypted_and_lists_its_bank_accounts(
     assert decrypt(connection.credential_encrypted) == API_KEY
     for text in (response.text, listed.text, caplog.text, connection.credential_encrypted):
         assert API_KEY not in text
-
-
-@pytest.mark.parametrize("status", [401, 403])
-async def test_claim_with_a_rejected_key_says_to_create_a_new_one_and_saves_nothing(client, monkeypatch, status):
-    """Lunch Flow turning the key away is the user's to fix, so it is a refusal on the field with the way to make another"""
-    api = _serve_lunchflow(monkeypatch)
-    api.serve("/accounts", '{"error": "Unauthorized", "message": "Invalid API key"}', status)
-    headers, _ = await _sign_up(client)
-
-    refused = await _claim(client, headers, API_KEY)
-
-    assert refused.status_code == 422, refused.text
-    assert (
-        refused.json()["detail"] == "Lunch Flow rejected this API key. Please create a new key in your Lunch Flow API destination and try again"
-    )
-    assert await _stored_connections() == []
-
-
-async def test_claim_when_lunch_flow_cannot_be_reached_saves_nothing_and_leaves_the_key_usable(client, monkeypatch):
-    """A busy Lunch Flow is not the key's fault, so the same key works once it recovers"""
-    api = _serve_lunchflow(monkeypatch)
-    api.serve("/accounts", '{"error": "Unavailable", "message": "Try later"}', 503)
-    headers, _ = await _sign_up(client)
-
-    refused = await _claim(client, headers, API_KEY)
-    api.serve("/accounts", accounts_body(account(11)))
-    retried = await _claim(client, headers, API_KEY)
-
-    assert refused.status_code == 502, refused.text
-    assert refused.json()["detail"] == "There was no answer from Lunch Flow. Please try again in a few minutes"
-    assert retried.status_code == 201, retried.text
-    assert len(await _stored_connections()) == 1

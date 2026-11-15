@@ -4,26 +4,35 @@ Guards that the fake the dev instance and the browser tests sync with speaks wha
 so a browser test that fails points at the app and not at a fake the adapter can't understand
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, timedelta
 
 import httpx
 import pytest
+from freezegun import freeze_time
 
 from app.services.bank_sync.providers.contract import ClaimRefused
 from tests.fake_lunchflow import app
 from tests.services.bank_sync.providers.lunchflow.stand_ins import lunchflow_adapter
+from tests.services.bank_sync.stand_ins import FROZEN_NOW
 
 
 async def test_the_adapter_claims_discovers_and_fetches_the_fakes_sample_scenario():
     """The sample's key claims, both accounts are found with their balances, and the last 10 days import exactly"""
     transport = httpx.ASGITransport(app=app)
+
+    # The fake dates its sample from the clock, so that request runs on the fixed date the window below
+    # shares, and no other request is frozen. FastAPI builds each route as the first request passes
+    # it, and a route declared with a date can't be built while freezing swaps the date class, so a
+    # request to no route comes first and builds them all
     async with httpx.AsyncClient(transport=transport, base_url="http://fake.test") as control:
-        api_key = (await control.post("/control/scenarios/sample")).json()["api_key"]
+        await control.get("/no-such-route")
+        with freeze_time(FROZEN_NOW, real_asyncio=True):
+            api_key = (await control.post("/control/scenarios/sample")).json()["api_key"]
     adapter = lunchflow_adapter(transport)
 
     stored = await adapter.claim({"api_key": api_key})
     discovered = await adapter.discover(stored, currency_exponents={"CAD": 2})
-    today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    today = FROZEN_NOW.replace(hour=0, minute=0, second=0, microsecond=0)
     fetched = await adapter.fetch(
         stored,
         account_ids=[account.external_id for account in discovered.accounts],

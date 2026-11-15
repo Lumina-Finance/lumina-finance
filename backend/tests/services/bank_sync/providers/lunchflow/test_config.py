@@ -1,10 +1,9 @@
 """Lunch Flow settings tests
 
 Guards the testing-only origin so it accepts plain HTTP for the fake Lunch Flow but refuses
-anything beyond an origin, and the daily operation count so a mistyped setting doesn't turn into zero
+anything beyond an origin. The daily request count is read by the shared count reader, which
+`tests/test_config_bank_sync.py` covers
 """
-
-import importlib
 
 import pytest
 
@@ -26,17 +25,3 @@ def test_lunchflow_test_origin_beyond_an_origin_is_refused_at_start(monkeypatch,
 
     with pytest.raises(RuntimeError, match="Invalid BANK_SYNC_LUNCHFLOW_TEST_ORIGIN"):
         read_test_origin_setting(lunchflow_config.TEST_ORIGIN_KEY)
-
-
-def test_lunchflow_daily_operations_default_is_generous_and_zero_is_refused(monkeypatch):
-    """Lunch Flow publishes no limit so 100 is the default, and a count below 1 would hold every sync back"""
-    key = "BANK_SYNC_LUNCHFLOW_DAILY_REQUESTS"
-    try:
-        monkeypatch.delenv(key, raising=False)
-        assert importlib.reload(lunchflow_config).LUNCHFLOW_DAILY_REQUESTS == 100
-        monkeypatch.setenv(key, "0")
-        with pytest.raises(RuntimeError, match=f"Invalid {key}"):
-            importlib.reload(lunchflow_config)
-    finally:
-        monkeypatch.delenv(key, raising=False)
-        importlib.reload(lunchflow_config)

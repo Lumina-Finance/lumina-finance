@@ -6,6 +6,7 @@ arrive from Lunch Flow, rather than as a float a test's own encoder had already 
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Self
 
 import httpx
@@ -36,6 +37,17 @@ def json_response(body: str, status: int = 200) -> httpx.Response:
     return httpx.Response(status, content=body.encode(), headers={"Content-Type": "application/json"})
 
 
+@dataclass(frozen=True)
+class ListedAccount:
+    """One account as GET /accounts lists it, kept with the id and currency a test serves its answers under"""
+
+    account_id: int
+
+    # None when the listing leaves the currency out
+    currency: str | None
+    json: str
+
+
 def account(
     account_id: int = 11,
     *,
@@ -44,21 +56,25 @@ def account(
     institution: str = "Harbour Bank",
     currency: str | None = "CAD",
     status: str = "ACTIVE",
-) -> str:
+) -> ListedAccount:
     """Return one account as GET /accounts lists it, with the extra fields the adapter must not keep
 
     A currency of None leaves the field out, as Lunch Flow's live account list does
     """
     listed_currency = f'"currency": "{currency}", ' if currency is not None else ""
-    return (
-        f'{{"id": {account_id}, "connection_id": {connection_id}, "name": "{name}", "institution_name": "{institution}", '
-        f'"institution_logo": "https://logo.example/harbour.png", "provider": "gocardless", {listed_currency}"status": "{status}"}}'
+    return ListedAccount(
+        account_id,
+        currency,
+        (
+            f'{{"id": {account_id}, "connection_id": {connection_id}, "name": "{name}", "institution_name": "{institution}", '
+            f'"institution_logo": "https://logo.example/harbour.png", "provider": "gocardless", {listed_currency}"status": "{status}"}}'
+        ),
     )
 
 
-def accounts_body(*accounts: str) -> str:
+def accounts_body(*accounts: ListedAccount) -> str:
     """Return the body of GET /accounts"""
-    return f'{{"accounts": [{", ".join(accounts)}], "total": {len(accounts)}}}'
+    return f'{{"accounts": [{", ".join(listed.json for listed in accounts)}], "total": {len(accounts)}}}'
 
 
 def balance_body(amount: str, currency: str = "CAD") -> str:
@@ -129,16 +145,13 @@ class LunchFlowApi:
         self._answers[f"/api/v1{path}"] = json_response(answer, status) if isinstance(answer, str) else answer
         return self
 
-    def serve_account(self, wire_account: str, *, balance: str = "100.00", transactions: str | None = None, currency: str = "CAD") -> Self:
+    def serve_account(self, listed: ListedAccount, *, balance: str = "100.00", transactions: str | None = None, currency: str = "CAD") -> Self:
         """Answer an account's balance and transactions, the account itself listed by serve of /accounts
 
         The balance is in the listed currency, or in the currency given when the list sent none
         """
-        account_id = wire_account.split('"id": ')[1].split(",")[0]
-        if '"currency": "' in wire_account:
-            currency = wire_account.split('"currency": "')[1].split('"')[0]
-        self.serve(f"/accounts/{account_id}/balance", balance_body(balance, currency))
-        self.serve(f"/accounts/{account_id}/transactions", transactions or transactions_body())
+        self.serve(f"/accounts/{listed.account_id}/balance", balance_body(balance, listed.currency or currency))
+        self.serve(f"/accounts/{listed.account_id}/transactions", transactions or transactions_body())
         return self
 
     async def _answer(self, request: httpx.Request) -> httpx.Response:
