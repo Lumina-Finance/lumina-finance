@@ -79,25 +79,28 @@ async def test_claim_with_a_key_that_is_not_a_key_is_refused_before_anything_is_
     assert api.requests == []
 
 
+_NO_ANSWER = "There was no answer from Lunch Flow. Please try again in a few minutes"
+
+
 @pytest.mark.parametrize(
-    "respond",
+    ("respond", "message"),
     [
-        json_response('{"error": "Unavailable", "message": "Try later"}', 503),
-        json_response("{}", 429),
-        httpx.Response(403, content=b"<html>Blocked</html>", headers={"Content-Type": "text/html"}),
-        json_response("not json"),
-        fail_with(httpx.ConnectError),
+        (json_response('{"error": "Unavailable", "message": "Try later"}', 503), _NO_ANSWER),
+        (json_response("{}", 429), "Lunch Flow asked Lumina Finance to make fewer requests. Please try again in a few minutes"),
+        (httpx.Response(403, content=b"<html>Blocked</html>", headers={"Content-Type": "text/html"}), _NO_ANSWER),
+        (json_response("not json"), "Lunch Flow sent an unreadable response. Please try again in a few minutes"),
+        (fail_with(httpx.ConnectError), _NO_ANSWER),
     ],
     ids=["503", "429", "edge-page-403", "unreadable", "connection-failed"],
 )
-async def test_claim_without_a_usable_answer_leaves_the_key_to_try_again(respond):
+async def test_claim_without_a_usable_answer_leaves_the_key_to_try_again_saying_why(respond, message):
     """A busy Lunch Flow, an edge page or a lost connection says nothing about the key, so it isn't refused"""
     api = LunchFlowApi().serve("/accounts", respond)
 
     with pytest.raises(ProviderUnreachable) as unreachable:
         await lunchflow_adapter(api.transport).claim({"api_key": API_KEY})
 
-    assert str(unreachable.value) == "There was no answer from Lunch Flow. Please try again in a few minutes"
+    assert str(unreachable.value) == message
 
 
 async def test_claim_for_a_host_resolving_privately_is_refused_without_a_request():

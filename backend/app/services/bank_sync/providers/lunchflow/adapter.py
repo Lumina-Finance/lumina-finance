@@ -73,7 +73,7 @@ _API_KEY_UNREADABLE_MESSAGE = (
 )
 _API_KEY_TOO_LONG_MESSAGE = "That API key is too long. Please copy only the key from your Lunch Flow API destination and try again"
 _API_KEY_REFUSED_MESSAGE = "Lunch Flow rejected this API key. Please create a new key in your Lunch Flow API destination and try again"
-_CLAIM_UNREACHABLE_MESSAGE = "There was no answer from Lunch Flow. Please try again in a few minutes"
+_CLAIM_RETRY_MESSAGE = "{reason}. Please try again in a few minutes"
 _CREDENTIAL_REJECTED_MESSAGE = "Lunch Flow rejected the stored API key"
 _RATE_LIMITED_MESSAGE = "Lunch Flow asked Lumina Finance to make fewer requests"
 _UNREACHABLE_MESSAGE = "There was no answer from Lunch Flow"
@@ -162,7 +162,9 @@ class LunchFlowAdapter(ProviderAdapter):
                 raise ClaimRefused(_API_KEY_REFUSED_MESSAGE) from None
             if failed.server_refused:
                 raise ClaimRefused(failed.error.reason) from None
-            raise ProviderUnreachable(_CLAIM_UNREACHABLE_MESSAGE) from None
+
+            # The reason says what went wrong, such as no answer or too many requests
+            raise ProviderUnreachable(_CLAIM_RETRY_MESSAGE.format(reason=failed.error.reason)) from None
         return api_key
 
     @override
