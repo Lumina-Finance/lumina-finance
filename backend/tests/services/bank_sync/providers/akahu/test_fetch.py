@@ -219,7 +219,7 @@ async def test_fetch_warns_that_akahu_shares_no_transactions_for_an_account_with
 
     assert result.account_errors == {}
     assert [warning.reason for warning in result.warnings] == [
-        "Transactions from \"Home Loan\" aren't imported: Akahu doesn't share them for this account"
+        "Transactions from \"Home Loan\" aren't imported: Akahu doesn't offer them for this account"
     ]
     assert result.warnings[0].kind is ProviderErrorKind.UNKNOWN
     assert [found.external_id for found in result.accounts] == ["acc_chq", "acc_loan", "acc_old"]
