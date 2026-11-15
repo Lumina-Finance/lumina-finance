@@ -9,6 +9,7 @@ sends is dropped as the body is read
 import datetime as dt
 import hashlib
 import json
+import logging
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -32,8 +33,28 @@ TRANSACTIONS_ATTRIBUTE = "TRANSACTIONS"
 _MAX_INTEGER_DIGITS = 30
 
 
+logger = logging.getLogger(__name__)
+
+
 class UnreadableResponse(Exception):
     """The body isn't a response in the shape Akahu documents"""
+
+
+def _unreadable(answer: str, error: ValidationError) -> UnreadableResponse:
+    """Log where an answer differs from the documented shape and return the failure to raise
+
+    Only each field's place and the kind of mismatch are logged, never a value, since the answer
+    holds the user's account names, amounts and descriptions
+
+    Args:
+        answer: Which answer it was, such as "the account list"
+        error: What the answer failed on
+    """
+    places = ", ".join(
+        f"{'.'.join(str(part) for part in detail['loc'])} ({detail['type']})" for detail in error.errors(include_input=False)[:5]
+    )
+    logger.warning("Akahu's answer to %s doesn't fit its documented shape at %s", answer, places)
+    return UnreadableResponse()
 
 
 class _Model(BaseModel):
@@ -151,7 +172,29 @@ def _read_json(body: bytes) -> object:
     try:
         return json.loads(body, parse_float=Decimal, parse_constant=refuse_constant)
     except ValueError:
+        logger.warning("Akahu answered with a body that isn't JSON")
         raise UnreadableResponse from None
+
+
+def _read_answer[Answer: _Answer](model: type[Answer], body: bytes, answer: str) -> Answer:
+    """Read a body as one of Akahu's successful answers
+
+    Args:
+        model: The documented shape of the answer
+        body: The response body
+        answer: Which answer it is, such as "the account list", for the log
+
+    Raises:
+        UnreadableResponse: The body isn't JSON, isn't the documented shape or says it failed
+    """
+    try:
+        read = model.model_validate(_read_json(body))
+    except ValidationError as error:
+        raise _unreadable(answer, error) from None
+    if not read.success:
+        logger.warning("Akahu's answer to %s says it wasn't successful", answer)
+        raise UnreadableResponse
+    return read
 
 
 def read_me(body: bytes) -> None:
@@ -160,12 +203,7 @@ def read_me(body: bytes) -> None:
     Raises:
         UnreadableResponse: The body isn't one
     """
-    try:
-        answer = _Answer.model_validate(_read_json(body))
-    except ValidationError:
-        raise UnreadableResponse from None
-    if not answer.success:
-        raise UnreadableResponse
+    _read_answer(_Answer, body, "the token check")
 
 
 def read_accounts(body: bytes) -> tuple[WireAccount, ...]:
@@ -174,13 +212,7 @@ def read_accounts(body: bytes) -> tuple[WireAccount, ...]:
     Raises:
         UnreadableResponse: The body isn't the documented shape
     """
-    try:
-        answer = _AccountList.model_validate(_read_json(body))
-    except ValidationError:
-        raise UnreadableResponse from None
-    if not answer.success:
-        raise UnreadableResponse
-    return tuple(answer.items)
+    return tuple(_read_answer(_AccountList, body, "the account list").items)
 
 
 def read_transaction_page(body: bytes, account: WireAccount, *, exponent: int | None, timezone: ZoneInfo) -> TransactionPage:
@@ -195,12 +227,7 @@ def read_transaction_page(body: bytes, account: WireAccount, *, exponent: int | 
     Raises:
         UnreadableResponse: The body isn't the documented shape
     """
-    try:
-        answer = _TransactionList.model_validate(_read_json(body))
-    except ValidationError:
-        raise UnreadableResponse from None
-    if not answer.success:
-        raise UnreadableResponse
+    answer = _read_answer(_TransactionList, body, "a transaction page")
 
     currency = _currency_of(account)
     records = tuple(
@@ -237,12 +264,7 @@ def read_pending(
     Raises:
         UnreadableResponse: The body isn't the documented shape
     """
-    try:
-        answer = _PendingList.model_validate(_read_json(body))
-    except ValidationError:
-        raise UnreadableResponse from None
-    if not answer.success:
-        raise UnreadableResponse
+    answer = _read_answer(_PendingList, body, "the pending transactions")
 
     seen: Counter[str] = Counter()
     records: dict[str, list[ProviderRecord]] = {account_id: [] for account_id in accounts}

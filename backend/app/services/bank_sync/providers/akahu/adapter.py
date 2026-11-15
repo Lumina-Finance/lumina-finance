@@ -474,6 +474,7 @@ def _login_errors(accounts: Sequence[WireAccount]) -> dict[str, ProviderError]:
 def _status_failure(response: httpx.Response) -> _Failed:
     """Return the failure an answer with a status other than 200 stands for"""
     status = response.status_code
+    logger.warning("Akahu answered %s with status %s", response.request.url.path, status)
 
     # The edge in front of Akahu answers its own failures with an HTML page that says nothing about the tokens
     if status in (401, 403) and not _is_html(response):
