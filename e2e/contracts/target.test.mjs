@@ -24,6 +24,7 @@ function readTarget(environment) {
   delete env.E2E_BASE_URL
   delete env.E2E_API_BASE_URL
   delete env.E2E_FAKE_SIMPLEFIN_BRIDGE_URL
+  delete env.E2E_FAKE_LUNCHFLOW_URL
   return spawnSync(process.execPath, [
     '--experimental-strip-types', '--input-type=module', '-e',
     `const target = await import(${JSON.stringify(targetUrl.href)}); console.log(JSON.stringify({ frontend: target.BASE_URL, api: target.API_BASE_URL, bridge: target.FAKE_SIMPLEFIN_BRIDGE_URL }))`,
@@ -52,6 +53,12 @@ test('a malformed fake SimpleFIN Bridge address fails before a run', () => {
   const result = readTarget({ E2E_BASE_URL: frontend, E2E_FAKE_SIMPLEFIN_BRIDGE_URL: '/control' })
   assert.notEqual(result.status, 0)
   assert.match(result.stderr, /E2E_FAKE_SIMPLEFIN_BRIDGE_URL/)
+})
+
+test('a malformed fake Lunch Flow address fails before a run', () => {
+  const result = readTarget({ E2E_BASE_URL: frontend, E2E_FAKE_LUNCHFLOW_URL: '/control' })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /E2E_FAKE_LUNCHFLOW_URL/)
 })
 
 test('missing frontend and invalid supplied targets fail before a run', () => {

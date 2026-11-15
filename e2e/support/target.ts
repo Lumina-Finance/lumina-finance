@@ -34,8 +34,13 @@ export const MAIL_API_URL = configuredMail === undefined || configuredMail === '
 const configuredBridge = process.env.E2E_FAKE_SIMPLEFIN_BRIDGE_URL
 export const FAKE_SIMPLEFIN_BRIDGE_URL = configuredBridge ? configuredBridge.replace(/\/+$/, '') : null
 
+// Where the runner reaches the fake Lunch Flow the instance syncs with, on the same terms
+const configuredLunchFlow = process.env.E2E_FAKE_LUNCHFLOW_URL
+export const FAKE_LUNCHFLOW_URL = configuredLunchFlow ? configuredLunchFlow.replace(/\/+$/, '') : null
+
 const targets = [['E2E_BASE_URL', BASE_URL], ['E2E_API_BASE_URL', API_BASE_URL]]
 if (FAKE_SIMPLEFIN_BRIDGE_URL !== null) targets.push(['E2E_FAKE_SIMPLEFIN_BRIDGE_URL', FAKE_SIMPLEFIN_BRIDGE_URL])
+if (FAKE_LUNCHFLOW_URL !== null) targets.push(['E2E_FAKE_LUNCHFLOW_URL', FAKE_LUNCHFLOW_URL])
 
 for (const [name, value] of targets) {
   try {
