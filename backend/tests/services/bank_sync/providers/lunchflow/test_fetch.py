@@ -365,3 +365,48 @@ async def test_fetch_refuses_a_window_that_is_naive_empty_or_longer_than_the_lim
         await _fetch(lunchflow_adapter(api.transport), "11", start=start, end=end)
 
     assert api.requests == []
+
+
+async def test_fetch_ignores_the_login_trouble_of_a_connection_holding_no_account_asked_for():
+    """An expired account the user never linked doesn't mark the connection of a linked, active one as needing attention"""
+    chequing = account(11, connection_id=7)
+    expired = account(12, connection_id=9, name="Old Savings", status="EXPIRED")
+    api = LunchFlowApi().serve("/accounts", accounts_body(chequing, expired)).serve_account(chequing)
+
+    result = await _fetch(lunchflow_adapter(api.transport), "11")
+
+    assert [found.external_id for found in result.accounts] == ["11"]
+    assert result.login_errors == {}
+    assert result.account_errors == {}
+    assert sorted(api.paths()) == ["/api/v1/accounts", "/api/v1/accounts/11/balance", "/api/v1/accounts/11/transactions"]
+
+
+async def test_fetch_adds_up_the_transactions_without_an_id_across_accounts_into_one_warning():
+    """Two accounts leaving rows out give the sync one count to show, not a warning each"""
+    chequing = account(11)
+    visa = account(12, name="Rewards Visa")
+    api = LunchFlowApi().serve("/accounts", accounts_body(chequing, visa))
+    api.serve_account(chequing, transactions=transactions_body(transaction("t1"), transaction(None)))
+    api.serve_account(visa, transactions=transactions_body(transaction("t2", account_id=12), transaction(None), transaction("")))
+
+    result = await _fetch(lunchflow_adapter(api.transport), "11", "12")
+
+    [warning] = result.warnings
+    assert warning.reason == "3 transactions from Lunch Flow aren't imported: they have no id"
+    assert [[record.external_id for record in found.records] for found in result.accounts] == [["t1"], ["t2"]]
+
+
+@pytest.mark.parametrize("cut_off_account", ["11", "12"])
+async def test_fetch_is_possibly_cut_off_when_only_one_of_its_accounts_is(cut_off_account):
+    """One account's short answer can't be taken as complete, whichever account it was"""
+    chequing = account(11)
+    visa = account(12, name="Rewards Visa")
+    api = LunchFlowApi().serve("/accounts", accounts_body(chequing, visa))
+    for wire_account, number in ((chequing, "11"), (visa, "12")):
+        total = 5 if number == cut_off_account else 1
+        api.serve_account(wire_account, transactions=transactions_body(transaction(f"t{number}"), total=total))
+
+    result = await _fetch(lunchflow_adapter(api.transport), "11", "12")
+
+    assert result.possibly_cut_off is True
+    assert [len(found.records) for found in result.accounts] == [1, 1]
