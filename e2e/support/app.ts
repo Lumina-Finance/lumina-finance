@@ -609,12 +609,17 @@ export async function readSettledScrollingBox(inside: Locator): Promise<Scrollin
 /**
  * Wait until an element stops moving, such as a calendar easing in or a tooltip gliding to a new place,
  * and read where it rests. It has stopped once every ending animation on it, its parts and what holds it
- * is over and two reads in a row give the same box
+ * is over and two reads in a row give the same box, with the page drawing a frame before each read
  *
  * An animation the browser has queued but not yet started holds the element in its old place, so two
  * reads alone can match on a place the element is about to leave. Animations that never end, such as a
  * spinner, stay out of the wait, since waiting on them would stall every read. Movement no animation
  * drives shows only through the two reads
+ *
+ * A dialogue or popover mounts in its starting pose, and the motion library starts its entrance on the
+ * next frame. Until a busy runner draws that frame nothing moves and no animation exists, so two reads
+ * with no frame between them would take the starting pose as the resting place. So the helper waits for
+ * as long as the page draws nothing, a paused page clock included
  *
  * @param element - The element to measure
  * @returns The element's resting box
@@ -623,6 +628,7 @@ export async function readSettledBox(element: Locator): Promise<NonNullable<Awai
   let last: Awaited<ReturnType<Locator['boundingBox']>> = null
   await expect.poll(async () => {
     await element.evaluate(async (node) => {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
       const moving = document.getAnimations().filter((animation) => {
         const target = animation.effect instanceof KeyframeEffect ? animation.effect.target : null
         return target !== null && (target.contains(node) || node.contains(target))

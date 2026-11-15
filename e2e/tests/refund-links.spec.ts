@@ -409,11 +409,8 @@ for (const size of [
         const search = dialog.querySelector('input[placeholder="Merchant or note…"]')
         return [explanation, search, filters].map((node) => node!.getBoundingClientRect().top - dialogTop)
       }, phone)
-    // Read once the dialogue has finished opening, as its entrance animation leaves these a fraction of a pixel off.
-    // The dialogue's slide and scale clearing is the one sign the entrance has ended, since a busy runner may not have
-    // begun the entrance yet. Anything else moving in the dialogue then comes to rest, including an animation the app
-    // cancels on the way
-    await expect(picker).toHaveCSS('transform', 'none')
+    // Read once the dialogue has finished opening and everything moving in it has come to rest, including an
+    // animation the app cancels on the way, as its entrance animation leaves these a fraction of a pixel off
     await readSettledBox(picker)
     const resting = await tops()
 

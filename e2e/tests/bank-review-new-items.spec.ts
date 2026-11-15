@@ -695,14 +695,8 @@ test('eases Dismiss to Yes, dismiss and back rather than jumping between their w
       }
     })
 
-  // The dialogue slides and scales in as it opens, beside the filing card or alone, so the narrow width waits until
-  // nothing around the button carries a transform. Two reads that agree can't tell ended from not yet begun
-  await expect.poll(() => form.dismiss.evaluate((button) => {
-    for (let node = button.parentElement; node; node = node.parentElement) {
-      if (getComputedStyle(node).transform !== 'none') return false
-    }
-    return true
-  })).toBe(true)
+  // The dialogue slides and scales in as it opens, beside the filing card or alone, so the narrow width is read
+  // once the entrance has ended
   const narrow = (await readSettledBox(form.dismiss)).width
   const widening = await catchEase()
   await form.dismiss.click()
