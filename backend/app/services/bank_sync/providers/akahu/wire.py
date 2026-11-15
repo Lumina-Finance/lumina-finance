@@ -154,7 +154,7 @@ class PendingTransactions:
 
     records: dict[str, tuple[ProviderRecord, ...]]
 
-    # Items missing their date, amount or account, which can't be placed on an account or stored
+    # Items missing their date, amount or account. None of them can be placed on an account or stored
     skipped_incomplete: int
 
 
