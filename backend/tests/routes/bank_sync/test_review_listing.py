@@ -46,6 +46,8 @@ def _bank_values(day: date, amount: int | None, description: str = BANK_DESCRIPT
         "amount": amount,
         "raw_amount": None,
         "description": description,
+        "note": None,
+        "merchant": None,
         **values,
     }
 

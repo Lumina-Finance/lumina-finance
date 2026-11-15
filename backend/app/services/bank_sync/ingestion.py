@@ -186,4 +186,6 @@ def _observation(record: ProviderRecord) -> dict[str, Any]:
         "observed_amount": record.amount,
         "raw_amount": record.stored_raw_amount,
         "description": record.description,
+        "note": record.note,
+        "merchant": record.merchant,
     }

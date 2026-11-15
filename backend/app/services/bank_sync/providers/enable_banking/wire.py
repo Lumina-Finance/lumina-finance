@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, is_iso_currency_code
+from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, first_text, is_iso_currency_code
 from app.utils.money import parse_decimal_amount_to_minor_units
 
 # The balance types that say what the bank holds on the books, in the order they are preferred, and
@@ -403,6 +403,10 @@ def read_transaction_page(
                 amount=_minor_units(signed, currency, exponent) if same_currency else None,
                 raw_amount=_plain(signed),
                 description=description,
+                # The payment's message, else the bank's note on it. The schema has no merchant field, so
+                # the merchant is the other party, the one paid or paying
+                note=first_text(_remittance(item), item.note),
+                merchant=_other_party(item),
                 pending=is_pending,
             )
         )
@@ -410,20 +414,31 @@ def read_transaction_page(
     return TransactionPage(tuple(records), continuation_key, skipped)
 
 
+def _remittance(item: _WireTransaction) -> str:
+    """Return the payment's remittance text, its lines joined, empty when it has none"""
+    return " ".join(part.strip() for part in item.remittance_information or [] if part.strip())
+
+
 def _describe(item: _WireTransaction) -> str:
     """Return what the bank says the transaction was: its remittance text, else the other party, else its note"""
-    remittance = " ".join(part.strip() for part in item.remittance_information or [] if part.strip())
+    remittance = _remittance(item)
     if remittance:
         return remittance
-    other = item.creditor if item.credit_debit_indicator == DEBIT else item.debtor
-    if other and other.name and other.name.strip():
-        return other.name.strip()
+    other = _other_party(item)
+    if other:
+        return other.strip()
     return (item.note or "").strip()
 
 
 def _label(value: str | None) -> str | None:
     """Return a label with its spaces trimmed, or None when nothing is left"""
     return value.strip() if value and value.strip() else None
+
+
+def _other_party(item: _WireTransaction) -> str | None:
+    """Return the name of the party the money went to on a debit, or came from on a credit, as sent"""
+    other = item.creditor if item.credit_debit_indicator == DEBIT else item.debtor
+    return first_text(other.name) if other else None
 
 
 def _derived_id(day: dt.date, signed: Decimal, description: str, status: str, repeats: Counter[str]) -> str:

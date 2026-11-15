@@ -5,6 +5,7 @@ arrive from Akahu, rather than as a float a test's own encoder had already chang
 """
 
 import asyncio
+import json
 from collections.abc import Callable
 from datetime import datetime
 from typing import Self
@@ -88,13 +89,18 @@ def transaction(
     account_id: str = "acc_chq",
     date: str = "2026-10-01T11:00:00.000Z",
     description: str = "EFTPOS BEAN THERE CAFE",
+    merchant: str | None = "Bean There",
 ) -> str:
-    """Return one transaction as GET /accounts/{id}/transactions sends it, the amount written as given"""
+    """Return one transaction as GET /accounts/{id}/transactions sends it, the amount written as given, with no merchant when it is None"""
+    matched = (
+        ""
+        if merchant is None
+        else f'"merchant": {{"_id": "merchant_1", "name": {json.dumps(merchant)}, "website": "https://beanthere.example"}}, '
+    )
     return (
         f'{{"_id": "{transaction_id}", "_account": "{account_id}", "_connection": "conn_bank", '
         f'"created_at": "2026-10-02T01:00:00.000Z", "updated_at": "2026-10-02T01:00:00.000Z", '
-        f'"date": "{date}", "description": "{description}", "amount": {amount}, "type": "EFTPOS", '
-        '"merchant": {"_id": "merchant_1", "name": "Bean There", "website": "https://beanthere.example"}, '
+        f'"date": "{date}", "description": "{description}", "amount": {amount}, "type": "EFTPOS", {matched}'
         '"meta": {"particulars": "CARD 1234", "logo": "https://static.akahu.io/bean.png"}}'
     )
 

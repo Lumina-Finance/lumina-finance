@@ -174,20 +174,27 @@ async def test_fetch_keeps_amounts_unstored_for_a_currency_lumina_does_not_hold(
     assert [(record.amount, record.raw_amount) for record in chequing.records] == [(None, "-12.50")]
 
 
-async def test_fetch_reads_the_dates_pending_flags_and_descriptions_of_transactions():
-    """The date is the transaction's own, pending is kept for the engine, and the bank's description beats the merchant name"""
+async def test_fetch_reads_the_dates_pending_flags_descriptions_notes_and_merchants_of_transactions():
+    """The date is the transaction's own, pending is kept for the engine, and the bank's description beats the merchant name
+
+    The merchant's name stands in as the description alone. The note is only ever the description and
+    the merchant only ever the merchant
+    """
     api = _api_with_one_account(
         transaction("t1", date="2026-09-30", pending=True),
         transaction("t2", merchant="Corner Store", description=None),
         transaction("t3", merchant=None, description="  ETRANSFER  "),
+        transaction("t4", merchant="Uber Eats", description="   "),
     )
 
     result = await _fetch(lunchflow_adapter(api.transport), "11", include_pending=True)
 
-    assert [(record.date, record.pending, record.description, record.removed) for record in result.accounts[0].records] == [
-        (date(2026, 9, 30), True, "EFTPOS BEAN THERE CAFE", False),
-        (date(2026, 10, 1), False, "Corner Store", False),
-        (date(2026, 10, 1), False, "ETRANSFER", False),
+    records = result.accounts[0].records
+    assert [(record.date, record.pending, record.description, record.note, record.merchant, record.removed) for record in records] == [
+        (date(2026, 9, 30), True, "EFTPOS BEAN THERE CAFE", "EFTPOS BEAN THERE CAFE", "Bean There", False),
+        (date(2026, 10, 1), False, "Corner Store", None, "Corner Store", False),
+        (date(2026, 10, 1), False, "ETRANSFER", "  ETRANSFER  ", None, False),
+        (date(2026, 10, 1), False, "Uber Eats", None, "Uber Eats", False),
     ]
 
 

@@ -225,6 +225,22 @@ async def test_fetch_reads_amounts_exactly_from_the_json_numbers():
     assert not any(record.pending for record in checking.records)
 
 
+async def test_fetch_notes_a_transaction_by_the_banks_description_and_names_the_merchant_people_know():
+    """Pluggy's description is the text the bank sent, so it is also the note, and the merchant is the name Pluggy matched
+
+    That name is the one people know, not the registered company. A description of only blanks is no
+    note, and a transaction Pluggy matched to no merchant has none
+    """
+    api = _api_with_one_account(
+        transaction("t1", description="PAGO NETFLIX SERV", merchant="Netflix"),
+        transaction("t2", description="  ", merchant=None),
+    )
+
+    result = await fetch(pluggy_adapter(api.transport), "acc-chk")
+
+    assert [(record.note, record.merchant) for record in result.accounts[0].records] == [("PAGO NETFLIX SERV", "Netflix"), (None, None)]
+
+
 async def test_fetch_keeps_only_the_raw_amount_when_it_cannot_be_stored_exactly():
     """More decimals than the currency holds, or a currency Lumina Finance has no exponent for, is never rounded into a figure"""
     precise = _api_with_one_account(transaction("t1", "-1.005"), transaction("t2", "-3"))

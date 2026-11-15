@@ -41,6 +41,8 @@ def _record(external_id: str, *, day: date = date(2026, 10, 15), amount: int | N
         amount=amount,
         raw_amount="0.00" if amount == 0 else str(amount),
         description=f"CARD CHECK {external_id}",
+        note=f"CARD CHECK {external_id}",
+        merchant=None,
         pending=pending,
         removed=removed,
     )

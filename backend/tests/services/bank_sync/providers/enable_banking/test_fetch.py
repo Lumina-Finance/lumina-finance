@@ -121,6 +121,30 @@ async def test_fetch_signs_debits_negative_and_credits_positive_and_keeps_every_
     assert (records["odd"].amount, records["odd"].raw_amount) == (None, "-0.123")
 
 
+async def test_fetch_notes_a_record_by_its_payment_message_then_the_banks_note_and_names_the_other_party_its_merchant():
+    """The other party's name stands in as the description when the payment has no message, and is the merchant, but never the note
+
+    The other party is the one paid on a debit and the one paying on a credit
+    """
+    api = _api(
+        transactions_body(
+            transaction(entry_reference="message", remittance="Gift for Alex", note="Birthday"),
+            transaction(entry_reference="bank-note", remittance=" ", note="Birthday"),
+            transaction(entry_reference="neither", remittance=""),
+            transaction(entry_reference="salary", indicator="CRDT", remittance="SALARY OCTOBER", debtor="Brightworks GmbH"),
+        )
+    )
+
+    result = await fetch(enable_banking_adapter(api.transport), CHECKING)
+
+    assert [(record.external_id, record.description, record.note, record.merchant) for record in result.accounts[0].records] == [
+        ("message", "Gift for Alex", "Gift for Alex", "Padaria Sol"),
+        ("bank-note", "Padaria Sol", "Birthday", "Padaria Sol"),
+        ("neither", "Padaria Sol", None, "Padaria Sol"),
+        ("salary", "SALARY OCTOBER", "SALARY OCTOBER", "Brightworks GmbH"),
+    ]
+
+
 async def test_fetch_keeps_booked_records_and_pending_ones_only_when_asked():
     """Cancelled, rejected and scheduled records never count, and a hold shows as pending"""
     page = transactions_body(

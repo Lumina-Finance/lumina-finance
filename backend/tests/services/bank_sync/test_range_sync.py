@@ -90,6 +90,8 @@ def _record(external_id: str, day: date, *, amount: int = -4_50, raw_amount: str
         amount=amount,
         raw_amount=raw_amount,
         description="POS 4411 COFFEE",
+        note="POS 4411 COFFEE",
+        merchant=None,
         pending=False,
         removed=removed,
     )

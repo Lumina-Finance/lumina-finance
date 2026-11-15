@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, is_iso_currency_code
+from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, first_text, is_iso_currency_code
 from app.utils.money import parse_decimal_amount_to_minor_units
 
 # The one status that syncs. Lunch Flow documents no other value, so anything else is read as a
@@ -204,6 +204,10 @@ def read_transactions(body: bytes, account: WireAccount, *, exponent: int | None
                 amount=_minor_units(transaction.amount, currency, exponent) if is_same_currency else None,
                 raw_amount=_plain(transaction.amount),
                 description=(transaction.description or "").strip() or (transaction.merchant or "").strip(),
+                # Lunch Flow's reference defines neither field, so each is read as its name says, and
+                # neither stands in for the other
+                note=first_text(transaction.description),
+                merchant=first_text(transaction.merchant),
                 pending=transaction.is_pending,
             )
         )

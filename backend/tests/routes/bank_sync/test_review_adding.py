@@ -74,7 +74,9 @@ async def _tesco_waiting(client, **item_values) -> _Inbox:
     tesco = await client.post("/merchants", json={"name": "Tesco"}, headers=ledger.headers)
     assert tesco.status_code == 201, tesco.text
     groceries_id = await _get_system_category_id(client, ledger.headers, "Groceries")
-    item_id = await _commit_review_item(ledger.everyday_id, description=_TESCO, observed_amount=-2340, **item_values)
+    item_id = await _commit_review_item(
+        ledger.everyday_id, description=_TESCO, note=_TESCO, merchant="Tesco", observed_amount=-2340, **item_values
+    )
     return _Inbox(ledger, tesco.json()["id"], groceries_id, item_id)
 
 
@@ -95,6 +97,8 @@ def _tesco_source(*, amount: int | None = -2340, raw_amount: str | None = None, 
             "amount": amount,
             "raw_amount": raw_amount,
             "description": _TESCO,
+            "note": _TESCO,
+            "merchant": "Tesco",
         },
         # The record was received when the test committed it
         "received_at": ANY,
@@ -186,7 +190,7 @@ async def test_adding_a_usd_item_the_bank_sent_to_a_tenth_of_a_cent_needs_an_amo
     """Without an amount -12.345 is refused, and with -12.35 entered it is added with the amount edited"""
     inbox = await _tesco_waiting(client)
     usd_id = await _new_account(client, inbox.headers, "US Chequing", currency="USD")
-    item_id = await _commit_review_item(usd_id, description=_TESCO, observed_amount=None, raw_amount="-12.345")
+    item_id = await _commit_review_item(usd_id, description=_TESCO, note=_TESCO, merchant="Tesco", observed_amount=None, raw_amount="-12.345")
 
     refused = await _add(client, inbox, item_id, amount=None)
     added = await _add(client, inbox, item_id, amount=-1235)
