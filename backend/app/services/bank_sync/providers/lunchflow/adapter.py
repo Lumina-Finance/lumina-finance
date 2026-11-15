@@ -82,6 +82,7 @@ _TIMED_OUT_MESSAGE = "Lunch Flow did not respond in time"
 _SERVER_NOT_ALLOWED_MESSAGE = "This Lumina Finance server is not set up to contact {host}"
 _NEEDS_ATTENTION_MESSAGE = "Lunch Flow says this connection needs attention. Please reconnect it in Lunch Flow, then sync again"
 _MISSING_ACCOUNT_MESSAGE = "Lunch Flow didn't return this account"
+_NO_CURRENCY_MESSAGE = "Lunch Flow didn't say which currency this account is in"
 _SKIPPED_ONE_WITHOUT_ID_MESSAGE = "1 transaction from Lunch Flow isn't imported: it has no id"
 _SKIPPED_WITHOUT_ID_MESSAGE = "{count} transactions from Lunch Flow aren't imported: they have no id"
 
@@ -178,12 +179,11 @@ class LunchFlowAdapter(ProviderAdapter):
         except _Failed as failed:
             return FetchResult(request_error=failed.error)
 
+        # An account whose connection needs attention is left out, since only its balance would give
+        # its currency. Its connection's login error keeps a stored bank account listed and its link as it was
         accounts: list[ExternalAccount] = []
         account_errors: dict[str, ProviderError] = {}
-        for account in listed:
-            if account.status != ACTIVE_STATUS:
-                accounts.append(external_account(account, balance=None, balance_at=read_at))
-                continue
+        for account in active:
             read = balances[account.id]
             if isinstance(read, _Failed):
                 account_errors[str(account.id)] = read.error
@@ -235,10 +235,7 @@ class LunchFlowAdapter(ProviderAdapter):
         warnings: list[ProviderError] = []
         skipped_without_id = 0
         is_cut_off = False
-        for account in chosen:
-            if account.status != ACTIVE_STATUS:
-                accounts.append(external_account(account, balance=None, balance_at=read_at))
-                continue
+        for account in active:
             read = reads[account.id]
             if isinstance(read, _Failed):
                 account_errors[str(account.id)] = read.error
@@ -265,12 +262,20 @@ class LunchFlowAdapter(ProviderAdapter):
         )
 
     async def _read_balance(self, api_key: str, account: WireAccount, currency_exponents: Mapping[str, int]) -> tuple[WireAccount, int | None]:
-        """Read one account's balance in minor units, with the account given the balance's currency if it had none"""
+        """Read one account's balance in minor units, with the account given the balance's currency if it had none
+
+        Raises:
+            _Failed: The balance couldn't be read, or neither it nor the account list gave a currency,
+                since a bank account is stored with the currency its amounts are read in
+        """
         body = await self._get(api_key, f"/accounts/{account.id}/balance")
         try:
-            return read_balance(body, account, currency_exponents=currency_exponents)
+            completed, balance = read_balance(body, account, currency_exponents=currency_exponents)
         except UnreadableResponse:
             raise _Failed(ProviderError(ProviderErrorKind.UNKNOWN, _UNREADABLE_MESSAGE)) from None
+        if completed.currency is None:
+            raise _Failed(ProviderError(ProviderErrorKind.UNKNOWN, _NO_CURRENCY_MESSAGE))
+        return completed, balance
 
     async def _read_account(
         self,

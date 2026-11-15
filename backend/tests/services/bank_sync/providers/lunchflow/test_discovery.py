@@ -56,10 +56,8 @@ async def test_discovery_takes_the_currency_from_the_balance_when_the_account_li
     """Lunch Flow's live account list has no currency, so the balance answer's currency is the account's"""
     chequing = account(11, currency=None)
     yen = account(13, name="Tokyo Savings", currency=None)
-    unpriced = account(14, name="Gift Card", currency=None)
-    api = LunchFlowApi().serve("/accounts", accounts_body(chequing, yen, unpriced))
+    api = LunchFlowApi().serve("/accounts", accounts_body(chequing, yen))
     api.serve_account(chequing, balance="2510.75").serve_account(yen, balance="120000", currency="JPY")
-    api.serve("/accounts/14/balance", '{"balance": {"amount": 5.00}}')
 
     result = await lunchflow_adapter(api.transport).discover(API_KEY, currency_exponents=_EXPONENTS)
 
@@ -67,8 +65,20 @@ async def test_discovery_takes_the_currency_from_the_balance_when_the_account_li
     assert [(found.external_id, found.currency, found.currency_raw, found.balance) for found in result.accounts] == [
         ("11", "CAD", "CAD", 251075),
         ("13", "JPY", "JPY", 120000),
-        ("14", None, None, None),
     ]
+
+
+async def test_discovery_reports_an_account_whose_list_and_balance_both_leave_out_the_currency():
+    """A bank account is stored in the currency its amounts are read in, so one with none is an error, never a blank currency"""
+    unknown = account(11, currency=None)
+    api = LunchFlowApi().serve("/accounts", accounts_body(unknown))
+    api.serve("/accounts/11/balance", '{"balance": {"amount": 5.00}}')
+
+    result = await lunchflow_adapter(api.transport).discover(API_KEY, currency_exponents=_EXPONENTS)
+
+    assert result.accounts == ()
+    assert result.account_errors["11"].kind is ProviderErrorKind.UNKNOWN
+    assert result.account_errors["11"].reason == "Lunch Flow didn't say which currency this account is in"
 
 
 async def test_discovery_with_one_balance_failing_reports_that_account_and_lists_the_rest():
@@ -87,15 +97,16 @@ async def test_discovery_with_one_balance_failing_reports_that_account_and_lists
     assert result.account_errors["12"].kind is ProviderErrorKind.TEMPORARY
 
 
-async def test_discovery_lists_an_account_that_is_not_active_with_its_connection_needing_attention():
-    """Only ACTIVE syncs: any other status is listed without a balance request and sends the user to Lunch Flow"""
-    chequing = account(11, connection_id=7)
-    expired = account(12, connection_id=9, name="Old Savings", status="EXPIRED")
+async def test_discovery_leaves_out_an_account_that_is_not_active_with_its_connection_needing_attention():
+    """Only ACTIVE syncs: any other status gets no balance request, so with no currency it is left out and sends the user to Lunch Flow"""
+    chequing = account(11, connection_id=7, currency=None)
+    expired = account(12, connection_id=9, name="Old Savings", currency=None, status="EXPIRED")
     api = LunchFlowApi().serve("/accounts", accounts_body(chequing, expired)).serve_account(chequing)
 
     result = await lunchflow_adapter(api.transport).discover(API_KEY, currency_exponents=_EXPONENTS)
 
-    assert [(found.external_id, found.balance) for found in result.accounts] == [("11", 10000), ("12", None)]
+    assert [(found.external_id, found.currency_raw, found.balance) for found in result.accounts] == [("11", "CAD", 10000)]
+    assert result.account_errors == {}
     assert set(result.login_errors) == {"9"}
     assert result.login_errors["9"].kind is ProviderErrorKind.BANK_LOGIN_NEEDED
     assert (

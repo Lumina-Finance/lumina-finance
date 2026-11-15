@@ -324,13 +324,14 @@ async def test_fetch_reports_an_account_lunch_flow_no_longer_lists():
 
 
 async def test_fetch_syncs_nothing_for_an_account_that_is_not_active():
-    """An account Lunch Flow no longer calls ACTIVE is listed without records, and its connection needs attention in Lunch Flow"""
-    expired = account(12, connection_id=9, status="EXPIRED")
+    """An account Lunch Flow no longer calls ACTIVE comes back with no records, and its connection needs attention in Lunch Flow"""
+    expired = account(12, connection_id=9, currency=None, status="EXPIRED")
     api = LunchFlowApi().serve("/accounts", accounts_body(expired))
 
     result = await _fetch(lunchflow_adapter(api.transport), "12")
 
-    assert [(found.external_id, found.records, found.balance) for found in result.accounts] == [("12", (), None)]
+    assert result.accounts == ()
+    assert result.account_errors == {}
     assert set(result.login_errors) == {"9"}
     assert result.login_errors["9"].kind is ProviderErrorKind.BANK_LOGIN_NEEDED
     assert api.paths() == ["/api/v1/accounts"]
