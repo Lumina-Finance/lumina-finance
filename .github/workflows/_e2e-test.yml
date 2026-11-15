@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   test:
-    name: E2E tests (${{ matrix.target.platform }}, ${{ matrix.project }}${{ matrix.project == 'desktop' && format(', {0}/4', matrix.shard) || '' }})
+    name: E2E tests (${{ matrix.target.platform }}, ${{ matrix.suite.project }}${{ matrix.suite.shards > 1 && format(', {0}/{1}', matrix.suite.shard, matrix.suite.shards) || '' }})
     runs-on: ${{ matrix.target.runner }}
     strategy:
       fail-fast: false
@@ -23,13 +23,23 @@ jobs:
             runner: ubuntu-latest
           - platform: arm64
             runner: ubuntu-24.04-arm
-        project: [desktop, tablet, phone]
-        # Desktop holds most of the suite, so it splits across four runners. Tablet and phone are
-        # short enough that the setup each runner repeats would cost more than splitting saves
-        shard: [1, 2, 3, 4]
-        # Tablet and phone keep shard 1 only. A pull request also runs arm64 at desktop only, and the
-        # weekly run takes arm64 at every size
-        exclude: ${{ fromJSON(format('[{0}{1}]', '{"project":"tablet","shard":2},{"project":"tablet","shard":3},{"project":"tablet","shard":4},{"project":"phone","shard":2},{"project":"phone","shard":3},{"project":"phone","shard":4}', inputs.every-size-on-arm64 && '' || ',{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"project":"tablet"},{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"project":"phone"}')) }}
+        # Desktop holds most of the suite, so it splits across eight runners. The slowest of the eight
+        # sets how long a pull request waits. Tablet and phone are short enough that the setup each runner
+        # repeats would cost more than splitting saves. The free plan runs 20 jobs at once, so the
+        # runners past that wait for a free one
+        suite:
+          - { project: desktop, shard: 1, shards: 8 }
+          - { project: desktop, shard: 2, shards: 8 }
+          - { project: desktop, shard: 3, shards: 8 }
+          - { project: desktop, shard: 4, shards: 8 }
+          - { project: desktop, shard: 5, shards: 8 }
+          - { project: desktop, shard: 6, shards: 8 }
+          - { project: desktop, shard: 7, shards: 8 }
+          - { project: desktop, shard: 8, shards: 8 }
+          - { project: tablet, shard: 1, shards: 1 }
+          - { project: phone, shard: 1, shards: 1 }
+        # A pull request runs arm64 at desktop only, and the weekly run takes arm64 at every size
+        exclude: ${{ fromJSON(inputs.every-size-on-arm64 && '[]' || '[{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"suite":{"project":"tablet","shard":1,"shards":1}},{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"suite":{"project":"phone","shard":1,"shards":1}}]') }}
 
     # Every matrix job starts its own application and database on its runner, and runs its tests
     # against two servers in turn. The first offers no bank sync, with no provider enabled and so no
@@ -79,7 +89,7 @@ jobs:
           E2E_BASE_URL: http://localhost:8080
           E2E_MAIL_API_URL: http://127.0.0.1:8025
           E2E_BANK_SYNC: "off"
-        run: npm test -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.project == 'desktop' && 4 || 1 }}
+        run: npm test -- --project=${{ matrix.suite.project }} --shard=${{ matrix.suite.shard }}/${{ matrix.suite.shards }}
 
       # The app restarts below, which ends the log of the server these tests ran against
       - name: Dump container logs from the server with no bank provider
@@ -132,7 +142,7 @@ jobs:
           # Where the bank specs set up the fake SimpleFIN Bridge the stack syncs with
           E2E_FAKE_SIMPLEFIN_BRIDGE_URL: http://localhost:8790
           PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-bank-sync
-        run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.project == 'desktop' && 4 || 1 }} --pass-with-no-tests --output=test-results-bank-sync
+        run: npx playwright test --project=${{ matrix.suite.project }} --shard=${{ matrix.suite.shard }}/${{ matrix.suite.shards }} --pass-with-no-tests --output=test-results-bank-sync
 
       # The report shows only what the browser saw, so a failed request is explained by the app's own log
       - name: Dump container logs from the server with SimpleFIN
@@ -144,7 +154,7 @@ jobs:
         if: ${{ failure() && (steps.no-bank-sync-tests.outcome == 'failure' || steps.bank-sync-tests.outcome == 'failure') }}
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-tests-${{ matrix.target.platform }}-${{ matrix.project }}-${{ matrix.shard }}
+          name: e2e-tests-${{ matrix.target.platform }}-${{ matrix.suite.project }}-${{ matrix.suite.shard }}
           path: |
             e2e/playwright-report
             e2e/playwright-report-bank-sync
