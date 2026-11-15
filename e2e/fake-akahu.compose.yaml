@@ -1,0 +1,25 @@
+# Added to docker/compose.yml for the browser tests: a fake Akahu beside the app, and the
+# testing-only setting that lets the app and the bank sync worker inside it reach the fake over plain
+# HTTP on the Compose network, and nothing else. Compose reads relative paths in every file it merges from the first file's
+# directory, docker/, so the mount below is written from there
+
+x-fake-akahu-origin: &fake-akahu-origin http://fake-akahu:8792
+
+services:
+  app:
+    environment:
+      BANK_SYNC_AKAHU_TEST_ORIGIN: *fake-akahu-origin
+
+  # Runs from the app's image, as it has everything the fake imports, with the fake's source mounted
+  # from the checkout since the image leaves the tests out
+  fake-akahu:
+    image: "luminahq/lumina-finance:${APP_IMAGE_TAG:-latest}"
+    entrypoint: ["uvicorn", "--app-dir", "/fake", "fake_akahu:app", "--host", "0.0.0.0", "--port", "8792"]
+    volumes:
+      - ../backend/tests/fake_akahu:/fake/fake_akahu:ro
+    ports:
+      - "127.0.0.1:8792:8792"
+    # The image's check is for the app's web server, and this container doesn't run it. Nothing
+    # waits on this one's health, since the workflow asks the fake itself through the published port
+    healthcheck:
+      disable: true
