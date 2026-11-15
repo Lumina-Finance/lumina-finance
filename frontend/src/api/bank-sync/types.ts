@@ -22,6 +22,12 @@ export type CredentialField = {
 
   /** The most characters the server accepts for it */
   max_length: number
+
+  /**
+   * The extension of the file the provider hands out holding the value, such as ".pem". The field is
+   * then masked and takes that file dropped onto it. Null, or absent from an older server, for text only
+   */
+  file_extension?: string | null
 }
 
 /**

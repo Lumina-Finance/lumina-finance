@@ -77,9 +77,21 @@ async def test_providers_list_offers_pluggy_with_its_three_fields_and_steps(clie
         "in_beta": True,
         "authorizes_at_bank": False,
         "credential_fields": [
-            {"key": "client_id", "label": "Client ID", "placeholder": "Paste the client ID", "max_length": 128},
-            {"key": "client_secret", "label": "Client secret", "placeholder": "Paste the client secret", "max_length": 128},
-            {"key": "item_ids", "label": "Item IDs", "placeholder": "Paste the item IDs, separated by commas", "max_length": 1024},
+            {"key": "client_id", "label": "Client ID", "placeholder": "Paste the client ID", "max_length": 128, "file_extension": None},
+            {
+                "key": "client_secret",
+                "label": "Client secret",
+                "placeholder": "Paste the client secret",
+                "max_length": 128,
+                "file_extension": None,
+            },
+            {
+                "key": "item_ids",
+                "label": "Item IDs",
+                "placeholder": "Paste the item IDs, separated by commas",
+                "max_length": 1024,
+                "file_extension": None,
+            },
         ],
         "connect_steps": [
             "Sign in at dashboard.pluggy.ai, create an application and copy its client ID and client secret.",

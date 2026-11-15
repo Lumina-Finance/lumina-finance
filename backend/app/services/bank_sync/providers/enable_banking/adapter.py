@@ -219,16 +219,22 @@ class EnableBankingAdapter(ProviderAdapter):
     authorizes_at_bank = True
     credential_fields = (
         CredentialField(APPLICATION_ID_FIELD, "Application ID", "Paste the application ID", 64),
-        CredentialField(PRIVATE_KEY_FIELD, "Private key", "Paste the whole .pem file", MAX_PRIVATE_KEY_LENGTH),
+        CredentialField(
+            PRIVATE_KEY_FIELD,
+            "Private key",
+            "Paste the key or drop the .pem file here",
+            MAX_PRIVATE_KEY_LENGTH,
+            file_extension=".pem",
+        ),
         CredentialField(COUNTRY_FIELD, "Country", "Two-letter code, such as FI", 2),
         CredentialField(BANK_FIELD, "Bank", "The bank's name as Enable Banking lists it", MAX_BANK_LENGTH),
     )
     connect_steps = (
-        "Sign in at enablebanking.com and register a production application. Generate a private key and keep its .pem file.",
-        "Add {redirect_url} to the application's redirect URLs.",
-        "Press Activate by linking accounts, then link each account you want at your bank.",
-        "Paste the application ID and the .pem file here, then give the bank's country and name.",
-        "Go to your bank to sign in. Lumina Finance never sees your bank login.",
+        "Please sign in at enablebanking.com, open the Control Panel and register a production application, keeping its .pem key file.",
+        "Please add {redirect_url} to the application's redirect URLs.",
+        "Please press Activate by linking accounts, then link each account you want at your bank.",
+        "Please paste the application ID and the key, or drop the .pem file onto Private key, then give the bank's country and name.",
+        "Please go to your bank to sign in. Lumina Finance never sees your bank login.",
     )
 
     # Banks share up to two years of history, and some hold less

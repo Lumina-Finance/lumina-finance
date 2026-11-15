@@ -255,6 +255,10 @@ class CredentialFieldResponse(BaseModel):
     # The longest value the field takes. The claim also refuses a longer one
     max_length: int
 
+    # The extension of the file the provider hands out holding the value, such as ".pem", for a field
+    # the form masks and fills from that file dropped onto it. Null for a field that only takes text
+    file_extension: str | None = None
+
 
 class BankProviderResponse(BaseModel):
     """A bank provider the deployment enables"""

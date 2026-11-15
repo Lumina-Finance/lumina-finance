@@ -45,6 +45,41 @@ export function describeCredentialLength(field: CredentialField, site: string, v
     : null
 }
 
+/** What reading a file dropped onto a credential field gave: its text, or why it can't fill the field */
+export type DroppedCredentialFile = { value: string } | { error: string }
+
+// A UTF-8 character takes at most four bytes, so a file past this many bytes per allowed character is
+// too long whatever it holds, and is refused without being read
+const MAX_BYTES_PER_CHARACTER = 4
+
+/**
+ * Reads the file dropped onto a credential field that takes one, in the browser, giving its text to fill
+ * the field with, or the message the field shows instead: for several files, a file without the field's
+ * extension, one too long for the field, or one the browser couldn't read
+ *
+ * @param field - The field the file was dropped onto, with the extension it takes
+ * @param files - The files dropped
+ */
+export async function readDroppedCredentialFile(
+  field: CredentialField & { file_extension: string },
+  files: ArrayLike<File>,
+): Promise<DroppedCredentialFile> {
+  // Each message fits beside the field's label on a phone, so the fields below never move
+  const extension = field.file_extension
+  if (files.length !== 1) return { error: `Please drop one ${extension} file` }
+  const file = files[0]
+  if (!file.name.toLowerCase().endsWith(extension.toLowerCase())) return { error: `Please drop a ${extension} file` }
+  const tooLong = { error: `That file is too long to be the ${credentialNoun(field.label)}` }
+  if (file.size > field.max_length * MAX_BYTES_PER_CHARACTER) return tooLong
+  let text: string
+  try {
+    text = await file.text()
+  } catch {
+    return { error: "That file couldn't be read" }
+  }
+  return text.trim().length > field.max_length ? tooLong : { value: text.trim() }
+}
+
 /**
  * What is wrong with each credential field right now, by field: an empty one, or a pasted value over its
  * limit. A field with nothing wrong has no entry

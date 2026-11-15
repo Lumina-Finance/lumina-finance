@@ -15,6 +15,8 @@ import jwt
 import pytest
 
 from app.services.bank_sync.providers.contract import ClaimRefused, ProviderUnreachable
+from tests.routes.support.bank_sync_helpers import _sign_up
+from tests.services.bank_sync.fake_provider import use_adapter
 from tests.services.bank_sync.providers.enable_banking.stand_ins import (
     APPLICATION_ID,
     BANK,
@@ -37,6 +39,23 @@ from tests.services.bank_sync.providers.enable_banking.stand_ins import (
     session_account,
 )
 from tests.services.bank_sync.stand_ins import fail_with
+
+
+async def test_providers_list_has_the_private_key_field_take_its_pem_file(client, monkeypatch):
+    """The connect form masks the private key and takes the .pem file dropped onto it, and only that field"""
+    use_adapter(monkeypatch, enable_banking_adapter(EnableBankingApi().transport))
+    headers, _ = await _sign_up(client)
+
+    response = await client.get("/bank-sync/providers", headers=headers)
+
+    assert response.status_code == 200, response.text
+    [enable_banking] = [provider for provider in response.json()["providers"] if provider["id"] == "enable_banking"]
+    assert {field["key"]: field["file_extension"] for field in enable_banking["credential_fields"]} == {
+        "application_id": None,
+        "private_key": ".pem",
+        "country": None,
+        "bank": None,
+    }
 
 
 async def _start(api: EnableBankingApi, supplied=SUPPLIED) -> str:

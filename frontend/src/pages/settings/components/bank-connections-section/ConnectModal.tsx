@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react'
 import { Landmark } from 'lucide-react'
 import { isAnsweredByApp, type ApiError } from '@/api/auth'
 import {
@@ -27,6 +27,7 @@ import {
   getNicknameProblem,
   isClaimSettled,
   markServerRefusal,
+  readDroppedCredentialFile,
   submitsCredential,
 } from '@/pages/settings/components/bank-connections-section/utils'
 import {
@@ -157,6 +158,9 @@ export function ConnectModal({
   const [providerId, setProviderId] = useState<BankProviderId | null>(providers[0]?.id ?? null)
   const [values, setValues] = useState<Record<string, string>>({})
   const [nickname, setNickname] = useState('')
+
+  // Why a file dropped onto a field couldn't fill it, by field, until the field changes again
+  const [dropErrors, setDropErrors] = useState<Partial<Record<string, string>>>({})
 
   // The server's own refusal of the credential. It marks the fields it names, or every field when it
   // names none, and its message is drawn once, on the last marked. A value too long is refused before
@@ -409,7 +413,8 @@ export function ConnectModal({
           </ol>
         )}
         {fields.map((field) => {
-          const refusedMessage = refusal.errors[field.key]
+          const dropMessage = dropErrors[field.key]
+          const refusedMessage = dropMessage ?? refusal.errors[field.key]
           const refused = Boolean(refusedMessage)
           const refusedErrorId = `${credentialFieldId(field.key)}-error`
           const refusedByServer = serverMarks?.marked.has(field.key) === true
@@ -417,6 +422,29 @@ export function ConnectModal({
           const invalid = refused || refusedByServer
           const message = refusedMessage ?? serverMessage
           const messageId = refused ? refusedErrorId : CREDENTIAL_ERROR_ID
+          const shared = {
+            id: credentialFieldId(field.key),
+            // Block, so a field leaves no room for descenders under it and every field sits the same
+            // distance from the label below, whichever element draws it
+            className: `app-input block w-full ${fields.length > 1 ? 'h-16' : 'h-24'} ${invalid ? 'app-input-error' : ''}`,
+            value: values[field.key] ?? '',
+            placeholder: field.placeholder,
+            spellCheck: false,
+            'aria-invalid': invalid ? true : undefined,
+            'aria-describedby': invalid ? (refused ? refusedErrorId : CREDENTIAL_ERROR_ID) : undefined,
+            disabled: busy,
+            onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+              if (!submitsCredential({ ...event, isComposing: event.nativeEvent.isComposing })) return
+              event.preventDefault()
+              event.currentTarget.form?.requestSubmit()
+            },
+            onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+              setFieldError(null)
+              setDropErrors((current) => ({ ...current, [field.key]: undefined }))
+              setValues((current) => ({ ...current, [field.key]: event.target.value }))
+            },
+          }
+          const fileExtension = field.file_extension
           return (
             <div key={field.key}>
               <CreateModalFieldLabelRow
@@ -427,26 +455,48 @@ export function ConnectModal({
                 // A refusal runs to two lines, so it wraps beside the whole label rather than over it
                 keepsLabelWhole
               />
-              <textarea
-                id={credentialFieldId(field.key)}
-                className={`app-input w-full resize-none py-2.5 ${fields.length > 1 ? 'h-16' : 'h-24'} ${invalid ? 'app-input-error' : ''}`}
-                value={values[field.key] ?? ''}
-                placeholder={field.placeholder}
-                spellCheck={false}
-                autoComplete="off"
-                aria-invalid={invalid ? true : undefined}
-                aria-describedby={invalid ? (refused ? refusedErrorId : CREDENTIAL_ERROR_ID) : undefined}
-                disabled={busy}
-                onKeyDown={(event) => {
-                  if (!submitsCredential({ ...event, isComposing: event.nativeEvent.isComposing })) return
-                  event.preventDefault()
-                  event.currentTarget.form?.requestSubmit()
-                }}
-                onChange={(event) => {
-                  setFieldError(null)
-                  setValues((current) => ({ ...current, [field.key]: event.target.value }))
-                }}
-              />
+              {fileExtension ? (
+                // A key handed out as a file is masked, and takes either its text pasted or the file
+                // dropped onto it. A file dragged over takes the field's focus look, so the user sees
+                // where it lands, and the browser never opens a dropped file in place of the app
+                <input
+                  {...shared}
+                  // Beside multi-line fields, its one line sits at their first line's height rather
+                  // than centred, so the group's text lines up
+                  className={`${shared.className} ${fields.length > 1 ? 'pt-2.5 pb-7' : ''}`}
+                  type="password"
+                  // Keeps password managers from offering to save the key as a login
+                  autoComplete="one-time-code"
+                  onDragEnter={(event) => {
+                    if (busy || !event.dataTransfer.types.includes('Files')) return
+                    event.currentTarget.focus()
+                  }}
+                  onDragOver={(event) => {
+                    if (!event.dataTransfer.types.includes('Files')) return
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = busy ? 'none' : 'copy'
+                  }}
+                  onDrop={(event) => {
+                    if (!event.dataTransfer.types.includes('Files')) return
+                    event.preventDefault()
+                    if (busy) return
+                    const dropped = Array.from(event.dataTransfer.files)
+                    void readDroppedCredentialFile({ ...field, file_extension: fileExtension }, dropped).then(
+                      (read) => {
+                        setFieldError(null)
+                        if ('error' in read) {
+                          setDropErrors((current) => ({ ...current, [field.key]: read.error }))
+                          return
+                        }
+                        setDropErrors((current) => ({ ...current, [field.key]: undefined }))
+                        setValues((current) => ({ ...current, [field.key]: read.value }))
+                      },
+                    )
+                  }}
+                />
+              ) : (
+                <textarea {...shared} className={`${shared.className} resize-none py-2.5`} autoComplete="off" />
+              )}
             </div>
           )
         })}

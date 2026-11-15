@@ -44,6 +44,10 @@ class CredentialField:
     # The longest value the field takes, and the claim also refuses values past it
     max_length: int
 
+    # The extension of a file the provider hands out holding the value, such as ".pem". The form then
+    # masks the field and takes the file dropped onto it, filling the field with the file's text
+    file_extension: str | None = None
+
 
 @dataclass(frozen=True)
 class ProviderError:

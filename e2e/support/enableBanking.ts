@@ -65,3 +65,18 @@ export async function createSampleEnableBankingScenario(request: APIRequestConte
     country: body.country,
   }
 }
+
+/**
+ * End every bank sign-in the scenario holds, as the end of the bank's consent does, so the next read
+ * of its accounts is refused until the user signs in at the bank again
+ *
+ * @throws When the fake refuses the call
+ */
+export async function expireEnableBankingSessions(request: APIRequestContext, scenarioId: string): Promise<void> {
+  const response = await request.post(`${FAKE_ENABLE_BANKING_URL}/control/scenarios/${scenarioId}/sessions/expire`, {
+    headers: { connection: 'close' },
+  })
+  if (response.status() !== 204) {
+    throw new Error(`the fake Enable Banking answered the session expiry with ${response.status()}: ${await response.text()}`)
+  }
+}

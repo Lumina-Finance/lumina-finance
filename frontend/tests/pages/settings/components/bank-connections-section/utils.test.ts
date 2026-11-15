@@ -25,6 +25,7 @@ import {
   markServerRefusal,
   matchesConnectionSearch,
   matchesInstitutionSearch,
+  readDroppedCredentialFile,
   submitsCredential,
 } from '@/pages/settings/components/bank-connections-section/utils'
 
@@ -404,6 +405,57 @@ describe('describeCredentialLength', () => {
     expect(describeCredentialLength(field, 'Fake Bank Online', 'abcde')).toBe(
       'That API key is too long. Please copy only the API key from Fake Bank Online and try again',
     )
+  })
+})
+
+describe('readDroppedCredentialFile', () => {
+  const PRIVATE_KEY = {
+    key: 'private_key',
+    label: 'Private key',
+    placeholder: '',
+    max_length: 60,
+    file_extension: '.pem',
+  }
+  const KEY_TEXT = '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----'
+
+  it('fills the field with the text of the one file dropped, trimmed, whatever case its extension takes', async () => {
+    await expect(readDroppedCredentialFile(PRIVATE_KEY, [new File([`${KEY_TEXT}\n`], 'app.PEM')])).resolves.toEqual({
+      value: KEY_TEXT,
+    })
+  })
+
+  it('takes a file at the largest size it reads whose text, trimmed, is exactly as long as the field takes', async () => {
+    const padded = `${' '.repeat(90)}${'a'.repeat(60)}${' '.repeat(90)}`
+    expect(padded).toHaveLength(240)
+    await expect(readDroppedCredentialFile(PRIVATE_KEY, [new File([padded], 'app.pem')])).resolves.toEqual({
+      value: 'a'.repeat(60),
+    })
+  })
+
+  it.each([
+    ['no file', [], 'Please drop one .pem file'],
+    ['two files', [new File([KEY_TEXT], 'a.pem'), new File([KEY_TEXT], 'b.pem')], 'Please drop one .pem file'],
+    ['a file of another kind', [new File([KEY_TEXT], 'key.txt')], 'Please drop a .pem file'],
+    [
+      'a file holding more than the field takes',
+      [new File(['a'.repeat(61)], 'app.pem')],
+      'That file is too long to be the private key',
+    ],
+    [
+      'a file too large to read for the field',
+      [new File(['a'.repeat(241)], 'app.pem')],
+      'That file is too long to be the private key',
+    ],
+  ])('refuses %s with the message the field shows', async (_case, files, error) => {
+    await expect(readDroppedCredentialFile(PRIVATE_KEY, files)).resolves.toEqual({ error })
+  })
+
+  it('says a file the browser fails to read could not be read', async () => {
+    const file = new File([KEY_TEXT], 'app.pem')
+    vi.spyOn(file, 'text').mockRejectedValue(new DOMException('NotReadableError'))
+    await expect(readDroppedCredentialFile(PRIVATE_KEY, [file])).resolves.toEqual({
+      error: "That file couldn't be read",
+    })
   })
 })
 
