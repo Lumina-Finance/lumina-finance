@@ -31,14 +31,16 @@ jobs:
         run: uv sync --frozen
 
   test:
-    name: Test backend ${{ matrix.group }} of 10
+    name: Test backend ${{ matrix.group }} of 8
     needs: prime-cache
     runs-on: ubuntu-latest
 
+    # Eight groups leave room for the browser tests within the free plan's 20 jobs at once.
+    # pytest-split evens them out by the run times in backend/.test_durations
     strategy:
       fail-fast: false
       matrix:
-        group: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        group: [1, 2, 3, 4, 5, 6, 7, 8]
 
     services:
       postgres:
@@ -112,6 +114,15 @@ jobs:
           JWT_REFRESH_PRIVATE_KEY_PATH: ${{ runner.temp }}/jwt-keys/refresh.pem
 
       # The workers leave one CPU to the Postgres and ValKey containers they query, so busy workers
-      # never starve the databases behind each test
+      # never starve the databases behind each test. Each group then writes the times of its own tests
+      # alone to its copy of the durations file, so the copies of all eight combine into a complete file
       - name: Run tests
-        run: uv run pytest -n "$(( $(nproc) - 1 ))" tests --splits 10 --group ${{ matrix.group }}
+        run: uv run pytest -n "$(( $(nproc) - 1 ))" tests --splits 8 --group ${{ matrix.group }} --store-durations --clean-durations
+
+      - name: Keep this group's test durations
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-durations-${{ matrix.group }}
+          path: backend/.test_durations
+          include-hidden-files: true
+          retention-days: 7
