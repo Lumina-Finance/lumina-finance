@@ -225,7 +225,7 @@ async def test_claim_with_a_token_over_the_length_cap_is_refused_before_anything
 
 
 async def test_providers_list_offers_simplefin_with_its_setup_token_steps(client):
-    """The Connect dialogue shows SimpleFIN's own field label, steps and length cap, all sent by the server"""
+    """The Connect dialogue shows SimpleFIN's own field label, steps, length cap and Beta pill, all sent by the server"""
     headers, _ = await _sign_up(client)
 
     response = await client.get("/bank-sync/providers", headers=headers)
@@ -233,6 +233,7 @@ async def test_providers_list_offers_simplefin_with_its_setup_token_steps(client
     assert response.status_code == 200, response.text
     [simplefin] = [provider for provider in response.json()["providers"] if provider["id"] == "simplefin"]
     assert simplefin["site"] == "SimpleFIN Bridge"
+    assert simplefin["in_beta"] is True
     assert simplefin["credential_fields"] == [
         {
             "key": "setup_token",
