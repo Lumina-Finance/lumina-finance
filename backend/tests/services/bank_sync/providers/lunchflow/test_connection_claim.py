@@ -94,3 +94,21 @@ async def test_claim_saves_the_connection_encrypted_and_lists_its_bank_accounts(
     assert decrypt(connection.credential_encrypted) == API_KEY
     for text in (response.text, listed.text, caplog.text, connection.credential_encrypted):
         assert API_KEY not in text
+
+
+async def test_claim_with_a_bank_needing_reconnection_in_lunch_flow_saves_and_lists_the_rest(client, monkeypatch):
+    """An account whose bank needs reconnecting is left out rather than stored without a currency
+
+    Lunch Flow's live account list sends no currency, and only an active account's balance gives one
+    """
+    chequing = account(11, connection_id=7, currency=None)
+    expired = account(12, connection_id=9, name="Old Savings", currency=None, status="EXPIRED")
+    api = LunchFlowApi().serve("/accounts", accounts_body(chequing, expired)).serve_account(chequing)
+    use_adapter(monkeypatch, lunchflow_adapter(api.transport))
+    headers, _ = await _sign_up(client)
+
+    response = await _claim(client, headers, API_KEY)
+
+    assert response.status_code == 201, response.text
+    assert [(found["external_id"], found["currency"]) for found in response.json()["accounts"]] == [("11", "CAD")]
+    assert len(await _stored_connections()) == 1
