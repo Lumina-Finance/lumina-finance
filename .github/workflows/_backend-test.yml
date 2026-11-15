@@ -111,5 +111,7 @@ jobs:
           JWT_ACCESS_PRIVATE_KEY_PATH: ${{ runner.temp }}/jwt-keys/access.pem
           JWT_REFRESH_PRIVATE_KEY_PATH: ${{ runner.temp }}/jwt-keys/refresh.pem
 
+      # The workers leave one CPU to the Postgres and ValKey containers they query, so busy workers
+      # never starve the databases behind each test
       - name: Run tests
-        run: uv run pytest -n auto tests --splits 10 --group ${{ matrix.group }}
+        run: uv run pytest -n "$(( $(nproc) - 1 ))" tests --splits 10 --group ${{ matrix.group }}
