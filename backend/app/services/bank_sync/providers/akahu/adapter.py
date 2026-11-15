@@ -93,6 +93,7 @@ _SERVER_NOT_ALLOWED_MESSAGE = "This Lumina Finance server is not set up to conta
 _RECONNECT_MESSAGE = "Akahu says this bank needs a reconnection. Please reconnect it in your Akahu personal app, then sync again"
 _MISSING_ACCOUNT_MESSAGE = "Akahu didn't return this account"
 _NO_CURRENCY_MESSAGE = "Akahu didn't say which currency this account is in"
+_NO_TRANSACTIONS_MESSAGE = "Transactions from \"{name}\" aren't imported: Akahu doesn't share them for this account"
 _SKIPPED_ONE_PENDING_MESSAGE = "1 pending transaction from Akahu isn't shown: it's missing a date, an amount or an account"
 _SKIPPED_PENDING_MESSAGE = "{count} pending transactions from Akahu aren't shown: they're missing a date, an amount or an account"
 _PENDING_UNAVAILABLE_MESSAGE = "Lumina Finance couldn't read Akahu's pending transactions"
@@ -262,6 +263,7 @@ class AkahuAdapter(ProviderAdapter):
 
         accounts: list[ExternalAccount] = []
         account_errors: dict[str, ProviderError] = {}
+        warnings: list[ProviderError] = []
         is_cut_off = False
         for account in chosen:
             if not account.has_currency:
@@ -269,6 +271,11 @@ class AkahuAdapter(ProviderAdapter):
                     account_errors[account.id] = ProviderError(ProviderErrorKind.UNKNOWN, _NO_CURRENCY_MESSAGE)
                 continue
             read = reads.get(account.id)
+
+            # A warning rather than an account error, since an error of an unknown kind makes the sync
+            # retry shorter date ranges, and no range holds transactions Akahu doesn't share
+            if read is None and _is_active(account):
+                warnings.append(ProviderError(ProviderErrorKind.UNKNOWN, _NO_TRANSACTIONS_MESSAGE.format(name=account.name)))
             if isinstance(read, _Failed):
                 account_errors[account.id] = read.error
                 continue
@@ -287,7 +294,6 @@ class AkahuAdapter(ProviderAdapter):
         for account_id in account_ids:
             if account_id not in listed_ids:
                 account_errors[account_id] = ProviderError(ProviderErrorKind.UNKNOWN, _MISSING_ACCOUNT_MESSAGE)
-        warnings: list[ProviderError] = []
         if is_cut_off:
             warnings.append(ProviderError(ProviderErrorKind.UNKNOWN, _CUT_OFF_MESSAGE))
         if pending.skipped_incomplete:

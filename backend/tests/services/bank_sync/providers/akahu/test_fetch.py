@@ -205,6 +205,26 @@ async def test_fetch_reads_transactions_only_for_accounts_that_have_them_and_act
     assert api.paths() == ["/v1/accounts", "/v1/accounts/acc_chq/transactions"]
 
 
+async def test_fetch_warns_that_akahu_shares_no_transactions_for_an_account_without_the_attribute():
+    """An account Akahu holds no transactions for syncs empty, so the sync says so, as a warning because no other window would help"""
+    loan = account("acc_loan", name="Home Loan", attributes='"PAYMENT_TO"', current="-250000.00")
+    inactive = account("acc_old", connection_id="conn_old", name="Old Savings", status="INACTIVE", attributes='"PAYMENT_TO"')
+    api = (
+        AkahuApi()
+        .serve("/accounts", accounts_body(account("acc_chq"), loan, inactive))
+        .serve("/accounts/acc_chq/transactions", transactions_body(transaction()))
+    )
+
+    result = await fetch(akahu_adapter(api.transport), "acc_chq", "acc_loan", "acc_old")
+
+    assert result.account_errors == {}
+    assert [warning.reason for warning in result.warnings] == [
+        "Transactions from \"Home Loan\" aren't imported: Akahu doesn't share them for this account"
+    ]
+    assert result.warnings[0].kind is ProviderErrorKind.UNKNOWN
+    assert [found.external_id for found in result.accounts] == ["acc_chq", "acc_loan", "acc_old"]
+
+
 async def test_fetch_sends_only_gets_and_never_asks_akahu_to_refresh():
     """Akahu refreshes a personal app daily, so no refresh is requested"""
     api = _api_with_one_account(transaction()).serve("/transactions/pending", '{"success": true, "items": []}')
