@@ -33,7 +33,7 @@ test('connects Lunch Flow with an API key, links an account and shows an importe
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
   await chooseFromDropdown(dialog, 'Provider', /^Lunch Flow/)
   await expect(dialog.getByRole('combobox', { name: 'Provider' })).toContainText('Lunch FlowBeta')
-  await dialog.getByRole('textbox', { name: 'API key' }).fill(scenario.apiKey)
+  await dialog.getByLabel('API key', { exact: true }).fill(scenario.apiKey)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
   await expect(page.getByRole('status').filter({ hasText: 'Connected to Lunch Flow with 2 bank accounts.' })).toBeVisible()

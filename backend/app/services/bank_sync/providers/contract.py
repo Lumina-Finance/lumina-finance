@@ -38,7 +38,7 @@ def first_text(*texts: str | None) -> str | None:
 class CredentialField:
     """One field of a provider's connect form, the frontend drawing whatever fields the provider lists
 
-    Each value is a secret: it is masked in every refusal and never stored, logged or shown
+    Each value is a secret: it is masked in every refusal and never stored, logged or shown back once sent
     """
 
     # The name its value is sent under, in the claim's credentials
@@ -52,6 +52,10 @@ class CredentialField:
     # The extension of a file the provider hands out holding the value, such as ".pem". The form then
     # masks the field and takes the file dropped onto it, filling the field with the file's text
     file_extension: str | None = None
+
+    # Whether the form shows dots in place of the value as it is typed. Off only for a plain detail the
+    # user needs to read back, such as a bank's country, and the value stays masked in every refusal
+    masked: bool = True
 
 
 @dataclass(frozen=True)

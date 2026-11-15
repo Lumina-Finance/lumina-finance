@@ -33,9 +33,9 @@ test('connects Pluggy with an application and an item, links an account and show
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
   await chooseFromDropdown(dialog, 'Provider', /^Pluggy/)
   await expect(dialog.getByRole('combobox', { name: 'Provider' })).toContainText('PluggyBeta')
-  await dialog.getByRole('textbox', { name: 'Client ID' }).fill(scenario.clientId)
-  await dialog.getByRole('textbox', { name: 'Client secret' }).fill(scenario.clientSecret)
-  await dialog.getByRole('textbox', { name: 'Item IDs' }).fill(scenario.itemId)
+  await dialog.getByLabel('Client ID', { exact: true }).fill(scenario.clientId)
+  await dialog.getByLabel('Client secret', { exact: true }).fill(scenario.clientSecret)
+  await dialog.getByLabel('Item IDs', { exact: true }).fill(scenario.itemId)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
   await expect(page.getByRole('status').filter({ hasText: 'Connected to Pluggy with 2 bank accounts.' })).toBeVisible()

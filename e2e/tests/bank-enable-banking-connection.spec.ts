@@ -50,16 +50,22 @@ async function dropFile(field: Locator, name: string, contents: string) {
 }
 
 // The private key arrives as the .pem file Enable Banking's Control Panel saves, dropped onto its masked
-// field. A password input has no textbox role, so the test finds that field by its label
+// field. The application ID and key are masked, and a password input has no textbox role, so the tests
+// find each field by its label. The country and bank show as typed, so the user can read them back
 async function fillConnectForm(dialog: Locator, scenario: FakeEnableBankingScenario, bank = scenario.bank) {
   await chooseFromDropdown(dialog, 'Provider', /^Enable Banking/)
-  await dialog.getByRole('textbox', { name: 'Application ID' }).fill(scenario.applicationId)
+  const applicationId = dialog.getByLabel('Application ID', { exact: true })
+  await expect(applicationId).toHaveAttribute('type', 'password')
+  await applicationId.fill(scenario.applicationId)
   const privateKey = dialog.getByLabel('Private key', { exact: true })
   await expect(privateKey).toHaveAttribute('type', 'password')
   await dropFile(privateKey, `${scenario.applicationId}.pem`, scenario.privateKey)
   await expect(privateKey).toHaveValue(/-----BEGIN (RSA )?PRIVATE KEY-----/)
-  await dialog.getByRole('textbox', { name: 'Country' }).fill(scenario.country)
-  await dialog.getByRole('textbox', { name: 'Bank' }).fill(bank)
+  for (const [name, value] of [['Country', scenario.country], ['Bank', bank]] as const) {
+    const field = dialog.getByRole('textbox', { name, exact: true })
+    await expect(field).toHaveAttribute('type', 'text')
+    await field.fill(value)
+  }
   await dialog.getByRole('button', { name: 'Go to your bank' }).click()
 }
 
@@ -83,9 +89,9 @@ test('refuses a dropped file of another kind, then marks only Country and Bank f
 
   await expect(dialog.getByText(`We couldn't find "Nowhere Bank" in ${scenario.country} on Enable Banking`)).toBeVisible()
   for (const name of ['Country', 'Bank']) {
-    await expect(dialog.getByRole('textbox', { name, exact: true })).toHaveAttribute('aria-invalid', 'true')
+    await expect(dialog.getByLabel(name, { exact: true })).toHaveAttribute('aria-invalid', 'true')
   }
-  await expect(dialog.getByRole('textbox', { name: 'Application ID' })).not.toHaveAttribute('aria-invalid', 'true')
+  await expect(dialog.getByLabel('Application ID', { exact: true })).not.toHaveAttribute('aria-invalid', 'true')
   await expect(privateKey).not.toHaveAttribute('aria-invalid', 'true')
   await expect(page).toHaveURL(/\/settings#bank-connections$/)
 })
@@ -161,10 +167,10 @@ test('reconnects through the bank once the sign-in ends, and the linked account 
   await page.getByRole('dialog', { name: 'Enable Banking', exact: true }).getByRole('button', { name: 'Reconnect', exact: true }).click()
   const form = page.getByRole('dialog', { name: 'Reconnect Enable Banking' })
   await expect(form.getByRole('combobox', { name: 'Provider' })).toHaveCount(0)
-  await form.getByRole('textbox', { name: 'Application ID' }).fill(scenario.applicationId)
+  await form.getByLabel('Application ID', { exact: true }).fill(scenario.applicationId)
   await dropFile(form.getByLabel('Private key', { exact: true }), `${scenario.applicationId}.pem`, scenario.privateKey)
-  await form.getByRole('textbox', { name: 'Country' }).fill(scenario.country)
-  await form.getByRole('textbox', { name: 'Bank' }).fill(scenario.bank)
+  await form.getByLabel('Country', { exact: true }).fill(scenario.country)
+  await form.getByLabel('Bank', { exact: true }).fill(scenario.bank)
   await form.getByRole('button', { name: 'Go to your bank' }).click()
   await page.getByRole('link', { name: 'Share my accounts' }).click()
 

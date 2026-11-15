@@ -320,6 +320,7 @@ async def list_providers(db: AsyncSession, user: User) -> BankProvidersResponse:
                         placeholder=entry.placeholder,
                         max_length=entry.max_length,
                         file_extension=entry.file_extension,
+                        masked=entry.masked,
                     )
                     for entry in adapter.credential_fields
                 ],

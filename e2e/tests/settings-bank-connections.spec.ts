@@ -201,7 +201,7 @@ test('adds a connection with a nickname and lists it with its bank accounts', NE
   await expect(dialog.getByRole('button', { name: 'Connect' })).not.toHaveAttribute('aria-disabled', 'true')
   await chooseFromDropdown(dialog, 'Provider', /^SimpleFIN/)
   await dialog.getByRole('textbox', { name: 'Nickname' }).fill('Joint banks')
-  await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
+  await dialog.getByLabel('Setup token', { exact: true }).fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
   await expect(toast(page, 'Connected to Joint banks with 2 bank accounts.')).toBeVisible()
@@ -212,6 +212,27 @@ test('adds a connection with a nickname and lists it with its bank accounts', NE
   await expect(row).toContainText('OK')
 })
 
+test('masks the setup token, keeps a pasted token whole and connects on Enter', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const scenario = await createSampleBridgeScenario(request)
+  const section = await openBankConnections(page, user)
+
+  await section.getByRole('button', { name: 'Add a connection' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Add a connection' })
+  await dialog.getByRole('textbox', { name: 'Nickname' }).fill('Joint banks')
+  const token = dialog.getByLabel('Setup token', { exact: true })
+  await expect(token).toHaveAttribute('type', 'password')
+  await expect(token).toHaveAttribute('autocomplete', 'one-time-code')
+  await token.focus()
+  // Typed in as one piece, the way a paste arrives
+  await page.keyboard.insertText(scenario.setupToken)
+  await expect(token).toHaveValue(scenario.setupToken)
+  await page.keyboard.press('Enter')
+
+  await expect(toast(page, 'Connected to Joint banks with 2 bank accounts.')).toBeVisible()
+  await expect(dialog).toBeHidden()
+})
+
 test("draws the setup token field's hint like the nickname's and marks the empty token once Connect is pressed", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
@@ -219,7 +240,7 @@ test("draws the setup token field's hint like the nickname's and marks the empty
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
-  const token = dialog.getByRole('textbox', { name: 'Setup token' })
+  const token = dialog.getByLabel('Setup token', { exact: true })
   const hint = (field: Locator) => field.evaluate((element) => {
     const style = getComputedStyle(element, '::placeholder')
     return `${style.fontFamily} ${style.fontSize}`
@@ -250,7 +271,7 @@ test("shows a used setup token's refusal on the token field and adds no connecti
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
-  const token = dialog.getByRole('textbox', { name: 'Setup token' })
+  const token = dialog.getByLabel('Setup token', { exact: true })
   await token.fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
@@ -285,9 +306,10 @@ test('draws each field a provider lists, checks each against its own limit and s
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
-  const appToken = dialog.getByRole('textbox', { name: 'App ID token' })
-  const userToken = dialog.getByRole('textbox', { name: 'User access token' })
-  await expect(dialog.getByRole('textbox', { name: 'Setup token' })).toHaveCount(0)
+  const appToken = dialog.getByLabel('App ID token', { exact: true })
+  const userToken = dialog.getByLabel('User access token', { exact: true })
+  await expect(dialog.getByLabel('Setup token', { exact: true })).toHaveCount(0)
+  for (const field of [appToken, userToken]) await expect(field).toHaveAttribute('type', 'password')
   await appToken.fill('app-token-too-long')
   // The press marks every field with a problem on its own field, the empty one and the one past its limit
   await dialog.getByRole('button', { name: 'Connect' }).click()
@@ -326,7 +348,7 @@ test("shows that SimpleFIN Bridge couldn't be reached beside the form's actions"
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
-  const token = dialog.getByRole('textbox', { name: 'Setup token' })
+  const token = dialog.getByLabel('Setup token', { exact: true })
   await token.fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
@@ -353,7 +375,7 @@ test('says to check the connections once a claim whose answer was lost must have
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
-  await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
+  await dialog.getByLabel('Setup token', { exact: true }).fill(scenario.setupToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
   await claimLost
 
@@ -391,7 +413,7 @@ test('waits on after a gateway timeout, and closes as connected once the server 
 
   await section.getByRole('button', { name: 'Add a connection' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
-  await dialog.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
+  await dialog.getByLabel('Setup token', { exact: true }).fill(scenario.setupToken)
   const connect = dialog.getByRole('button', { name: 'Connect' })
   await connect.click()
 
@@ -469,7 +491,7 @@ test('takes a nickname of any length typed and refuses one over the limit once C
   const nickname = add.getByRole('textbox', { name: 'Nickname' })
   await nickname.fill('n'.repeat(70))
   await expect(nickname).toHaveValue('n'.repeat(70))
-  await add.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
+  await add.getByLabel('Setup token', { exact: true }).fill(scenario.setupToken)
   await add.getByRole('button', { name: 'Connect' }).click()
   await expect(nickname).toHaveAttribute('aria-invalid', 'true')
   await expect(nickname).toHaveAccessibleDescription(tooLong)
@@ -994,7 +1016,7 @@ test('reconnects a rejected connection, and shows the account to choose again un
   const form = page.getByRole('dialog', { name: 'Reconnect SimpleFIN' })
   await expect(form.getByText('SimpleFIN Bridge no longer accepts this connection.')).toBeVisible()
   await expect(form.getByRole('combobox', { name: 'Provider' })).toHaveCount(0)
-  await form.getByRole('textbox', { name: 'Setup token' }).fill(await createBridgeSetupToken(request, scenario.id))
+  await form.getByLabel('Setup token', { exact: true }).fill(await createBridgeSetupToken(request, scenario.id))
   await form.getByRole('button', { name: 'Reconnect', exact: true }).click()
 
   await expect(toast(page, 'Syncing resumes for 1 account.')).toBeVisible()
@@ -1035,7 +1057,7 @@ test('says to try again when Reconnect loses its answer, and shows the connectio
   const dialog = await openConnection(page, section, 'SimpleFIN')
   await dialog.getByRole('button', { name: 'Reconnect', exact: true }).click()
   const form = page.getByRole('dialog', { name: 'Reconnect SimpleFIN' })
-  await form.getByRole('textbox', { name: 'Setup token' }).fill(await createBridgeSetupToken(request, scenario.id))
+  await form.getByLabel('Setup token', { exact: true }).fill(await createBridgeSetupToken(request, scenario.id))
   await form.getByRole('button', { name: 'Reconnect', exact: true }).click()
 
   await expect(form.getByRole('alert')).toHaveText('Something went wrong. Please try again.')

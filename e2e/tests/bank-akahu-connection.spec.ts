@@ -33,8 +33,8 @@ test('connects Akahu with a personal app, links an account and shows an imported
   const dialog = page.getByRole('dialog', { name: 'Add a connection' })
   await chooseFromDropdown(dialog, 'Provider', /^Akahu/)
   await expect(dialog.getByRole('combobox', { name: 'Provider' })).toContainText('AkahuBeta')
-  await dialog.getByRole('textbox', { name: 'App ID token' }).fill(scenario.appIdToken)
-  await dialog.getByRole('textbox', { name: 'User access token' }).fill(scenario.userAccessToken)
+  await dialog.getByLabel('App ID token', { exact: true }).fill(scenario.appIdToken)
+  await dialog.getByLabel('User access token', { exact: true }).fill(scenario.userAccessToken)
   await dialog.getByRole('button', { name: 'Connect' }).click()
 
   await expect(page.getByRole('status').filter({ hasText: 'Connected to Akahu with 2 bank accounts.' })).toBeVisible()

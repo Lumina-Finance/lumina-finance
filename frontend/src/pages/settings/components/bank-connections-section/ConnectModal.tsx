@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Landmark } from 'lucide-react'
 import { isAnsweredByApp, type ApiError } from '@/api/auth'
 import {
@@ -28,7 +28,6 @@ import {
   isClaimSettled,
   markServerRefusal,
   readDroppedCredentialFile,
-  submitsCredential,
 } from '@/pages/settings/components/bank-connections-section/utils'
 import {
   connectionName,
@@ -422,23 +421,27 @@ export function ConnectModal({
           const invalid = refused || refusedByServer
           const message = refusedMessage ?? serverMessage
           const messageId = refused ? refusedErrorId : CREDENTIAL_ERROR_ID
+          // An older server sends no flag, and every field it lists is a secret
+          const masked = field.masked !== false
           const shared = {
             id: credentialFieldId(field.key),
             // Block, so a field leaves no room for descenders under it and every field sits the same
             // distance from the label below, whichever element draws it
-            className: `app-input block w-full ${fields.length > 1 ? 'h-16' : 'h-24'} ${invalid ? 'app-input-error' : ''}`,
+            className: `app-input block w-full ${invalid ? 'app-input-error' : ''}`,
+            // A provider's token or key is masked as it is typed or pasted. A plain detail the user needs to
+            // read back, such as the bank's country, shows as typed
+            type: masked ? 'password' : 'text',
             value: values[field.key] ?? '',
             placeholder: field.placeholder,
             spellCheck: false,
+            // A provider's key isn't the user's password here, so the browser must neither fill in a saved
+            // password nor offer to save the key as one. Chromium's password manager skips one-time-code
+            // fields for both, and ignores off on a password field. A shown detail takes no suggestions
+            autoComplete: masked ? 'one-time-code' : 'off',
             'aria-invalid': invalid ? true : undefined,
             'aria-describedby': invalid ? (refused ? refusedErrorId : CREDENTIAL_ERROR_ID) : undefined,
             disabled: busy,
-            onKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-              if (!submitsCredential({ ...event, isComposing: event.nativeEvent.isComposing })) return
-              event.preventDefault()
-              event.currentTarget.form?.requestSubmit()
-            },
-            onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+            onChange: (event: ChangeEvent<HTMLInputElement>) => {
               setFieldError(null)
               setDropErrors((current) => ({ ...current, [field.key]: undefined }))
               setValues((current) => ({ ...current, [field.key]: event.target.value }))
@@ -456,17 +459,11 @@ export function ConnectModal({
                 keepsLabelWhole
               />
               {fileExtension ? (
-                // A key handed out as a file is masked, and takes either its text pasted or the file
-                // dropped onto it. A file dragged over takes the field's focus look, so the user sees
-                // where it lands, and the browser never opens a dropped file in place of the app
+                // A key handed out as a file takes either its text pasted or the file dropped onto it.
+                // A file dragged over takes the field's focus look, so the user sees where it lands,
+                // and the browser never opens a dropped file in place of the app
                 <input
                   {...shared}
-                  // Beside multi-line fields, its one line sits at their first line's height rather
-                  // than centred, so the group's text lines up
-                  className={`${shared.className} ${fields.length > 1 ? 'pt-2.5 pb-7' : ''}`}
-                  type="password"
-                  // Keeps password managers from offering to save the key as a login
-                  autoComplete="one-time-code"
                   onDragEnter={(event) => {
                     if (busy || !event.dataTransfer.types.includes('Files')) return
                     event.currentTarget.focus()
@@ -495,7 +492,7 @@ export function ConnectModal({
                   }}
                 />
               ) : (
-                <textarea {...shared} className={`${shared.className} resize-none py-2.5`} autoComplete="off" />
+                <input {...shared} />
               )}
             </div>
           )
