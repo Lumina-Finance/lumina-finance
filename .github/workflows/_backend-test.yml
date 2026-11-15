@@ -115,9 +115,11 @@ jobs:
 
       # The workers leave one CPU to the Postgres and ValKey containers they query, so busy workers
       # never starve the databases behind each test. Each group then writes the times of its own tests
-      # alone to its copy of the durations file, so the copies of all eight combine into a complete file
+      # alone to its copy of the durations file, so the copies of all eight combine into a complete file.
+      # Splitting by least duration spreads the many short tests over every group, since each test also
+      # costs a little time its recorded duration misses
       - name: Run tests
-        run: uv run pytest -n "$(( $(nproc) - 1 ))" tests --splits 8 --group ${{ matrix.group }} --store-durations --clean-durations
+        run: uv run pytest -n "$(( $(nproc) - 1 ))" tests --splits 8 --group ${{ matrix.group }} --splitting-algorithm least_duration --store-durations --clean-durations
 
       - name: Keep this group's test durations
         uses: actions/upload-artifact@v7
