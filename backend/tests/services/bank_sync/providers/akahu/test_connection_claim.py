@@ -64,7 +64,7 @@ async def test_providers_list_offers_akahu_with_its_two_token_fields_and_steps(c
         "id": "akahu",
         "name": "Akahu",
         "site": "my.akahu.nz",
-        "description": "One Akahu personal app reaches all your New Zealand banks.",
+        "description": "Your Akahu personal app reads the accounts you connect to it.",
         "in_beta": True,
         "credential_fields": [
             {"key": "app_id_token", "label": "App ID token", "placeholder": "Paste the token", "max_length": 512},

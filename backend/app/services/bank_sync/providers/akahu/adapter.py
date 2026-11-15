@@ -145,7 +145,7 @@ class AkahuAdapter(ProviderAdapter):
     provider_name = "Akahu"
     display_order = 30
     provider_site = "my.akahu.nz"
-    provider_description = "One Akahu personal app reaches all your New Zealand banks."
+    provider_description = "Your Akahu personal app reads the accounts you connect to it."
     in_beta = True
     credential_fields = (
         CredentialField(APP_ID_TOKEN_FIELD, "App ID token", "Paste the token", MAX_TOKEN_LENGTH),
