@@ -27,12 +27,14 @@ export function SyncNowIconButton({ link, connection, providers }: SyncNowIconBu
 
   return (
     <DisabledReasonButton
-      // The box hugs the 12px icon, so the focus ring, drawn against it, stays clear of the label. A layer
-      // reaching 6px past it on every side makes the press 24px square. The drawn arrows sit 1.5px inside
-      // the icon, so pulling the box back 1.5px over the row's 4px gap leaves them 4px after the label, as
-      // the chevron after the sync status sits. The label's line centres the box 0.5px below its
-      // capitals, so it rises that much to centre the arrows on them
-      className="group relative -ml-[1.5px] -translate-y-[0.5px] inline-flex size-3 shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--app-text-muted)] transition-control before:absolute before:-inset-1.5 before:content-[''] hover:text-[var(--app-text)] focus-visible:text-[var(--app-text)] focus-visible:outline-offset-0 motion-reduce:transition-none aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--app-text-muted)_50%,transparent)]"
+      // The box hugs the 12px icon, so the focus ring, drawn against it, stays clear of the label. With
+      // nothing but the icon inside, the box's baseline is its bottom, so the row stands it on the label's
+      // baseline. Lowering it by half of what the icon is taller than the capitals then centres the arrows
+      // on them in whatever font the label takes. A layer reaching 6px past the box at either side and 2px
+      // above and below widens the press to 24px but keeps it within the label's line, clear of the sync
+      // status under it. The drawn arrows sit 1.5px inside the icon, so pulling the box back 1.5px over the
+      // row's 4px gap leaves them 4px after the label, as the chevron after the sync status sits
+      className="group relative -ml-[1.5px] inline-flex size-3 shrink-0 translate-y-[calc((0.75rem_-_1cap)/2)] cursor-pointer items-center justify-center rounded-sm text-[var(--app-text-muted)] transition-control before:absolute before:-inset-x-1.5 before:-inset-y-0.5 before:content-[''] hover:text-[var(--app-text)] focus-visible:text-[var(--app-text)] focus-visible:outline-offset-0 motion-reduce:transition-none aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--app-text-muted)_50%,transparent)]"
       aria-label={hint}
       hint={hint}
       disabledReason={block}

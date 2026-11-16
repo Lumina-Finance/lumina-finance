@@ -100,8 +100,11 @@ export function SyncFact({ name, sync, showsDetails = false, onOpen, fades = fal
 
   return (
     <motion.div className="col-span-2 min-w-0" {...fadeProps}>
-      {/* The action's box is pulled in above and below, so it sits beside the name without making the row taller */}
-      <dt className="flex items-center gap-1 text-xs font-medium uppercase" style={{ color: 'var(--app-text-subtle)' }}>
+      {/* The action stands on the name's baseline, so it can line its drawing up with the capitals */}
+      <dt
+        className="flex items-baseline gap-1 text-xs font-medium uppercase"
+        style={{ color: 'var(--app-text-subtle)' }}
+      >
         {name}
         {action}
       </dt>
