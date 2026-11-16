@@ -466,6 +466,8 @@ def _may_coffee(external_id: str, day: int, amount: int) -> ProviderRecord:
         amount=amount,
         raw_amount=f"{amount / 100:.2f}",
         description="POS 4411 COFFEE",
+        note="POS 4411 COFFEE",
+        merchant=None,
         pending=False,
         removed=False,
     )

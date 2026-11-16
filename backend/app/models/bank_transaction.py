@@ -46,6 +46,8 @@ OBSERVATION_COLUMNS = (
     "observed_amount",
     "raw_amount",
     "description",
+    "note",
+    "merchant",
     "observed_at",
 )
 
@@ -125,6 +127,12 @@ class BankTransaction(Base):
     observed_amount: Mapped[int | None] = mapped_column(BigInteger)
     raw_amount: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
+
+    # The provider's own note about the payment and the merchant it names, each null when
+    # it sent none. Shown on the bank's filing card only, so a change to either is stored without
+    # opening a correction
+    note: Mapped[str | None] = mapped_column(Text)
+    merchant: Mapped[str | None] = mapped_column(Text)
     observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # The bank date and amount the ledger row was last aligned with, as the ledger holds them. A

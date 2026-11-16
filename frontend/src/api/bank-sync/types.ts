@@ -604,6 +604,12 @@ export type BankValues = {
   /** The amount exactly as the bank sent it, given only when `amount` is null */
   raw_amount: string | null
   description: string
+
+  /** The provider's own note or memo about the payment, never a merchant's name standing in for one. Null when it sent none */
+  note: string | null
+
+  /** The merchant the provider names, never the bank's text standing in for one. Null when it named none */
+  merchant: string | null
 }
 
 export type BankReviewItemKind = 'new' | 'correction' | 'removal'

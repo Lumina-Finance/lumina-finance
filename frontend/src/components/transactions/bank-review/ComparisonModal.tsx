@@ -14,7 +14,7 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useToast } from '@/hooks/useToast'
 import { ReviewDecisionButton } from '@/components/transactions/bank-review/DecisionButton'
 import { FormError } from '@/components/forms/FormError'
-import { formatBankAmount } from '@/components/transactions/utils/bankReview'
+import { MISSING_BANK_VALUE, formatBankAmount } from '@/components/transactions/utils/bankReview'
 import { formatDateLabel } from '@/utils/date'
 
 // The rows the comparison lists, in the order the transaction modal shows its fields
@@ -86,7 +86,7 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
   const isLocked = resolve.isPending || resolve.isSuccess
 
   const formatValue = (field: CorrectableBankField, values: BankValues | null): string => {
-    if (!values) return '—'
+    if (!values) return MISSING_BANK_VALUE
     if (field === 'date') return formatDateLabel(values.date)
     if (field === 'description') return values.description
 

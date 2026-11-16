@@ -166,6 +166,21 @@ async def test_fetch_reads_amounts_exactly_from_the_json_numbers():
     assert not any(record.pending for record in chequing.records)
 
 
+async def test_fetch_notes_a_transaction_by_the_banks_description_and_names_akahus_merchant():
+    """Akahu's description is the text the bank sent, so it is also the note, and the merchant is the business Akahu matched
+
+    A description of only blanks is no note, and a transaction Akahu matched to no business has no merchant
+    """
+    api = _api_with_one_account(
+        transaction("t1", description="POS COUNTDOWN AUCKLAND", merchant="Countdown"),
+        transaction("t2", description="  ", merchant=None),
+    )
+
+    result = await fetch(akahu_adapter(api.transport), "acc_chq")
+
+    assert [(record.note, record.merchant) for record in result.accounts[0].records] == [("POS COUNTDOWN AUCKLAND", "Countdown"), (None, None)]
+
+
 async def test_fetch_keeps_only_the_raw_amount_when_it_cannot_be_stored_exactly():
     """More decimals than the currency holds, or a currency Lumina has no exponent for, is never rounded into a figure"""
     precise = _api_with_one_account(transaction("t1", "-1.005"), transaction("t2", "-3"))

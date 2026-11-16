@@ -55,10 +55,13 @@ async def _dismiss(client, headers, item_id: uuid.UUID):
 
 
 async def test_dismissing_keeps_only_the_items_identity_and_leaves_the_inbox(client):
-    """HARBOUR COFFEE 0412 leaves the list with its bank values cleared and its identity kept, and the cache mark is the last write"""
+    """HARBOUR COFFEE 0412 from Harbour Roasters leaves the list with its bank values, note and merchant cleared and its identity kept
+
+    The cache mark is the last write
+    """
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
-    item_id = await _commit_review_item(account_id)
+    item_id = await _commit_review_item(account_id, note="HARBOUR COFFEE 0412", merchant="Harbour Roasters")
     before = await _changed_at(client, headers)
 
     with _recorded_statements() as statements:
@@ -75,6 +78,7 @@ async def test_dismissing_keeps_only_the_items_identity_and_leaves_the_inbox(cli
         BankTransactionDisposition.DISMISSED,
     )
     assert {column: getattr(stored, column) for column in OBSERVATION_COLUMNS} == dict.fromkeys(OBSERVATION_COLUMNS)
+    assert (stored.note, stored.merchant) == (None, None)
     assert stored.transaction_id is None
     assert await _review_page(client, headers) == EMPTY_REVIEW_PAGE
     assert await _changed_at(client, headers) != before

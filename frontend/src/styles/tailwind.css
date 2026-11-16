@@ -3491,6 +3491,13 @@
     background-clip: content-box;
   }
 
+  /* One block of the ruled card, such as the bank's note under its label, kept whole: the card's stock
+     covers the rules inside it, and a single rule closes it where the next line's rule would fall */
+  .app-filing-card-section {
+    background-color: var(--app-filing-card);
+    box-shadow: inset 0 -1px 0 var(--app-filing-card-rule);
+  }
+
   .app-modal-panel {
     @apply rounded-2xl;
     background: var(--app-bg);

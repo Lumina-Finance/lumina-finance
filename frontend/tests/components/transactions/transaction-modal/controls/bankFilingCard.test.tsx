@@ -1,9 +1,12 @@
 /**
  * Covers the filing card a new bank item is reviewed against: each field the provider sent, under its
- * label and in order, what the card shows for a value the provider didn't send, an amount its currency
- * can't hold, and what heads the card for an account with no link to name
+ * label and in order, the provider's merchant as a row like the rest and its note set apart closing the
+ * card, each with a dash where it sent none, an amount its currency can't hold, and what heads the card
+ * for an account with no link to name. How the note's section looks is checked in the browser spec
  *
- * These tests catch a field dropped, relabelled or moved, a missing value left blank rather than "—",
+ * These tests catch a field dropped, relabelled or moved, a note pressed into a row, a merchant set
+ * apart from the rows, either left out or shown empty,
+ * the bank's description standing in for either,
  * an amount rounded to its currency, the arrival time told in the browser's timezone rather than the
  * profile's, and a card with no heading for an account whose link isn't known
  */
@@ -36,7 +39,14 @@ const ITEM: BankReviewItem = {
   provider_name: 'SimpleFIN',
   received_at: '2026-09-22T03:04:00Z',
   version: 1,
-  bank: { date: '2026-09-21', amount: -1250, raw_amount: null, description: 'COUNTDOWN 123' },
+  bank: {
+    date: '2026-09-21',
+    amount: -1250,
+    raw_amount: null,
+    description: 'COUNTDOWN 123',
+    note: 'COUNTDOWN 123',
+    merchant: 'Countdown',
+  },
   transaction_id: null,
   current: null,
   changed_fields: [],
@@ -77,32 +87,37 @@ describe('the filing card', () => {
     const markup = renderCard(ITEM)
 
     expect(markup).toContain('aria-label="SimpleFIN filing card"')
-    expect(textOf(markup).slice(0, 6)).toEqual([
-      'SimpleFIN',
-      'Example Bank',
-      'New',
-      'Chequing',
-      'Description from ',
-      'SimpleFIN',
-    ])
+    expect(textOf(markup).slice(0, 5)).toEqual(['SimpleFIN', 'Example Bank', 'New', 'Chequing', 'Merchant'])
   })
 
-  it('gives the description its own heading and lists the amount, date and when it was received', () => {
-    const markup = renderCard(
-      withBank({
-        amount: -4210,
-        description: 'COUNTDOWN 123 AUCKLAND',
-      }),
-    )
+  it("lists the provider's merchant, the amount, the date, when it was received and last the note", () => {
+    const markup = renderCard(withBank({ amount: -4210, note: 'COUNTDOWN 123 AUCKLAND' }))
 
-    expect(markup).toMatch(
-      />Description from <span class="normal-case">SimpleFIN<\/span><\/p><p[^>]*>COUNTDOWN 123 AUCKLAND<\/p>/,
-    )
     expect(fieldsOf(markup)).toEqual([
+      ['Merchant', 'Countdown'],
       ['Amount', `${MINUS}$42.10`],
       ['Date', 'Sep 21, 2026'],
       ['Received', expect.stringMatching(/^Sep 21, 8:04\sp\.m\.$/u)],
+      ['Note', 'COUNTDOWN 123 AUCKLAND'],
     ])
+  })
+
+  it('sets the merchant as a row like the date, and the note apart from the rows', () => {
+    const markup = renderCard(ITEM)
+    const tagsOf = (label: string) => new RegExp(`(<div[^>]*>)<dt[^>]*>${label}</dt>(<dd[^>]*>)`).exec(markup)?.slice(1)
+    const [dateLine, dateValue] = tagsOf('Date') ?? []
+
+    expect(dateLine).toBeDefined()
+    expect(tagsOf('Merchant')).toEqual([dateLine, dateValue])
+    expect(tagsOf('Note')?.[0]).not.toBe(dateLine)
+  })
+
+  it('shows a dash for a merchant or note the provider did not send, never the description in its place', () => {
+    const fields = new Map(fieldsOf(renderCard(withBank({ description: 'Uber Eats', merchant: null, note: null }))))
+
+    expect(fields.get('Merchant')).toBe('—')
+    expect(fields.get('Note')).toBe('—')
+    expect([...fields.values()]).not.toContain('Uber Eats')
   })
 
   it('shows an amount its currency cannot hold exactly as the bank sent it', () => {
@@ -112,12 +127,6 @@ describe('the filing card', () => {
   })
 
   it('is headed by the account in the app when its link is not known', () => {
-    expect(textOf(renderCard(ITEM, false)).slice(0, 5)).toEqual([
-      'SimpleFIN',
-      'Everyday',
-      'New',
-      'Description from ',
-      'SimpleFIN',
-    ])
+    expect(textOf(renderCard(ITEM, false)).slice(0, 4)).toEqual(['SimpleFIN', 'Everyday', 'New', 'Merchant'])
   })
 })

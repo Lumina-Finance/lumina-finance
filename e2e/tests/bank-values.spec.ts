@@ -11,7 +11,7 @@ import { API_BASE_URL } from '../support/target'
 // at every size and the short screen test on the phone. The restore action wraps under its value
 // where the two don't fit on one line, and a phone gives the modal its whole screen
 
-// The edit modal of a bank-imported transaction shows the bank's description and, under each field
+// The edit modal of a bank-imported transaction shows the bank's merchant and note and, under each field
 // the user edited, the bank's value with Restore bank value.
 //
 // Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge. The Bridge has one

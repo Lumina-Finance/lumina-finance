@@ -2,8 +2,8 @@
 
 Amounts are JSON numbers, so a body is read with every decimal number as a Decimal and never passes
 through a float, since a float could change the figure before it is stored. Only the fields sync needs are
-read, so an account holder, an address, an account number, a merchant or any other detail Akahu
-sends is dropped as the body is read
+read, so an account holder, an address, an account number, a merchant's website or any other detail
+Akahu sends is dropped as the body is read
 """
 
 import datetime as dt
@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, is_iso_currency_code
+from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, first_text, is_iso_currency_code
 from app.utils.money import parse_decimal_amount_to_minor_units
 
 # The one status that syncs. Akahu documents ACTIVE and INACTIVE, and an inactive account has lost
@@ -107,11 +107,18 @@ class _AccountList(_Answer):
     items: list[WireAccount]
 
 
+class _Merchant(_Model):
+    name: str | None = None
+
+
 class _WireTransaction(_Model):
     id: str = Field(alias="_id")
     date: dt.datetime
     description: str = ""
     amount: Decimal
+
+    # The business Akahu says was party to the transaction, absent when it matched none
+    merchant: _Merchant | None = None
 
 
 class _Cursor(_Model):
@@ -237,6 +244,8 @@ def read_transaction_page(body: bytes, account: WireAccount, *, exponent: int | 
             amount=_minor_units(item.amount, currency, exponent),
             raw_amount=_plain(item.amount),
             description=item.description,
+            note=first_text(item.description),
+            merchant=first_text(item.merchant.name) if item.merchant else None,
             pending=False,
         )
         for item in answer.items
@@ -287,6 +296,9 @@ def read_pending(
                 amount=_minor_units(item.amount, _currency_of(account), exponent_of(account, currency_exponents)),
                 raw_amount=_plain(item.amount),
                 description=item.description,
+                note=first_text(item.description),
+                # Akahu documents a merchant on booked transactions only
+                merchant=None,
                 pending=True,
             )
         )

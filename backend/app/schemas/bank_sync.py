@@ -638,6 +638,14 @@ class BankValues(BaseModel):
     raw_amount: str | None
     description: str
 
+    # The provider's own note about the payment, never a merchant's name standing in for one. Null
+    # when it sent none
+    note: str | None
+
+    # The merchant the provider names, never the bank's text standing in for one. Null
+    # when it named none
+    merchant: str | None
+
 
 class BankPendingTransactionResponse(BaseModel):
     """A transaction the bank hasn't posted yet, shown for awareness and never in the ledger, review or any total"""

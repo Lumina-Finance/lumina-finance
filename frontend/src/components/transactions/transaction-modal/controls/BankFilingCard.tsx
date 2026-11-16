@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type { BankAccountLink, BankReviewItem } from '@/api/bank-sync'
 import { FILING_TAB_CLASS, FILING_TAB_STYLE } from '@/components/transactions/transaction-modal/controls/filingCardTab'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { REVIEW_KIND_LABELS, getReviewItemAmount } from '@/components/transactions/utils/bankReview'
+import { MISSING_BANK_VALUE, REVIEW_KIND_LABELS, getReviewItemAmount } from '@/components/transactions/utils/bankReview'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
 type BankFilingCardProps = {
@@ -45,6 +45,24 @@ function Field({ label, value, strong = false }: { label: string; value: ReactNo
 }
 
 /**
+ * A field the provider writes in full, closing the card as one section: its label on the first line and
+ * its value below, justified across the card's whole width on as many lines as it needs. No rule runs
+ * between its lines, and one rule closes it
+ */
+function SectionField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="app-filing-card-section">
+      <dt className="text-xs leading-7 uppercase tracking-wider" style={{ color: 'var(--app-filing-card-muted)' }}>
+        {label}
+      </dt>
+      <dd className="break-words text-justify" style={{ color: 'var(--app-text)' }}>
+        {value}
+      </dd>
+    </div>
+  )
+}
+
+/**
  * A bank item waiting for review, typed up as the provider's filing card: exactly what the bank sent,
  * read-only. The form beside it turns it into a ledger entry. It hangs beside the modal on wide
  * screens and heads the form on narrower ones
@@ -62,7 +80,8 @@ export default function BankFilingCard({ item, link, accountName, currency, time
       heading={link?.institution_name ?? accountName}
       kindLabel={REVIEW_KIND_LABELS[item.kind]}
       bankAccountName={link?.external_account_name}
-      description={item.bank.description}
+      merchant={item.bank.merchant}
+      note={item.bank.note}
       amountText={amount.text}
       date={item.bank.date}
       receivedText={formatDate(new Date(item.received_at), DATE_FORMATS.monthDayTime, timeZone)}
@@ -79,14 +98,19 @@ type FilingCardSheetProps = {
   /** What kind of item the card is about, left out by a card for a transaction already in the ledger */
   kindLabel?: string
   bankAccountName: string | undefined
-  description: string
+
+  /** The merchant the provider names, null when it named none */
+  merchant: string | null
+
+  /** The provider's own note or memo about the payment, null when it sent none */
+  note: string | null
   amountText: string
 
   /** The bank's date, as "YYYY-MM-DD" */
   date: string
 
-  /** When the item arrived, left out where the ledger doesn't keep it */
-  receivedText?: string
+  /** When the item arrived */
+  receivedText: string
 
   /** Whether the provider's name stands above the card as its tab, left out where the caller draws the tab itself */
   showTab?: boolean
@@ -104,7 +128,8 @@ export function FilingCardSheet({
   heading,
   kindLabel,
   bankAccountName,
-  description,
+  merchant,
+  note,
   amountText,
   date,
   receivedText,
@@ -146,19 +171,13 @@ export function FilingCardSheet({
         </div>
 
         <div className="app-filing-card-ruled px-5 pb-7">
-          {/* The description is the one field the provider writes in full, so it gets its own heading and
-              as many rules as it needs rather than sharing a line with a label */}
-          <p className="text-xs leading-7 uppercase tracking-wider" style={{ color: 'var(--app-filing-card-muted)' }}>
-            {/* The card's labels are set in capitals, but a provider's name keeps the case it is written in */}
-            Description from <span className="normal-case">{providerName}</span>
-          </p>
-          <p className="break-words font-semibold" style={{ color: 'var(--app-text)' }}>
-            {description}
-          </p>
           <dl>
+            {/* A value the provider didn't send shows a dash, so every card has the same fields */}
+            <Field label="Merchant" value={merchant ?? MISSING_BANK_VALUE} />
             <Field label="Amount" value={<span className="font-financial">{amountText}</span>} strong />
             <Field label="Date" value={formatDateLabel(date)} />
-            {receivedText && <Field label="Received" value={receivedText} />}
+            <Field label="Received" value={receivedText} />
+            <SectionField label="Note" value={note ?? MISSING_BANK_VALUE} />
           </dl>
         </div>
       </div>

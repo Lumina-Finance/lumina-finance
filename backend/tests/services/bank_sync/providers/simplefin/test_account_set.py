@@ -130,11 +130,16 @@ def test_amount_with_more_decimals_than_its_currency_keeps_only_its_text():
     assert record.raw_amount == "-12.345"
 
 
-def test_a_record_keeps_the_banks_description_whatever_payee_and_memo_the_bridge_adds():
-    """The Bridge's undocumented payee, memo and extra fields change nothing about the record"""
+def test_a_record_keeps_the_banks_description_as_its_note_and_no_merchant_whatever_payee_and_memo_the_bridge_adds():
+    """The Bridge's undocumented payee, memo and extra fields change nothing about the record
+
+    The description is also its note, and the protocol defines no merchant
+    """
     record = _records()["TRN-coffee"]
 
     assert record.description == "POS 4411 BLUE BOTTLE SF"
+    assert record.note == "POS 4411 BLUE BOTTLE SF"
+    assert record.merchant is None
     assert record.removed is False
 
 

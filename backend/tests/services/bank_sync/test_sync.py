@@ -184,9 +184,12 @@ def _record(
     description: str = "POS 4411 COFFEE",
     **values,
 ) -> ProviderRecord:
-    """Return a booked record as the provider sends it, a $4.50 coffee on 2 October unless told otherwise"""
+    """Return a booked record as the provider sends it, a $4.50 coffee on 2 October with its description as its note
+
+    It names no merchant, unless told otherwise
+    """
     _KNOWN_BANK_IDS.add(external_id)
-    fields = {"pending": False} | values
+    fields = {"pending": False, "note": description, "merchant": None} | values
     return ProviderRecord(external_id=external_id, date=day, amount=amount, raw_amount=raw_amount, description=description, **fields)
 
 
@@ -2801,12 +2804,20 @@ async def test_job_attempt_that_lost_its_lease_while_listing_stores_nothing(conn
 async def test_job_puts_each_new_booked_record_in_the_review_inbox(connection, provider, frozen_now):
     """A daily sync brings three new booked records into Everyday
 
-    All three wait for review with the bank's values, and none reaches the ledger, since nothing can
-    fill in a merchant and category yet
+    All three wait for review with the bank's values, its note and merchant included where it sent
+    them, and none reaches the ledger, since nothing can fill in a merchant and category yet
     """
     link = await _link(connection, "ACT-everyday", **_synced_through_yesterday())
-    salary = _record("TRN-salary", date(2026, 10, 1), amount=2_650_00, raw_amount="2650.00", description="DIRECT CREDIT BRIGHTWORKS SALARY")
-    fuel = _record("TRN-fuel", _TODAY, amount=-72_10, raw_amount="-72.10", description="NORTHERN FUEL STOP")
+    salary = _record(
+        "TRN-salary",
+        date(2026, 10, 1),
+        amount=2_650_00,
+        raw_amount="2650.00",
+        description="Brightworks",
+        note="SALARY OCTOBER",
+        merchant="Brightworks Ltd",
+    )
+    fuel = _record("TRN-fuel", _TODAY, amount=-72_10, raw_amount="-72.10", description="NORTHERN FUEL STOP", note=None)
     coffee = _record("TRN-coffee")
     provider.outcomes = [_returned_with({"ACT-everyday": [salary, fuel, coffee]})]
     await _seed_job(connection, BankSyncJobKind.SCHEDULED)
@@ -2821,6 +2832,8 @@ async def test_job_puts_each_new_booked_record_in_the_review_inbox(connection, p
         BankTransaction.observed_date,
         BankTransaction.observed_amount,
         BankTransaction.description,
+        BankTransaction.note,
+        BankTransaction.merchant,
         BankTransaction.observed_at,
     ) == [
         (
@@ -2830,10 +2843,12 @@ async def test_job_puts_each_new_booked_record_in_the_review_inbox(connection, p
             date(2026, 10, 2),
             -4_50,
             "POS 4411 COFFEE",
+            "POS 4411 COFFEE",
+            None,
             frozen_now,
         ),
-        (link.account_id, "TRN-fuel", awaiting, _TODAY, -72_10, "NORTHERN FUEL STOP", frozen_now),
-        (link.account_id, "TRN-salary", awaiting, date(2026, 10, 1), 2_650_00, "DIRECT CREDIT BRIGHTWORKS SALARY", frozen_now),
+        (link.account_id, "TRN-fuel", awaiting, _TODAY, -72_10, "NORTHERN FUEL STOP", None, None, frozen_now),
+        (link.account_id, "TRN-salary", awaiting, date(2026, 10, 1), 2_650_00, "Brightworks", "SALARY OCTOBER", "Brightworks Ltd", frozen_now),
     ]
     async with TestSession() as session:
         assert (await session.scalars(select(Transaction.id))).all() == []
@@ -2902,6 +2917,32 @@ async def test_job_refreshes_an_item_still_waiting_in_place(connection, provider
     assert await _bank_transactions(
         BankTransaction.id, BankTransaction.disposition, BankTransaction.description, BankTransaction.version, BankTransaction.observed_at
     ) == [(item_id, BankTransactionDisposition.AWAITING_REVIEW, "BLUE BOTTLE COFFEE", 2, frozen_now)]
+
+
+async def test_job_refreshes_a_waiting_items_note_and_merchant_when_only_they_change(connection, provider, frozen_now):
+    """An item waiting with the note POS 4411 COFFEE and no merchant comes back noted BLUE BOTTLE SF from Blue Bottle, all else the same
+
+    The same item keeps waiting with the new note and merchant, so its filing card shows what the bank sends now
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    item_id = await _store_bank_transaction(
+        link,
+        "TRN-coffee",
+        observed_date=date(2026, 10, 2),
+        observed_amount=-4_50,
+        description="POS 4411 COFFEE",
+        note="POS 4411 COFFEE",
+        merchant=None,
+        observed_at=frozen_now - timedelta(days=1),
+    )
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", note="BLUE BOTTLE SF", merchant="Blue Bottle")]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _bank_transactions(
+        BankTransaction.id, BankTransaction.disposition, BankTransaction.description, BankTransaction.note, BankTransaction.merchant
+    ) == [(item_id, BankTransactionDisposition.AWAITING_REVIEW, "POS 4411 COFFEE", "BLUE BOTTLE SF", "Blue Bottle")]
 
 
 async def test_job_leaves_a_dismissed_item_dismissed_when_the_bank_sends_it_changed(connection, provider):
@@ -4081,6 +4122,27 @@ async def test_job_proposes_a_new_bank_description_on_its_own(connection, provid
     assert await _bank_transactions(BankTransaction.id, *_CORRECTION, BankTransaction.description) == [
         (item_id, OpenReviewKind.CORRECTION, {"description": "POS 4411 COFFEE"}, "BLUE BOTTLE COFFEE")
     ]
+    assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
+
+
+async def test_job_keeps_a_new_bank_note_and_merchant_without_opening_a_correction(connection, provider, caplog):
+    """The bank re-sends the coffee the user added with a note and a merchant it had none of, and changes nothing else
+
+    Both show only on the bank's filing card, so they are kept and nothing waits for review. They
+    describe the user's own spending, so no log line carries either
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    item_id = await _accept_coffee(link, note=None)
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", note="Team coffee", merchant="Harbour Roasters")]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    with caplog.at_level(logging.DEBUG, logger="app"):
+        await _run_jobs_until_none_is_due()
+
+    assert "Team coffee" not in caplog.text
+    assert "Harbour Roasters" not in caplog.text
+    columns = (BankTransaction.id, *_CORRECTION, BankTransaction.note, BankTransaction.merchant)
+    assert await _bank_transactions(*columns) == [(item_id, None, None, "Team coffee", "Harbour Roasters")]
     assert await _ledger_rows(link.account_id) == [(_COFFEE_DAY, -4_50)]
 
 

@@ -5,6 +5,7 @@ arrive from Pluggy, rather than as a float a test's own encoder had already chan
 """
 
 import asyncio
+import json
 from collections.abc import Callable
 from datetime import datetime
 from typing import Self
@@ -98,13 +99,19 @@ def transaction(
     status: str = "POSTED",
     currency: str = "BRL",
     in_account_currency: str | None = None,
+    merchant: str | None = "Padaria Sol",
 ) -> str:
-    """Return one transaction as GET /v2/transactions sends it, the amount written as given"""
+    """Return one transaction as GET /v2/transactions sends it, the amount written as given, with no merchant when it is None"""
     converted = "" if in_account_currency is None else f'"amountInAccountCurrency": {in_account_currency}, '
+    matched = (
+        ""
+        if merchant is None
+        else f'"merchant": {{"name": {json.dumps(merchant)}, "businessName": "PADARIA SOL LTDA", "cnpj": "12.345.678/0001-95"}}, '
+    )
     return (
         f'{{"id": "{transaction_id}", "description": "{description}", "descriptionRaw": "{description} SAO PAULO", '
         f'"currencyCode": "{currency}", "amount": {amount}, {converted}"date": "{date}", "category": "Food", '
-        f'"status": "{status}", "type": "DEBIT", "merchant": {{"name": "Padaria Sol", "cnpj": "12.345.678/0001-95"}}, '
+        f'"status": "{status}", "type": "DEBIT", {matched}'
         '"paymentData": {"payer": {"documentNumber": {"value": "123.456.789-09"}}}}'
     )
 

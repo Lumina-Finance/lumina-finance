@@ -138,7 +138,9 @@ def transaction(
     value_date: str | None = None,
     transaction_date: str | None = None,
     remittance: str = "PADARIA SOL",
+    note: str | None = None,
     currency: str = "EUR",
+    debtor: str | None = None,
 ) -> str:
     """Return one transaction as GET /accounts/{uid}/transactions sends it, the amount written as given"""
 
@@ -146,12 +148,13 @@ def transaction(
         """Write a nullable string as JSON"""
         return "null" if value is None else json.dumps(value)
 
+    payer = "null" if debtor is None else json.dumps({"name": debtor})
     return (
         f'{{"entry_reference": {text(entry_reference)}, "transaction_id": {text(transaction_id)}, '
         f'"transaction_amount": {{"amount": "{amount}", "currency": "{currency}"}}, "credit_debit_indicator": "{indicator}", '
         f'"status": "{status}", "booking_date": {text(booking_date)}, "value_date": {text(value_date)}, '
         f'"transaction_date": {text(transaction_date)}, "remittance_information": [{json.dumps(remittance)}], '
-        '"creditor": {"name": "Padaria Sol"}, "debtor": null, "bank_transaction_code": {"code": "PMNT"}}'
+        f'"creditor": {{"name": "Padaria Sol"}}, "debtor": {payer}, "bank_transaction_code": {{"code": "PMNT"}}, "note": {text(note)}}}'
     )
 
 

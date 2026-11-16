@@ -1,6 +1,6 @@
 /**
  * Guards what the transaction modal shows of a bank-imported transaction: the provider and the bank's
- * description, read-only, and under an edited field the bank's value with an action to restore it.
+ * merchant and note, read-only with a dash for one the bank didn't send, and under an edited field the bank's value with an action to restore it.
  * The action says when it is restoring and names the value it restores, or shows greyed out with its
  * reason for a value the ledger can't store, and under it a restore that failed. Which fields are
  * edited is covered with the captions' values. Where each caption sits, when the action is turned off,
@@ -14,7 +14,9 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({ formatMovedCurrency: (amount: number) => `CA$${(amount / 100).toFixed(2)}` }),
 }))
 
-import TransactionBankSourcePanel from '@/components/transactions/transaction-modal/controls/BankSourcePanel'
+import TransactionBankSourcePanel, {
+  TransactionBankSourceCard,
+} from '@/components/transactions/transaction-modal/controls/BankSourcePanel'
 import TransactionBankValueCaption from '@/components/transactions/transaction-modal/controls/BankValueCaption'
 
 const MINUS = String.fromCodePoint(0x2212)
@@ -48,11 +50,22 @@ function restoreButton(markup: string): { tag: string; name: string; inner: stri
 }
 
 describe('bank source panel', () => {
-  const panel = (defaultOpen: boolean) =>
+  const panel = (
+    defaultOpen: boolean,
+    note: string | null = 'HARBOUR CAFE #12 VANCOUVER',
+    merchant: string | null = 'Harbour Cafe Ltd',
+  ) =>
     renderToStaticMarkup(
       <TransactionBankSourcePanel
         providerName="SimpleFIN"
-        bankValues={{ date: '2026-10-04', amount: -1250, raw_amount: null, description: 'HARBOUR CAFE #12 VANCOUVER' }}
+        bankValues={{
+          date: '2026-10-04',
+          amount: -1250,
+          raw_amount: null,
+          description: 'Harbour Cafe',
+          note,
+          merchant,
+        }}
         receivedAt="2026-10-05T06:30:00Z"
         timeZone="America/Vancouver"
         heading="Harbour Bank"
@@ -78,12 +91,21 @@ describe('bank source panel', () => {
     expect(markup).toContain('SimpleFIN filing card')
     expect(markup).toContain('Harbour Bank')
     expect(markup).toContain('Everyday Chequing')
-    expect(markup).toMatch(/HARBOUR CAFE #12 VANCOUVER/)
-    expect(markup).toContain('Description from <span class="normal-case">SimpleFIN</span>')
+    expect(markup).toMatch(/Merchant<\/dt><dd[^>]*>Harbour Cafe Ltd<\/dd>/)
+    expect(markup).toMatch(/Note<\/dt><dd[^>]*>HARBOUR CAFE #12 VANCOUVER<\/dd>/)
 
     // Told in the user's timezone, so 6:30 in the morning of the 5th in UTC is 11:30 at night on the 4th in Vancouver
     expect(markup).toMatch(/Received<\/dt><dd[^>]*>Oct 4,? .*11:30/)
     expect(markup).not.toMatch(/<(input|textarea)\b/)
+  })
+
+  it('opens to a card with a dash for the merchant and note when the bank sent neither', () => {
+    const markup = panel(true, null, null)
+
+    expect(markup).toContain('SimpleFIN filing card')
+    expect(markup).toMatch(/Merchant<\/dt><dd[^>]*>—<\/dd>/)
+    expect(markup).toMatch(/Note<\/dt><dd[^>]*>—<\/dd>/)
+    expect(markup).not.toContain('Harbour Cafe')
   })
 
   it("is the filing card shrunk to its top edge when closed, in the card tab's own colour and type", () => {
@@ -112,6 +134,33 @@ describe('bank source panel', () => {
     expect(markup).not.toContain('app-card')
     expect(markup.match(/class="app-filing-card /g)).toHaveLength(1)
     expect(markup.match(/<span class="inline-block[^>]*>SimpleFIN</g) ?? []).toHaveLength(0)
+  })
+})
+
+describe('bank source card', () => {
+  it("shows the bank's merchant and note beside a transaction in the ledger, never its description", () => {
+    const markup = renderToStaticMarkup(
+      <TransactionBankSourceCard
+        providerName="SimpleFIN"
+        bankValues={{
+          date: '2026-10-04',
+          amount: -1250,
+          raw_amount: null,
+          description: 'Harbour Cafe',
+          note: 'HARBOUR CAFE #12 VANCOUVER',
+          merchant: 'Harbour Cafe Ltd',
+        }}
+        receivedAt="2026-10-05T06:30:00Z"
+        timeZone="America/Vancouver"
+        heading="Harbour Bank"
+        bankAccountName="Everyday Chequing"
+        currency="CAD"
+      />,
+    )
+
+    expect(markup).toMatch(/Merchant<\/dt><dd[^>]*>Harbour Cafe Ltd<\/dd>/)
+    expect(markup).toMatch(/Note<\/dt><dd[^>]*>HARBOUR CAFE #12 VANCOUVER<\/dd>/)
+    expect(markup).not.toMatch(/>Harbour Cafe</)
   })
 })
 

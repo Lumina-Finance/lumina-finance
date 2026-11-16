@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, is_iso_currency_code
+from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, first_text, is_iso_currency_code
 from app.utils.money import parse_decimal_amount_to_minor_units
 
 # SimpleFIN has no paging, and a response is reported to stop at 1,000 transactions, so one that
@@ -199,6 +199,10 @@ def _read_record(
         amount=_minor_units(transaction.amount, currency, exponent),
         raw_amount=transaction.amount,
         description=transaction.description,
+        # The protocol's one free text about a transaction, so it is both its name and its note. The
+        # protocol defines no merchant field
+        note=first_text(transaction.description),
+        merchant=None,
         pending=pending,
     )
 

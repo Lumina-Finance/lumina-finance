@@ -26,6 +26,8 @@ def read_bank_values(record: BankTransaction) -> BankValues:
         amount=record.observed_amount,
         raw_amount=record.raw_amount,
         description=record.description,
+        note=record.note,
+        merchant=record.merchant,
     )
 
 

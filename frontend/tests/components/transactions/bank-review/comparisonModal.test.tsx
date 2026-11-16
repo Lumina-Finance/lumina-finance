@@ -67,6 +67,8 @@ const LEDGER: BankValues = {
   amount: -4210,
   raw_amount: null,
   description: 'COUNTDOWN 123 AUCKLAND',
+  note: 'COUNTDOWN 123 AUCKLAND',
+  merchant: null,
 }
 const COUNTDOWN = createReviewItem('countdown', 'correction', 'everyday', {
   current: LEDGER,

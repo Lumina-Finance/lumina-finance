@@ -2,8 +2,8 @@
 
 Amounts are JSON numbers, so a body is read with every decimal number as a Decimal and never passes
 through a float, since a float could change the figure before it is stored. Only the fields sync needs are
-read, so an account number, a credit limit, a merchant, a payment method or any other detail Pluggy
-sends is dropped as the body is read
+read, so an account number, a credit limit, a merchant's legal name, a payment method or any other
+detail Pluggy sends is dropped as the body is read
 """
 
 import datetime as dt
@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, is_iso_currency_code
+from app.services.bank_sync.providers.contract import ExternalAccount, ProviderRecord, first_text, is_iso_currency_code
 from app.utils.money import parse_decimal_amount_to_minor_units
 
 # Item statuses whose data can be read. UPDATING and MERGING are a refresh in progress, and the
@@ -191,6 +191,10 @@ class _AccountPage(_Model):
     results: list[Any] = Field(default_factory=list)
 
 
+class _Merchant(_Model):
+    name: str | None = None
+
+
 class _WireTransaction(_Model):
     id: str
     date: dt.datetime
@@ -199,6 +203,10 @@ class _WireTransaction(_Model):
     currencyCode: str | None = None
     status: str = "POSTED"
     description: str | None = None
+
+    # The merchant Pluggy matched, absent from most transactions. Its name is the one people know,
+    # where its businessName is the registered company
+    merchant: _Merchant | None = None
 
 
 class _TransactionList(_Model):
@@ -351,6 +359,8 @@ def read_transaction_page(
                 amount=_minor_units(read, currency, exponent) if read is not None else None,
                 raw_amount=_plain(shown),
                 description=item.description or "",
+                note=first_text(item.description),
+                merchant=first_text(item.merchant.name) if item.merchant else None,
                 pending=is_pending,
             )
         )

@@ -98,6 +98,8 @@ export const BANK_SOURCE: TransactionBankSource = {
     amount: -4250,
     raw_amount: null,
     description: 'GROCER 123',
+    note: 'GROCER 123',
+    merchant: null,
   },
   received_at: '2026-07-12T14:30:00Z',
   edited_fields: [],

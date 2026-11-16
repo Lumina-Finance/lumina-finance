@@ -31,7 +31,14 @@ const formatMoved = (amount: number, currency: string) => formatMovedCurrency(am
 
 /** Builds an item of the given kind on Everyday, for $12.50 out on Sep 21, 2026 */
 function createReviewItem(kind: BankReviewItemKind, overrides: Partial<BankReviewItem> = {}): BankReviewItem {
-  const bank = { date: '2026-09-21', amount: -1250, raw_amount: null, description: 'COUNTDOWN 123' }
+  const bank = {
+    date: '2026-09-21',
+    amount: -1250,
+    raw_amount: null,
+    description: 'COUNTDOWN 123',
+    note: 'COUNTDOWN 123',
+    merchant: null,
+  }
   return {
     id: `item-${kind}`,
     kind,
