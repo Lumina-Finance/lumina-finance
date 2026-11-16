@@ -7,7 +7,7 @@
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { BankMarker } from '@/components/transactions/BankMarker'
+import { BankMarker, type TransactionRowBankMarker } from '@/components/transactions/BankMarker'
 import { TransactionRowView, type TransactionRowMetadata } from '@/components/transactions/Row'
 
 // The row renders a layout for each breakpoint and shows only one, so each marker appears this often
@@ -22,7 +22,7 @@ const TRANSACTION: TransactionRowMetadata = {
   counterparty_account_scope: null,
 }
 
-function renderRow(bankMarker?: Parameters<typeof BankMarker>[0]) {
+function renderRow(bankMarker?: TransactionRowBankMarker) {
   return renderToStaticMarkup(
     <TransactionRowView
       category={undefined}
@@ -111,7 +111,7 @@ describe('bank marker', () => {
   })
 
   it('keeps a press on the marker from reaching the row', () => {
-    const marker = BankMarker({ providerName: 'SimpleFIN', isEdited: false, needsReview: true })
+    const marker = BankMarker({ providerName: 'SimpleFIN', isEdited: false, needsReview: true, placement: 'title' })
     const stopPropagation = vi.fn()
 
     marker.props.onClick({ stopPropagation })
@@ -120,7 +120,9 @@ describe('bank marker', () => {
   })
 
   it('lays the Needs review hover tint as a fading layer, since a background image cannot ease', () => {
-    const markup = renderToStaticMarkup(BankMarker({ providerName: 'SimpleFIN', isEdited: false, needsReview: true }))
+    const markup = renderToStaticMarkup(
+      BankMarker({ providerName: 'SimpleFIN', isEdited: false, needsReview: true, placement: 'title' }),
+    )
     const tag = markup.match(/<button[^>]*aria-label="Needs review[^>]*>/)?.[0]
 
     expect(tag).not.toContain('bg-[image:')

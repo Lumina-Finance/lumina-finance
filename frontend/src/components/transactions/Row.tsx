@@ -396,7 +396,10 @@ export function TransactionRowView({
     { onClick: handleClick },
   )
   const isHeldOff = disabledReason?.isUnavailable === true
-  const marker = bankMarker ? <BankMarker {...bankMarker} /> : null
+  // After the title from 750px wide, and with the note and tag icons on a phone, where the title line has
+  // no room to spare
+  const markerFor = (placement: 'title' | 'icons') =>
+    bankMarker ? <BankMarker {...bankMarker} placement={placement} /> : null
 
   // The row clips its content only while the height animates, so the grow and collapse read cleanly
   // while the resting row still lets a tag tooltip overflow past its edges
@@ -642,12 +645,13 @@ export function TransactionRowView({
               <span id={categoryId('wide')} className="block truncate font-medium">
                 {categoryName}
               </span>
+              {/* Set on the baseline, so the bank icon can centre on the title's capitals from it */}
               <span
-                className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm"
+                className="mt-0.5 flex min-w-0 items-baseline gap-1 text-sm"
                 style={{ color: 'var(--app-text-muted)' }}
               >
                 {renderTitleButton('wide')}
-                {marker}
+                {markerFor('title')}
               </span>
             </span>
 
@@ -760,9 +764,8 @@ export function TransactionRowView({
             {categoryIcon}
           </span>
 
-          <span className="col-start-2 row-start-1 flex min-w-0 items-center gap-1.5 text-[0.9375rem] font-medium leading-5">
+          <span className="col-start-2 row-start-1 flex min-w-0 items-center text-[0.9375rem] font-medium leading-5">
             {renderTitleButton('narrow')}
-            {marker}
           </span>
 
           <span
@@ -789,7 +792,7 @@ export function TransactionRowView({
             </span>
           )}
 
-          {(hasAccountMeta || hasSupplementalMeta) && (
+          {(hasAccountMeta || hasSupplementalMeta || bankMarker) && (
             <span
               className="col-start-2 col-span-2 row-start-3 flex min-w-0 items-start gap-2 text-sm leading-[1.125rem]"
               style={{ color: 'var(--app-text-muted)' }}
@@ -807,14 +810,20 @@ export function TransactionRowView({
                 )}
                 {readOnlyReason && <ReadOnlyReasonPill id={readOnlyId('narrow')} reason={readOnlyReason} />}
               </span>
-              {hasSupplementalMeta && (
-                <NoteAndTagIcons
-                  ids={phoneIconIds}
-                  hasNotes={hasNotes}
-                  tagCount={tags.length}
-                  refundLink={refundLink}
-                  className="shrink-0 pt-0.5"
-                />
+              {/* As tall as the line's text, so the icons centre on the first line however many the account
+                  column holds, and the bank marker's Needs review pill fits it exactly */}
+              {(hasSupplementalMeta || bankMarker) && (
+                <span className="inline-flex h-[1.125rem] shrink-0 items-center gap-2">
+                  {hasSupplementalMeta && (
+                    <NoteAndTagIcons
+                      ids={phoneIconIds}
+                      hasNotes={hasNotes}
+                      tagCount={tags.length}
+                      refundLink={refundLink}
+                    />
+                  )}
+                  {markerFor('icons')}
+                </span>
               )}
             </span>
           )}
