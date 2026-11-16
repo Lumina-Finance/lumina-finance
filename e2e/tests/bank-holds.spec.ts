@@ -6,11 +6,10 @@ import { linkToEmptyBankAccount, reviewBlock, waitForReviewItems, WORKER_RESULT_
 import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only: what the strip lists, how it opens and when a hold is dismissed are the same at every width
+// Runs on desktop only: what the strip lists and how it opens are the same at every width
 
 // A booked bank record of exactly zero can't be approved or put in the ledger, so it shows in a
-// read-only Holds strip under the review block instead of the review block, with a two-press Dismiss
-// that stops the same record coming back.
+// read-only Holds strip under the review block instead of the review block, for awareness only.
 //
 // Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge. The fake sends a
 // $12.50 coffee and a $0.00 card check, and the worker imports them.
@@ -21,7 +20,7 @@ const COFFEE = 'HARBOUR COFFEE'
 type Hold = { id: string; description: string }
 
 /** Signs up with Everyday linked to a bank account that sends a coffee and a $0.00 card check, once both have been read */
-async function start(page: Page, request: APIRequestContext): Promise<TestUser> {
+async function start(page: Page, request: APIRequestContext): Promise<void> {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   await linkToEmptyBankAccount(request, user, {
@@ -35,7 +34,6 @@ async function start(page: Page, request: APIRequestContext): Promise<TestUser> 
   await waitForReviewItems(request, user, everyday.id, (items) => items.length === 1)
   await expect.poll(async () => (await readHolds(request, user)).length, { timeout: WORKER_RESULT_TIMEOUT_MS }).toBe(1)
   await logInViaApi(page, user)
-  return user
 }
 
 /** The holds the server lists for the user's accounts */
@@ -64,26 +62,4 @@ test('lists a $0 record as a hold, closed to start, and keeps it out of review',
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
   await expect(holdsStrip(page).getByText(CHECK)).toBeVisible()
-})
-
-test('dismisses a hold on the second press and it stays gone after a reload', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await start(page, request)
-  await openPage(page, '/transactions')
-  await holdsStrip(page).getByRole('button', { name: /1 hold/ }).click()
-  const dismiss = holdsStrip(page).getByTestId('bank-hold-dismiss')
-
-  // The first press only asks, and a press elsewhere takes it back
-  await dismiss.click()
-  await expect(dismiss).toHaveAccessibleName('Yes, dismiss')
-  await page.getByRole('heading', { name: 'Transactions' }).first().click()
-  await expect(dismiss).toHaveAccessibleName('Dismiss')
-
-  // The second of two presses dismisses it, and the strip leaves with its last hold
-  await dismiss.click()
-  await dismiss.click()
-  await expect(holdsStrip(page)).toHaveCount(0)
-  expect(await readHolds(request, user)).toEqual([])
-
-  await openPage(page, '/transactions')
-  await expect(holdsStrip(page)).toHaveCount(0)
 })

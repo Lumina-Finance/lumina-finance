@@ -58,7 +58,6 @@ export {
   useDiscoveredBankAccounts,
   useFinishBankAuthorization,
   useBankHolds,
-  useDismissBankHold,
   useDismissCutOffDay,
   useDismissHistoryReminder,
   useImportBankRange,

@@ -2,7 +2,6 @@ import { useId } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ChevronDown, CircleSlash } from 'lucide-react'
 import type { BankHold } from '@/api/bank-sync'
-import { ReviewDecisionButton } from '@/components/transactions/bank-review/DecisionButton'
 import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import type { ReviewItemAccount } from '@/components/transactions/bank-review/ReviewBlock'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
@@ -22,19 +21,14 @@ type BankHoldsStripProps = {
   today: string
   open: boolean
   onToggleOpen: () => void
-
-  /** The hold being dismissed now. Its button shows its spinner */
-  dismissingId: string | null
-  onDismiss: (holdId: string) => void
   prefersReducedMotion: boolean | null
 }
 
 /**
- * The bank's records of no amount, closed until opened, with a Dismiss for each
+ * The bank's records of no amount, closed until opened
  *
  * A zero amount can't be approved or put in the ledger, so these are kept apart from the review
- * block, for awareness only. A row opens nothing. Dismissing takes two presses and stops the same
- * record coming back, and a record the bank drops leaves on its own
+ * block, for awareness only. A row offers nothing to do, and a record the bank drops leaves on its own
  */
 export function BankHoldsStrip({
   holds,
@@ -43,8 +37,6 @@ export function BankHoldsStrip({
   today,
   open,
   onToggleOpen,
-  dismissingId,
-  onDismiss,
   prefersReducedMotion,
 }: BankHoldsStripProps) {
   const listId = useId()
@@ -108,31 +100,13 @@ export function BankHoldsStrip({
                       transition={enterTransition}
                     >
                       {/* The divider sits on the content rather than the row, so it stops short of the card's edges */}
-                      <div
-                        className="flex items-center gap-3 py-2.5"
-                        style={{ borderTop: '1px dashed var(--app-border-strong)' }}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="break-words text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
-                            {hold.description}
-                          </p>
-                          <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                            <DetailPhrases phrases={details} />
-                          </p>
-                        </div>
-                        <ReviewDecisionButton
-                          label="Dismiss"
-                          tone="danger"
-                          loading={dismissingId === hold.id}
-                          disabled={dismissingId !== null}
-                          onClick={() => onDismiss(hold.id)}
-                          confirm={{
-                            label: 'Yes, dismiss',
-                            announcement: 'Please press again to dismiss this hold for good.',
-                          }}
-                          testId="bank-hold-dismiss"
-                          fullWidthOnPhone={false}
-                        />
+                      <div className="py-2.5" style={{ borderTop: '1px dashed var(--app-border-strong)' }}>
+                        <p className="break-words text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
+                          {hold.description}
+                        </p>
+                        <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                          <DetailPhrases phrases={details} />
+                        </p>
                       </div>
                     </motion.li>
                   )

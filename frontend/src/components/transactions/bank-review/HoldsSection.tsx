@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useBankHolds, useDismissBankHold } from '@/api/bank-sync'
+import { useBankHolds } from '@/api/bank-sync'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
 import { BankHoldsStrip } from '@/components/transactions/bank-review/HoldsStrip'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
@@ -32,7 +32,6 @@ export const BankHoldsSection = memo(function BankHoldsSection({
   const today = useTodayYmd()
   const { accountIds, isInScope, accountById, accountFor } = useBankItemScope(listAccountIds)
   const { data } = useBankHolds(accountIds, isInScope)
-  const dismiss = useDismissBankHold()
   const holds = useMemo(() => (data ?? []).filter((hold) => accountById.has(hold.account_id)), [data, accountById])
 
   // A strip that leaves, once no hold is left, comes back closed as it first showed
@@ -60,8 +59,6 @@ export const BankHoldsSection = memo(function BankHoldsSection({
               today={today}
               open={open}
               onToggleOpen={() => setOpen(!open)}
-              dismissingId={dismiss.isPending ? (dismiss.variables ?? null) : null}
-              onDismiss={(holdId) => dismiss.mutate(holdId)}
               prefersReducedMotion={prefersReducedMotion}
             />
           </div>
