@@ -14,10 +14,12 @@ import {
   WORKER_RESULT_TIMEOUT_MS,
   type SeededConnection,
 } from '../support/bankSync'
-import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
+import { ICON_ALIGNMENT_TOLERANCE_PX, ICON_GAP_PX, measureIconBesideText } from '../support/iconBesideText'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only: what a sync asks of the bank and how its wording ages are the same at every size
+// Runs on desktop only: what a sync asks of the bank and how its wording ages are the same at every size.
+// Where the icon beside the Bank sync label sits runs at every size, since the label's font and line differ
 
 // Sync now on a linked account, as the Bank link section's button and as the icon beside the account
 // card's Bank sync label, run by the worker against the fake SimpleFIN Bridge. What disables the
@@ -116,7 +118,7 @@ test('syncs from the icon beside the Bank sync label, saying what it does under 
   expect((await readConnection(request, user, connection.id))!.request_budget.used).toBe(usedBefore + 1)
 })
 
-test('keeps the icon beside the Bank sync label to its own line, centred on the capitals', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('keeps the icon beside the Bank sync label to its own line, centred on the capitals', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING, balances: { balance: '0.00' } })
@@ -125,41 +127,29 @@ test('keeps the icon beside the Bank sync label to its own line, centred on the 
   const status = page.getByRole('button', { name: /^Bank sync: Synced/ })
   await expect(status).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
 
-  const { pressBottom, statusTop, arrowsCentre, capitalsCentre } = await page
-    .getByRole('button', { name: 'Sync now', exact: true })
-    .evaluate((icon) => {
-      const label = icon.parentElement!
-      const box = icon.getBoundingClientRect()
-      // The press reaches past the icon through its ::before layer, whose bottom inset is negative
-      const pressBottom = box.bottom - parseFloat(getComputedStyle(icon, '::before').bottom)
-      const statusTop = label.nextElementSibling!.querySelector('button')!.getBoundingClientRect().top
-
-      // The capitals span the font's cap height up from the baseline of the label's line. A line set the
-      // same way finds that baseline: a block of that height standing on it covers the capitals. Glyph
-      // sizes a canvas measures are whole pixels in a headless browser, too coarse for this
-      const line = document.createElement('div')
-      line.style.cssText = `position: absolute; visibility: hidden; font: ${getComputedStyle(label).font}`
-      const capitals = document.createElement('span')
-      capitals.style.cssText = 'display: inline-block; height: 1cap'
-      line.append(capitals)
-      document.body.append(line)
-      const capitalsBox = capitals.getBoundingClientRect()
-      const capitalsFromTop = capitalsBox.top + capitalsBox.height / 2 - line.getBoundingClientRect().top
-      line.remove()
-
-      // The arrows are drawn symmetrically inside the icon's square
-      const svg = icon.querySelector('svg')!.getBoundingClientRect()
-      return {
-        pressBottom,
-        statusTop,
-        arrowsCentre: svg.top + svg.height / 2,
-        capitalsCentre: label.getBoundingClientRect().top + capitalsFromTop,
-      }
-    })
+  const icon = page.getByRole('button', { name: 'Sync now', exact: true })
+  const { pressBottom, statusTop, lowestPressHitsIcon, statusEdgeHitsStatus } = await icon.evaluate((button) => {
+    const box = button.getBoundingClientRect()
+    const statusButton = button.parentElement!.nextElementSibling!.querySelector('button')!
+    const statusBox = statusButton.getBoundingClientRect()
+    // The press reaches past the icon through its ::before layer, whose bottom inset is negative
+    const bottom = box.bottom - parseFloat(getComputedStyle(button, '::before').bottom)
+    const hitAt = (x: number, y: number) => document.elementFromPoint(x, y)?.closest('button')
+    return {
+      pressBottom: bottom,
+      statusTop: statusBox.top,
+      lowestPressHitsIcon: hitAt(box.left + box.width / 2, bottom - 0.5) === button,
+      statusEdgeHitsStatus: hitAt(Math.min(box.left + box.width / 2, statusBox.right - 1), statusBox.top + 0.5) === statusButton,
+    }
+  })
+  const { offCentre, gap } = await measureIconBesideText(icon, page.locator('dt').filter({ has: icon }))
 
   // A press just under the icon starts a sync rather than opening the bank link, and the status keeps its whole area
-  expect(Math.abs(arrowsCentre - capitalsCentre)).toBeLessThanOrEqual(0.1)
+  expect(Math.abs(offCentre)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
+  expect(Math.abs(gap - ICON_GAP_PX)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
   expect(pressBottom).toBeLessThanOrEqual(statusTop)
+  expect(lowestPressHitsIcon).toBe(true)
+  expect(statusEdgeHitsStatus).toBe(true)
 })
 
 test("greys the icon beside the Bank sync label once the connection's requests are spent, saying why", NEEDS_BANK_SYNC, async ({ page, request }) => {
