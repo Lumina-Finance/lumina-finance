@@ -3,20 +3,18 @@
 A zero amount that reached review could not be approved and so sat there until dismissed. These
 tests catch a hold added to review or the ledger, one that stays after the bank drops it, reports it
 removed or gives it an amount, a replacement that wipes holds outside the days it fetched, and a
-dismissed hold that returns, or a dismissal reaching another user's hold
+hold the bank reports again that doubles or keeps its old date and text
 """
 
-import uuid
+from dataclasses import replace
 from datetime import UTC, date, datetime
 
-import pytest
-from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.models.bank_hold import BankHold
 from app.models.bank_transaction import BankTransaction
 from app.models.currency import Currency
-from app.services.bank_sync.holds import dismiss_hold, list_holds, store_holds
+from app.services.bank_sync.holds import list_holds, store_holds
 from app.services.bank_sync.ingestion import store_booked_records
 from app.services.bank_sync.providers.contract import ProviderRecord
 from tests.routes.support.bank_sync_helpers import (
@@ -138,21 +136,23 @@ async def test_a_hold_goes_when_the_bank_reports_it_removed_or_gives_it_an_amoun
     assert await _descriptions(db) == []
 
 
-async def test_a_dismissed_hold_stays_dismissed_when_the_bank_reports_it_again(db):
-    """Dismissing stops the same bank ID coming back, and it is listed no more"""
+async def test_a_hold_the_bank_reports_again_stays_one_hold_and_takes_its_new_date_and_text(db):
+    """The same bank ID again changes nothing, and again with a new date and text updates the one hold"""
     user, account, link = await _linked(db)
     await store_holds(db, [(link, [_record("Z-1")])], first_day=_FIRST, last_day=_LAST, observed_at=_AT)
-    hold_id = await db.scalar(select(BankHold.id))
 
-    await dismiss_hold(db, user, hold_id)
-    changed = await store_holds(db, [(link, [_record("Z-1")])], first_day=_FIRST, last_day=_LAST, observed_at=_AT)
+    unchanged = await store_holds(db, [(link, [_record("Z-1")])], first_day=_FIRST, last_day=_LAST, observed_at=_AT)
+    moved = replace(_record("Z-1", day=date(2026, 10, 16)), description="CARD CHECK HARBOUR")
+    later = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
+    changed = await store_holds(db, [(link, [moved])], first_day=_FIRST, last_day=_LAST, observed_at=later)
 
-    assert not changed
-    assert await list_holds(db, user, account_ids=[account.id]) == []
-    assert len((await db.scalars(select(BankHold.id))).all()) == 1
+    assert not unchanged
+    assert changed
+    holds = await list_holds(db, user, account_ids=[account.id])
+    assert [(hold.description, hold.date, hold.observed_at) for hold in holds] == [("CARD CHECK HARBOUR", date(2026, 10, 16), later)]
 
 
-async def test_listing_returns_the_newest_undismissed_holds_of_the_users_accounts(db):
+async def test_listing_returns_the_holds_of_the_users_accounts_newest_first(db):
     """Holds come back newest first, with the date, the merchant text and when the bank reported them"""
     user, _account, link = await _linked(db)
     records = [_record("OLDER", day=date(2026, 10, 12)), _record("NEWER", day=date(2026, 10, 18))]
@@ -164,24 +164,6 @@ async def test_listing_returns_the_newest_undismissed_holds_of_the_users_account
         ("CARD CHECK NEWER", date(2026, 10, 18), _AT),
         ("CARD CHECK OLDER", date(2026, 10, 12), _AT),
     ]
-
-
-async def test_another_users_hold_cannot_be_dismissed(db):
-    """A hold of someone else's account is not found, and stays listed for its owner"""
-    owner, account, link = await _linked(db, "owner@example.com")
-    other = _build_user("other@example.com")
-    db.add(other)
-    await db.flush()
-    await store_holds(db, [(link, [_record("Z-1")])], first_day=_FIRST, last_day=_LAST, observed_at=_AT)
-    hold_id = await db.scalar(select(BankHold.id))
-
-    with pytest.raises(HTTPException) as refused:
-        await dismiss_hold(db, other, hold_id)
-    with pytest.raises(HTTPException):
-        await dismiss_hold(db, owner, uuid.uuid4())
-
-    assert refused.value.status_code == 404
-    assert len(await list_holds(db, owner, account_ids=[account.id])) == 1
 
 
 async def test_a_zero_record_already_in_review_is_not_also_a_hold(db):

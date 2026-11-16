@@ -2,15 +2,14 @@
 
 A zero amount can't be approved or put in the ledger, so a booked record of exactly zero is stored
 here instead of as a review item. Holds follow the bank within the days a sync fetched: one the bank
-no longer reports for those days, reports removed, or gives an amount goes away. Dismissing a hold
-stamps it, so the same bank ID reported again stays gone until the bank stops reporting it
+no longer reports for those days, reports removed, or gives an amount goes away. They are listed
+for awareness only, so the user has nothing to do with one
 """
 
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 
-from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +19,7 @@ from app.models.bank_hold import BankHold
 from app.models.bank_transaction import BankTransaction
 from app.models.user import User
 from app.schemas.bank_sync import BankHoldResponse
-from app.services.accounts.access import own_personal_account_condition, own_personal_accounts_scope
+from app.services.accounts.access import own_personal_accounts_scope
 from app.services.bank_sync.providers.contract import ProviderRecord
 from app.services.bank_sync.range_days import RangeImport, brings_in
 from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
@@ -49,9 +48,9 @@ async def store_holds(
     """Make each link's account's holds, within the days fetched, the zero-amount records its bank account came back with
 
     A hold the response doesn't list for a day it fetched goes, as does one the bank reports removed
-    or with an amount. The record then takes the booked path. A dismissed hold the bank still reports
-    stays dismissed. A record a booked one would be left out for, dated before the link's import
-    start or outside a date range import's days, is left out. The caller locked the links and commits
+    or with an amount. The record then takes the booked path. A record a booked one would be left out
+    for, dated before the link's import start or outside a date range import's days, is left out. The
+    caller locked the links and commits
 
     Args:
         db: The link owner's session
@@ -118,7 +117,7 @@ async def store_holds(
                     )
                 )
                 changed = True
-            elif hold.dismissed_at is None and (hold.hold_date, hold.description) != (record.date, record.description):
+            elif (hold.hold_date, hold.description) != (record.date, record.description):
                 hold.hold_date = record.date
                 hold.description = record.description
                 hold.observed_at = observed_at
@@ -128,7 +127,7 @@ async def store_holds(
 
 
 async def clear_holds(db: AsyncSession, account_id: uuid.UUID) -> None:
-    """Delete every hold of an account, dismissed ones included, for a caller ending or restarting the account's link
+    """Delete every hold of an account, for a caller ending or restarting the account's link
 
     A sync only reaches the account through its live link, so holds left behind would never drop.
     The caller commits
@@ -146,7 +145,7 @@ async def list_holds(
     *,
     account_ids: Sequence[uuid.UUID] | None,
 ) -> list[BankHoldResponse]:
-    """Return the undismissed holds of some of the user's accounts, or of all of them, newest first
+    """Return the holds of some of the user's accounts, or of all of them, newest first
 
     Args:
         db: Active database session
@@ -160,10 +159,7 @@ async def list_holds(
         HTTPException 403: An account is visible but isn't the user's own personal account
         HTTPException 404: An account isn't visible to the user
     """
-    scope = [
-        BankHold.dismissed_at.is_(None),
-        *await own_personal_accounts_scope(db, user.id, account_ids, BankHold.account_id, not_own_detail=_NOT_OWN_DETAIL),
-    ]
+    scope = await own_personal_accounts_scope(db, user.id, account_ids, BankHold.account_id, not_own_detail=_NOT_OWN_DETAIL)
 
     holds = await db.scalars(
         select(BankHold).join(Account, Account.id == BankHold.account_id).where(*scope).order_by(BankHold.hold_date.desc(), BankHold.id.desc())
@@ -178,29 +174,3 @@ async def list_holds(
         )
         for hold in holds
     ]
-
-
-async def dismiss_hold(db: AsyncSession, user: User, hold_id: uuid.UUID) -> None:
-    """Dismiss one of the user's holds, so the bank reporting it again doesn't bring it back
-
-    Dismissing one already dismissed is accepted and changes nothing
-
-    Args:
-        db: Active database session
-        user: The owner of the hold's account
-        hold_id: The hold
-
-    Raises:
-        HTTPException 404: No such hold among the user's own personal accounts' holds
-    """
-    hold = await db.scalar(
-        select(BankHold)
-        .join(Account, Account.id == BankHold.account_id)
-        .where(BankHold.id == hold_id, own_personal_account_condition(user.id))
-        .with_for_update(of=BankHold)
-    )
-    if hold is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Bank hold not found")
-    if hold.dismissed_at is None:
-        hold.dismissed_at = datetime.now(UTC)
-    await db.commit()

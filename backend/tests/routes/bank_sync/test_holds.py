@@ -1,7 +1,7 @@
-"""Listing and dismissing bank holds through the routes
+"""Listing bank holds through the routes
 
-These tests catch a hold listed for an account the user doesn't own, a dismissed hold still listed,
-a group account's holds read, and a dismissal reaching another user's hold
+These tests catch holds listed out of order or for an account the user doesn't own, a group
+account's holds read, and holds left behind once their account's link ends
 """
 
 import uuid
@@ -41,47 +41,42 @@ async def _commit_hold(account_id: str, description: str = "CARD CHECK", day: da
     return hold.id
 
 
-async def test_holds_list_newest_first_and_a_dismissed_one_leaves_the_list(client):
-    """Two holds list newest first, and dismissing the newer one leaves only the older"""
+async def test_holds_list_newest_first_for_every_account_or_the_one_asked_for(client):
+    """Two holds of Everyday list newest first, and asking for Everyday alone lists the same two"""
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
     older = await _commit_hold(account_id, "OLDER", date(2026, 10, 2))
     newer = await _commit_hold(account_id, "NEWER", date(2026, 10, 3))
 
     listed = await client.get("/bank-sync/holds", headers=headers)
-    dismissed = await client.post(f"/bank-sync/holds/{newer}/dismiss", headers=headers)
-    after = await client.get("/bank-sync/holds", params={"account_id": account_id}, headers=headers)
+    for_everyday = await client.get("/bank-sync/holds", params={"account_id": account_id}, headers=headers)
 
     assert [item["id"] for item in listed.json()] == [str(newer), str(older)]
-    assert dismissed.status_code == 204
-    assert [item["id"] for item in after.json()] == [str(older)]
+    assert [item["id"] for item in for_everyday.json()] == [str(newer), str(older)]
 
 
-async def test_another_users_holds_are_not_listed_or_dismissable(client):
-    """The signed-in user sees none of another user's holds and gets a 404 dismissing one"""
+async def test_another_users_holds_are_not_listed(client):
+    """The signed-in user sees none of another user's holds"""
     headers, _ = await _sign_up(client)
     theirs = await _commit_other_users_account()
-    hold = await _commit_hold(str(theirs.id))
+    await _commit_hold(str(theirs.id))
 
     listed = await client.get("/bank-sync/holds", headers=headers)
-    dismissed = await client.post(f"/bank-sync/holds/{hold}/dismiss", headers=headers)
 
+    assert listed.status_code == 200
     assert listed.json() == []
-    assert dismissed.status_code == 404
 
 
 async def _linked_with_holds(client) -> tuple[dict, str, str, BankConnection]:
-    """Link Everyday to ACT-1 and Savings to ACT-2, each with a hold, one of Everyday's already dismissed"""
+    """Link Everyday to ACT-1 and Savings to ACT-2, each with a hold"""
     headers, user_id = await _sign_up(client)
     everyday_id = await _new_account(client, headers, "Everyday")
     savings_id = await _new_account(client, headers, "Savings")
     connection = await _commit_listed_connection(user_id, "ACT-1", "ACT-2", discovered_at=datetime.now(UTC))
     assert (await _link(client, headers, everyday_id, connection.id, "ACT-1")).status_code == 201
     assert (await _link(client, headers, savings_id, connection.id, "ACT-2")).status_code == 201
-    dismissed = await _commit_hold(everyday_id, "EVERYDAY DISMISSED")
     await _commit_hold(everyday_id, "EVERYDAY")
     await _commit_hold(savings_id, "SAVINGS")
-    assert (await client.post(f"/bank-sync/holds/{dismissed}/dismiss", headers=headers)).status_code == 204
     return headers, everyday_id, savings_id, connection
 
 
