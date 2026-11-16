@@ -41,6 +41,7 @@ from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
 from app.services.auth.oidc_providers import sync_oidc_providers
 from app.services.auth.step_up import ATTEMPTS_REMAINING_HEADER
+from app.services.bank_sync.providers.contract import REFUSED_FIELDS_HEADER
 from app.services.bank_sync.providers.registry import run_startup_checks
 from app.services.email import build_email_sender, set_email_sender
 from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
@@ -126,9 +127,10 @@ if ALLOWED_ORIGINS:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
-        # The client reads the bearer challenge to tell an expired-token 401 from a wrong-credential 401, and
-        # the attempts count to warn before the lockout. A browser on another origin sees only what is listed
-        expose_headers=["WWW-Authenticate", ATTEMPTS_REMAINING_HEADER],
+        # The client reads the bearer challenge to tell an expired-token 401 from a wrong-credential 401, the
+        # attempts count to warn before the lockout, and the fields a bank sign-in start refused to mark them.
+        # A browser on another origin sees only what is listed
+        expose_headers=["WWW-Authenticate", ATTEMPTS_REMAINING_HEADER, REFUSED_FIELDS_HEADER],
     )
 
 # Added last so it is the outermost layer and sees every request, including one CORS or the body

@@ -84,6 +84,12 @@ SECURED_TABLES = (
         f"owner_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)",
     ),
     ("bank_sync_jobs", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}() AND {_SEES_CONNECTION}"),
+    (
+        "bank_authorizations",
+        f"owner_id = {CURRENT_USER_ID}()",
+        f"owner_id = {CURRENT_USER_ID}() AND (connection_id IS NULL OR {_SEES_CONNECTION}) "
+        f"AND (return_account_id IS NULL OR {CAN_ACCESS_ACCOUNT}(return_account_id))",
+    ),
     ("users", f"id = {CURRENT_USER_ID}()", f"id = {CURRENT_USER_ID}()"),
     (
         "tags",

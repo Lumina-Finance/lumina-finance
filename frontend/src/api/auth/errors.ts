@@ -11,6 +11,7 @@ interface ApiErrorOptions {
   attemptsRemaining?: number
   detail?: string
   fieldErrors?: ApiFieldError[]
+  refusedFields?: string[]
 }
 
 export class ApiError extends Error {
@@ -28,6 +29,9 @@ export class ApiError extends Error {
   /** The request fields the server's validation refused, where the refusal listed them */
   fieldErrors?: ApiFieldError[]
 
+  /** The form fields a refusal is about, by key, where the server named some rather than all */
+  refusedFields?: string[]
+
   constructor(message: string, status: number, options: ApiErrorOptions = {}) {
     super(message)
     // Without this the class inherits the plain Error name, so a copied bug report cannot tell a
@@ -37,6 +41,7 @@ export class ApiError extends Error {
     this.attemptsRemaining = options.attemptsRemaining
     this.detail = options.detail
     this.fieldErrors = options.fieldErrors
+    this.refusedFields = options.refusedFields
   }
 }
 

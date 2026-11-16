@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import date, datetime
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, Field, SecretStr, model_validator
 
@@ -85,6 +85,51 @@ class CreateBankConnectionRequest(CredentialRequest):
 
 class ReconnectBankConnectionRequest(CredentialRequest):
     """A new credential for a connection whose old one the provider rejected"""
+
+
+# The longest state a return carries. The app makes 43 characters, and the bank hands it back as it came
+MAX_AUTHORIZATION_STATE_LENGTH = 128
+
+# The longest one-time code or error a bank's return is read from
+MAX_AUTHORIZATION_CODE_LENGTH = 2048
+MAX_AUTHORIZATION_ERROR_LENGTH = 256
+
+
+class StartBankAuthorizationRequest(CredentialRequest):
+    """The credential fields of a provider that connects by signing in at the bank, to start that sign-in"""
+
+    provider: str = Field(max_length=PROVIDER_ID_MAX_LENGTH)
+
+    # Blank means none. The length is checked where the refusal can say it in a sentence. A reconnection
+    # keeps its connection's nickname, so naming one there is refused
+    nickname: TrimmedName | None = None
+
+    # Set to give a rejected connection a new credential in place of adding a connection
+    connection_id: uuid.UUID | None = None
+
+    # The account whose link flow started this, so the return goes back to it
+    return_account_id: uuid.UUID | None = None
+
+
+class StartBankAuthorizationResponse(BaseModel):
+    """Where to send the user to sign in"""
+
+    url: str
+
+
+class FinishBankAuthorizationRequest(BaseModel):
+    """What the bank sent the user back with: the state the sign-in started with, and a code or a refusal"""
+
+    state: str = Field(min_length=1, max_length=MAX_AUTHORIZATION_STATE_LENGTH)
+    code: str | None = Field(default=None, min_length=1, max_length=MAX_AUTHORIZATION_CODE_LENGTH)
+    error: str | None = Field(default=None, min_length=1, max_length=MAX_AUTHORIZATION_ERROR_LENGTH)
+
+    @model_validator(mode="after")
+    def _require_an_answer(self) -> Self:
+        """Refuse a return that carries neither a code nor an error"""
+        if self.code is None and self.error is None:
+            raise ValueError("A bank's return carries a code or an error")
+        return self
 
 
 class UpdateBankConnectionRequest(BaseModel):
@@ -188,6 +233,17 @@ class ReconnectBankConnectionResponse(BaseModel):
     accounts_pending: bool
 
 
+class FinishBankAuthorizationResponse(BaseModel):
+    """What the bank's return did: added a connection, reconnected one, or added nothing"""
+
+    outcome: Literal["connected", "reconnected", "cancelled"]
+
+    # The account whose link flow started the sign-in, null for one started from settings
+    return_account_id: uuid.UUID | None
+    connection: BankConnectionResponse | None
+    reconnection: ReconnectBankConnectionResponse | None
+
+
 class CredentialFieldResponse(BaseModel):
     """One field of a provider's connect form"""
 
@@ -198,6 +254,10 @@ class CredentialFieldResponse(BaseModel):
 
     # The longest value the field takes. The claim also refuses a longer one
     max_length: int
+
+    # The extension of the file the provider hands out holding the value, such as ".pem", for a field
+    # the form masks and fills from that file dropped onto it. Null for a field that only takes text
+    file_extension: str | None = None
 
 
 class BankProviderResponse(BaseModel):
@@ -220,6 +280,10 @@ class BankProviderResponse(BaseModel):
     credential_fields: list[CredentialFieldResponse]
     connect_steps: list[str]
     connects_from: ConnectsFrom
+
+    # True when the user connects by signing in at their bank and returning, so the form starts that
+    # sign-in instead of pasting a credential
+    authorizes_at_bank: bool = False
 
     # Whether new connections may be made. Existing connections keep working when it is withdrawn
     offered: bool

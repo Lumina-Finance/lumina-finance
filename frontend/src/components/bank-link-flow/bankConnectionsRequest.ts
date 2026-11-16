@@ -35,8 +35,19 @@ export function readBankConnectionsRequest(state: unknown): BankConnectionsReque
  */
 export type BankLinkArrival = { linkBank: true; linkConnectionId?: string }
 
-/** Goes back to the account a link flow sent to Settings, reopening its flow on the connection just made */
-export function returnToBankLink(navigate: NavigateFunction, accountId: string, connectionId: string) {
-  const arrival: BankLinkArrival = { linkBank: true, linkConnectionId: connectionId }
-  navigate(`/accounts/${accountId}`, { state: arrival })
+/**
+ * Goes back to the account a link flow sent to Settings, reopening its flow on the connection just made,
+ * or at its first step when the bank added none. The bank's return page asks to replace its own entry in
+ * the history, since going Back to it would send the bank's spent answer again
+ */
+export function returnToBankLink(
+  navigate: NavigateFunction,
+  accountId: string,
+  connectionId: string | null,
+  options?: { replace?: boolean },
+) {
+  const arrival: BankLinkArrival = connectionId
+    ? { linkBank: true, linkConnectionId: connectionId }
+    : { linkBank: true }
+  navigate(`/accounts/${accountId}`, options?.replace ? { state: arrival, replace: true } : { state: arrival })
 }

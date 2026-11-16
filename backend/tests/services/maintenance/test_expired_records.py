@@ -20,6 +20,7 @@ from app.models.auth import (
 )
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken, AuthTokenKind
+from app.models.bank_authorization import BankAuthorization
 from app.models.bank_connection import BankConnection
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.currency import Currency
@@ -225,6 +226,32 @@ async def test_prunes_bank_sync_jobs_finished_over_30_days_ago_for_every_user():
     await prune_expired_records(ScopedSession)
 
     assert await _remaining_ids(BankSyncJob) == {within_retention.id, queued.id}
+
+
+async def test_prunes_bank_sign_ins_past_their_expiry_for_every_user_and_keeps_open_ones():
+    """A sign-in whose user never returned goes with its stored credentials for any user, while one still open stays"""
+    now = datetime.now(UTC)
+    first, second, third = await _seed_users(3)
+
+    def sign_in(owner: User, state: str, expires_at: datetime) -> BankAuthorization:
+        return BankAuthorization(
+            owner_id=owner.id,
+            provider="signin_bank",
+            credentials_encrypted=encrypt("{}"),
+            state_hash=state,
+            expires_at=expires_at,
+        )
+
+    expired = sign_in(first, "expired", now - timedelta(seconds=1))
+    other_users_expired = sign_in(second, "other", now - timedelta(hours=5))
+    still_open = sign_in(third, "open", now + timedelta(minutes=5))
+    async with TestSession() as session:
+        session.add_all([expired, other_users_expired, still_open])
+        await session.commit()
+
+    await prune_expired_records(ScopedSession)
+
+    assert await _remaining_ids(BankAuthorization) == {still_open.id}
 
 
 async def test_the_cleanup_forgets_failure_counts_idle_for_a_week_and_keeps_recent_ones():

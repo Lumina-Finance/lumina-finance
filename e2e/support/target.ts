@@ -46,11 +46,17 @@ export const FAKE_AKAHU_URL = configuredAkahu ? configuredAkahu.replace(/\/+$/, 
 const configuredPluggy = process.env.E2E_FAKE_PLUGGY_URL
 export const FAKE_PLUGGY_URL = configuredPluggy ? configuredPluggy.replace(/\/+$/, '') : null
 
+// Where the runner reaches the fake Enable Banking the instance syncs with, on the same terms. The
+// browser opens the fake's bank page there too
+const configuredEnableBanking = process.env.E2E_FAKE_ENABLE_BANKING_URL
+export const FAKE_ENABLE_BANKING_URL = configuredEnableBanking ? configuredEnableBanking.replace(/\/+$/, '') : null
+
 const targets = [['E2E_BASE_URL', BASE_URL], ['E2E_API_BASE_URL', API_BASE_URL]]
 if (FAKE_SIMPLEFIN_BRIDGE_URL !== null) targets.push(['E2E_FAKE_SIMPLEFIN_BRIDGE_URL', FAKE_SIMPLEFIN_BRIDGE_URL])
 if (FAKE_LUNCHFLOW_URL !== null) targets.push(['E2E_FAKE_LUNCHFLOW_URL', FAKE_LUNCHFLOW_URL])
 if (FAKE_AKAHU_URL !== null) targets.push(['E2E_FAKE_AKAHU_URL', FAKE_AKAHU_URL])
 if (FAKE_PLUGGY_URL !== null) targets.push(['E2E_FAKE_PLUGGY_URL', FAKE_PLUGGY_URL])
+if (FAKE_ENABLE_BANKING_URL !== null) targets.push(['E2E_FAKE_ENABLE_BANKING_URL', FAKE_ENABLE_BANKING_URL])
 
 for (const [name, value] of targets) {
   try {

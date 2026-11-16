@@ -22,6 +22,12 @@ export type CredentialField = {
 
   /** The most characters the server accepts for it */
   max_length: number
+
+  /**
+   * The extension of the file the provider hands out holding the value, such as ".pem". The field is
+   * then masked and takes that file dropped onto it. Null, or absent from an older server, for text only
+   */
+  file_extension?: string | null
 }
 
 /**
@@ -46,6 +52,14 @@ export type BankProvider = {
   /** The steps for getting what the fields take, each one sentence */
   connect_steps: string[]
   connects_from: BankProviderConnectsFrom
+
+  /**
+   * True when the user finishes connecting by signing in at their bank: the fields start that sign-in
+   * and the bank sends the user back to the app. False for a provider whose credential is pasted. The
+   * server sends it for every provider, and it is optional here only so older fixtures stay valid. A step
+   * may name `{redirect_url}`, the address the bank returns to, to be filled in
+   */
+  authorizes_at_bank?: boolean
 
   /**
    * Whether new connections may be made. The server controls this per provider
@@ -218,6 +232,42 @@ export type ClaimCredentialPayload = {
 
   /** Optional, and blank means none */
   nickname?: string | null
+}
+
+/**
+ * Starts a sign-in at the bank for a provider that connects that way. The fields are the ones a paste
+ * would send. The server sends the user's browser to the bank and keeps them until it returns
+ */
+export type StartBankAuthorizationPayload = {
+  provider: BankProviderId
+  credentials: Record<string, string>
+
+  /** Optional, and blank means none. A reconnection keeps its connection's nickname, so it sends none */
+  nickname?: string | null
+
+  /** Set to give a rejected connection a new credential in place of adding a connection */
+  connection_id?: string
+
+  /** The account whose link flow started this, so the return goes back to it */
+  return_account_id?: string
+}
+
+/** The bank's own address, where the user signs in */
+export type StartBankAuthorizationResult = { url: string }
+
+/** What the bank sent the user back with: the state the sign-in started with, and a code or a refusal */
+export type FinishBankAuthorizationPayload = { state: string; code?: string; error?: string }
+
+/**
+ * What the bank's return did. A refusal at the bank is a "cancelled" outcome, with nothing added
+ */
+export type FinishBankAuthorizationResult = {
+  outcome: 'connected' | 'reconnected' | 'cancelled'
+
+  /** The account whose link flow started the sign-in, null for one started from settings */
+  return_account_id: string | null
+  connection: BankConnection | null
+  reconnection: ReconnectConnectionResult | null
 }
 
 /**

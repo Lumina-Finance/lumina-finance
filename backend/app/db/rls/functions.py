@@ -36,6 +36,7 @@ CLAIM_BANK_SYNC_JOBS = "public.claim_bank_sync_jobs"
 LIST_DUE_BANK_CONNECTIONS = "public.list_due_bank_connections"
 RECORD_BANK_SYNC_SCAN = "public.record_bank_sync_scan"
 PRUNE_FINISHED_BANK_SYNC_JOBS = "public.prune_finished_bank_sync_jobs"
+PRUNE_EXPIRED_BANK_AUTHORIZATIONS = "public.prune_expired_bank_authorizations"
 MIGRATION_REVISIONS = "public.migration_revisions"
 
 # The worker functions see across users. Only the worker, connecting with no request
@@ -424,6 +425,26 @@ _HELPERS: tuple[_Helper, ...] = (
     $$
     """,
         f"{PRUNE_FINISHED_BANK_SYNC_JOBS}()",
+    ),
+    # Deletes every user's bank sign-ins past their expiry. A return refuses one past it anyway, so this
+    # only clears the encrypted credentials it keeps. Written in plpgsql so creating it does not check
+    # the table exists, since migrations that predate the table create every current helper
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {PRUNE_EXPIRED_BANK_AUTHORIZATIONS}() RETURNS integer
+    LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+    DECLARE
+        pruned integer;
+    BEGIN
+        WITH deleted AS (
+            DELETE FROM public.bank_authorizations WHERE expires_at < now() RETURNING 1
+        )
+        SELECT count(*)::integer INTO pruned FROM deleted;
+        RETURN pruned;
+    END
+    $$
+    """,
+        f"{PRUNE_EXPIRED_BANK_AUTHORIZATIONS}()",
     ),
     # The revisions the database is migrated to. The worker compares them with the head it
     # ships before it starts. The app role can't read the migration history itself, and the

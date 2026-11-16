@@ -17,6 +17,7 @@ from sqlalchemy.exc import ProgrammingError
 from app.models.account import Account, AccountPermission
 from app.models.account_import_layout import AccountImportLayout
 from app.models.account_import_source import AccountImportSource
+from app.models.bank_authorization import BankAuthorization
 from app.models.bank_connection import (
     BankAccountLink,
     BankConnection,
@@ -502,7 +503,20 @@ _BANK_MODELS = [
     BankPendingTransaction,
     BankHold,
     BankSyncJob,
+    BankAuthorization,
 ]
+
+
+def _build_bank_authorization(owner_id, state_hash: str, **values) -> BankAuthorization:
+    """Return an unsaved bank sign-in of a user, identified by its state hash"""
+    return BankAuthorization(
+        owner_id=owner_id,
+        provider="fake",
+        credentials_encrypted="not-a-real-token",
+        state_hash=state_hash,
+        expires_at=datetime(2030, 1, 1, tzinfo=UTC),
+        **values,
+    )
 
 
 async def _count_visible(session, model) -> int:
@@ -534,6 +548,7 @@ async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnecti
                 observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
             ),
             BankSyncJob(owner_id=owner_id, connection_id=connection.id, kind=BankSyncJobKind.SCHEDULED),
+            _build_bank_authorization(owner_id, "a" * 64, connection_id=connection.id, return_account_id=account.id),
         ]
     )
     await session.flush()
@@ -592,8 +607,9 @@ async def test_bank_records_are_invisible_to_other_users(users, bank_records, mo
             connection_id=connection.id,
             kind=BankSyncJobKind.MANUAL,
         ),
+        lambda connection, owner_id, _: _build_bank_authorization(owner_id, "b" * 64, connection_id=connection.id),
     ],
-    ids=["provider_request", "external_account", "account_link", "sync_job"],
+    ids=["provider_request", "external_account", "account_link", "sync_job", "bank_authorization"],
 )
 async def test_bank_record_naming_another_users_connection_is_refused(users, bank_records, build):
     """A user can't attach their own records to a connection that isn't theirs
@@ -628,8 +644,9 @@ async def test_bank_record_naming_another_users_connection_is_refused(users, ban
             description="CARD CHECK",
             observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
         ),
+        lambda account, _, owner_id: _build_bank_authorization(owner_id, "c" * 64, return_account_id=account.id),
     ],
-    ids=["account_link", "bank_transaction", "pending_transaction", "bank_hold"],
+    ids=["account_link", "bank_transaction", "pending_transaction", "bank_hold", "bank_authorization"],
 )
 async def test_bank_record_on_another_users_account_is_refused(users, bank_records, build):
     """A user can't put bank records on someone else's account, even as the row's owner"""

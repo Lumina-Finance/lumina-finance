@@ -29,11 +29,13 @@ export type {
   DiscoveredBankAccount,
   DiscoveredBankAccounts,
   EditableBankField,
+  FinishBankAuthorizationResult,
   BalanceMatch,
   BankHold,
   PendingBankTransaction,
   PreviousBankLink,
   ReconnectConnectionResult,
+  StartBankAuthorizationPayload,
   TransactionBankSource,
 } from '@/api/bank-sync/types'
 
@@ -54,6 +56,7 @@ export {
   useClaimCredential,
   useDisconnectBankConnection,
   useDiscoveredBankAccounts,
+  useFinishBankAuthorization,
   useBankHolds,
   useDismissBankHold,
   useDismissCutOffDay,
@@ -69,6 +72,7 @@ export {
   useRestoreBankValue,
   useReviewBacklogs,
   useReviewItems,
+  useStartBankAuthorization,
   useSyncBankAccount,
   useUnlinkBankAccount,
 } from '@/api/bank-sync/hooks'

@@ -6,22 +6,15 @@
  * under Mismatch detected
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type {
-  BankConnection,
-  BankProvider,
-  ConnectionBankAccount,
-  CredentialField,
-  ReconnectConnectionResult,
-} from '@/api/bank-sync'
+import type { BankConnection, BankProvider, ConnectionBankAccount, CredentialField } from '@/api/bank-sync'
 import {
+  buildAuthorizationStart,
   countLinkedBankAccounts,
   countRequestsLeft,
-  describeConnected,
   describeConnectionStatus,
   describeInstitutionAllowance,
   describeLinkingHeld,
   describeMismatch,
-  describeReconnected,
   describeRequestBudget,
   describeCredentialLength,
   getCredentialProblems,
@@ -29,8 +22,10 @@ import {
   describeSignInDetail,
   groupInstitutions,
   isClaimSettled,
+  markServerRefusal,
   matchesConnectionSearch,
   matchesInstitutionSearch,
+  readDroppedCredentialFile,
   submitsCredential,
 } from '@/pages/settings/components/bank-connections-section/utils'
 
@@ -188,65 +183,11 @@ describe('bank connection search', () => {
   })
 })
 
-describe('bank connection confirmations', () => {
-  it('counts the bank accounts a new connection reaches', () => {
-    expect(describeConnected(connection({ nickname: 'Joint banks', accounts: [...HARBOUR, ...TIDEWATER] }))).toBe(
-      "Connected to Joint banks with 4 bank accounts. Please link each bank account from the matching account's page.",
-    )
-  })
-
-  it('counts a lone bank account in the singular', () => {
-    expect(describeConnected(connection({ accounts: [bankAccount({})] }))).toContain(
-      'Connected to SimpleFIN with 1 bank account.',
-    )
-  })
-
-  it('says the bank accounts are on the way when the claim could not list them yet', () => {
-    expect(describeConnected(connection({ discovery_pending: true }))).toBe(
-      'Connected to SimpleFIN. Its bank accounts will appear here shortly.',
-    )
-  })
-
-  it('leaves out where to link the bank accounts when going back to the link flow', () => {
-    expect(describeConnected(connection({ nickname: 'Joint banks', accounts: [...HARBOUR, ...TIDEWATER] }), true)).toBe(
-      'Connected to Joint banks with 4 bank accounts.',
-    )
-    expect(describeConnected(connection({ discovery_pending: true }), true)).toBe(
-      'Connected to SimpleFIN. Its bank accounts will appear shortly.',
-    )
-  })
-
+describe('bank connection claims', () => {
   it('takes a connection as added once its bank accounts are listed or a listing is due, never partway', () => {
     expect(isClaimSettled(connection({ accounts: [bankAccount({})] }))).toBe(true)
     expect(isClaimSettled(connection({ discovery_pending: true }))).toBe(true)
     expect(isClaimSettled(connection())).toBe(false)
-  })
-
-  it('counts the accounts a reconnect resumes and those that need their bank account chosen again', () => {
-    const result = (resumed: number, chooseAgain: number): ReconnectConnectionResult => ({
-      connection: connection(),
-      resumed_account_ids: Array.from({ length: resumed }, (_, index) => `resumed-${index}`),
-      choose_again_account_ids: Array.from({ length: chooseAgain }, (_, index) => `choose-${index}`),
-      accounts_pending: false,
-    })
-
-    expect(describeReconnected(result(2, 1))).toBe(
-      'Reconnected to SimpleFIN. Syncing resumes for 2 accounts. 1 account needs its bank account chosen again.',
-    )
-    expect(describeReconnected(result(1, 2))).toContain('Syncing resumes for 1 account.')
-    expect(describeReconnected(result(1, 2))).toContain('2 accounts need their bank accounts chosen again.')
-    expect(describeReconnected(result(0, 0))).toBe('Reconnected to SimpleFIN.')
-  })
-
-  it('says linked accounts wait on a listing when the reconnect could not list the bank accounts', () => {
-    expect(
-      describeReconnected({
-        connection: connection(),
-        resumed_account_ids: [],
-        choose_again_account_ids: [],
-        accounts_pending: true,
-      }),
-    ).toBe('Reconnected to SimpleFIN. Linked accounts pick up once their bank accounts are listed again.')
   })
 })
 
@@ -467,6 +408,57 @@ describe('describeCredentialLength', () => {
   })
 })
 
+describe('readDroppedCredentialFile', () => {
+  const PRIVATE_KEY = {
+    key: 'private_key',
+    label: 'Private key',
+    placeholder: '',
+    max_length: 60,
+    file_extension: '.pem',
+  }
+  const KEY_TEXT = '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----'
+
+  it('fills the field with the text of the one file dropped, trimmed, whatever case its extension takes', async () => {
+    await expect(readDroppedCredentialFile(PRIVATE_KEY, [new File([`${KEY_TEXT}\n`], 'app.PEM')])).resolves.toEqual({
+      value: KEY_TEXT,
+    })
+  })
+
+  it('takes a file at the largest size it reads whose text, trimmed, is exactly as long as the field takes', async () => {
+    const padded = `${' '.repeat(90)}${'a'.repeat(60)}${' '.repeat(90)}`
+    expect(padded).toHaveLength(240)
+    await expect(readDroppedCredentialFile(PRIVATE_KEY, [new File([padded], 'app.pem')])).resolves.toEqual({
+      value: 'a'.repeat(60),
+    })
+  })
+
+  it.each([
+    ['no file', [], 'Please drop one .pem file'],
+    ['two files', [new File([KEY_TEXT], 'a.pem'), new File([KEY_TEXT], 'b.pem')], 'Please drop one .pem file'],
+    ['a file of another kind', [new File([KEY_TEXT], 'key.txt')], 'Please drop a .pem file'],
+    [
+      'a file holding more than the field takes',
+      [new File(['a'.repeat(61)], 'app.pem')],
+      'That file is too long to be the private key',
+    ],
+    [
+      'a file too large to read for the field',
+      [new File(['a'.repeat(241)], 'app.pem')],
+      'That file is too long to be the private key',
+    ],
+  ])('refuses %s with the message the field shows', async (_case, files, error) => {
+    await expect(readDroppedCredentialFile(PRIVATE_KEY, files)).resolves.toEqual({ error })
+  })
+
+  it('says a file the browser fails to read could not be read', async () => {
+    const file = new File([KEY_TEXT], 'app.pem')
+    vi.spyOn(file, 'text').mockRejectedValue(new DOMException('NotReadableError'))
+    await expect(readDroppedCredentialFile(PRIVATE_KEY, [file])).resolves.toEqual({
+      error: "That file couldn't be read",
+    })
+  })
+})
+
 describe('getCredentialProblems', () => {
   it('counts a pasted value over its limit as its field’s problem, so a press on Connect is refused', () => {
     expect(getCredentialProblems([SETUP_TOKEN], { [SETUP_TOKEN.key]: 'a'.repeat(2049) }, 'SimpleFIN Bridge')).toEqual({
@@ -553,5 +545,52 @@ describe('describeLinkingHeld', () => {
     expect(held({ status: 'credential_rejected' }, { linkingPaused: true })).toBe(
       "Bank sync isn't set up on this server yet.",
     )
+  })
+})
+
+describe('buildAuthorizationStart', () => {
+  it('sends a new connection with its nickname and the account whose link flow sent the user', () => {
+    expect(
+      buildAuthorizationStart({
+        provider: 'signin_bank',
+        credentials: { application_key: 'k' },
+        nickname: 'Joint',
+        returnToAccountId: 'account-1',
+      }),
+    ).toEqual({
+      provider: 'signin_bank',
+      credentials: { application_key: 'k' },
+      nickname: 'Joint',
+      return_account_id: 'account-1',
+    })
+  })
+
+  it('names the connection being reconnected and leaves out the nickname it keeps', () => {
+    expect(
+      buildAuthorizationStart({
+        provider: 'signin_bank',
+        credentials: { application_key: 'k' },
+        nickname: '',
+        reconnectingId: 'connection-1',
+      }),
+    ).toEqual({ provider: 'signin_bank', credentials: { application_key: 'k' }, connection_id: 'connection-1' })
+  })
+})
+
+describe('markServerRefusal', () => {
+  const keys = ['application_id', 'private_key', 'country', 'bank']
+
+  it('marks only the fields a refusal names, with its message on the last of them as the form draws them', () => {
+    expect(markServerRefusal(keys, ['bank', 'country'])).toEqual({
+      marked: new Set(['country', 'bank']),
+      messageOn: 'bank',
+    })
+  })
+
+  it.each([
+    ['names no field', undefined],
+    ['names only fields the form lacks', ['nickname']],
+  ])('marks every field, with the message on the last, when the refusal %s', (_case, refusedFields) => {
+    expect(markServerRefusal(keys, refusedFields)).toEqual({ marked: new Set(keys), messageOn: 'bank' })
   })
 })

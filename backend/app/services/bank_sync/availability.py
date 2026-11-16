@@ -314,11 +314,18 @@ async def list_providers(db: AsyncSession, user: User) -> BankProvidersResponse:
                 description=adapter.provider_description,
                 in_beta=adapter.in_beta,
                 credential_fields=[
-                    CredentialFieldResponse(key=entry.key, label=entry.label, placeholder=entry.placeholder, max_length=entry.max_length)
+                    CredentialFieldResponse(
+                        key=entry.key,
+                        label=entry.label,
+                        placeholder=entry.placeholder,
+                        max_length=entry.max_length,
+                        file_extension=entry.file_extension,
+                    )
                     for entry in adapter.credential_fields
                 ],
                 connect_steps=list(adapter.connect_steps),
                 connects_from=adapter.connects_from,
+                authorizes_at_bank=adapter.authorizes_at_bank,
                 offered=is_offered(provider),
                 advertises_history=adapter.advertises_history,
                 institution_limit=allowance.limit,

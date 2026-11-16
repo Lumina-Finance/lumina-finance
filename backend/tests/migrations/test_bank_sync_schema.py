@@ -19,6 +19,7 @@ from sqlalchemy.pool import NullPool
 from app.config.database import APP_DB_USER
 from app.db.credentials import resolve_role_password
 from app.models.account import Account
+from app.models.bank_authorization import BankAuthorization
 from app.models.bank_connection import (
     BankAccountLink,
     BankConnection,
@@ -565,6 +566,7 @@ _SECURED_BANK_TABLES = (
     "bank_pending_transactions",
     "bank_holds",
     "bank_sync_jobs",
+    "bank_authorizations",
 )
 
 
@@ -582,3 +584,54 @@ async def test_bank_tables_have_row_level_security_and_a_policy_from_the_migrati
     ).all()
 
     assert {name: (enabled, has_policy) for name, enabled, has_policy in secured} == dict.fromkeys(_SECURED_BANK_TABLES, (True, True))
+
+
+def _build_authorization(owner_id, state_hash: str = "a" * 64, **values) -> BankAuthorization:
+    """Return an unsaved bank sign-in, open for another hour"""
+    return BankAuthorization(
+        **{
+            "owner_id": owner_id,
+            "provider": "fake",
+            "credentials_encrypted": "not-a-real-token",
+            "state_hash": state_hash,
+            "expires_at": datetime(2030, 1, 1, tzinfo=UTC),
+            **values,
+        }
+    )
+
+
+async def test_bank_authorization_state_must_be_unique_and_provider_in_the_folder_name_form(session):
+    """A state hash finds one sign-in, and a provider no folder could carry is refused"""
+    user = await _owner(session)
+    await _add(session, _build_authorization(user.id))
+
+    await _refused(session, _build_authorization(user.id), "uq_bank_authorizations_state_hash")
+    await _refused(session, _build_authorization(user.id, "b" * 64, provider="Lunar"), "ck_bank_authorizations_provider")
+
+
+async def test_bank_authorization_allows_one_sign_in_in_flight_per_user(session):
+    """The table itself keeps a user to one open sign-in, while another user's is unaffected"""
+    user = await _owner(session)
+    other = await _owner(session, "other@example.com")
+    await _add(session, _build_authorization(user.id))
+
+    await _refused(session, _build_authorization(user.id, "b" * 64), "uq_bank_authorizations_owner_id")
+    await _add(session, _build_authorization(other.id, "c" * 64))
+
+
+async def test_disconnecting_a_connection_ends_its_reconnection_sign_in_and_deleting_the_account_keeps_the_sign_in(session):
+    """A reconnection can't outlive its connection, while the sign-in survives the account it would return to"""
+    user = await _owner(session)
+    other = await _owner(session, "other@example.com")
+    account = _build_account(other.id)
+    connection = _build_bank_connection(user.id)
+    await _add(session, account, connection)
+    await _add(session, _build_authorization(user.id, "a" * 64, connection_id=connection.id))
+    await _add(session, _build_authorization(other.id, "b" * 64, return_account_id=account.id))
+
+    await session.execute(delete(BankConnection).where(BankConnection.id == connection.id))
+    await session.execute(text("DELETE FROM accounts WHERE id = :id"), {"id": account.id})
+
+    states = list(await session.scalars(select(BankAuthorization.state_hash)))
+    return_accounts = list(await session.scalars(select(BankAuthorization.return_account_id)))
+    assert (states, return_accounts) == (["b" * 64], [None])

@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -31,17 +31,22 @@ from app.schemas.bank_sync import (
     DiscoveredBankAccountsResponse,
     DismissCutOffDayRequest,
     DismissHistoryReminderRequest,
+    FinishBankAuthorizationRequest,
+    FinishBankAuthorizationResponse,
     ImportBankRangeRequest,
     LinkBankAccountRequest,
     ReconnectBankConnectionRequest,
     ReconnectBankConnectionResponse,
     RecordBalanceMatchRequest,
     RestoreBankValueRequest,
+    StartBankAuthorizationRequest,
+    StartBankAuthorizationResponse,
     UnlinkResponse,
     UpdateBankConnectionRequest,
 )
 from app.schemas.transaction import TransactionResponse
 from app.services.bank_sync.account_link import list_bank_links, read_account_bank_status
+from app.services.bank_sync.authorization import finish_authorization, start_authorization
 from app.services.bank_sync.availability import list_providers
 from app.services.bank_sync.balance_match import record_balance_match
 from app.services.bank_sync.bulk_review import bulk_add_review_items, bulk_dismiss_review_items
@@ -130,6 +135,46 @@ async def create_bank_connection(
         The new connection, with the bank accounts found or a pending discovery
     """
     return await claim_connection(db, user, request)
+
+
+@router.post("/authorizations", response_model=StartBankAuthorizationResponse, status_code=status.HTTP_201_CREATED)
+async def start_bank_authorization(
+    request: StartBankAuthorizationRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    origin: Annotated[str | None, Header()] = None,
+):
+    """Start signing in at the bank for a provider that connects that way, as a new connection or a reconnection
+
+    Args:
+        request: The provider's credential fields, and the connection to reconnect or the nickname of a new one
+        user: Authenticated user connecting
+        db: Active database session
+        origin: The browser's Origin header, which the bank sends the user back to
+
+    Returns:
+        The bank's address to send the user to
+    """
+    return await start_authorization(db, user, request, origin=origin)
+
+
+@router.post("/authorizations/finish", response_model=FinishBankAuthorizationResponse)
+async def finish_bank_authorization(
+    request: FinishBankAuthorizationRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Finish a bank sign-in from what the bank sent the user back with
+
+    Args:
+        request: The state the sign-in started with, and the bank's code or error
+        user: Authenticated user the bank sent back
+        db: Active database session
+
+    Returns:
+        The new or reconnected connection, or that the bank refused and nothing was added
+    """
+    return await finish_authorization(db, user, request)
 
 
 @router.patch("/connections/{connection_id}", response_model=BankConnectionResponse)
