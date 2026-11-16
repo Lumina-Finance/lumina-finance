@@ -141,23 +141,6 @@ export function buildAuthorizationStart({
   }
 }
 
-/**
- * Tells whether a key pressed in a credential field connects. A plain Enter connects, since a
- * credential is pasted whole and never typed across lines, though a pasted key may span them. Enter
- * with a modifier, or while an input method is composing, stays with the field
- */
-export function submitsCredential(event: {
-  key: string
-  shiftKey: boolean
-  altKey: boolean
-  ctrlKey: boolean
-  metaKey: boolean
-  isComposing: boolean
-}): boolean {
-  if (event.key !== 'Enter' || event.isComposing) return false
-  return !(event.shiftKey || event.altKey || event.ctrlKey || event.metaKey)
-}
-
 /** Looks up an account's name by its id, or undefined while the accounts are loading */
 export type AccountNameLookup = (accountId: string) => string | undefined
 

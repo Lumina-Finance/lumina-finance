@@ -563,7 +563,7 @@ test("brings an account sent to settings for its first connection back to its li
   await page.getByRole('dialog', { name: 'Link bank account' }).getByRole('button', { name: 'Open settings' }).click()
 
   const connect = page.getByRole('dialog', { name: 'Add a connection' })
-  await connect.getByRole('textbox', { name: 'Setup token' }).fill(scenario.setupToken)
+  await connect.getByLabel('Setup token', { exact: true }).fill(scenario.setupToken)
   await connect.getByRole('button', { name: 'Connect' }).click()
 
   // The account's page opens with its link flow over it, listing the new connection's bank accounts,
@@ -595,7 +595,7 @@ test('brings an account sent to settings for another connection back to its link
   await expect(flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) })).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
   await flow.getByRole('button', { name: 'Settings', exact: true }).click()
   const connect = page.getByRole('dialog', { name: 'Add a connection' })
-  await connect.getByRole('textbox', { name: 'Setup token' }).fill(lakeside.setupToken)
+  await connect.getByLabel('Setup token', { exact: true }).fill(lakeside.setupToken)
   await connect.getByRole('button', { name: 'Connect' }).click()
 
   // Back on the account, the flow starts on the connection just made

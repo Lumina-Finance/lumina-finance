@@ -58,6 +58,23 @@ async def test_providers_list_has_the_private_key_field_take_its_pem_file(client
     }
 
 
+async def test_providers_masks_the_application_and_key_and_shows_the_country_and_bank_as_typed(client, monkeypatch):
+    """The application ID and key are secrets, and the country and bank are plain details the user reads back"""
+    use_adapter(monkeypatch, enable_banking_adapter(EnableBankingApi().transport))
+    headers, _ = await _sign_up(client)
+
+    response = await client.get("/bank-sync/providers", headers=headers)
+
+    assert response.status_code == 200, response.text
+    [enable_banking] = [provider for provider in response.json()["providers"] if provider["id"] == "enable_banking"]
+    assert {field["key"]: field["masked"] for field in enable_banking["credential_fields"]} == {
+        "application_id": True,
+        "private_key": True,
+        "country": False,
+        "bank": False,
+    }
+
+
 async def _start(api: EnableBankingApi, supplied=SUPPLIED) -> str:
     """Start a sign-in against the stand-in API"""
     return await enable_banking_adapter(api.transport).start_authorization(supplied, redirect_url=REDIRECT_URL, state=STATE)

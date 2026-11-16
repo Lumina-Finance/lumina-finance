@@ -226,8 +226,8 @@ class EnableBankingAdapter(ProviderAdapter):
             MAX_PRIVATE_KEY_LENGTH,
             file_extension=".pem",
         ),
-        CredentialField(COUNTRY_FIELD, "Country", "Two-letter code, such as FI", 2),
-        CredentialField(BANK_FIELD, "Bank", "The bank's name as Enable Banking lists it", MAX_BANK_LENGTH),
+        CredentialField(COUNTRY_FIELD, "Country", "Two-letter code, such as FI", 2, masked=False),
+        CredentialField(BANK_FIELD, "Bank", "The bank's name as Enable Banking lists it", MAX_BANK_LENGTH, masked=False),
     )
     connect_steps = (
         "Please sign in at enablebanking.com, open the Control Panel and register a production application, keeping its .pem key file.",

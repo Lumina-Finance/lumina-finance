@@ -234,6 +234,13 @@ async def test_providers_list_offers_simplefin_with_its_setup_token_steps(client
     [simplefin] = [provider for provider in response.json()["providers"] if provider["id"] == "simplefin"]
     assert simplefin["site"] == "SimpleFIN Bridge"
     assert simplefin["credential_fields"] == [
-        {"key": "setup_token", "label": "Setup token", "placeholder": "Paste the token", "max_length": 2048, "file_extension": None}
+        {
+            "key": "setup_token",
+            "label": "Setup token",
+            "placeholder": "Paste the token",
+            "max_length": 2048,
+            "file_extension": None,
+            "masked": True,
+        }
     ]
     assert simplefin["connect_steps"][0] == "Open SimpleFIN Bridge and connect your banks there."

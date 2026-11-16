@@ -28,6 +28,12 @@ export type CredentialField = {
    * then masked and takes that file dropped onto it. Null, or absent from an older server, for text only
    */
   file_extension?: string | null
+
+  /**
+   * Whether the field shows dots in place of the value as it is typed. False only for a plain detail the
+   * user needs to read back, such as a bank's country. An older server sends no flag, and the form then masks every field
+   */
+  masked?: boolean
 }
 
 /**

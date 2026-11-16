@@ -33,7 +33,7 @@ _FAKE = {
     "in_beta": False,
     "authorizes_at_bank": False,
     "credential_fields": [
-        {"key": "access_key", "label": "Access key", "placeholder": "Paste the key", "max_length": 512, "file_extension": None}
+        {"key": "access_key", "label": "Access key", "placeholder": "Paste the key", "max_length": 512, "file_extension": None, "masked": True}
     ],
     "connect_steps": ["Sign in to Fake Bank Online.", "Create an access key and paste it here."],
     "connects_from": "settings",

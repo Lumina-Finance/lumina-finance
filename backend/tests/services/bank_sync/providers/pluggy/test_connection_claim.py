@@ -77,13 +77,21 @@ async def test_providers_list_offers_pluggy_with_its_three_fields_and_steps(clie
         "in_beta": True,
         "authorizes_at_bank": False,
         "credential_fields": [
-            {"key": "client_id", "label": "Client ID", "placeholder": "Paste the client ID", "max_length": 128, "file_extension": None},
+            {
+                "key": "client_id",
+                "label": "Client ID",
+                "placeholder": "Paste the client ID",
+                "max_length": 128,
+                "file_extension": None,
+                "masked": True,
+            },
             {
                 "key": "client_secret",
                 "label": "Client secret",
                 "placeholder": "Paste the client secret",
                 "max_length": 128,
                 "file_extension": None,
+                "masked": True,
             },
             {
                 "key": "item_ids",
@@ -91,6 +99,7 @@ async def test_providers_list_offers_pluggy_with_its_three_fields_and_steps(clie
                 "placeholder": "Paste the item IDs, separated by commas",
                 "max_length": 1024,
                 "file_extension": None,
+                "masked": True,
             },
         ],
         "connect_steps": [

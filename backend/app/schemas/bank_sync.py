@@ -259,6 +259,10 @@ class CredentialFieldResponse(BaseModel):
     # the form masks and fills from that file dropped onto it. Null for a field that only takes text
     file_extension: str | None = None
 
+    # Whether the form shows dots in place of the value as it is typed. False only for a plain detail
+    # the user needs to read back, such as a bank's country
+    masked: bool = True
+
 
 class BankProviderResponse(BaseModel):
     """A bank provider the deployment enables"""
