@@ -216,6 +216,121 @@ test('ticks the range between on a shift-press without selecting the text it run
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
+/**
+ * Where the Upcoming header and the section's last row sit against the box drawn round the section: the room
+ * between the box's top and the header, and between the last row, or the header once closed, and the box's
+ * bottom. Then how round the header's top corners and the last row's bottom corners are beside the box's own,
+ * whether the last row still draws its separator, and how far the box's top edge sits from the header
+ */
+function readUpcomingBox(upcoming: Locator) {
+  return upcoming.evaluate((header) => {
+    // The box is drawn by layers hidden from a screen reader, its top edge dashed, beside the section's content.
+    // A closed section's content is hidden too, so the box is the nearest one holding a dashed layer
+    const hiddenLayers = (element: Element) => [...element.querySelectorAll<HTMLElement>(':scope > [aria-hidden="true"]')]
+    const isTopEdge = (layer: HTMLElement) => getComputedStyle(layer).borderTopStyle === 'dashed'
+    let section = header.parentElement!
+    while (!hiddenLayers(section).some(isTopEdge)) section = section.parentElement!
+    const box = section.getBoundingClientRect()
+    const layers = hiddenLayers(section)
+    const topEdge = layers.find(isTopEdge)!
+    const bottomEdge = getComputedStyle(layers.find((layer) => getComputedStyle(layer).borderBottomStyle === 'dashed')!)
+    const rows = section.querySelectorAll<HTMLElement>('[data-testid^="transaction-box-"]')
+    const lastRow = rows[rows.length - 1]
+    const last = lastRow ?? header
+    const round = (value: number) => Math.round(value * 10) / 10
+    return {
+      headerRoom: round(header.getBoundingClientRect().top - box.top),
+      lastRoom: round(box.bottom - last.getBoundingClientRect().bottom),
+      headerCorner: getComputedStyle(header).borderTopLeftRadius,
+      lastCorner: getComputedStyle(last).borderBottomRightRadius,
+      boxTopCorner: getComputedStyle(topEdge).borderTopLeftRadius,
+      boxBottomCorner: bottomEdge.borderBottomRightRadius,
+      lastSeparator: lastRow ? getComputedStyle(lastRow).borderBottomColor : null,
+      edgeFromHeader: round(topEdge.getBoundingClientRect().top - header.getBoundingClientRect().top),
+    }
+  })
+}
+
+test('starts the Upcoming header at the top of its box and ends the last row at the bottom, open, stuck or closed', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
+  const ids: string[] = []
+  for (let day = 12; day >= 1; day -= 1) {
+    ids.push(await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000, date: daysFromTodayInTestTimezone(day) }))
+  }
+  await logInViaApi(page, user)
+
+  // The section lays its rows on the list's grid from 750px wide and stacks them below it
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 600 })
+    await openPage(page, '/transactions')
+    const upcoming = page.getByRole('button', { name: /Upcoming/ })
+    await upcoming.click()
+    const body = page.locator(`[id="${await upcoming.getAttribute('aria-controls')}"]`)
+    await expect(body).toHaveCSS('opacity', '1')
+    await expect(body).toHaveCSS('overflow', 'visible')
+
+    // Open, the header and the last row meet the box's edge and curve with its corners, the edge standing in
+    // for the last row's separator
+    const open = await readUpcomingBox(upcoming)
+    expect(open, `open at ${width}px`).toMatchObject({ headerRoom: 0, lastRoom: 0, edgeFromHeader: 0, lastSeparator: 'rgba(0, 0, 0, 0)' })
+    expect(open.headerCorner).toBe(open.boxTopCorner)
+    expect(open.lastCorner).toBe(open.boxBottomCorner)
+
+    // Stuck under the page's bar with rows running under it, the header keeps the box's top edge over it
+    await page.getByTestId(`transaction-row-${ids[6]}`).evaluate((row) => row.scrollIntoView({ block: 'start' }))
+    await expect.poll(() => isShowingOnTop(upcoming)).toBe(true)
+    await expect(page.getByTestId(`transaction-row-${ids[0]}`)).not.toBeInViewport()
+    expect((await readUpcomingBox(upcoming)).edgeFromHeader, `stuck at ${width}px`).toBe(0)
+
+    // Closed, the header is the box's only line, round at the bottom as well
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await upcoming.click()
+    await expect(page.getByTestId(`transaction-row-${ids[0]}`)).toHaveCount(0)
+    const closed = await readUpcomingBox(upcoming)
+    expect(closed, `closed at ${width}px`).toMatchObject({ headerRoom: 0, lastRoom: 0 })
+    expect(closed.lastCorner).toBe(closed.boxBottomCorner)
+  }
+})
+
+test("starts the import preview's Upcoming header at the top of its box and ends the last row at the bottom, open or closed", async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday Chequing' })
+  const csv = [
+    'Date,Merchant,Amount',
+    ...[2, 1, 0, -1].map((day) => `${daysFromTodayInTestTimezone(day)},Market ${day},-10.00`),
+  ].join('\n')
+  await logInViaApi(page, user)
+
+  // The preview lays its rows on the list's grid from 750px wide and stacks them below it
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 800 })
+    await openPage(page, `/settings/imports?account=${account.id}`)
+    const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
+    await expect(upload).toBeEnabled()
+    await upload.setInputFiles({ name: 'upcoming.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+    const upcoming = page.getByRole('button', { name: /Upcoming/ })
+    await expect(upcoming).toBeVisible()
+    if ((await upcoming.getAttribute('aria-expanded')) !== 'true') await upcoming.click()
+    const body = page.locator(`[id="${await upcoming.getAttribute('aria-controls')}"]`)
+    await expect(body).toHaveCSS('opacity', '1')
+
+    // Open, the header and the last row meet the box's edge and curve with its corners, the edge standing in
+    // for the last row's separator
+    const open = await readUpcomingBox(upcoming)
+    expect(open, `open at ${width}px`).toMatchObject({ headerRoom: 0, lastRoom: 0, edgeFromHeader: 0, lastSeparator: 'rgba(0, 0, 0, 0)' })
+    expect(open.headerCorner).toBe(open.boxTopCorner)
+    expect(open.lastCorner).toBe(open.boxBottomCorner)
+
+    // Closed, the header is the box's only line, round at the bottom as well
+    await upcoming.click()
+    await expect(body.locator('[data-testid^="transaction-box-"]')).toHaveCount(0)
+    const closed = await readUpcomingBox(upcoming)
+    expect(closed, `closed at ${width}px`).toMatchObject({ headerRoom: 0, lastRoom: 0 })
+    expect(closed.lastCorner).toBe(closed.boxBottomCorner)
+  }
+})
+
 test('keeps the open Upcoming header on screen through a long run of upcoming transactions', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })
