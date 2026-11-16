@@ -63,12 +63,12 @@ export function BankMarker({
       {/* With nothing but the icon inside, this box's baseline is its bottom, so the row stands it on
           the title's baseline. The drawing is centred in the box, so lowering it by half of what the box
           is taller than the capitals centres the drawing on them. The drawing starts 2/24 of the icon
-          inside the box, so pulling the box back by that leaves it 4px after the title */}
+          inside the box, so pulling the box back by that leaves it 4px after the title. It is lowered
+          by an offset rather than a translate, since a translate would hold the tooltip under the rest
+          of the row */}
       <span
         className="relative inline-flex"
-        style={
-          afterTitle ? { translate: `0 calc((${size}px - 1cap) / 2)`, marginLeft: `${-(size * 2) / 24}px` } : undefined
-        }
+        style={afterTitle ? { top: `calc((${size}px - 1cap) / 2)`, marginLeft: `${-(size * 2) / 24}px` } : undefined}
       >
         {/* The panel is hidden from a screen reader while closed, so the name says what the dot does */}
         <IconTooltip
