@@ -41,19 +41,6 @@ function BalanceFact({ label, value, color, hint }: BalanceFactProps) {
   )
 }
 
-/**
- * A part of the caption after its date, kept on one line with the dot that introduces it, so a
- * caption that wraps never leaves a dot at the end of a line
- */
-function CaptionPart({ children }: { children: ReactNode }) {
-  return (
-    <>
-      {' '}
-      <span className="inline-flex items-center gap-1">· {children}</span>
-    </>
-  )
-}
-
 const GAP_HINT = {
   label: 'Why the balances differ',
   text: "Could come from items waiting for review or transactions the bank hasn't posted yet",
@@ -71,8 +58,7 @@ type BalancePanelProps = {
 /**
  * The bank's balance beside the ledger's at the end of the bank's balance date, and the ledger against
  * the bank, so a gap shows without anything correcting it. A bank balance that can't be read exactly
- * in the account's currency shows as unavailable, with nothing to compare, and an available balance
- * that can't is marked unavailable in the caption rather than left out. On phones each balance takes
+ * in the account's currency shows as unavailable, with nothing to compare. On phones each balance takes
  * a row, label on the left and amount on the right. On wider screens the balances share a row in
  * equal columns, and those too long to fit side by side move to another row. An explanation beside a
  * balance is about the comparison, so it opens above all the balances, or below them where there is
@@ -117,21 +103,9 @@ export function BalancePanel({ balance, currency, providerName, footer }: Balanc
             />
           ))}
       </dl>
+      {/* The date alone. The bank's available balance says nothing the balances above don't */}
       <p className="mt-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
         As of {asOf}
-        {balance.available !== null && (
-          <CaptionPart>{formatCurrency(balance.available, currency)} available</CaptionPart>
-        )}
-        {balance.available_unreadable && (
-          <CaptionPart>
-            <LabelWithHint
-              label="Available balance unavailable"
-              hint={`${providerName}'s available balance can't be read exactly in ${currency}. This doesn't change your ledger.`}
-              hintLabel="Why the available balance is unavailable"
-              hintPlacement="top"
-            />
-          </CaptionPart>
-        )}
       </p>
       <AnimatePresence initial={false}>
         {footer && (

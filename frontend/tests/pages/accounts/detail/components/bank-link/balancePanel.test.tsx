@@ -1,14 +1,12 @@
 /**
  * Covers the bank link section's balance panel: the bank's balance beside the ledger's, the ledger
- * against the bank, the caption with the balance date and any available balance, and the footer
- * under it
+ * against the bank, the caption with the balance date, and the footer under it
  *
  * These tests catch a match that reads as a gap or offers the tooltip, a gap without its sign, its
  * warning colour or its tooltip, a gap signed the wrong way round, a card's negative balances written
- * as positive, an available balance shown when the bank gives none or dropped when it does, a
- * balance that can't be read exactly shown as an amount or compared, and an available balance that
- * can't be read exactly dropped from the caption as if the bank gave none, and a footer set above the
- * caption, or leaving anything behind when there is none
+ * as positive, the bank's available balance, or word that it can't be read, back in the caption
+ * beside the date, a balance that can't be read exactly shown as an amount or compared, and a footer
+ * set above the caption, or leaving anything behind when there is none
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -117,10 +115,13 @@ describe('bank balance panel', () => {
     ])
   })
 
-  it('adds the available balance to the caption when SimpleFIN gives one', () => {
-    const markup = renderPanel(createBalance({ available: 118000 }))
+  it('leaves the available balance out of the caption, read exactly or not, so it gives the date alone', () => {
+    for (const balance of [createBalance({ available: 118000 }), createBalance({ available_unreadable: true })]) {
+      const markup = renderPanel(balance)
 
-    expect(readCaption(markup)).toMatch(/^As of Oct 3, 6:00\sp\.m\. · CA\$1,180\.00 available$/)
+      expect(readCaption(markup)).toMatch(/^As of Oct 3, 6:00\sp\.m\.$/)
+      expect(readTooltips(markup)).toEqual([])
+    }
   })
 
   it("shows a balance that can't be read exactly as unavailable, saying why, with no Difference", () => {
@@ -132,13 +133,6 @@ describe('bank balance panel', () => {
     ])
     expect(readColour(markup, 'SimpleFIN')).toBe('var(--app-text-muted)')
     expect(readTooltips(markup)).toEqual(['Why the balance is unavailable'])
-  })
-
-  it("marks an available balance that can't be read exactly as unavailable in the caption, saying why", () => {
-    const markup = renderPanel(createBalance({ available_unreadable: true }))
-
-    expect(readCaption(markup)).toMatch(/^As of Oct 3, 6:00\sp\.m\. · Available balance unavailable/)
-    expect(readTooltips(markup)).toEqual(['Why the available balance is unavailable'])
   })
 
   it('puts a footer under the caption, and nothing there without one', () => {
