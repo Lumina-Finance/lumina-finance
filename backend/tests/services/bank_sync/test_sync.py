@@ -2919,6 +2919,32 @@ async def test_job_refreshes_an_item_still_waiting_in_place(connection, provider
     ) == [(item_id, BankTransactionDisposition.AWAITING_REVIEW, "BLUE BOTTLE COFFEE", 2, frozen_now)]
 
 
+async def test_job_refreshes_a_waiting_items_note_and_merchant_when_only_they_change(connection, provider, frozen_now):
+    """An item waiting with the note POS 4411 COFFEE and no merchant comes back noted BLUE BOTTLE SF from Blue Bottle, all else the same
+
+    The same item keeps waiting with the new note and merchant, so its filing card shows what the bank sends now
+    """
+    link = await _link(connection, "ACT-1", **_synced_through_yesterday())
+    item_id = await _store_bank_transaction(
+        link,
+        "TRN-coffee",
+        observed_date=date(2026, 10, 2),
+        observed_amount=-4_50,
+        description="POS 4411 COFFEE",
+        note="POS 4411 COFFEE",
+        merchant=None,
+        observed_at=frozen_now - timedelta(days=1),
+    )
+    provider.outcomes = [_returned_with({"ACT-1": [_record("TRN-coffee", note="BLUE BOTTLE SF", merchant="Blue Bottle")]})]
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+
+    await _run_jobs_until_none_is_due()
+
+    assert await _bank_transactions(
+        BankTransaction.id, BankTransaction.disposition, BankTransaction.description, BankTransaction.note, BankTransaction.merchant
+    ) == [(item_id, BankTransactionDisposition.AWAITING_REVIEW, "POS 4411 COFFEE", "BLUE BOTTLE SF", "Blue Bottle")]
+
+
 async def test_job_leaves_a_dismissed_item_dismissed_when_the_bank_sends_it_changed(connection, provider):
     """The user dismissed AMZN Mktp -19.99, and the next re-read returns it as -18.99: it stays dismissed and no item appears"""
     link = await _link(connection, "ACT-1", **_synced_through_yesterday())

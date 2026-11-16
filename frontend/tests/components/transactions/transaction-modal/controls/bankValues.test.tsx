@@ -14,7 +14,9 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
   useMoneyFormatters: () => ({ formatMovedCurrency: (amount: number) => `CA$${(amount / 100).toFixed(2)}` }),
 }))
 
-import TransactionBankSourcePanel from '@/components/transactions/transaction-modal/controls/BankSourcePanel'
+import TransactionBankSourcePanel, {
+  TransactionBankSourceCard,
+} from '@/components/transactions/transaction-modal/controls/BankSourcePanel'
 import TransactionBankValueCaption from '@/components/transactions/transaction-modal/controls/BankValueCaption'
 
 const MINUS = String.fromCodePoint(0x2212)
@@ -132,6 +134,33 @@ describe('bank source panel', () => {
     expect(markup).not.toContain('app-card')
     expect(markup.match(/class="app-filing-card /g)).toHaveLength(1)
     expect(markup.match(/<span class="inline-block[^>]*>SimpleFIN</g) ?? []).toHaveLength(0)
+  })
+})
+
+describe('bank source card', () => {
+  it("shows the bank's merchant and note beside a transaction in the ledger, never its description", () => {
+    const markup = renderToStaticMarkup(
+      <TransactionBankSourceCard
+        providerName="SimpleFIN"
+        bankValues={{
+          date: '2026-10-04',
+          amount: -1250,
+          raw_amount: null,
+          description: 'Harbour Cafe',
+          note: 'HARBOUR CAFE #12 VANCOUVER',
+          merchant: 'Harbour Cafe Ltd',
+        }}
+        receivedAt="2026-10-05T06:30:00Z"
+        timeZone="America/Vancouver"
+        heading="Harbour Bank"
+        bankAccountName="Everyday Chequing"
+        currency="CAD"
+      />,
+    )
+
+    expect(markup).toMatch(/Merchant<\/dt><dd[^>]*>Harbour Cafe Ltd<\/dd>/)
+    expect(markup).toMatch(/Note<\/dt><dd[^>]*>HARBOUR CAFE #12 VANCOUVER<\/dd>/)
+    expect(markup).not.toMatch(/>Harbour Cafe</)
   })
 })
 

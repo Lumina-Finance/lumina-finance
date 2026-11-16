@@ -547,6 +547,22 @@ for (const colorScheme of ['light', 'dark'] as const) {
     }
     await expect(card.getByRole('definition').first()).toHaveText('—')
 
+    // The note is justified, and its section paints over the card's rules in the card's own colour so none
+    // runs between its lines, with one rule drawn under it to close it
+    const note = await card.getByRole('definition').last().evaluate((value) => {
+      const section = getComputedStyle(value.parentElement!)
+      return {
+        textAlign: getComputedStyle(value).textAlign,
+        sectionBackground: section.backgroundColor,
+        cardBackground: getComputedStyle(value.closest('[role="region"]')!).backgroundColor,
+        closingRule: section.boxShadow,
+      }
+    })
+    expect(note.textAlign).toBe('justify')
+    expect(note.sectionBackground).toBe(note.cardBackground)
+    expect(note.sectionBackground).not.toBe('rgba(0, 0, 0, 0)')
+    expect(note.closingRule).toMatch(/ 0px -1px 0px 0px inset$/)
+
     const texts = [
       page.getByText('SimpleFIN', { exact: true }).filter({ visible: true }).first(),
       card.getByText('Harbour Bank', { exact: true }),

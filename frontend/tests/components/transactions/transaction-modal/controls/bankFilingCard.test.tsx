@@ -1,11 +1,11 @@
 /**
  * Covers the filing card a new bank item is reviewed against: each field the provider sent, under its
- * label and in order, the provider's merchant as a row like the rest and its note as one unruled,
- * justified section closing the card, each with a dash where it sent none, an amount its currency can't
- * hold, and what heads the card for an account with no link to name
+ * label and in order, the provider's merchant as a row like the rest and its note set apart closing the
+ * card, each with a dash where it sent none, an amount its currency can't hold, and what heads the card
+ * for an account with no link to name. How the note's section looks is checked in the browser spec
  *
- * These tests catch a field dropped, relabelled or moved, a note pressed into a row, ruled between its
- * lines or left unjustified, a merchant set apart from the rows, either left out or shown empty,
+ * These tests catch a field dropped, relabelled or moved, a note pressed into a row, a merchant set
+ * apart from the rows, either left out or shown empty,
  * the bank's description standing in for either,
  * an amount rounded to its currency, the arrival time told in the browser's timezone rather than the
  * profile's, and a card with no heading for an account whose link isn't known
@@ -102,17 +102,14 @@ describe('the filing card', () => {
     ])
   })
 
-  it('sets the merchant as a row like the date, and the note as one unruled section below the rows, justified and not in bold', () => {
+  it('sets the merchant as a row like the date, and the note apart from the rows', () => {
     const markup = renderCard(ITEM)
     const tagsOf = (label: string) => new RegExp(`(<div[^>]*>)<dt[^>]*>${label}</dt>(<dd[^>]*>)`).exec(markup)?.slice(1)
     const [dateLine, dateValue] = tagsOf('Date') ?? []
-    const [noteLine, noteValue] = tagsOf('Note') ?? []
 
     expect(dateLine).toBeDefined()
     expect(tagsOf('Merchant')).toEqual([dateLine, dateValue])
-    expect(noteLine).toContain('app-filing-card-section')
-    expect(noteValue).toContain('text-justify')
-    expect(noteValue).not.toContain('font-semibold')
+    expect(tagsOf('Note')?.[0]).not.toBe(dateLine)
   })
 
   it('shows a dash for a merchant or note the provider did not send, never the description in its place', () => {

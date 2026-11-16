@@ -2,7 +2,7 @@
 
 A provider whose note is its description already saved the note as the description, so its records
 must come out of the migration with their note, or every waiting SimpleFIN item would lose the text
-its filing card shows. A provider that fills the description with a merchant or payee name when the
+its filing card shows. A provider that fills the description with a merchant's name when the
 bank sends no text can't be told apart once saved, so its records must get no note rather than a name
 shown as one. No saved field held a merchant, so every record starts with none rather than a guess. A
 dismissed record keeps only its identity, the note and merchant included. Seeding is plain SQL, so a
@@ -48,7 +48,12 @@ _SEED = (
     "'COUNTDOWN AUCKLAND', now()), "
     "(gen_random_uuid(), :user_id, :account_id, 'pluggy', 'ACT-1', repeat('3', 64), 'awaiting_review', '2026-10-02', -450, '  ', now()), "
     "(gen_random_uuid(), :user_id, :account_id, 'lunchflow', 'ACT-1', repeat('4', 64), 'awaiting_review', '2026-10-02', -450, "
-    "'Uber Eats', now())",
+    "'Uber Eats', now()), "
+    "(gen_random_uuid(), :user_id, :account_id, 'pluggy', 'ACT-1', repeat('6', 64), 'awaiting_review', '2026-10-02', -450, "
+    "'PAGO NETFLIX SERV', now()), "
+    # Enable Banking saved the other party's name as the description where the payment carried no message
+    "(gen_random_uuid(), :user_id, :account_id, 'enable_banking', 'ACT-1', repeat('7', 64), 'awaiting_review', '2026-10-02', -450, "
+    "'Alex Smith', now())",
     "INSERT INTO bank_transactions (id, owner_id, account_id, provider, external_account_id, external_transaction_hash, disposition) "
     "VALUES (gen_random_uuid(), :user_id, :account_id, 'simplefin', 'ACT-1', repeat('5', 64), 'dismissed')",
 )
@@ -60,6 +65,8 @@ _NOTES_AFTER = [
     ("pluggy", None, None),
     ("lunchflow", None, None),
     ("simplefin", None, None),
+    ("pluggy", "PAGO NETFLIX SERV", None),
+    ("enable_banking", None, None),
 ]
 
 
@@ -91,7 +98,7 @@ async def _columns() -> set[str]:
 
 
 async def test_note_migration_carries_the_description_over_only_where_it_is_the_note():
-    """SimpleFIN and Akahu records keep their description as their note, and a blank one, a merchant name or a dismissed record gets none"""
+    """SimpleFIN, Akahu and Pluggy records keep their description as their note, and a blank one, a name or a dismissed record gets none"""
     await _recreate_database(_DATABASE_NAME)
     try:
         _run_alembic_upgrade(_DATABASE_NAME, revision=_BEFORE_REVISION)
@@ -100,7 +107,10 @@ async def test_note_migration_carries_the_description_over_only_where_it_is_the_
         _run_alembic_upgrade(_DATABASE_NAME, revision=_NOTE_REVISION)
 
         assert await _read(_NOTES) == _NOTES_AFTER
-        assert await _read("SELECT description FROM bank_transactions WHERE provider = 'lunchflow'") == [("Uber Eats",)]
+        assert await _read("SELECT description FROM bank_transactions WHERE provider IN ('lunchflow', 'enable_banking') ORDER BY provider") == [
+            ("Alex Smith",),
+            ("Uber Eats",),
+        ]
 
         # A dismissed record keeps only its identity, so it can't hold a note or a merchant either
         for column in ("note", "merchant"):

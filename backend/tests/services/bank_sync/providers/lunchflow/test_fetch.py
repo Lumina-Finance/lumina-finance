@@ -178,13 +178,14 @@ async def test_fetch_reads_the_dates_pending_flags_descriptions_notes_and_mercha
     """The date is the transaction's own, pending is kept for the engine, and the bank's description beats the merchant name
 
     The merchant's name stands in as the description alone. The note is only ever the description and
-    the merchant only ever the merchant
+    the merchant only ever the merchant, and a blank one is none
     """
     api = _api_with_one_account(
         transaction("t1", date="2026-09-30", pending=True),
         transaction("t2", merchant="Corner Store", description=None),
         transaction("t3", merchant=None, description="  ETRANSFER  "),
         transaction("t4", merchant="Uber Eats", description="   "),
+        transaction("t5", merchant="   ", description="DIRECT DEBIT 4471"),
     )
 
     result = await _fetch(lunchflow_adapter(api.transport), "11", include_pending=True)
@@ -195,6 +196,7 @@ async def test_fetch_reads_the_dates_pending_flags_descriptions_notes_and_mercha
         (date(2026, 10, 1), False, "Corner Store", None, "Corner Store", False),
         (date(2026, 10, 1), False, "ETRANSFER", "  ETRANSFER  ", None, False),
         (date(2026, 10, 1), False, "Uber Eats", None, "Uber Eats", False),
+        (date(2026, 10, 1), False, "DIRECT DEBIT 4471", "DIRECT DEBIT 4471", None, False),
     ]
 
 
