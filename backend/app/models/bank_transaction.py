@@ -128,7 +128,7 @@ class BankTransaction(Base):
     raw_amount: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
 
-    # The provider's own note about the payment and the merchant or payee it names, each null when
+    # The provider's own note about the payment and the merchant it names, each null when
     # it sent none. Shown on the bank's filing card only, so a change to either is stored without
     # opening a correction
     note: Mapped[str | None] = mapped_column(Text)

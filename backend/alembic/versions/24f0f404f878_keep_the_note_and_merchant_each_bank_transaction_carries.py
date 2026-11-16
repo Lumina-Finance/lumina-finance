@@ -20,15 +20,12 @@ depends_on: str | Sequence[str] | None = None
 _OBSERVATION_BEFORE = ("observed_date", "observed_amount", "raw_amount", "description", "observed_at")
 _OBSERVATION_AFTER = ("observed_date", "observed_amount", "raw_amount", "description", "note", "merchant", "observed_at")
 
-# The providers whose note is their description, so a saved description is already the note. The
-# others fill the description with a merchant or payee name when the bank sends no text. A saved
-# name and a saved note look alike, so their records get the note the next time the bank sends them
-_NOTE_IS_DESCRIPTION = ("simplefin", "akahu", "pluggy")
-
-# A description holding any text, as the adapters read a note, so one of only blanks stays no note
-_FILL_NOTES = sa.text(
-    r"UPDATE bank_transactions SET note = description WHERE provider IN :providers AND description ~ '\S'"
-).bindparams(sa.bindparam("providers", _NOTE_IS_DESCRIPTION, expanding=True))
+# SimpleFIN, Akahu and Pluggy take their note from their description, so a saved description is
+# already the note. Only one holding any text counts, as the adapters read a note, so one of only
+# blanks stays no note. The others fill the description with a merchant's name when the bank sends
+# no text. A saved name and a saved note look alike, so their records get the note the next time
+# the bank sends them
+_FILL_NOTES = r"UPDATE bank_transactions SET note = description WHERE provider IN ('simplefin', 'akahu', 'pluggy') AND description ~ '\S'"
 
 
 def _dismissed_check(columns: Sequence[str]) -> str:

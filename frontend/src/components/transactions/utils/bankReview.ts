@@ -11,6 +11,10 @@ import { isOwnPersonalAccount } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
 import { formatExactMovedAmount } from '@/utils/formatCurrency'
 
+// What a bank value the provider didn't send shows as, on the filing card and in the comparison. A
+// dash, since a hyphen reads as a stray mark
+export const MISSING_BANK_VALUE = '—'
+
 export const REVIEW_KIND_LABELS: Record<BankReviewItemKind, string> = {
   new: 'New',
   correction: 'Correction',

@@ -68,8 +68,8 @@ export function TransactionBankSourceCard(props: BankSourceCardProps) {
 /**
  * Heads the form of a bank-imported transaction with the provider it came from, closed to that line
  * alone, since there is no room for the card beside the modal. Opened, it shows what the bank sent as
- * the provider's filing card, always read-only, since the ledger has no
- * description field and only the bank changes it
+ * the provider's filing card, always read-only, since it shows only what the bank sent and only the
+ * bank changes it
  *
  * Closed, it is the filing card shrunk to its top edge: the card's own tab stretched across the card's
  * width with "From" and the provider on it. Opened, that strip stays as the card's tab and the card

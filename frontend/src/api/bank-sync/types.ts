@@ -605,10 +605,10 @@ export type BankValues = {
   raw_amount: string | null
   description: string
 
-  /** The provider's own note or memo about the payment, never a merchant or payee name standing in for one. Null when it sent none */
+  /** The provider's own note or memo about the payment, never a merchant's name standing in for one. Null when it sent none */
   note: string | null
 
-  /** The merchant or payee the provider names, never the bank's text standing in for one. Null when it named none */
+  /** The merchant the provider names, never the bank's text standing in for one. Null when it named none */
   merchant: string | null
 }
 

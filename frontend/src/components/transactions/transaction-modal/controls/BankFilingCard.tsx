@@ -2,12 +2,8 @@ import type { ReactNode } from 'react'
 import type { BankAccountLink, BankReviewItem } from '@/api/bank-sync'
 import { FILING_TAB_CLASS, FILING_TAB_STYLE } from '@/components/transactions/transaction-modal/controls/filingCardTab'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
-import { REVIEW_KIND_LABELS, getReviewItemAmount } from '@/components/transactions/utils/bankReview'
+import { MISSING_BANK_VALUE, REVIEW_KIND_LABELS, getReviewItemAmount } from '@/components/transactions/utils/bankReview'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
-
-// What a row shows for a value the provider didn't send, so every card has the same rows. The dash
-// the bank review comparison shows for a missing value, since a hyphen reads as a stray mark
-const MISSING_VALUE = '—'
 
 type BankFilingCardProps = {
   item: BankReviewItem
@@ -103,7 +99,7 @@ type FilingCardSheetProps = {
   kindLabel?: string
   bankAccountName: string | undefined
 
-  /** The merchant or payee the provider names, null when it named none */
+  /** The merchant the provider names, null when it named none */
   merchant: string | null
 
   /** The provider's own note or memo about the payment, null when it sent none */
@@ -176,11 +172,12 @@ export function FilingCardSheet({
 
         <div className="app-filing-card-ruled px-5 pb-7">
           <dl>
-            <Field label="Merchant" value={merchant ?? MISSING_VALUE} />
+            {/* A value the provider didn't send shows a dash, so every card has the same fields */}
+            <Field label="Merchant" value={merchant ?? MISSING_BANK_VALUE} />
             <Field label="Amount" value={<span className="font-financial">{amountText}</span>} strong />
             <Field label="Date" value={formatDateLabel(date)} />
             <Field label="Received" value={receivedText} />
-            <SectionField label="Note" value={note ?? MISSING_VALUE} />
+            <SectionField label="Note" value={note ?? MISSING_BANK_VALUE} />
           </dl>
         </div>
       </div>

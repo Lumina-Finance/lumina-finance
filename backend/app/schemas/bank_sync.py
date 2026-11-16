@@ -638,11 +638,11 @@ class BankValues(BaseModel):
     raw_amount: str | None
     description: str
 
-    # The provider's own note about the payment, never a merchant or payee name standing in for one.
-    # Null when it sent none
+    # The provider's own note about the payment, never a merchant's name standing in for one. Null
+    # when it sent none
     note: str | None
 
-    # The merchant or payee the provider names, never the bank's text standing in for one. Null
+    # The merchant the provider names, never the bank's text standing in for one. Null
     # when it named none
     merchant: str | None
 

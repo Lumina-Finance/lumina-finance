@@ -51,7 +51,7 @@ export type BankSource = {
     /** The bank's own note about the payment, null when it sent none */
     note: string | null
 
-    /** The merchant or payee the provider names, null when it named none */
+    /** The merchant the provider names, null when it named none */
     merchant: string | null
   }
   received_at: string

@@ -89,15 +89,15 @@ class ProviderRecord:
     # The amount exactly as the provider sent it
     raw_amount: str
 
-    # What the item is called wherever it is listed, a merchant or payee name standing in when the
-    # bank sends no text of its own
+    # What the item is called wherever it is listed, a merchant's name standing in when the bank
+    # sends no text of its own
     description: str
 
-    # The provider's own note or memo about the payment, as sent, never a merchant or payee name
-    # standing in for one. None when it sends none
+    # The provider's own note or memo about the payment, as sent, never a merchant's name standing
+    # in for one. None when it sends none
     note: str | None
 
-    # The merchant or payee the provider names for the payment, never the bank's text standing in
+    # The merchant the provider names for the payment, never the bank's text standing in
     # for one. None when it names none
     merchant: str | None
     pending: bool

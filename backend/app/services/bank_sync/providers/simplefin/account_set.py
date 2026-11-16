@@ -200,7 +200,7 @@ def _read_record(
         raw_amount=transaction.amount,
         description=transaction.description,
         # The protocol's one free text about a transaction, so it is both its name and its note. The
-        # protocol defines no merchant or payee field
+        # protocol defines no merchant field
         note=first_text(transaction.description),
         merchant=None,
         pending=pending,
