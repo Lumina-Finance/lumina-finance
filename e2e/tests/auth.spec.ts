@@ -3,6 +3,7 @@ import { expect, test, type Route } from '@playwright/test'
 import { signUpUser, TEST_PASSWORD } from '../support/api'
 import { expectSignedIn, logIn, signUpThroughTheForm, waitForPageReady } from '../support/app'
 import { navigate } from '../support/insights'
+import { ON_ARM64 } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: signing up, in and out give the same result at every size
@@ -27,7 +28,9 @@ test('signs a new user up through the form and the emailed link', async ({ page 
 
 // The backend's email validator refuses reserved domains such as example.test, which the form's own
 // check lets through, and the page says the address is the problem rather than that something went wrong
-test('says the email address is the problem when signup refuses it', async ({ page }) => {
+//
+// Also the arm64 test of request validation, done by pydantic-core, compiled for the processor type
+test('says the email address is the problem when signup refuses it', ON_ARM64, async ({ page }) => {
   await page.goto('/signup')
   await page.getByLabel('First name').fill('Test')
   await page.getByLabel('Email').fill(`e2e-${crypto.randomUUID()}@example.test`)
@@ -102,7 +105,10 @@ test('brings a sign-in error into view and announces it on a small phone', async
   await expect(banner).toBeInViewport({ ratio: 0.9 })
 })
 
-test('refuses a wrong password before accepting the right one', async ({ page, request }) => {
+// The arm64 test of password hashing, done by argon2-cffi-bindings and the cffi package it loads through, both
+// compiled for the processor type. The session the right password starts is signed with the RSA keys
+// the image's openssl binary made at startup
+test('refuses a wrong password before accepting the right one', ON_ARM64, async ({ page, request }) => {
   const user = await signUpUser(request)
 
   await page.goto('/login')

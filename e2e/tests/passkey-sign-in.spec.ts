@@ -2,11 +2,14 @@ import { expect, test } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
 import { addPasskeyAuthenticator, expectSignedIn, registerPasskeyOverApi } from '../support/app'
+import { ON_ARM64 } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: the login page's passkey button behaves the same at every size
 
-test("signs in with the login page's passkey button", async ({ page, request }) => {
+// The arm64 test of passkeys, with signatures checked by cryptography and data read by cbor2, both
+// compiled for the processor type
+test("signs in with the login page's passkey button", ON_ARM64, async ({ page, request }) => {
   const cdp = await addPasskeyAuthenticator(page)
   await cdp.send('Page.enable')
   const user = await signUpUser(request)
