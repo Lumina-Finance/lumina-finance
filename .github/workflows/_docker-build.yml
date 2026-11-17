@@ -51,11 +51,35 @@ jobs:
           build-args: |
             APP_VERSION=ci
 
+      # Every browser job starts on a fresh runner, so each would pull these from the registry. They
+      # are pulled once per architecture here and travel with the app image. The list is read from the
+      # Compose files those jobs start, so a changed tag is shared too, and the app's own image is
+      # left out since the build above makes it. Gzip keeps the file small whichever way the runner's
+      # Docker stores images
+      - name: Pull the images the stack runs beside the app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t images < <(grep -hE '^[[:space:]]+image:' docker/compose.yml e2e/compose.mail.yaml e2e/*.compose.yaml \
+            | sed -E 's/^[[:space:]]+image:[[:space:]]*//; s/^"(.*)"$/\1/' \
+            | grep -v '^luminahq/lumina-finance:' | sort -u)
+          if [ "${#images[@]}" -eq 0 ] || [[ "${images[*]}" == *'$'* ]]; then
+            echo "Could not read the service images from the Compose files: ${images[*]}"
+            exit 1
+          fi
+          printf '%s\n' "${images[@]}"
+          for image in "${images[@]}"; do
+            docker pull "${image}"
+          done
+          docker save "${images[@]}" | gzip -1 > "${RUNNER_TEMP}/service-images.tar.gz"
+
       - name: Share the built image with E2E jobs
         uses: actions/upload-artifact@v7
         with:
           name: e2e-image-${{ matrix.platform }}
-          path: ${{ runner.temp }}/lumina-image.tar
+          path: |
+            ${{ runner.temp }}/lumina-image.tar
+            ${{ runner.temp }}/service-images.tar.gz
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
