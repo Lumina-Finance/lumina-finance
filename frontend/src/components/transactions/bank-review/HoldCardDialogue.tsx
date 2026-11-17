@@ -6,7 +6,7 @@ import { formatBankAmount } from '@/components/transactions/utils/bankReview'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
-// A hold is a record of no amount, so its card says so in the account's currency
+// A hold is a record of no amount, so its card shows $0.00 in the account's currency
 const NO_AMOUNT = { amount: 0, raw_amount: null }
 
 type BankHoldCardDialogueProps = {

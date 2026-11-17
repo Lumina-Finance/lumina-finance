@@ -36,7 +36,7 @@ export const TRANSACTION_CHECKBOX_RAIL_VARIABLE = '--transaction-checkbox-rail' 
 // Falls back to zero for the import preview, which renders the same row outside this list
 export const TRANSACTION_CHECKBOX_RAIL = `var(${TRANSACTION_CHECKBOX_RAIL_VARIABLE}, 0rem)`
 
-// A section header's icon slot, which stays put as the rail opens and widens by as much as the open rail
+// A section header's icon slot. It stays put as the rail opens and widens by as much as the open rail
 // outgrows it, so the label after it starts level with the day headings' dates in selection too. The rail
 // is 2.5rem and the slot sits 0.75rem into it
 export const ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL = `max(1rem, calc(${TRANSACTION_CHECKBOX_RAIL} - 0.75rem))`

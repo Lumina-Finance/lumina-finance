@@ -10,8 +10,8 @@ import { API_BASE_URL } from '../support/target'
 // every width: their icon, title, text, amounts and caret sit where Upcoming keeps its own, and their
 // text moves past the checkbox rail with Upcoming's in selection mode.
 //
-// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge, which sends five
-// coffees, a $0.00 card check and a pending ride. Savings, not linked, holds a grocery shop dated tomorrow.
+// Everyday links to an empty bank account at Harbour Bank on the fake SimpleFIN Bridge. The bridge sends
+// five coffees, a $0.00 card check and a pending ride. Savings, not linked, holds a grocery shop dated tomorrow.
 
 const COFFEES = [1, 2, 3, 4, 5].map((day) => ({ posted: daysFromTodayInTestTimezone(-day), amount: `-1${day}.50`, description: `HARBOUR COFFEE ${day}` }))
 
