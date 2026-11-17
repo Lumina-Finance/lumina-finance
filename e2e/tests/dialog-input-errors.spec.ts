@@ -10,7 +10,7 @@ import {
   daysFromTodayInTestTimezone,
   signUpUser,
 } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openModal, openPage, signUpThroughTheForm } from '../support/app'
+import { chooseFromDropdown, logInViaApi, nextFrame, openModal, openPage, signUpThroughTheForm } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
@@ -100,8 +100,10 @@ test.describe('dialog input errors', () => {
     await field.press('Enter')
     await expect(dialog.getByRole('alert')).toHaveText('Name is required')
     await expect(create).toHaveAttribute('aria-disabled', 'true')
-    // A refused press brings the first problem into focus a frame later, so wait for it before moving on
+    // A refused press brings the first problem into focus a frame later. Enter was pressed in that field, so it
+    // already holds focus and the check passes at once, so the frame is waited for as well
     await expect(field).toBeFocused()
+    await nextFrame(page)
 
     await create.focus()
     await expect(create).toBeFocused()
