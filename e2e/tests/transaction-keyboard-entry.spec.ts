@@ -4,7 +4,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openModal, openPage } from '../support/app'
+import { logInViaApi, nextFrame, openModal, openPage, readSettled } from '../support/app'
 import { faintestText } from '../support/contrast'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
@@ -64,30 +64,6 @@ async function readDateOnce(dialog: Locator): Promise<string> {
     ['Year', 'Month', 'Day'].map((name) => group.getByRole('textbox', { name, exact: true }).inputValue()),
   )
   return `${year}-${month}-${day}`
-}
-
-// A value counts as settled once it reads the same on this many frames in a row, and a read that never settles
-// within the frame limit fails rather than loops
-const SETTLED_FRAMES = 6
-const MAX_SETTLE_FRAMES = 300
-
-/** Waits for the page to paint the next frame, which is when a press has been rendered */
-async function nextFrame(page: Page) {
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)))
-}
-
-/** Reads a value again frame by frame until it stops changing, failing when it keeps changing */
-async function readSettled(page: Page, what: string, readOnce: () => Promise<string>): Promise<string> {
-  let value = await readOnce()
-  let unchanged = 0
-  for (let frame = 0; frame < MAX_SETTLE_FRAMES; frame += 1) {
-    await nextFrame(page)
-    const next = await readOnce()
-    unchanged = next === value ? unchanged + 1 : 0
-    value = next
-    if (unchanged >= SETTLED_FRAMES) return value
-  }
-  throw new Error(`${what} was still changing after ${MAX_SETTLE_FRAMES} frames`)
 }
 
 /** Reads the date once a key press has finished rendering */
@@ -196,6 +172,9 @@ test('refuses Alt+Enter while a field is still missing, then saves once it is fi
   await page.keyboard.press('Alt+Enter')
   await expect(dialog.getByRole('combobox', { name: 'Account' })).toHaveAttribute('aria-invalid', 'true')
   await expect(dialog.getByRole('combobox', { name: 'Account' })).toBeFocused()
+  // The dialogue opened with focus on Account, so the check above passes before the refusal has moved focus
+  // there. That happens a frame after the press, and a list opened before then would lose focus to it
+  await nextFrame(page)
   expect(requests.filter((url) => url === `${API_BASE_URL}/transactions`)).toEqual([])
 
   await chooseByKeys(page, dialog, 'Alt+KeyA', 'Everyday', 'Everyday Chequing')
