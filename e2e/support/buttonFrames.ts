@@ -5,6 +5,7 @@
 
 import { expect, type Locator, type Page } from '@playwright/test'
 
+import { nextFrame } from './app'
 import { API_BASE_URL } from './target'
 
 // The 40px circle a submit button shrinks to while its request is in flight
@@ -267,10 +268,13 @@ export async function checkIconSwap(
     }
     tick()
   }, content)
-  // The opacity of the first match as a viewer sees it, through the layers it sits in
+  // The opacity of the first match as a viewer sees it, through the layers it sits in, or null while nothing
+  // matches, so a wait for full opacity is not met by an element that has not been drawn yet or has left
   const seenOpacity = (selector: string) => button.evaluate((node, within) => {
+    const element = node.querySelector(within)
+    if (!element) return null
     let opacity = 1
-    for (let current: Element | null = node.querySelector(within); current && current !== node; current = current.parentElement) {
+    for (let current: Element | null = element; current && current !== node; current = current.parentElement) {
       opacity *= Number(getComputedStyle(current).opacity)
     }
     return opacity
@@ -299,6 +303,9 @@ export async function checkIconSwap(
     if (options.staysEnabled) await expect(button).toHaveAttribute('aria-busy', 'true')
     else await expect(button).toBeDisabled()
     await expect.poll(() => seenOpacity('.app-spinner')).toBe(1)
+    await expect.poll(() => seenOpacity(content)).toBeNull()
+    // The sampler records on each frame, so the last frame it holds is from before the reads above unless one more is painted
+    await nextFrame(page)
     const going = await stop()
     expect(going[0].icon, 'the icon is drawn before the press').toBe(1)
     expect(going.at(-1)!.icon, 'the icon is gone once the spinner has settled').toBeNull()
@@ -309,6 +316,8 @@ export async function checkIconSwap(
     if (options.staysEnabled) await expect(button).toHaveAttribute('aria-busy', 'false')
     else await expect(button).toBeEnabled()
     await expect.poll(() => seenOpacity(content)).toBe(1)
+    await expect.poll(() => seenOpacity('.app-spinner')).toBeNull()
+    await nextFrame(page)
     const returning = await stop()
     expect(returning.at(-1)!.spinner).toBeNull()
     expectFaded(returning)
