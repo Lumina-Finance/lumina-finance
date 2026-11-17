@@ -369,6 +369,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 }
 
+// From 750px wide the bank icon sits 4px after the row's title, so its ring hugs it with no gap and
+// stays off the title's last letter. On a phone it sits among the note and tag icons, with the usual gap
+function bankIconRingGap(page: Page): string {
+  return page.viewportSize()!.width >= 750 ? '0px' : '2px'
+}
+
 // The bank icon on a bank-imported row is an outline icon with no hover look to show in place of a
 // ring, so the keyboard reaching it from the row's title rings it as the controls beside it are
 test(
@@ -394,7 +400,7 @@ test(
     expect(await drawsFocusColour(icon)).toBe(false)
     await page.keyboard.press('Tab')
     await expect(icon).toBeFocused()
-    await expectSharedRing(icon, 'outline', '2px')
+    await expectSharedRing(icon, 'outline', bankIconRingGap(page))
     expect(await drawsFocusColour(icon)).toBe(true)
     await expect(getTransactionRowButton(row)).not.toBeFocused()
   },
@@ -1314,6 +1320,6 @@ test('draws one ring when the keyboard moves from a bank row title to its bank i
   await expectSharedRing(transactionBox(page, id), 'outline', '-2px')
   await page.keyboard.press('Tab')
   await expect(icon).toBeFocused()
-  await expectSharedRing(icon, 'outline', '2px')
+  await expectSharedRing(icon, 'outline', bankIconRingGap(page))
   await expect.poll(() => transactionBox(page, id).evaluate((node) => getComputedStyle(node).outlineStyle)).toBe('none')
 })

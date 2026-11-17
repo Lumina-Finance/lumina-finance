@@ -40,8 +40,10 @@ interface IconTooltipProps {
   widensHitArea?: boolean
 
   // Rings the trigger under keyboard focus in the app's focus ring, as the controls beside it are, for
-  // an icon that isn't an info or FX icon and so has no hover look to show in its place
-  focusRing?: boolean
+  // an icon that isn't an info or FX icon and so has no hover look to show in its place. 'flush' draws
+  // the ring against the icon with no gap, for an icon 4px after text, as Sync now's is, since the
+  // usual gap would carry the ring onto the text's last letter
+  focusRing?: boolean | 'flush'
 
   // Keeps a screen reader from reading the panel until it shows, for a trigger whose label already says
   // what the panel says, such as a row's bank icon. Every other panel is read where it sits, closed or not
@@ -86,8 +88,9 @@ const ICON_TRIGGER_CLASS = 'inline-flex cursor-pointer appearance-none border-0 
 // no ring of its own unless it asks for the ring below. That ring takes this one's place
 const ICON_NO_RING_CLASS = 'focus-visible:outline-none'
 const ICON_HIT_AREA_CLASS = "relative before:absolute before:-inset-1.5 before:content-['']"
-const ICON_FOCUS_RING_CLASS =
-  'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-focus-ring)]'
+const ICON_FOCUS_RING_CLASS = 'rounded-sm focus-visible:outline-2 focus-visible:outline-[var(--app-focus-ring)]'
+const ICON_RING_GAP_CLASS = 'focus-visible:outline-offset-2'
+const ICON_FLUSH_RING_CLASS = 'focus-visible:outline-offset-0'
 const ICON_CLASS = 'transition-colors [&>*:first-child]:transition-colors [&>*:not(:first-child)]:transition-colors'
 const ICON_HOVER_CLASS =
   'group-hover:[&>*:first-child]:fill-current group-hover:[&>*:not(:first-child)]:stroke-[var(--app-bg)]'
@@ -294,6 +297,7 @@ export default function IconTooltip({
     isFxIcon && (isShown ? fxToneClass.active : fxToneClass.idle),
     !isFxIcon && widensHitArea && ICON_HIT_AREA_CLASS,
     !isFxIcon && (focusRing ? ICON_FOCUS_RING_CLASS : ICON_NO_RING_CLASS),
+    !isFxIcon && focusRing && (focusRing === 'flush' ? ICON_FLUSH_RING_CLASS : ICON_RING_GAP_CLASS),
   )
   const iconClassName = joinClassNames(
     ICON_CLASS,

@@ -80,7 +80,7 @@ export function BankMarker({
           widthClassName={PANEL_WIDTH_CLASS}
           hoverFill={false}
           widensHitArea
-          focusRing
+          focusRing={afterTitle ? 'flush' : true}
           hidesClosedPanel
           avoidsLoneWord
           picksSideOnPress

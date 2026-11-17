@@ -407,6 +407,22 @@ test('puts the bank icon 4px after the title from 750px wide, centred on its cap
   expect(Math.abs(wide.offCentre)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
   expect(Math.abs(wide.gap - ICON_GAP_PX)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
 
+  // Under keyboard focus the ring hugs the icon, so it stays clear of the title's last letter
+  await focusBankIconByKeyboard(page, row)
+  await expect(marker).toBeFocused()
+  const ringClearance = await marker.evaluate((icon, titleElement) => {
+    const style = getComputedStyle(icon)
+    const ringLeft = icon.getBoundingClientRect().left - parseFloat(style.outlineOffset) - parseFloat(style.outlineWidth)
+    const walker = document.createTreeWalker(titleElement, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => (/\S/.test(node.textContent ?? '') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP),
+    })
+    const range = document.createRange()
+    range.selectNodeContents(walker.nextNode()!)
+    return ringLeft - range.getBoundingClientRect().right
+  }, (await title.elementHandle())!)
+  expect(ringClearance).toBeGreaterThan(0)
+  await page.keyboard.press('Shift+Tab')
+
   // On a phone the title line holds the title alone, and the icon joins the note and tag icons on the
   // account's line, at their size, centred with them and after them
   await page.setViewportSize(PHONE)
