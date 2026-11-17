@@ -42,35 +42,6 @@ jobs:
       matrix:
         group: [1, 2, 3, 4, 5, 6, 7, 8]
 
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_DB: lumina_test
-          POSTGRES_USER: lumina_test
-          POSTGRES_PASSWORD: lumina_test
-        ports:
-          - 5432:5432
-        # Keep the disposable database in memory to reduce test I/O
-        options: >-
-          --health-cmd "pg_isready -U lumina_test -d lumina_test"
-          --health-interval 2s
-          --health-timeout 3s
-          --health-retries 10
-          --health-start-period 5s
-          --tmpfs /var/lib/postgresql/data
-
-      # The cache tests run against a real ValKey, found at the default TEST_VALKEY_URL in tests/.env.test
-      valkey:
-        image: valkey/valkey:9-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "valkey-cli ping"
-          --health-interval 2s
-          --health-timeout 3s
-          --health-retries 10
-
     defaults:
       run:
         working-directory: backend
@@ -100,6 +71,45 @@ jobs:
           # The same uv as UV_VERSION in docker/Dockerfile
           version: "0.13.7"
           enable-cache: true
+
+      - name: Load the service images
+        uses: ./.github/actions/service-images
+        with:
+          platform: amd64
+
+      # The databases start from the shared images with no pull, so an image missing here fails the job.
+      # The database lives in memory to reduce test I/O, and the cache tests run against a real ValKey,
+      # found at the default TEST_VALKEY_URL in tests/.env.test
+      - name: Start the databases
+        run: |
+          docker run -d --pull never --name postgres \
+            -e POSTGRES_DB=lumina_test -e POSTGRES_USER=lumina_test -e POSTGRES_PASSWORD=lumina_test \
+            -p 5432:5432 --tmpfs /var/lib/postgresql/data \
+            --health-cmd "pg_isready -U lumina_test -d lumina_test" \
+            --health-interval 2s --health-timeout 3s --health-retries 10 --health-start-period 5s \
+            postgres:17
+          docker run -d --pull never --name valkey \
+            -p 6379:6379 \
+            --health-cmd "valkey-cli ping" \
+            --health-interval 2s --health-timeout 3s --health-retries 10 \
+            valkey/valkey:9-alpine
+
+      - name: Wait for the databases
+        run: |
+          for attempt in $(seq 1 60); do
+            postgres=$(docker inspect --format '{{.State.Health.Status}}' postgres)
+            valkey=$(docker inspect --format '{{.State.Health.Status}}' valkey)
+            if [ "${postgres}" = healthy ] && [ "${valkey}" = healthy ]; then
+              echo "The databases are healthy"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: postgres is ${postgres}, valkey is ${valkey}"
+            sleep 2
+          done
+          echo "The databases never became healthy, dumping logs"
+          docker logs postgres
+          docker logs valkey
+          exit 1
 
       # Tests need the restricted app role to exercise row-level security
       # Provisioning loads auth configuration, so it also needs temporary JWT keys

@@ -57,8 +57,21 @@ jobs:
     if: ${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_backend-lint.yml
 
-  backend-test:
+  # The database, cache and mail catcher images are pulled once per architecture for every job that
+  # runs them. The pull starts alongside the image build, for every change that starts such a job
+  service-images:
     needs: changes
+    if: >-
+      ${{ needs.changes.outputs.backend == 'true'
+        || needs.changes.outputs.frontend == 'true'
+        || needs.changes.outputs.docker == 'true'
+        || needs.changes.outputs.lockfiles == 'true' }}
+    uses: ./.github/workflows/_service-images.yml
+    secrets: inherit
+
+  # Runs only when the images it loads were pulled
+  backend-test:
+    needs: [changes, service-images]
     if: ${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_backend-test.yml
 
@@ -91,8 +104,8 @@ jobs:
     secrets: inherit
 
   e2e-test:
-    needs: docker-build
-    if: ${{ !cancelled() && needs.docker-build.result == 'success' }}
+    needs: [docker-build, service-images]
+    if: ${{ !cancelled() && needs.docker-build.result == 'success' && needs.service-images.result == 'success' }}
     uses: ./.github/workflows/_e2e-test.yml
     secrets: inherit
 
@@ -108,6 +121,7 @@ jobs:
       - frontend-test
       - frontend-build
       - docker-build
+      - service-images
       - e2e-test
     if: ${{ always() }}
     runs-on: ubuntu-latest

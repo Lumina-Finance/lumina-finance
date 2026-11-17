@@ -73,8 +73,14 @@ jobs:
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
           registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # The stack starts with no pull, so an image missing here fails the job
+      - name: Load the service images
+        uses: ./.github/actions/service-images
+        with:
+          platform: ${{ matrix.platform }}
+
       - name: Start the stack with no bank provider
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml up -d
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml up -d --pull never
 
       # Overlap E2E setup with application migrations and seeding
       - name: Set up the browser suite
@@ -108,7 +114,7 @@ jobs:
       # too, so a run reports both halves
       - name: Restart the stack with bank sync
         if: ${{ !cancelled() && !matrix.grep && steps.no-bank-sync-tests.outcome != 'skipped' }}
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml up -d
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml up -d --pull never
 
       - name: Wait for the stack with bank sync
         if: ${{ !cancelled() && !matrix.grep && steps.no-bank-sync-tests.outcome != 'skipped' }}
@@ -212,6 +218,11 @@ jobs:
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
           registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Load the service images
+        uses: ./.github/actions/service-images
+        with:
+          platform: amd64
+
       # Set up before the frontend build, which needs Node too. The stack starts after that build,
       # since it mounts the result
       - name: Set up the browser suite
@@ -243,7 +254,7 @@ jobs:
           EOF
 
       - name: Start the stack
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml -f docker/compose.cross-origin.yml up -d
+        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml -f docker/compose.cross-origin.yml up -d --pull never
 
       - name: Wait for the stack
         uses: ./.github/actions/e2e-health

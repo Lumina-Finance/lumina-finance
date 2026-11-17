@@ -1,0 +1,21 @@
+name: Load the service images
+description: Loads the database, cache and mail catcher images the service images job pulled for this architecture. A missing artifact or a failed load fails the job
+
+inputs:
+  platform:
+    description: Architecture of the images to load, amd64 or arm64
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+    - name: Download the service images
+      uses: actions/download-artifact@v8
+      with:
+        name: service-images-${{ inputs.platform }}
+        path: ${{ runner.temp }}
+
+    - name: Load the service images
+      shell: bash
+      run: docker load --input "${RUNNER_TEMP}/service-images.tar.gz"
