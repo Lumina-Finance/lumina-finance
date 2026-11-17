@@ -79,6 +79,7 @@ class SimpleFinAdapter(ProviderAdapter):
     display_order = 10
     provider_site = "SimpleFIN Bridge"
     provider_description = "One setup token reaches every bank you add in SimpleFIN Bridge."
+    in_beta = True
     credential_fields = (CredentialField(SETUP_TOKEN_KEY, "Setup token", "Paste the token", MAX_SETUP_TOKEN_LENGTH),)
     connect_steps = (
         "Open SimpleFIN Bridge and connect your banks there.",
