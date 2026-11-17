@@ -10,7 +10,12 @@ import { describeTickLimit } from '@/components/transactions/bulk-edit/reviewSel
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
 import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
-import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
+import { BANK_BOX_CLASS, BANK_BOX_EDGE_CLASS, REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
+import {
+  ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL,
+  TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
+  TRANSACTION_CHECKBOX_RAIL_WIDTH,
+} from '@/components/transactions/constants/transactionList'
 import { useFocusAfterRetry } from '@/components/transactions/hooks/useFocusAfterRetry'
 import {
   REVIEW_KIND_LABELS,
@@ -29,6 +34,10 @@ const ITEMS_SUBJECT = 'Bank items to review'
 // How a row out of view leaves as the block closes, the way every row leaves for a reader who asks for
 // less motion, so closing on hundreds of loaded items animates only the rows anyone can see
 const LEAVE_AT_ONCE = REVIEW_MOTION.reduced.leave
+
+// What the block says, and its rows, start level with the day headings' dates, moving past the checkbox
+// rail as the list opens it in selection mode, where a new item's checkbox sits in the rail
+const PAST_THE_RAIL = { paddingLeft: TEXT_INSET_PAST_THE_CHECKBOX_RAIL }
 
 /** The account a bank item belongs to, as its row names it and writes its amount */
 export type ReviewItemAccount = {
@@ -177,19 +186,17 @@ export function BankReviewBlock({
       // Read by a browser test waiting for a marker's request to end, since closing the block until
       // then opens it again
       data-going-to-item={isGoingToItem ? 'true' : 'false'}
-      className="overflow-hidden rounded-2xl border border-dashed"
-      style={{ borderColor: 'var(--app-review-border)', background: 'var(--app-review-bg)' }}
+      className={BANK_BOX_CLASS}
+      style={{ background: 'var(--app-review-bg)' }}
     >
-      <div className="flex flex-wrap items-center gap-x-2.5 px-4 pt-3.5 sm:px-5">
-        <Landmark
-          size={17}
-          strokeWidth={2}
-          aria-hidden
-          className="shrink-0"
-          style={{ color: 'var(--app-warning-text)' }}
-        />
+      {/* As tall as the Upcoming box's header, with the caret's button reaching into the room above and
+          below its line, so the caret itself sits 12px from the edge as Upcoming's chevron does */}
+      <div className="flex h-10 items-center gap-3 pl-3 pr-1">
+        <span className="flex shrink-0" style={{ width: ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL }}>
+          <Landmark size={16} aria-hidden style={{ color: 'var(--app-warning-text)' }} />
+        </span>
         {/* Titled like the page's other cards. Focusable once a retry succeeds, but never a tab stop */}
-        <h2 ref={headingRef} id={titleId} tabIndex={-1} className="app-label leading-snug focus:outline-none">
+        <h2 ref={headingRef} id={titleId} tabIndex={-1} className="app-label leading-6 focus:outline-none">
           Waiting for review
         </h2>
 
@@ -236,15 +243,15 @@ export function BankReviewBlock({
             </motion.span>
           )}
         </AnimatePresence>
-        <p className="basis-full pb-3 pt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-          Bank items stay out of every balance until you add them to your ledger.
-        </p>
       </div>
+      <p className="px-3 pb-2 text-xs" style={{ color: 'var(--app-text-muted)', ...PAST_THE_RAIL }}>
+        Bank items stay out of every balance until you add them to your ledger.
+      </p>
 
       <AnimatePresence initial={false}>
         {backlogNotice && (
           <motion.div key="backlog" {...notice}>
-            <div className="px-4 pb-3 sm:px-5">
+            <div className="px-3 pb-2" style={PAST_THE_RAIL}>
               {/* Focusable once a retry succeeds, but never a tab stop */}
               <p
                 ref={backlogNoticeRef}
@@ -274,14 +281,14 @@ export function BankReviewBlock({
         )}
         {backlogFailure && (
           <motion.div key="backlog-failure" {...notice}>
-            <div ref={backlogFailureRef} className="px-4 pb-3 sm:px-5">
+            <div ref={backlogFailureRef} className="px-3 pb-2" style={PAST_THE_RAIL}>
               <ReadFailureNotice subject="Sync pause status" failure={backlogFailure} />
             </div>
           </motion.div>
         )}
         {itemsFailure && (
           <motion.div key="items-failure" {...notice}>
-            <div ref={itemsFailureRef} className="px-4 pb-3 sm:px-5">
+            <div ref={itemsFailureRef} className="px-3 pb-2" style={PAST_THE_RAIL}>
               <ReadFailureNotice subject={ITEMS_SUBJECT} failure={itemsFailure} retryRef={itemsRetryRef} />
             </div>
           </motion.div>
@@ -289,12 +296,14 @@ export function BankReviewBlock({
       </AnimatePresence>
 
       {/* One list, so a screen reader counts every loaded item, with each row past the first few
-          growing in as the block opens. Room below it keeps the last row's fill off the card's border */}
-      <div ref={listRef} id={listId} role="list" className="pb-2" onMouseLeave={selection?.onPointerLeaveList}>
+          growing in as the block opens. The last row meets the box's bottom edge, as the Upcoming box's does */}
+      <div ref={listRef} id={listId} role="list" onMouseLeave={selection?.onPointerLeaveList}>
         {/* A leaving row reads which rows were on screen from here rather than from its own props,
             since those stop updating once it has left the list */}
         <AnimatePresence initial={false} custom={rowsInViewAtClose} onExitComplete={onRowsLeft}>
-          {visibleItems.map((item) => {
+          {visibleItems.map((item, index) => {
+            // The last row's fill and rings curve with the box's bottom corners, so the box doesn't cut them off
+            const rowShape = index === visibleItems.length - 1 ? 'rounded-b-lg' : ''
             const account = accountFor(item.account_id)
             const amount = getReviewItemAmount(item, account.currency, formatMovedCurrency)
             const details = [
@@ -381,21 +390,21 @@ export function BankReviewBlock({
                 exit="leave"
                 transition={enterTransition}
               >
-                {/* The divider starts where the block's heading starts, and the hover fill and the ring
-                    below it span the same width, so one edge runs down the whole block and the fill never
-                    reaches past the line above it. The row's text sits 12px inside that edge */}
+                {/* The divider, the hover fill and the ring below it run from edge to edge, as the Upcoming
+                    box's rows do, so the fill never reaches past the line above it. The row's text sits 12px
+                    inside the edge */}
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute inset-x-4 top-0 h-px sm:inset-x-5"
+                  className="pointer-events-none absolute inset-x-0 top-0 h-px"
                   style={{ background: 'var(--app-review-divider)' }}
                 />
 
                 {/* A ring rather than a fill, since the warning tint would take the muted line below
-                    4.5:1 in the dark theme. It frames the content in line with the divider above it */}
+                    4.5:1 in the dark theme. It frames the row below the divider above it */}
                 <span
                   data-testid="review-item-ring"
                   aria-hidden
-                  className="pointer-events-none absolute inset-x-4 bottom-0 top-px rounded-lg sm:inset-x-5"
+                  className={`pointer-events-none absolute inset-x-0 bottom-0 top-px ${rowShape}`}
                   style={{
                     boxShadow: highlightedId === item.id ? 'inset 0 0 0 2px var(--app-warning-dot)' : 'none',
                     transition: prefersReducedMotion
@@ -405,10 +414,12 @@ export function BankReviewBlock({
                 />
 
                 {/* Beside the row's button rather than inside it, since a checkbox can't sit inside
-                    another button. Raised above it, so a press on the box lands on the box */}
+                    another button. Raised above it, so a press on the box lands on the box. Centred in a
+                    rail as wide as the list's, so it lines up with the list's checkboxes */}
                 {tick && (
                   <span
-                    className="absolute inset-y-0 left-7 z-10 flex items-center sm:left-8"
+                    className="absolute inset-y-0 left-0 z-10 flex items-center justify-center"
+                    style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH }}
                     title={isSelectable ? undefined : describeTickLimit(true)}
                   >
                     <Checkbox
@@ -430,15 +441,14 @@ export function BankReviewBlock({
                   }}
                   onMouseEnter={tick ? () => tick.onPointerEnter(item.id) : undefined}
                   tabIndex={tick ? -1 : undefined}
-                  className={`group relative block w-full text-left focus-visible:outline-none ${
-                    selection ? 'pl-15 pr-7 sm:pl-16 sm:pr-8' : 'px-7 sm:px-8'
-                  } ${tick ? 'select-none' : ''}`}
+                  className={`group relative block w-full px-3 text-left focus-visible:outline-none ${tick ? 'select-none' : ''}`}
+                  style={PAST_THE_RAIL}
                 >
-                  {/* A ticked or picked row's fill takes the hover fill's shape, inside the dividers' edge */}
+                  {/* A ticked or picked row's fill takes the hover fill's shape */}
                   {selectionBackground && (
                     <span
                       aria-hidden
-                      className="pointer-events-none absolute inset-x-4 bottom-0 top-px rounded-lg sm:inset-x-5"
+                      className={`pointer-events-none absolute inset-x-0 bottom-0 top-px ${rowShape}`}
                       style={{ background: selectionBackground }}
                     />
                   )}
@@ -449,7 +459,7 @@ export function BankReviewBlock({
                       cleared and the ring marked important to win over it */}
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-4 bottom-0 top-px rounded-lg transition-[background-color,box-shadow] motion-reduce:transition-none group-hover:bg-[var(--app-hover-on-surface-soft)] group-focus-visible:bg-transparent! group-focus-visible:ring-2! group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-focus-ring)]! sm:inset-x-5"
+                    className={`pointer-events-none absolute inset-x-0 bottom-0 top-px transition-[background-color,box-shadow] motion-reduce:transition-none group-hover:bg-[var(--app-hover-on-surface-soft)] group-focus-visible:bg-transparent! group-focus-visible:ring-2! group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-focus-ring)]! ${rowShape}`}
                   />
                   {content}
                 </button>
@@ -463,16 +473,13 @@ export function BankReviewBlock({
         <>
           <div ref={loadMoreSentinelRef} aria-hidden style={{ height: 1 }} />
           {isLoadingMore && (
-            <p
-              role="status"
-              className="px-4 py-2.5 text-center text-sm sm:px-5"
-              style={{ color: 'var(--app-text-muted)' }}
-            >
+            <p role="status" className="px-3 py-2.5 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
               Loading more items…
             </p>
           )}
         </>
       )}
+      <span aria-hidden className={BANK_BOX_EDGE_CLASS} style={{ borderColor: 'var(--app-review-border)' }} />
     </section>
   )
 }

@@ -56,7 +56,13 @@ import {
 import { useBulkSelection } from '@/components/transactions/bulk-edit/useBulkSelection'
 import { getTransactionReadOnlyReason } from '@/components/transactions/utils/rowEditability'
 import { getImportBlockReason, isImportableAccount } from '@/utils/importableAccount'
-import { TRANSACTION_FILTER_KEYS, TRANSACTION_LIST_EASE } from '@/components/transactions/constants/transactionList'
+import {
+  TRANSACTION_CHECKBOX_RAIL_DURATION_S,
+  TRANSACTION_CHECKBOX_RAIL_VARIABLE,
+  TRANSACTION_CHECKBOX_RAIL_WIDTH,
+  TRANSACTION_FILTER_KEYS,
+  TRANSACTION_LIST_EASE,
+} from '@/components/transactions/constants/transactionList'
 import TransactionDateGroupList from '@/components/transactions/DateGroupList'
 import { BankHoldsSection } from '@/components/transactions/bank-review/HoldsSection'
 import { BankPendingSection } from '@/components/transactions/bank-review/PendingSection'
@@ -715,25 +721,36 @@ export default function TransactionListSection({
         onToggleSelecting={() => (isSelecting ? stopSelecting() : setIsSelecting(true))}
       />
 
-      <BankReviewSection
-        listAccountIds={reviewAccountIds}
-        isFixedAccount={Boolean(fixedAccount)}
-        focusRequest={reviewFocus}
-        selection={isSelecting ? reviewSelection.rowSelection : undefined}
-        prefersReducedMotion={prefersReducedMotion}
-      />
+      {/* The bank's boxes open the list's checkbox rail with it, so their text moves past the rail as the
+          Upcoming box's does, and stays level with the day headings' dates in selection too */}
+      <motion.div
+        initial={false}
+        animate={{ [TRANSACTION_CHECKBOX_RAIL_VARIABLE]: isSelecting ? TRANSACTION_CHECKBOX_RAIL_WIDTH : '0rem' }}
+        transition={{
+          duration: prefersReducedMotion ? 0 : TRANSACTION_CHECKBOX_RAIL_DURATION_S,
+          ease: TRANSACTION_LIST_EASE,
+        }}
+      >
+        <BankReviewSection
+          listAccountIds={reviewAccountIds}
+          isFixedAccount={Boolean(fixedAccount)}
+          focusRequest={reviewFocus}
+          selection={isSelecting ? reviewSelection.rowSelection : undefined}
+          prefersReducedMotion={prefersReducedMotion}
+        />
 
-      <BankHoldsSection
-        listAccountIds={reviewAccountIds}
-        isFixedAccount={Boolean(fixedAccount)}
-        prefersReducedMotion={prefersReducedMotion}
-      />
+        <BankHoldsSection
+          listAccountIds={reviewAccountIds}
+          isFixedAccount={Boolean(fixedAccount)}
+          prefersReducedMotion={prefersReducedMotion}
+        />
 
-      <BankPendingSection
-        listAccountIds={reviewAccountIds}
-        isFixedAccount={Boolean(fixedAccount)}
-        prefersReducedMotion={prefersReducedMotion}
-      />
+        <BankPendingSection
+          listAccountIds={reviewAccountIds}
+          isFixedAccount={Boolean(fixedAccount)}
+          prefersReducedMotion={prefersReducedMotion}
+        />
+      </motion.div>
 
       <div className="relative" aria-busy={filterListLoading} onMouseLeave={selection.handlePointerLeaveList}>
         <AnimatePresence>

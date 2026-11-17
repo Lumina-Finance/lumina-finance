@@ -576,12 +576,12 @@ test("goes from a ledger row's Needs review marker to its item, loading the page
   expect(cursors).toEqual([null, 'page-1'])
   await expect(item.getByText(`${MINUS}$18.00`)).toHaveCSS('text-decoration-line', 'line-through')
 
-  // The ring stays clear of the card's edges and of the text it frames
+  // The ring runs from edge to edge of the block, as the Upcoming box's rows do, clear of the text it frames
   const [blockBox, ringBox, textBox, amountBox] = await Promise.all(
     [block, ring, item.getByTestId('review-item-name'), item.getByTestId('review-item-amount')].map(async (part) => (await part.boundingBox())!),
   )
-  expect(ringBox.x).toBeGreaterThanOrEqual(blockBox.x + 8)
-  expect(ringBox.x + ringBox.width).toBeLessThanOrEqual(blockBox.x + blockBox.width - 8)
+  expect(ringBox.x).toBeCloseTo(blockBox.x, 0)
+  expect(ringBox.x + ringBox.width).toBeCloseTo(blockBox.x + blockBox.width, 0)
   expect(textBox.x).toBeGreaterThanOrEqual(ringBox.x + 4)
   expect(amountBox.x + amountBox.width).toBeLessThanOrEqual(ringBox.x + ringBox.width - 4)
   await expect(ring).toHaveCSS('box-shadow', 'none')

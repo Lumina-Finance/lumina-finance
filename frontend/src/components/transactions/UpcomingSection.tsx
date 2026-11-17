@@ -5,7 +5,9 @@ import { CollapsibleSection, CollapsibleSectionCount } from '@/components/collap
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import {
+  ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL,
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
+  TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_LIST_EASE,
   TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX,
@@ -86,14 +88,10 @@ const BOX_EDGE: CSSProperties = {
   borderBottom: BOX_EDGE_LINE,
 }
 
-// Widens the icon's slot by as much as the open rail outgrows it, so the label starts level with the day
-// headings' dates in selection too. The rail is 2.5rem and the slot sits 0.75rem into it
-const UPCOMING_ICON_SLOT_WIDTH = `max(1rem, calc(${TRANSACTION_CHECKBOX_RAIL} - 0.75rem))`
-
 // The explanation is text the dates line up with, so it moves over with them when the rail opens
 const EXPLANATION_ACROSS_THE_LIST: CSSProperties = {
   ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
-  paddingLeft: `calc(0.75rem + ${TRANSACTION_CHECKBOX_RAIL})`,
+  paddingLeft: TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
   paddingRight: '0.75rem',
 }
 
@@ -223,7 +221,7 @@ export function UpcomingSection({
             headerRef={measureHeader}
             className={gridClassName}
             bodyClassName={gridClassName}
-            iconSlotWidth={UPCOMING_ICON_SLOT_WIDTH}
+            iconSlotWidth={ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL}
             headerStyle={{
               ...HEADER_ACROSS_THE_LIST,
               ...HEADER_ROUNDED_TOP,

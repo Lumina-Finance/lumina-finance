@@ -4,7 +4,16 @@ import { ChevronDown, CircleSlash } from 'lucide-react'
 import type { BankHold } from '@/api/bank-sync'
 import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import type { ReviewItemAccount } from '@/components/transactions/bank-review/ReviewBlock'
-import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
+import {
+  BANK_BOX_CLASS,
+  BANK_BOX_EDGE_CLASS,
+  BANK_STRIP_HEADER_CLASS,
+  REVIEW_MOTION,
+} from '@/components/transactions/constants/bankReview'
+import {
+  ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL,
+  TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
+} from '@/components/transactions/constants/transactionList'
 import { formatReviewDate } from '@/components/transactions/utils/bankReview'
 
 const EXPLANATION = '$0.00 records, not in your ledger or balances'
@@ -43,20 +52,18 @@ export function BankHoldsStrip({
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
   return (
-    <section
-      aria-label="Bank holds"
-      className="overflow-hidden rounded-2xl border border-dashed"
-      style={{ borderColor: 'var(--app-border-strong)' }}
-    >
+    <section aria-label="Bank holds" className={BANK_BOX_CLASS}>
       <button
         type="button"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         onClick={onToggleOpen}
-        className={`flex w-full items-center gap-2.5 px-4 py-3 text-left text-[var(--app-text-muted)] transition-control hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:bg-transparent! focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none sm:px-5 ${open ? 'rounded-t-2xl' : 'rounded-2xl'}`}
+        className={`${BANK_STRIP_HEADER_CLASS} ${open ? 'rounded-t-lg' : 'rounded-lg'}`}
       >
-        <CircleSlash size={15} aria-hidden className="shrink-0" />
-        <span className="min-w-0 flex-1 text-sm">
+        <span className="flex shrink-0" style={{ width: ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL }}>
+          <CircleSlash size={16} aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1 text-sm leading-6">
           <span className="font-medium" style={{ color: 'var(--app-text)' }}>
             {holds.length.toLocaleString()} {holds.length === 1 ? 'hold' : 'holds'}
           </span>
@@ -80,7 +87,10 @@ export function BankHoldsStrip({
             exit={leave}
             transition={enterTransition}
           >
-            <p className="px-4 pb-3 text-xs sm:hidden" style={{ color: 'var(--app-text-muted)' }}>
+            <p
+              className="px-3 pb-2 text-xs sm:hidden"
+              style={{ color: 'var(--app-text-muted)', paddingLeft: TEXT_INSET_PAST_THE_CHECKBOX_RAIL }}
+            >
               {EXPLANATION}.
             </p>
             <ul>
@@ -93,14 +103,20 @@ export function BankHoldsStrip({
                   return (
                     <motion.li
                       key={hold.id}
-                      className="overflow-hidden px-4 sm:px-5"
+                      className="overflow-hidden"
                       initial={collapsed}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={leave}
                       transition={enterTransition}
                     >
-                      {/* The divider sits on the content rather than the row, so it stops short of the card's edges */}
-                      <div className="py-2.5" style={{ borderTop: '1px dashed var(--app-border-strong)' }}>
+                      {/* The divider runs from edge to edge, as the Upcoming box's rows' do */}
+                      <div
+                        className="px-3 py-2.5"
+                        style={{
+                          borderTop: '1px dashed var(--app-border-strong)',
+                          paddingLeft: TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
+                        }}
+                      >
                         <p className="break-words text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
                           {hold.description}
                         </p>
@@ -116,6 +132,7 @@ export function BankHoldsStrip({
           </motion.div>
         )}
       </AnimatePresence>
+      <span aria-hidden className={BANK_BOX_EDGE_CLASS} style={{ borderColor: 'var(--app-border-strong)' }} />
     </section>
   )
 }
