@@ -29,7 +29,7 @@ runs:
       shell: bash
       run: docker load --input "${RUNNER_TEMP}/lumina-image.tar"
 
-    # Only the image build job shares these. A workflow that builds its own image uploads none, so its
+    # Only the image build job shares the database, cache and mail images. A workflow that builds its own image uploads none, so its
     # stack pulls them. A shared file that will not load fails the job, since pulling instead would hide
     # that every job is back to fetching its own
     - name: Load the images the stack runs beside the app

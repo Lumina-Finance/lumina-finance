@@ -54,19 +54,20 @@ jobs:
       # Every browser job starts on a fresh runner, so each would pull these from the registry. They
       # are pulled once per architecture here and travel with the app image. The list is read from the
       # Compose files those jobs start, so a changed tag is shared too, and the app's own image is
-      # left out since the build above makes it. Gzip keeps the file small whichever way the runner's
-      # Docker stores images
+      # left out since the build above makes it. A missing Compose file or an empty list stops the
+      # step. Gzip keeps the file small where the runner's Docker saves image layers uncompressed
       - name: Pull the images the stack runs beside the app
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t images < <(grep -hE '^[[:space:]]+image:' docker/compose.yml e2e/compose.mail.yaml e2e/*.compose.yaml \
+          list=$(grep -hE '^[[:space:]]+image:' docker/compose.yml e2e/compose.mail.yaml e2e/*.compose.yaml \
             | sed -E 's/^[[:space:]]+image:[[:space:]]*//; s/^"(.*)"$/\1/' \
             | grep -v '^luminahq/lumina-finance:' | sort -u)
-          if [ "${#images[@]}" -eq 0 ] || [[ "${images[*]}" == *'$'* ]]; then
-            echo "Could not read the service images from the Compose files: ${images[*]}"
+          if [[ "${list}" == *'$'* ]]; then
+            echo "Could not read the service images from the Compose files: ${list}"
             exit 1
           fi
+          mapfile -t images <<< "${list}"
           printf '%s\n' "${images[@]}"
           for image in "${images[@]}"; do
             docker pull "${image}"
