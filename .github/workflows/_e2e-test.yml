@@ -2,11 +2,6 @@ name: E2E tests
 
 on:
   workflow_call:
-    inputs:
-      every-size-on-arm64:
-        description: Run the tablet and phone projects on arm64 too, which pull requests leave to the weekly run
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -38,8 +33,11 @@ jobs:
           - { project: desktop, shard: 8, shards: 8 }
           - { project: tablet, shard: 1, shards: 1 }
           - { project: phone, shard: 1, shards: 1 }
-        # A pull request runs arm64 at desktop only, and the weekly run takes arm64 at every size
-        exclude: ${{ fromJSON(inputs.every-size-on-arm64 && '[]' || '[{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"suite":{"project":"tablet","shard":1,"shards":1}},{"target":{"platform":"arm64","runner":"ubuntu-24.04-arm"},"suite":{"project":"phone","shard":1,"shards":1}}]') }}
+        # Tablet and phone run only the tests that depend on the screen's width or on touch, so arm64
+        # leaves them to amd64 and runs desktop alone
+        exclude:
+          - { target: { platform: arm64, runner: ubuntu-24.04-arm }, suite: { project: tablet, shard: 1, shards: 1 } }
+          - { target: { platform: arm64, runner: ubuntu-24.04-arm }, suite: { project: phone, shard: 1, shards: 1 } }
 
     # Every matrix job starts its own application and database on its runner, and runs its tests
     # against two servers in turn. The first offers no bank sync, with no provider enabled and so no
