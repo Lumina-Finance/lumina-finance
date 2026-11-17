@@ -30,6 +30,9 @@ type BankHoldsStripProps = {
   today: string
   open: boolean
   onToggleOpen: () => void
+
+  /** Opens the filing card of the hold whose row was pressed */
+  onOpenHold: (hold: BankHold) => void
   prefersReducedMotion: boolean | null
 }
 
@@ -37,7 +40,8 @@ type BankHoldsStripProps = {
  * The bank's records of no amount, closed until opened
  *
  * A zero amount can't be approved or put in the ledger, so these are kept apart from the review
- * block, for awareness only. A row offers nothing to do, and a record the bank drops leaves on its own
+ * block, for awareness only. A row opens the hold's filing card and changes nothing, and a record the
+ * bank drops leaves on its own
  */
 export function BankHoldsStrip({
   holds,
@@ -46,6 +50,7 @@ export function BankHoldsStrip({
   today,
   open,
   onToggleOpen,
+  onOpenHold,
   prefersReducedMotion,
 }: BankHoldsStripProps) {
   const listId = useId()
@@ -95,11 +100,13 @@ export function BankHoldsStrip({
             </p>
             <ul>
               <AnimatePresence initial={false}>
-                {holds.map((hold) => {
+                {holds.map((hold, index) => {
                   const details = [
                     formatReviewDate(hold.date, today),
                     showAccountNames && accountFor(hold.account_id).name,
                   ]
+                  // The last row's fill and ring curve with the box's bottom corners, so the box doesn't cut them off
+                  const rowShape = index === holds.length - 1 ? 'rounded-b-lg' : ''
                   return (
                     <motion.li
                       key={hold.id}
@@ -110,20 +117,32 @@ export function BankHoldsStrip({
                       transition={enterTransition}
                     >
                       {/* The divider runs from edge to edge, as the Upcoming box's rows' do */}
-                      <div
-                        className="px-3 py-2.5"
+                      <button
+                        type="button"
+                        aria-haspopup="dialog"
+                        onClick={() => onOpenHold(hold)}
+                        className="group relative block w-full px-3 py-2.5 text-left focus-visible:outline-none"
                         style={{
                           borderTop: '1px dashed var(--app-border-strong)',
                           paddingLeft: TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
                         }}
                       >
-                        <p className="break-words text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
+                        {/* Fills on hover as a transaction row does. Keyboard focus shows the ring in place of the
+                            fill, as the review block's rows do */}
+                        <span
+                          aria-hidden
+                          className={`pointer-events-none absolute inset-0 transition-[background-color,box-shadow] motion-reduce:transition-none group-hover:bg-[var(--app-hover-soft)] group-focus-visible:bg-transparent! group-focus-visible:ring-2! group-focus-visible:ring-inset group-focus-visible:ring-[var(--app-focus-ring)]! ${rowShape}`}
+                        />
+                        <span
+                          className="relative block break-words text-sm italic"
+                          style={{ color: 'var(--app-text-muted)' }}
+                        >
                           {hold.description}
-                        </p>
-                        <p className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                        </span>
+                        <span className="relative mt-0.5 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
                           <DetailPhrases phrases={details} />
-                        </p>
-                      </div>
+                        </span>
+                      </button>
                     </motion.li>
                   )
                 })}

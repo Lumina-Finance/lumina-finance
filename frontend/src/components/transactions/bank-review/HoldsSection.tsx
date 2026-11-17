@@ -1,7 +1,9 @@
 import { memo, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useBankHolds } from '@/api/bank-sync'
+import { useBankHolds, useBankLinksByAccount, type BankHold } from '@/api/bank-sync'
+import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
+import { BankHoldCardDialogue } from '@/components/transactions/bank-review/HoldCardDialogue'
 import { BankHoldsStrip } from '@/components/transactions/bank-review/HoldsStrip'
 import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import { useBankItemScope } from '@/components/transactions/hooks/useBankItemScope'
@@ -38,32 +40,55 @@ export const BankHoldsSection = memo(function BankHoldsSection({
   const [open, setOpen] = useState(false)
   if (open && holds.length === 0) setOpen(false)
 
+  // The hold whose card is open, kept while the card closes so it doesn't empty as it leaves. A hold the
+  // bank drops while its card is open stays on the card until the card is closed
+  const [cardHold, setCardHold] = useState<BankHold | null>(null)
+  const [isCardOpen, setIsCardOpen] = useState(false)
+  const { user } = useAuth()
+  const linksByAccount = useBankLinksByAccount()
+  const cardAccount = cardHold ? accountFor(cardHold.account_id) : null
+
   const { collapsed, enterTransition, leave } = REVIEW_MOTION[prefersReducedMotion ? 'reduced' : 'full']
 
   return (
-    <AnimatePresence initial={false}>
-      {holds.length > 0 && (
-        <motion.div
-          key="holds"
-          className="overflow-hidden"
-          initial={collapsed}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={leave}
-          transition={enterTransition}
-        >
-          <div className="pb-3 pt-1">
-            <BankHoldsStrip
-              holds={holds}
-              accountFor={accountFor}
-              showAccountNames={!isFixedAccount}
-              today={today}
-              open={open}
-              onToggleOpen={() => setOpen(!open)}
-              prefersReducedMotion={prefersReducedMotion}
-            />
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <>
+      <BankHoldCardDialogue
+        hold={cardHold}
+        open={isCardOpen}
+        onClose={() => setIsCardOpen(false)}
+        link={cardHold ? linksByAccount.get(cardHold.account_id) : undefined}
+        accountName={cardAccount?.name ?? ''}
+        currency={cardAccount?.currency ?? ''}
+        timeZone={user?.tz}
+      />
+      <AnimatePresence initial={false}>
+        {holds.length > 0 && (
+          <motion.div
+            key="holds"
+            className="overflow-hidden"
+            initial={collapsed}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={leave}
+            transition={enterTransition}
+          >
+            <div className="pb-3 pt-1">
+              <BankHoldsStrip
+                holds={holds}
+                accountFor={accountFor}
+                showAccountNames={!isFixedAccount}
+                today={today}
+                open={open}
+                onToggleOpen={() => setOpen(!open)}
+                onOpenHold={(hold) => {
+                  setCardHold(hold)
+                  setIsCardOpen(true)
+                }}
+                prefersReducedMotion={prefersReducedMotion}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 })

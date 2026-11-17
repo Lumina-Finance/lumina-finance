@@ -1,10 +1,11 @@
 /**
  * Covers the strip of bank holds under the review block: the count it shows closed, and each hold it
- * lists once opened with its merchant and date
+ * lists once opened with its merchant and date, as a button that opens its card
  *
  * These tests catch the strip listing rows while closed, a hold shown with an amount or as a review
- * item, a hold offering something to do, and an account's page naming its own account on every row.
- * Opening the strip and a row leaving run in the browser, since they need effects and clicks
+ * item, a hold offering anything beyond its card, and an account's page naming its own account on every
+ * row. Opening the strip, a hold's card and a row leaving run in the browser, since they need effects
+ * and clicks
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -24,8 +25,12 @@ function createHold(id: string, overrides: Partial<BankHold> = {}): BankHold {
   return {
     id,
     account_id: 'everyday',
+    provider: 'simplefin',
+    provider_name: 'SimpleFIN',
     date: '2026-10-03',
     description: `CARD CHECK ${id}`,
+    note: `CARD CHECK ${id}`,
+    merchant: null,
     observed_at: '2026-10-05T09:00:00Z',
     ...overrides,
   }
@@ -45,6 +50,7 @@ function renderStrip(
       today: '2026-10-05',
       open: open as boolean,
       onToggleOpen: () => {},
+      onOpenHold: () => {},
       prefersReducedMotion: true,
     }),
   )
@@ -77,13 +83,15 @@ describe('the holds strip', () => {
     expect(renderStrip(HOLDS, { open: true, showAccountNames: false })).not.toContain('Everyday')
   })
 
-  it('offers nothing to do on a hold, so the header is its only control', () => {
+  it('makes each hold a button that opens its card, and nothing else to do', () => {
     for (const showAccountNames of [true, false]) {
       const markup = renderStrip(HOLDS, { open: true, showAccountNames })
+      const rowButtons = [...markup.matchAll(/<button[^>]*aria-haspopup="dialog"[^>]*>/g)]
 
-      // Both rows are there, so a missing button isn't a missing row
-      expect(markup).toContain('CARD CHECK hotel')
-      expect(markup.match(/<button/g)).toHaveLength(1)
+      // The header and one button for each row, and nothing in a row beside its button
+      expect(markup.match(/<button/g)).toHaveLength(1 + HOLDS.length)
+      expect(rowButtons).toHaveLength(HOLDS.length)
+      expect(textOf(markup)).toContain('CARD CHECK hotel')
     }
   })
 })

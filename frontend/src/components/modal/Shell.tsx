@@ -43,6 +43,12 @@ interface ModalShellProps {
   descriptionId?: string
   /** Size and layout classes for the panel. Its background, border and shadow come from app-modal-panel */
   panelClassName: string
+
+  /**
+   * Leaves the panel out, so the content floats on the backdrop alone at every width, for a dialogue
+   * that only shows one card. Backdrop tap and Escape close it, since it never fills a phone's screen
+   */
+  bare?: boolean
   /** Whether the modal was opened from the page or from another modal, which sets its stacking level and its entrance timing */
   level?: ModalLevel
   /** Blocks Escape and backdrop dismissal while an action is in flight */
@@ -74,6 +80,7 @@ export function ModalShell({
   titleId,
   descriptionId,
   panelClassName,
+  bare = false,
   level = 'page',
   closeDisabled = false,
   onExitComplete,
@@ -107,7 +114,7 @@ export function ModalShell({
     tabIndex: -1,
     inert: covered,
     'data-tooltip-bounds': boundsTooltips ? true : undefined,
-    className: `app-modal-panel ${covered ? 'app-modal-panel-covered' : ''} ${panelClassName}`,
+    className: `${bare ? 'app-modal-bare' : 'app-modal-panel'} ${covered ? 'app-modal-panel-covered' : ''} ${panelClassName}`,
     onClick: (event: MouseEvent) => event.stopPropagation(),
   } as const
 
