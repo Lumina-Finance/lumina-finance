@@ -1,0 +1,64 @@
+name: Service images
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  pull:
+    name: Pull service images (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+
+    # Pulled natively for each architecture the test jobs run on
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-latest
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Every test job starts on a fresh runner, so each would pull these from the registry. They are
+      # pulled once per architecture here and every job loads this copy. The list is read from the
+      # Compose files the browser jobs start, so a changed tag is shared too, and the app's own image is
+      # left out since the image build makes it. A missing Compose file or an empty list stops the
+      # step. Gzip keeps the file small where the runner's Docker saves image layers uncompressed
+      - name: Pull the images the stack runs beside the app
+        shell: bash
+        run: |
+          set -euo pipefail
+          list=$(grep -hE '^[[:space:]]+image:' docker/compose.yml e2e/compose.mail.yaml e2e/*.compose.yaml \
+            | sed -E 's/^[[:space:]]+image:[[:space:]]*//; s/^"(.*)"$/\1/' \
+            | grep -v '^luminahq/lumina-finance:' | sort -u)
+          if [[ "${list}" == *'$'* ]]; then
+            echo "Could not read the service images from the Compose files: ${list}"
+            exit 1
+          fi
+          mapfile -t images <<< "${list}"
+          printf '%s\n' "${images[@]}"
+          for image in "${images[@]}"; do
+            docker pull "${image}"
+          done
+          docker save "${images[@]}" | gzip -1 > "${RUNNER_TEMP}/service-images.tar.gz"
+
+      - name: Share the service images with the test jobs
+        uses: actions/upload-artifact@v7
+        with:
+          name: service-images-${{ matrix.platform }}
+          path: ${{ runner.temp }}/service-images.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
