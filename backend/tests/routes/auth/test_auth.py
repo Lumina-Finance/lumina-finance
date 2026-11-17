@@ -22,7 +22,7 @@ from tests.routes.support import (
     _create_user,
     _get_login_lockout,
     _seed_currency,
-    sign_up_confirmed,
+    sign_up_through_email,
 )
 
 # --- Helpers ---
@@ -68,7 +68,7 @@ def _encode_auth_test_token(
 async def test_confirming_signup_returns_user_and_access_token(client):
     """Confirming a sign-up returns user info and an access token."""
     await _seed_currency()
-    resp = await sign_up_confirmed(client, SIGNUP_PAYLOAD)
+    resp = await sign_up_through_email(client, SIGNUP_PAYLOAD)
 
     assert resp.status_code == 201
     data = resp.json()
@@ -85,7 +85,7 @@ async def test_confirming_signup_returns_user_and_access_token(client):
 async def test_confirming_signup_rejects_weak_password(client):
     """Confirming rejects a password that fails the strength policy."""
     await _seed_currency()
-    resp = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "password": "weak"})
+    resp = await sign_up_through_email(client, {**SIGNUP_PAYLOAD, "password": "weak"})
 
     assert resp.status_code == 422
 
@@ -93,7 +93,7 @@ async def test_confirming_signup_rejects_weak_password(client):
 async def test_confirming_signup_sets_refresh_cookie(client):
     """Confirming a sign-up sets an httpOnly refresh token cookie."""
     await _seed_currency()
-    resp = await sign_up_confirmed(client, SIGNUP_PAYLOAD)
+    resp = await sign_up_through_email(client, SIGNUP_PAYLOAD)
 
     assert resp.status_code == 201
     assert "refresh_token" in resp.cookies
@@ -102,7 +102,7 @@ async def test_confirming_signup_sets_refresh_cookie(client):
 async def test_confirming_signup_registers_auth_session_and_tokens(client):
     """Confirming a sign-up stores one auth session with access and refresh token rows"""
     await _seed_currency()
-    await sign_up_confirmed(client, SIGNUP_PAYLOAD)
+    await sign_up_through_email(client, SIGNUP_PAYLOAD)
 
     async with TestSession() as session:
         session_result = await session.execute(select(AuthSession))
@@ -139,7 +139,7 @@ async def test_signup_without_last_name_succeeds(client):
     """Signup with last_name omitted should succeed since it's optional."""
     await _seed_currency()
     payload = {k: v for k, v in SIGNUP_PAYLOAD.items() if k != "last_name"}
-    resp = await sign_up_confirmed(client, payload)
+    resp = await sign_up_through_email(client, payload)
 
     assert resp.status_code == 201
     assert resp.json()["user"]["last_name"] is None
