@@ -9,7 +9,7 @@ import { API_BASE_URL } from '../support/target'
 
 const FAVICON_SERVICE_PATTERN = 'https://t2.gstatic.com/faviconV2**'
 
-// A name is taken once per country across the database, so a retry in a new worker needs a name of its own
+// A name is taken once per country across the database, so each run needs a name of its own
 const RUN_TAG = crypto.randomUUID().slice(0, 8)
 
 const BANKS = [
