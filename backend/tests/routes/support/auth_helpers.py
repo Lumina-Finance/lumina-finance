@@ -7,8 +7,10 @@ import pyotp
 
 from app.models.auth import LoginLockout, PasswordResetToken
 from app.models.currency import Currency
+from app.schemas.auth import SignupRequest
 from app.services.auth.login_email_hash import seal_login_email
 from app.services.auth.token_hashing import hash_token
+from app.services.auth.tokens import SignupConfirmationClaims, create_signup_confirmation_token
 from tests.conftest import TestSession
 from tests.routes.support.mailbox import mailbox
 
@@ -50,21 +52,44 @@ async def _seed_currency():
         await session.commit()
 
 
-async def sign_up_confirmed(client, payload):
+async def sign_up_through_email(client, payload):
     """Sign a user up and confirm the emailed link, as a person does to get a working account
+
+    For tests whose subject is sign-up itself. Any other test gets its user from sign_up_confirmed
 
     Args:
         client: Async test client
         payload: Sign-up profile plus the password the person chooses at confirmation
 
     Returns:
-        API response from confirming, which signs the new user in
+        API response from confirming, signing the new user in
     """
     profile = {key: value for key, value in payload.items() if key != "password"}
     signup = await client.post("/auth/signup", json=profile)
     assert signup.status_code == 204, signup.text
 
     token = mailbox.confirmation_token(payload["email"])
+    return await client.post("/auth/signup/confirm", json={"token": token, "new_password": payload["password"]})
+
+
+async def sign_up_confirmed(client, payload):
+    """Give a test a confirmed user and their session without the email round trip
+
+    Makes the signed token the emailed link would carry and confirms it through the real route, so
+    the account, its password and its session are exactly what confirming creates. Only the sign-up
+    request and the mailbox are left out, since a test whose subject is not sign-up has no use for them
+
+    Args:
+        client: Async test client
+        payload: Sign-up profile plus the password the person chooses at confirmation
+
+    Returns:
+        API response from confirming, signing the new user in
+    """
+    profile = SignupRequest.model_validate({key: value for key, value in payload.items() if key != "password"})
+    token = create_signup_confirmation_token(
+        SignupConfirmationClaims(profile.email, profile.first_name, profile.last_name, profile.tz, profile.base_currency)
+    )
     return await client.post("/auth/signup/confirm", json={"token": token, "new_password": payload["password"]})
 
 

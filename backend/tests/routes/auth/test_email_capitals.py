@@ -9,7 +9,7 @@ from app.config.registration import SIGNUP_DAILY_EMAIL_LIMIT
 from app.models.auth import PasswordResetToken
 from app.services.auth.user_lookup import fold_email
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _get_auth_header, _get_login_lockout, _seed_currency, sign_up_confirmed
+from tests.routes.support import SIGNUP_PAYLOAD, _get_auth_header, _get_login_lockout, _seed_currency, sign_up_confirmed, sign_up_through_email
 from tests.routes.support.mailbox import mailbox
 
 _STORED_EMAIL = "Alice@example.com"
@@ -156,7 +156,7 @@ async def test_letters_beyond_a_to_z_keep_their_capitals_distinct(client):
     first = await _create_account(client, "Émile@example.com")
 
     refused = await client.post("/auth/login", json={"email": "émile@example.com", "password": _PASSWORD})
-    second = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "émile@example.com"})
+    second = await sign_up_through_email(client, {**SIGNUP_PAYLOAD, "email": "émile@example.com"})
 
     assert refused.status_code == 401
     assert second.status_code == 201

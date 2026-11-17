@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, Pool
 
 from app import request_hook
 from app.abuse_log import abuse_log
@@ -66,6 +66,10 @@ _MIGRATOR_DATABASE_URL = f"postgresql+asyncpg://{MIGRATOR_DB_USER}:{_MIGRATOR_PA
 migrator_engine = create_async_engine(_MIGRATOR_DATABASE_URL, poolclass=NullPool)
 
 
+# Whether a connection was taken since the tables were last reset
+_database_used = False
+
+
 @pytest.fixture(scope="session", autouse=True)
 async def _setup_schema():
     """Recreate the worker's test DB, then drop and recreate all tables
@@ -121,17 +125,40 @@ async def _setup_schema():
         # gives the app role, so restore it for tests that connect as that role
         await conn.execute(text(f'GRANT USAGE ON SCHEMA public TO "{APP_DB_USER}"'))
 
+    await _reset_tables()
 
-@pytest.fixture(autouse=True)
-async def clean_tables():
-    """Truncate all tables before each test for a clean slate."""
-    async with engine.begin() as conn:
-        await conn.execute(text("TRUNCATE " + ", ".join(t.name for t in reversed(Base.metadata.sorted_tables)) + " CASCADE"))
+
+@event.listens_for(Pool, "checkout")
+def _note_database_use(*_) -> None:
+    """Record that a connection was taken, through any engine a test or fixture uses"""
+    global _database_used
+    _database_used = True
+
+
+async def _reset_tables() -> None:
+    """Empty every table and seed the system categories and merchants, as a new database has them"""
+    global _database_used
     async with TestSession() as session:
+        await session.execute(text("TRUNCATE " + ", ".join(t.name for t in reversed(Base.metadata.sorted_tables)) + " CASCADE"))
         await seed_system_categories(session)
         await seed_system_merchants(session)
         await session.commit()
+
+    # The reset's own connections don't count as a test's use
+    _database_used = False
+
+
+@pytest.fixture(autouse=True)
+async def clean_tables():
+    """Leave the tables as a new database has them, after any test that used the database
+
+    The reset runs after the test rather than before it, so a test that never opens a connection,
+    such as a calculation, pays nothing, and every test still starts from the state the first one
+    does. The state before the first test is set up with the schema
+    """
     yield
+    if _database_used:
+        await _reset_tables()
 
 
 @pytest.fixture
