@@ -203,7 +203,8 @@ test('keeps the reason the server gives for a refused import beside Commit impor
 
   await page.getByRole('button', { name: 'Commit import', exact: true }).click()
   const overlay = page.getByRole('dialog')
-  await expect(overlay.getByText(`${REFUSAL}.`, { exact: true })).toBeVisible()
+  // The reason is also written into the overlay's screen reader status, so it is read from the message beside the button
+  await expect(overlay.locator('p:not([role="status"])').getByText(`${REFUSAL}.`, { exact: true })).toBeVisible()
   await overlay.getByRole('button', { name: 'Back to import', exact: true }).click()
 
   // Renders the page again, as coming back to the tab does, and the reason must still be there

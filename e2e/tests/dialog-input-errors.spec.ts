@@ -10,7 +10,15 @@ import {
   daysFromTodayInTestTimezone,
   signUpUser,
 } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openModal, openPage, signUpThroughTheForm } from '../support/app'
+import {
+  chooseFromDropdown,
+  logInViaApi,
+  nextFrame,
+  openModal,
+  openPage,
+  readSettledBox,
+  signUpThroughTheForm,
+} from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
@@ -80,8 +88,8 @@ test.describe('dialog input errors', () => {
     expect(creations()).toBe(0)
 
     // The message is on the field's label row, above the field and not down with the actions
-    const [messageBox, fieldBox] = [await message.boundingBox(), await field.boundingBox()]
-    expect(messageBox!.y + messageBox!.height).toBeLessThanOrEqual(fieldBox!.y)
+    const [messageBox, fieldBox] = [await readSettledBox(message), await readSettledBox(field)]
+    expect(messageBox.y + messageBox.height).toBeLessThanOrEqual(fieldBox.y)
 
     // Typing fixes the one problem, which clears the message at once and brings the button back
     await field.fill('Holiday')
@@ -100,8 +108,10 @@ test.describe('dialog input errors', () => {
     await field.press('Enter')
     await expect(dialog.getByRole('alert')).toHaveText('Name is required')
     await expect(create).toHaveAttribute('aria-disabled', 'true')
-    // A refused press brings the first problem into focus a frame later, so wait for it before moving on
+    // A refused press brings the first problem into focus a frame later. Enter was pressed in that field, so it
+    // already holds focus and the check passes at once, so the frame is waited for as well
     await expect(field).toBeFocused()
+    await nextFrame(page)
 
     await create.focus()
     await expect(create).toBeFocused()
@@ -305,8 +315,8 @@ test.describe('dialog input errors', () => {
 
     // The category message is on the label row above its search field, not down with the actions
     const message = dialog.getByRole('alert').filter({ hasText: 'Select at least one category' })
-    const [messageBox, searchBox] = [await message.boundingBox(), await search.boundingBox()]
-    expect(messageBox!.y + messageBox!.height).toBeLessThanOrEqual(searchBox!.y)
+    const [messageBox, searchBox] = [await readSettledBox(message), await readSettledBox(search)]
+    expect(messageBox.y + messageBox.height).toBeLessThanOrEqual(searchBox.y)
 
     // Each field clears on its own, and the button waits for the last
     await name.fill('Groceries budget')
@@ -725,11 +735,12 @@ test.describe('dialog input errors', () => {
     const confirm = dialog.getByLabel('Confirm new password')
     await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
     await expect(dialog.getByRole('alert')).toHaveCount(0)
-    // Each label keeps a gap above its field
+    // Each label keeps a gap above its field. The dialogue is still sliding into place when it opens, so each
+    // box is read at rest, since two reads of a moving dialogue measure the move as well as the gap
     for (const field of [fresh, confirm]) {
       const label = dialog.locator(`label[for="${await field.getAttribute('id')}"]`)
-      const [labelBox, fieldBox] = [await label.boundingBox(), await field.boundingBox()]
-      expect(fieldBox!.y - (labelBox!.y + labelBox!.height)).toBeGreaterThanOrEqual(4)
+      const [labelBox, fieldBox] = [await readSettledBox(label), await readSettledBox(field)]
+      expect(fieldBox.y - (labelBox.y + labelBox.height)).toBeGreaterThanOrEqual(4)
     }
 
     await submit.click()

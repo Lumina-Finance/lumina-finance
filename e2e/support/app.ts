@@ -644,6 +644,45 @@ export async function readSettledBox(element: Locator): Promise<NonNullable<Awai
   return last!
 }
 
+// A value counts as settled once it reads the same on this many frames in a row, and a read that never settles
+// within the frame limit fails rather than loops
+const SETTLED_FRAMES = 6
+const MAX_SETTLE_FRAMES = 300
+
+/**
+ * Waits for the page to paint the next frame
+ *
+ * A callback the app asked the page to run on its next frame, such as the focus a refused press moves to its
+ * first problem, was asked before this one, so it has run once this returns. Nothing the page shows says it has,
+ * since the field it focuses may already hold focus
+ *
+ * @param page - Page whose frame to wait for
+ */
+export async function nextFrame(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)))
+}
+
+/**
+ * Reads a value again frame by frame until it stops changing, failing when it keeps changing
+ *
+ * @param page - Page whose frames pace the reads
+ * @param what - What is read, named in the failure
+ * @param readOnce - One read of the value
+ * @returns The value once it has read the same on several frames in a row
+ */
+export async function readSettled(page: Page, what: string, readOnce: () => Promise<string>): Promise<string> {
+  let value = await readOnce()
+  let unchanged = 0
+  for (let frame = 0; frame < MAX_SETTLE_FRAMES; frame += 1) {
+    await nextFrame(page)
+    const next = await readOnce()
+    unchanged = next === value ? unchanged + 1 : 0
+    value = next
+    if (unchanged >= SETTLED_FRAMES) return value
+  }
+  throw new Error(`${what} was still changing after ${MAX_SETTLE_FRAMES} frames`)
+}
+
 /**
  * Measure the room left between the element's bottom and the bottom of what its scrolling box shows.
  *
