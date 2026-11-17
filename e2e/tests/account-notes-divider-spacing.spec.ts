@@ -41,7 +41,8 @@ function measureDivider(page: Page, statusTitle: string) {
     return {
       above: Math.round(dividerTop - above.getBoundingClientRect().bottom),
       below: Math.round(status.getBoundingClientRect().top - dividerTop - 1),
-      fromCardBottom: Math.round(cardContentBottom - divider.getBoundingClientRect().bottom),
+      // A rounded sliver below zero is -0 and `toBe(0)` tells it apart from 0, so it is written as the 0 it is
+      fromCardBottom: Math.round(cardContentBottom - divider.getBoundingClientRect().bottom) || 0,
     }
   }, statusTitle)
 }
