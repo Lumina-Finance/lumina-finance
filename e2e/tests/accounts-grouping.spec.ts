@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTaxAdvantagedCategory, signUpUser, type TestUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { logInViaApi, openPage, readSettled } from '../support/app'
 import { getAccountRow } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 
@@ -67,6 +67,21 @@ function groupButton(page: Page, title: string) {
 // one showing at this size counts
 function groupingPill(page: Page) {
   return page.getByRole('button', { name: 'Account grouping' }).filter({ visible: true })
+}
+
+/**
+ * Reads the amount available a credit card's line draws on a phone, or 'none' while the line leaves it out
+ *
+ * The line first draws the amount, then tries each form of it in a hidden copy and keeps the longest that
+ * fits. It tries again once the font has arrived. A read before that has settled finds the amount
+ * missing from a line that goes on to draw it, so the font is waited for and the read repeated until
+ * it holds
+ */
+async function readDrawnAvailable(page: Page, row: Locator): Promise<string> {
+  await page.evaluate(() => document.fonts.ready.then(() => undefined))
+  const shown = row.locator('p.text-sm').locator('[data-credit-available]')
+  return readSettled(page, 'the amount available', async () =>
+    (await shown.isVisible()) ? (await shown.textContent())!.trim() : 'none')
 }
 
 async function openPanel(page: Page) {
@@ -799,13 +814,12 @@ test('on a phone, a credit card’s available amount follows its type, shortenin
     // The fitting runs after the resize lays the row out
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
     expect((await box(converted)).height).toBeLessThan(convertedLineHeight * 1.5)
-    const shown = travelLine.locator('[data-credit-available]')
-    if (await shown.isVisible()) {
-      const text = (await shown.textContent())!.trim()
-      expect(forms).toContain(text)
+    const drawn = await readDrawnAvailable(page, travel)
+    if (drawn !== 'none') {
+      expect(forms).toContain(drawn)
       // A shown amount never pushes its line onto a second
       expect((await box(travelLine)).height).toBeLessThan(lineHeight * 1.5)
-      seen.add(text)
+      seen.add(drawn)
     } else seen.add('none')
   }
   expect([...seen]).toContain(forms[0])
@@ -840,15 +854,14 @@ test('on a phone, a credit card’s link is described by the available amount it
 
   const travel = getAccountRow(page, 'Travel card')
   const link = travel.getByRole('link', { name: 'Travel card', exact: true })
-  const shown = travel.locator('p.text-sm').locator('[data-credit-available]')
   const seen = new Set<string>()
   for (const width of [390, 340, 320, 300, 280, 260]) {
     await page.setViewportSize({ width, height: 844 })
     // The fitting runs after the resize lays the row out
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-    if (await shown.isVisible()) {
-      const text = (await shown.textContent())!.trim()
-      await expect(link, `${width}px`).toHaveAccessibleDescription(new RegExp(`${text.replace(/[.$]/g, '\\$&')}`))
+    const drawn = await readDrawnAvailable(page, travel)
+    if (drawn !== 'none') {
+      await expect(link, `${width}px`).toHaveAccessibleDescription(new RegExp(`${drawn.replace(/[.$]/g, '\\$&')}`))
       seen.add('form')
     } else {
       // No form fits, so nothing is drawn for the link to read
