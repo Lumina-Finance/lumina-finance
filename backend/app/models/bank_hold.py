@@ -15,8 +15,7 @@ class BankHold(Base):
     Banks send these for authorisation checks and card holds. A zero amount can't be approved, so
     the record is listed for awareness and kept out of the review inbox, the ledger and every
     balance. A sync keeps an account's holds to what the bank reports within the days it fetched, so
-    one the bank dropped, reported removed or gave an amount to goes away. Dismissing a hold stamps
-    it rather than deleting it, so the same bank ID reported again doesn't come back
+    one the bank dropped, reported removed or gave an amount to goes away
     """
 
     __tablename__ = "bank_holds"
@@ -43,7 +42,9 @@ class BankHold(Base):
     external_transaction_hash: Mapped[str] = mapped_column(VARCHAR(64), nullable=False)
     hold_date: Mapped[date] = mapped_column(Date, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    # Set when the user dismissed it. That keeps it from being listed or stored again
-    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The provider's own note about the record and the merchant it names, as a bank transaction keeps
+    # them, so the hold's filing card shows them as a transaction's does. Null when it sent none
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    merchant: Mapped[str | None] = mapped_column(Text, nullable=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

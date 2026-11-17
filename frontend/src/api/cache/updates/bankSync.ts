@@ -16,7 +16,6 @@ import {
 import type {
   AccountBankStatus,
   BankConnection,
-  BankHold,
   BankLink,
   BankReviewCounts,
   BankReviewItem,
@@ -336,22 +335,6 @@ export function applyRecordedBalanceMatch(queryClient: QueryClient, status: Acco
   applyAccountBankStatus(queryClient, status)
   invalidateTransactions(queryClient)
   invalidateFinancialTransactionData(queryClient, [status.account_id])
-}
-
-/**
- * Takes a dismissed hold out of every cached list of holds at once, then reads the lists again so a
- * sync in the meantime shows as it stands. The returned promise settles once they have refetched
- */
-export function applyDismissedHold(queryClient: QueryClient, holdId: string): Promise<void> {
-  queryClient.setQueriesData<BankHold[]>({ queryKey: bankSyncKeys.holdsAll }, (holds) =>
-    holds?.filter((hold) => hold.id !== holdId),
-  )
-  return refetchHolds(queryClient)
-}
-
-/** Reads every list of holds again, after a dismissal the server refused */
-export function refetchHolds(queryClient: QueryClient): Promise<void> {
-  return queryClient.invalidateQueries({ queryKey: bankSyncKeys.holdsAll, refetchType: 'active' })
 }
 
 /**

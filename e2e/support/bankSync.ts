@@ -794,8 +794,8 @@ export async function readTransaction(request: APIRequestContext, user: TestUser
 }
 
 /**
- * Edit a ledger transaction's date or amount as the user does. A bank-imported one then counts as
- * edited
+ * Edit a ledger transaction's date, amount or note as the user does. A bank-imported one whose date
+ * or amount changes then counts as edited
  *
  * @throws When the edit is refused
  */
@@ -803,7 +803,7 @@ export async function editTransaction(
   request: APIRequestContext,
   user: TestUser,
   id: string,
-  change: { dt?: string; amount?: number },
+  change: { dt?: string; amount?: number; notes?: string },
 ): Promise<void> {
   const response = await request.patch(`${API_BASE_URL}/transactions/${id}`, { headers: asUser(user), data: change })
   if (!response.ok()) {

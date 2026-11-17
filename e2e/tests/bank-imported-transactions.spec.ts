@@ -1,14 +1,27 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, type SeededAccount, type TestUser } from '../support/api'
+import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, type SeededAccount, type TestUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
-import { addImportedItem, editTransaction, linkToEmptyBankAccount } from '../support/bankSync'
+import {
+  addImportedItem,
+  answerAsBankImported,
+  answerLinksWith,
+  answerReviewItems,
+  BANK_SOURCE,
+  editTransaction,
+  linkToEmptyBankAccount,
+  pageOf,
+  reviewItem,
+} from '../support/bankSync'
 import { colourContrast, fillContrast } from '../support/contrast'
+import { ICON_ALIGNMENT_TOLERANCE_PX, ICON_GAP_PX, measureIconBesideText } from '../support/iconBesideText'
 import { getTransactionRowButton } from '../support/selectors'
-import { AT_EVERY_SIZE_NEEDS_BANK_SYNC } from '../support/bankSyncServer'
+import { API_BASE_URL } from '../support/target'
+import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 
 // Runs at every size: a touch screen opens the bank icon's tooltip by a tap rather than a hover, and
-// transaction rows take their own layout below 750px
+// transaction rows take their own layout below 750px. The tests of where the icon sits run on desktop
+// only, since each sets both widths it checks itself
 
 // A bank-imported row carries a muted bank icon naming its provider, and a dot once the user has
 // edited a value the bank supplied.
@@ -365,5 +378,117 @@ test('adds a dot and the edited note to a bank-imported row whose bank value the
     await switchTheme(page, colorScheme)
     expect(await colourContrast(marker)).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
     expect(await fillContrast(dot)).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
+  }
+})
+
+// The widths either side of the 750px switch between a transaction row's two layouts, and each side of it
+const WIDE = { width: 1280, height: 800 }
+const PHONE = { width: 390, height: 844 }
+const LAST_PHONE_WIDTH = { width: 749, height: 844 }
+const FIRST_WIDE_WIDTH = { width: 750, height: 844 }
+
+test('puts the bank icon 4px after the title from 750px wide, centred on its capitals, and on a phone with the note and tag icons', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const { user, id } = await startWithImported(request)
+  const tag = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Holiday' } })
+  expect(tag.status()).toBe(201)
+  const tagged = await request.patch(`${API_BASE_URL}/transactions/${id}`, {
+    headers: asUser(user),
+    data: { notes: 'Split with a friend', tag_ids: [((await tag.json()) as { id: string }).id] },
+  })
+  expect(tagged.ok()).toBe(true)
+  await logInViaApi(page, user)
+  await page.setViewportSize(WIDE)
+  await openPage(page, '/transactions')
+
+  const row = page.getByTestId(`transaction-row-${id}`)
+  const marker = row.getByRole('button', { name: 'From SimpleFIN', exact: true }).filter({ visible: true })
+  const title = getTransactionRowButton(row).filter({ visible: true })
+  const wide = await measureIconBesideText(marker, title)
+  expect(Math.abs(wide.offCentre)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
+  expect(Math.abs(wide.gap - ICON_GAP_PX)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
+
+  // Under keyboard focus the ring hugs the icon, so it stays clear of the title's last letter
+  await focusBankIconByKeyboard(page, row)
+  await expect(marker).toBeFocused()
+  const ringClearance = await marker.evaluate((icon, titleElement) => {
+    const style = getComputedStyle(icon)
+    const ringLeft = icon.getBoundingClientRect().left - parseFloat(style.outlineOffset) - parseFloat(style.outlineWidth)
+    const walker = document.createTreeWalker(titleElement, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => (/\S/.test(node.textContent ?? '') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP),
+    })
+    const range = document.createRange()
+    range.selectNodeContents(walker.nextNode()!)
+    return ringLeft - range.getBoundingClientRect().right
+  }, (await title.elementHandle())!)
+  expect(ringClearance).toBeGreaterThan(0)
+  await page.keyboard.press('Shift+Tab')
+
+  // On a phone the title line holds the title alone, and the icon joins the note and tag icons on the
+  // account's line, at their size, centred with them and after them
+  await page.setViewportSize(PHONE)
+  const note = row.getByLabel('Has note').filter({ visible: true })
+  const tagIcon = row.getByLabel('1 tag', { exact: true }).filter({ visible: true })
+  await expect(note).toBeVisible()
+  await expect(tagIcon).toBeVisible()
+  const account = row.getByText('Everyday', { exact: true }).filter({ visible: true })
+  const [bankIcon, noteIcon, tagIconPlace] = await Promise.all([marker, note, tagIcon].map((icon) => measureIconBesideText(icon, account)))
+  expect(Math.abs(bankIcon.offCentre - noteIcon.offCentre)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
+  expect(Math.abs(bankIcon.offCentre - tagIconPlace.offCentre)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
+  expect(bankIcon.gap).toBeGreaterThan(Math.max(noteIcon.gap, tagIconPlace.gap))
+  const [bankSize, noteSize, tagSize] = await Promise.all(
+    [marker, note, tagIcon].map(async (icon) => (await icon.locator('svg').boundingBox())!),
+  )
+  for (const size of [noteSize, tagSize]) {
+    expect(bankSize.width).toBeCloseTo(size.width, 1)
+    expect(bankSize.height).toBeCloseTo(size.height, 1)
+  }
+  const [titleBox, markerBox] = await Promise.all([title, marker].map(async (part) => (await part.boundingBox())!))
+  expect(markerBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height)
+
+  // The icon keeps the phone's place up to 749px wide and moves back after the title at 750px
+  await page.setViewportSize(LAST_PHONE_WIDTH)
+  const [lastPhoneTitle, lastPhoneMarker] = await Promise.all([title, marker].map(async (part) => (await part.boundingBox())!))
+  expect(lastPhoneMarker.y).toBeGreaterThanOrEqual(lastPhoneTitle.y + lastPhoneTitle.height)
+  await page.setViewportSize(FIRST_WIDE_WIDTH)
+  const firstWide = await measureIconBesideText(marker, title)
+  expect(Math.abs(firstWide.offCentre)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
+  expect(Math.abs(firstWide.gap - ICON_GAP_PX)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
+})
+
+test('keeps the Needs review pill within the line it shares with the bank icon at both widths', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday' })
+  const id = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1800, date: BANK_DATE })
+  // A removal waits on the row, so the row carries the pill beside its bank icon
+  await answerLinksWith(page, () => [account.id])
+  await answerAsBankImported(page, { [id]: { ...BANK_SOURCE, review_item_id: 'item-1' } })
+  await answerReviewItems(page, () => pageOf([reviewItem('item-1', 'removal', account.id, {}, { transaction_id: id })], { removal: 1 }))
+  await logInViaApi(page, user)
+
+  const row = page.getByTestId(`transaction-row-${id}`)
+  const marker = row.getByRole('button', { name: 'From SimpleFIN', exact: true }).filter({ visible: true })
+  const pill = row.getByRole('button', { name: 'Needs review. Show the waiting item' }).filter({ visible: true })
+  for (const size of [WIDE, PHONE]) {
+    await page.setViewportSize(size)
+    await openPage(page, '/transactions')
+    await expect(pill).toHaveCSS('opacity', '1')
+
+    // The line around the icon and the pill is as tall as its text sets it, so the pill moves no line
+    // The marker is the nearest box holding both, and the line the box around it
+    const { line, lineHeight, pillTop, pillBottom } = await marker.evaluate((icon, pillElement) => {
+      let markerRoot = icon.parentElement!
+      while (!markerRoot.contains(pillElement)) markerRoot = markerRoot.parentElement!
+      const lineBox = markerRoot.parentElement!.getBoundingClientRect()
+      const pillBox = pillElement.getBoundingClientRect()
+      return {
+        line: lineBox.height,
+        lineHeight: parseFloat(getComputedStyle(markerRoot.parentElement!).lineHeight),
+        pillTop: pillBox.top - lineBox.top,
+        pillBottom: lineBox.bottom - pillBox.bottom,
+      }
+    }, (await pill.elementHandle())!)
+    expect(line, `the line at ${size.width}px wide`).toBeCloseTo(lineHeight, 1)
+    expect(pillTop).toBeGreaterThanOrEqual(0)
+    expect(pillBottom).toBeGreaterThanOrEqual(0)
   }
 })

@@ -1,11 +1,11 @@
 /**
  * Covers the strip of bank holds under the review block: the count it shows closed, and each hold it
- * lists once opened with its merchant, date and a two-press Dismiss
+ * lists once opened with its merchant and date, as a button that opens its card
  *
  * These tests catch the strip listing rows while closed, a hold shown with an amount or as a review
- * item, a Dismiss that runs on one press, an account's page naming its own account on every row, and a
- * hold being dismissed whose button doesn't show it. Opening the strip, the two presses and a row
- * leaving run in the browser, since they need effects and clicks
+ * item, a hold offering anything beyond its card, and an account's page naming its own account on every
+ * row. Opening the strip, a hold's card and a row leaving run in the browser, since they need effects
+ * and clicks
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -25,8 +25,12 @@ function createHold(id: string, overrides: Partial<BankHold> = {}): BankHold {
   return {
     id,
     account_id: 'everyday',
+    provider: 'simplefin',
+    provider_name: 'SimpleFIN',
     date: '2026-10-03',
     description: `CARD CHECK ${id}`,
+    note: `CARD CHECK ${id}`,
+    merchant: null,
     observed_at: '2026-10-05T09:00:00Z',
     ...overrides,
   }
@@ -36,7 +40,7 @@ const HOLDS = [createHold('gas'), createHold('hotel', { date: '2025-12-30' })]
 
 function renderStrip(
   holds: BankHold[],
-  { open = false, showAccountNames = true, dismissingId = null }: Record<string, unknown> = {},
+  { open = false, showAccountNames = true }: Record<string, unknown> = {},
 ): string {
   return renderToStaticMarkup(
     createElement(BankHoldsStrip, {
@@ -46,8 +50,7 @@ function renderStrip(
       today: '2026-10-05',
       open: open as boolean,
       onToggleOpen: () => {},
-      dismissingId: dismissingId as string | null,
-      onDismiss: () => {},
+      onOpenHold: () => {},
       prefersReducedMotion: true,
     }),
   )
@@ -80,20 +83,15 @@ describe('the holds strip', () => {
     expect(renderStrip(HOLDS, { open: true, showAccountNames: false })).not.toContain('Everyday')
   })
 
-  it('gives each hold a Dismiss that asks again before it runs, drawn as Delete is', () => {
-    const markup = renderStrip(HOLDS, { open: true })
+  it('makes each hold a button that opens its card, and nothing else to do', () => {
+    for (const showAccountNames of [true, false]) {
+      const markup = renderStrip(HOLDS, { open: true, showAccountNames })
+      const rowButtons = [...markup.matchAll(/<button[^>]*aria-haspopup="dialog"[^>]*>/g)]
 
-    expect(markup.match(/data-testid="bank-hold-dismiss"/g)).toHaveLength(2)
-    expect(markup).toContain('app-danger-button')
-    // Each asks again through a screen reader announcement of its own
-    expect(markup.match(/role="status" class="sr-only"/g)).toHaveLength(2)
-  })
-
-  it('shows a spinner on the hold being dismissed and holds the others', () => {
-    const markup = renderStrip(HOLDS, { open: true, dismissingId: 'gas' })
-    const buttons = markup.split('data-testid="bank-hold-dismiss"').slice(1)
-
-    expect(buttons[0]).toContain('app-spinner')
-    expect(buttons[1]).toContain('disabled=""')
+      // The header and one button for each row, and nothing in a row beside its button
+      expect(markup.match(/<button/g)).toHaveLength(1 + HOLDS.length)
+      expect(rowButtons).toHaveLength(HOLDS.length)
+      expect(textOf(markup)).toContain('CARD CHECK hotel')
+    }
   })
 })

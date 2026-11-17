@@ -8,6 +8,10 @@ import { CONTENT_EASE_CURVE, QUICK_EASE_S } from '@/utils/widthEase'
 // of two words, while staying narrower than a phone's page
 const PANEL_WIDTH_CLASS = 'w-max max-w-80'
 
+// The icon's size after a title, and among the note and tag icons the size they take
+const TITLE_ICON_SIZE_PX = 13
+const ICONS_SIZE_PX = 14
+
 /**
  * What a transaction row shows about a bank-imported transaction
  */
@@ -36,22 +40,47 @@ export type TransactionRowBankMarker = {
  *
  * The icon takes the muted text colour, since it is a control and its strokes need 3:1 against the
  * page in both themes. The muted colour clears that by a wide margin
+ *
+ * After a title, the icon centres its drawing on the title's capitals, measured from the baseline, so
+ * where a font puts its capitals in the line can't move it. The pill's text shares that baseline, so a
+ * line set on its baseline keeps its height when the pill appears. Among the note and tag icons, the
+ * icon takes their size and centres with them
  */
-export function BankMarker({ providerName, isEdited, needsReview, onShowReview }: TransactionRowBankMarker) {
+export function BankMarker({
+  providerName,
+  isEdited,
+  needsReview,
+  onShowReview,
+  placement,
+}: TransactionRowBankMarker & { placement: 'title' | 'icons' }) {
+  const afterTitle = placement === 'title'
+  const size = afterTitle ? TITLE_ICON_SIZE_PX : ICONS_SIZE_PX
   return (
-    <span className="relative inline-flex shrink-0 items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
-      <span className="relative inline-flex">
+    <span
+      className={`relative inline-flex shrink-0 gap-1.5 ${afterTitle ? 'items-baseline' : 'items-center'}`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {/* With nothing but the icon inside, this box's baseline is its bottom, so the row stands it on
+          the title's baseline. The drawing is centred in the box, so lowering it by half of what the box
+          is taller than the capitals centres the drawing on them. The drawing starts 2/24 of the icon
+          inside the box, so pulling the box back by that leaves it 4px after the title. It is lowered
+          by an offset rather than a translate, since a translate would hold the tooltip under the rest
+          of the row */}
+      <span
+        className="relative inline-flex"
+        style={afterTitle ? { top: `calc((${size}px - 1cap) / 2)`, marginLeft: `${-(size * 2) / 24}px` } : undefined}
+      >
         {/* The panel is hidden from a screen reader while closed, so the name says what the dot does */}
         <IconTooltip
           label={isEdited ? `From ${providerName}, edited` : `From ${providerName}`}
           icon={Landmark}
           iconColor="var(--app-text-muted)"
-          size={13}
+          size={size}
           strokeWidth={2}
           widthClassName={PANEL_WIDTH_CLASS}
           hoverFill={false}
           widensHitArea
-          focusRing
+          focusRing={afterTitle ? 'flush' : true}
           hidesClosedPanel
           avoidsLoneWord
           picksSideOnPress

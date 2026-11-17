@@ -7,7 +7,16 @@ import { useRelativeTimeRefresh } from '@/hooks/useRelativeTimeRefresh'
 import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import type { ReviewItemAccount } from '@/components/transactions/bank-review/ReviewBlock'
-import { REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
+import {
+  BANK_BOX_CLASS,
+  BANK_BOX_EDGE_CLASS,
+  BANK_STRIP_HEADER_CLASS,
+  REVIEW_MOTION,
+} from '@/components/transactions/constants/bankReview'
+import {
+  ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL,
+  TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
+} from '@/components/transactions/constants/transactionList'
 import { useFocusAfterRetry } from '@/components/transactions/hooks/useFocusAfterRetry'
 import { formatBankAmount, formatReviewDate } from '@/components/transactions/utils/bankReview'
 import { formatRelativeTime } from '@/utils/relativeTime'
@@ -72,32 +81,29 @@ export function BankPendingStrip({
   }
 
   return (
-    <section
-      aria-label="Pending bank transactions"
-      className="overflow-hidden rounded-2xl border border-dashed"
-      style={{ borderColor: 'var(--app-border-strong)' }}
-    >
+    <section aria-label="Pending bank transactions" className={BANK_BOX_CLASS}>
       <AnimatePresence initial={false}>
         {failure ? (
           <motion.div key="failure" {...swap}>
-            <div ref={failureRef} className="px-4 py-3 sm:px-5">
+            {/* Moves past the checkbox rail with the rows' text, as the review block's notices do */}
+            <div ref={failureRef} className="p-3" style={{ paddingLeft: TEXT_INSET_PAST_THE_CHECKBOX_RAIL }}>
               <ReadFailureNotice subject="Pending bank transactions" failure={failure} />
             </div>
           </motion.div>
         ) : (
           <motion.div key="transactions" {...swap}>
-            {/* Rounded like the card at whichever corners it fills, so its focus ring follows them. Its
-                muted words and icons lift to the full text colour over the hover tint */}
             <button
               ref={toggleRef}
               type="button"
               aria-expanded={open}
               aria-controls={open ? listId : undefined}
               onClick={onToggleOpen}
-              className={`flex w-full items-center gap-2.5 px-4 py-3 text-left text-[var(--app-text-muted)] transition-control hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-text)] focus-visible:bg-transparent! focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--app-focus-ring)] motion-reduce:transition-none sm:px-5 ${open ? 'rounded-t-2xl' : 'rounded-2xl'}`}
+              className={`${BANK_STRIP_HEADER_CLASS} ${open ? 'rounded-t-lg' : 'rounded-lg'}`}
             >
-              <Clock size={15} aria-hidden className="shrink-0" />
-              <span className="min-w-0 flex-1 text-sm">
+              <span className="flex shrink-0" style={{ width: ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL }}>
+                <Clock size={16} aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1 text-sm leading-6">
                 <span className="font-medium" style={{ color: 'var(--app-text)' }}>
                   {transactions.length.toLocaleString()} pending
                 </span>
@@ -121,7 +127,10 @@ export function BankPendingStrip({
                   exit={leave}
                   transition={enterTransition}
                 >
-                  <p className="px-4 pb-3 text-xs sm:hidden" style={{ color: 'var(--app-text-muted)' }}>
+                  <p
+                    className="px-3 pb-2 text-xs sm:hidden"
+                    style={{ color: 'var(--app-text-muted)', paddingLeft: TEXT_INSET_PAST_THE_CHECKBOX_RAIL }}
+                  >
                     {EXPLANATION}.
                   </p>
                   <ul>
@@ -135,11 +144,14 @@ export function BankPendingStrip({
                         `Checked ${formatRelativeTime(transaction.observed_at)}`,
                       ]
                       return (
-                        <li key={transaction.id} className="px-4 sm:px-5">
-                          {/* The divider sits on the content rather than the row, so it stops short of the card's edges */}
+                        <li key={transaction.id}>
+                          {/* The divider runs from edge to edge, as the Upcoming box's rows' do */}
                           <div
-                            className="flex items-center gap-3 py-2.5"
-                            style={{ borderTop: '1px dashed var(--app-border-strong)' }}
+                            className="flex items-center gap-3 px-3 py-2.5"
+                            style={{
+                              borderTop: '1px dashed var(--app-border-strong)',
+                              paddingLeft: TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
+                            }}
                           >
                             <div className="min-w-0 flex-1">
                               <p className="break-words text-sm italic" style={{ color: 'var(--app-text-muted)' }}>
@@ -166,6 +178,7 @@ export function BankPendingStrip({
           </motion.div>
         )}
       </AnimatePresence>
+      <span aria-hidden className={BANK_BOX_EDGE_CLASS} style={{ borderColor: 'var(--app-border-strong)' }} />
     </section>
   )
 }

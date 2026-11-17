@@ -5,7 +5,9 @@ import { CollapsibleSection, CollapsibleSectionCount } from '@/components/collap
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import {
+  ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL,
   REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
+  TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL,
   TRANSACTION_LIST_EASE,
   TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX,
@@ -31,7 +33,7 @@ const ROW_HOVER_ON_THE_SHADING = { '--app-hover-soft': 'var(--app-hover-on-surfa
 // Runs the header across the checkbox rail like a day heading, indented as a day heading is outside
 // selection. It holds nothing to tick, so its icon stays put when the rail opens and sits over the ticks
 // rather than leaving an empty slot beside it. Its focus ring is drawn inside its edge, since the box's
-// top strip covers anything above it
+// edge runs along its top
 const HEADER_ACROSS_THE_LIST: CSSProperties = {
   ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
   outlineOffset: '-2px',
@@ -58,18 +60,27 @@ const BOX_AROUND_THE_SECTION: CSSProperties = {
 }
 const BOX_SHADING: CSSProperties = { ...BOX_AROUND_THE_SECTION, background: 'var(--app-surface-soft)' }
 
-// The top of the box is a strip of its own, the room above the header, which sticks under the page's bar with
-// the header below it, so the box keeps its top edge while the rows run under it. Both stay inside the section,
-// so they leave only once all of it has. The rest of the edge starts where the strip ends. The strip is as tall
-// as the box's corners are round, so its corners curve as fully as the bottom ones
+// The top of the box is a strip of its own, laid over the header's top rather than above it, so the header
+// starts at the box's edge with no room above it. The strip sticks under the page's bar with the header, so
+// the box keeps its top edge while the rows run under it. Both stay inside the section, so they leave only
+// once all of it has. The rest of the edge starts where the strip ends. The strip is as tall as the box's
+// corners are round, so its corners curve as fully as the bottom ones. It draws only the edge, so the
+// header's hover tint and focus ring show through it, and takes no room of its own
 const BOX_TOP_HEIGHT = '0.5rem'
+const BOX_RADIUS = '0.5rem'
 const BOX_TOP: CSSProperties = {
   ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
   height: BOX_TOP_HEIGHT,
+  marginBottom: `calc(-1 * ${BOX_TOP_HEIGHT})`,
   borderTop: BOX_EDGE_LINE,
   borderInline: BOX_EDGE_LINE,
-  background: 'var(--app-surface-soft)',
 }
+
+// The header and the last row meet the box's edge, so their hover tints and focus rings curve with its
+// corners. The last row's separator would sit against the bottom edge, so the edge stands in for it
+const HEADER_ROUNDED_TOP: CSSProperties = { borderTopLeftRadius: BOX_RADIUS, borderTopRightRadius: BOX_RADIUS }
+const LAST_ROW_ON_THE_EDGE =
+  '[&>:last-child>.app-transaction-row:last-child]:rounded-b-lg [&>:last-child>.app-transaction-row:last-child]:border-b-transparent!'
 const BOX_EDGE: CSSProperties = {
   ...BOX_AROUND_THE_SECTION,
   top: BOX_TOP_HEIGHT,
@@ -77,14 +88,10 @@ const BOX_EDGE: CSSProperties = {
   borderBottom: BOX_EDGE_LINE,
 }
 
-// Widens the icon's slot by as much as the open rail outgrows it, so the label starts level with the day
-// headings' dates in selection too. The rail is 2.5rem and the slot sits 0.75rem into it
-const UPCOMING_ICON_SLOT_WIDTH = `max(1rem, calc(${TRANSACTION_CHECKBOX_RAIL} - 0.75rem))`
-
 // The explanation is text the dates line up with, so it moves over with them when the rail opens
 const EXPLANATION_ACROSS_THE_LIST: CSSProperties = {
   ...REACHES_ACROSS_TRANSACTION_CHECKBOX_RAIL,
-  paddingLeft: `calc(0.75rem + ${TRANSACTION_CHECKBOX_RAIL})`,
+  paddingLeft: TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
   paddingRight: '0.75rem',
 }
 
@@ -214,13 +221,14 @@ export function UpcomingSection({
             headerRef={measureHeader}
             className={gridClassName}
             bodyClassName={gridClassName}
-            iconSlotWidth={UPCOMING_ICON_SLOT_WIDTH}
+            iconSlotWidth={ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL}
             headerStyle={{
               ...HEADER_ACROSS_THE_LIST,
+              ...HEADER_ROUNDED_TOP,
+              // Closed, the header is the box's last line too
+              ...(expanded ? {} : { borderBottomLeftRadius: BOX_RADIUS, borderBottomRightRadius: BOX_RADIUS }),
               borderTop: 'none',
-              ...(stickyTop === undefined
-                ? {}
-                : { top: `calc(${stickyTop}px + ${BOX_TOP_HEIGHT})`, ...HEADER_FILLED_LIKE_THE_SHADING }),
+              ...(stickyTop === undefined ? {} : { top: stickyTop, ...HEADER_FILLED_LIKE_THE_SHADING }),
             }}
           >
             {/* Inside a list that scrolls sideways, the explanation wraps to the visible width and stays in view.
@@ -232,7 +240,7 @@ export function UpcomingSection({
               {UPCOMING_EXPLANATION}
             </p>
             <div
-              className={gridClassName}
+              className={`${gridClassName} ${LAST_ROW_ON_THE_EDGE}`}
               style={{
                 ...FADED_ROW_COLOURS,
                 // A row scrolled into view clears the toolbar and this section's header pinned below it, in
@@ -240,16 +248,13 @@ export function UpcomingSection({
                 ...(stickyTop === undefined
                   ? {}
                   : {
-                      [TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE]: `calc(${stickyTop + headerHeight + TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX}px + ${BOX_TOP_HEIGHT})`,
+                      [TRANSACTION_ROW_SCROLL_MARGIN_VARIABLE]: `${stickyTop + headerHeight + TRANSACTION_ROW_GAP_BELOW_PINNED_BARS_PX}px`,
                     }),
               }}
             >
               <FadedRowsContext.Provider value>{children}</FadedRowsContext.Provider>
             </div>
           </CollapsibleSection>
-          {/* The room between the last row and the box's bottom edge. A spacer rather than padding on the
-              section, since its height animates and padding would stay behind at either end */}
-          <div aria-hidden className="col-span-full h-2" />
         </motion.div>
       )}
     </AnimatePresence>

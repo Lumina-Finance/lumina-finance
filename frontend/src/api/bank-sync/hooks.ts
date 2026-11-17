@@ -25,7 +25,6 @@ import {
   createBankLink,
   deleteBankConnection,
   deleteBankLink,
-  dismissBankHold,
   dismissCutOffDay,
   dismissHistoryReminder,
   fetchAccountBankStatus,
@@ -62,14 +61,12 @@ import {
   applyAccountBankStatus,
   applyBankLinkChanges,
   applyBulkReviewOutcome,
-  applyDismissedHold,
   applyLedgerReviewOutcome,
   applyRecordedBalanceMatch,
   applyRefusedReviewDecision,
   applyRestoredBankValue,
   applyReviewDecision,
   putCachedBankLink,
-  refetchHolds,
   refreshBankLinkState,
   replaceCachedBankConnection,
 } from '@/api/cache/updates/bankSync'
@@ -299,19 +296,6 @@ export function useBankHolds(accountIds: string[] | undefined, enabled = true) {
     queryFn: ({ signal }) => fetchBankHolds(accountIds, signal),
     enabled: !!accessToken && enabled,
     staleTime: BANK_DATA_STALE_TIME_MS,
-  })
-}
-
-/**
- * Dismisses a hold. It leaves every cached list of holds at once, and the lists are read again so a
- * refusal or a sync in the meantime shows as it stands
- */
-export function useDismissBankHold() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (holdId: string) => runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => dismissBankHold(holdId)),
-    onSuccess: (_result, holdId) => applyDismissedHold(queryClient, holdId),
-    onError: () => refetchHolds(queryClient),
   })
 }
 
