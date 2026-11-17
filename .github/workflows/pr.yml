@@ -58,7 +58,7 @@ jobs:
     uses: ./.github/workflows/_backend-lint.yml
 
   # The database, cache and mail catcher images are pulled once per architecture for every job that
-  # runs them. It starts with the image build and runs for every change that starts such a job
+  # runs them. The pull starts alongside the image build, for every change that starts such a job
   service-images:
     needs: changes
     if: >-
