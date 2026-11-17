@@ -33,8 +33,9 @@ const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000
 // Version 4 adds the refund links every transaction response carries. Version 5 adds the earlier-period
 // sums and counts behind the spending comparison's average. Version 6 adds the bank source every
 // transaction response carries. Version 7 adds the date range import every bank link carries. Version 8
-// adds the bank's note and merchant to the bank values every review item and bank source carries
-const PERSISTED_CACHE_SHAPE = '8'
+// adds the bank's note and merchant to the bank values every review item and bank source carries. Version 9
+// adds the provider, its name, and the bank's note and merchant to every bank hold
+const PERSISTED_CACHE_SHAPE = '9'
 
 /**
  * Persists successful query data while leaving failed FX responses and the authenticator setup

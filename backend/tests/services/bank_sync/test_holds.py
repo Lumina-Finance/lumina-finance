@@ -2,8 +2,9 @@
 
 A zero amount that reached review could not be approved and so sat there until dismissed. These
 tests catch a hold added to review or the ledger, one that stays after the bank drops it, reports it
-removed or gives it an amount, a replacement that wipes holds outside the days it fetched, and a
-hold the bank reports again that doubles or keeps its old date and text
+removed or gives it an amount, a replacement that wipes holds outside the days it fetched, a hold
+the bank reports again that doubles or keeps its old date, text, note or merchant, and a hold kept
+before holds kept a note and merchant that never takes them
 """
 
 from dataclasses import replace
@@ -150,6 +151,40 @@ async def test_a_hold_the_bank_reports_again_stays_one_hold_and_takes_its_new_da
     assert changed
     holds = await list_holds(db, user, account_ids=[account.id])
     assert [(hold.description, hold.date, hold.observed_at) for hold in holds] == [("CARD CHECK HARBOUR", date(2026, 10, 16), later)]
+
+
+async def test_a_hold_keeps_the_note_and_merchant_the_bank_sends_and_takes_new_ones(db):
+    """A hold keeps the provider's note and merchant, and one reported again with others takes them"""
+    user, account, link = await _linked(db)
+    sent = replace(_record("Z-1"), note="Card verification", merchant="Shell")
+    await store_holds(db, [(link, [sent])], first_day=_FIRST, last_day=_LAST, observed_at=_AT)
+
+    stored = await list_holds(db, user, account_ids=[account.id])
+
+    later = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
+    changed = await store_holds(
+        db, [(link, [replace(sent, note=None, merchant="Shell Canada")])], first_day=_FIRST, last_day=_LAST, observed_at=later
+    )
+
+    assert [(hold.note, hold.merchant) for hold in stored] == [("Card verification", "Shell")]
+    assert changed
+    holds = await list_holds(db, user, account_ids=[account.id])
+    assert [(hold.note, hold.merchant, hold.observed_at) for hold in holds] == [(None, "Shell Canada", later)]
+
+
+async def test_a_hold_kept_without_a_note_or_merchant_takes_them_when_the_bank_sends_it_again(db):
+    """A hold stored before holds kept them, same date and text, fills its note and merchant from the next report"""
+    user, account, link = await _linked(db)
+    await store_holds(db, [(link, [_record("Z-1")])], first_day=_FIRST, last_day=_LAST, observed_at=_AT)
+    hold = (await db.scalars(select(BankHold))).one()
+    hold.note = None
+    await db.flush()
+
+    changed = await store_holds(db, [(link, [replace(_record("Z-1"), merchant="Harbour")])], first_day=_FIRST, last_day=_LAST, observed_at=_AT)
+
+    assert changed
+    holds = await list_holds(db, user, account_ids=[account.id])
+    assert [(hold.note, hold.merchant) for hold in holds] == [("CARD CHECK Z-1", "Harbour")]
 
 
 async def test_listing_returns_the_holds_of_the_users_accounts_newest_first(db):

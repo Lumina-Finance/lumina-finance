@@ -1,7 +1,8 @@
 """Listing bank holds through the routes
 
-These tests catch holds listed out of order or for an account the user doesn't own, a group
-account's holds read, and holds left behind once their account's link ends
+These tests catch holds listed out of order or for an account the user doesn't own, a hold listed
+without its provider or what the bank sent for its filing card, a group account's holds read, and
+holds left behind once their account's link ends
 """
 
 import uuid
@@ -10,6 +11,7 @@ from datetime import UTC, date, datetime
 from app.models.account import Account
 from app.models.bank_connection import BankConnection
 from app.models.bank_hold import BankHold
+from app.services.bank_sync.availability import provider_label
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
     _commit_listed_connection,
@@ -22,7 +24,14 @@ from tests.routes.support.bank_sync_helpers import (
 )
 
 
-async def _commit_hold(account_id: str, description: str = "CARD CHECK", day: date = date(2026, 10, 4)) -> uuid.UUID:
+async def _commit_hold(
+    account_id: str,
+    description: str = "CARD CHECK",
+    day: date = date(2026, 10, 4),
+    *,
+    note: str | None = None,
+    merchant: str | None = None,
+) -> uuid.UUID:
     """Commit a hold the bank reported for an account and return its id"""
     async with TestSession() as session:
         account = await session.get_one(Account, uuid.UUID(account_id))
@@ -34,6 +43,8 @@ async def _commit_hold(account_id: str, description: str = "CARD CHECK", day: da
             external_transaction_hash=uuid.uuid4().hex + uuid.uuid4().hex,
             hold_date=day,
             description=description,
+            note=note,
+            merchant=merchant,
             observed_at=datetime(2026, 10, 4, 9, 0, tzinfo=UTC),
         )
         session.add(hold)
@@ -53,6 +64,30 @@ async def test_holds_list_newest_first_for_every_account_or_the_one_asked_for(cl
 
     assert [item["id"] for item in listed.json()] == [str(newer), str(older)]
     assert [item["id"] for item in for_everyday.json()] == [str(newer), str(older)]
+
+
+async def test_a_listed_hold_carries_its_provider_and_everything_the_bank_sent(client):
+    """A hold lists with its provider's id and name, the bank's date and text, its note and merchant, and when it arrived"""
+    headers, _ = await _sign_up(client)
+    account_id = await _new_account(client, headers, "Everyday")
+    hold_id = await _commit_hold(account_id, "CARD CHECK", note="Card verification", merchant="Shell")
+
+    listed = await client.get("/bank-sync/holds", headers=headers)
+
+    assert listed.status_code == 200
+    assert listed.json() == [
+        {
+            "id": str(hold_id),
+            "account_id": account_id,
+            "provider": "fake",
+            "provider_name": provider_label("fake", None),
+            "date": "2026-10-04",
+            "description": "CARD CHECK",
+            "note": "Card verification",
+            "merchant": "Shell",
+            "observed_at": "2026-10-04T09:00:00Z",
+        }
+    ]
 
 
 async def test_another_users_holds_are_not_listed(client):

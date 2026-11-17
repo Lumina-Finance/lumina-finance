@@ -42,4 +42,9 @@ class BankHold(Base):
     external_transaction_hash: Mapped[str] = mapped_column(VARCHAR(64), nullable=False)
     hold_date: Mapped[date] = mapped_column(Date, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # The provider's own note about the record and the merchant it names, as a bank transaction keeps
+    # them, so the hold's filing card shows them as a transaction's does. Null when it sent none
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    merchant: Mapped[str | None] = mapped_column(Text, nullable=True)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

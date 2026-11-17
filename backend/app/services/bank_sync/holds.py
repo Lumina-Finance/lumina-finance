@@ -20,6 +20,7 @@ from app.models.bank_transaction import BankTransaction
 from app.models.user import User
 from app.schemas.bank_sync import BankHoldResponse
 from app.services.accounts.access import own_personal_accounts_scope
+from app.services.bank_sync.availability import read_provider_labels
 from app.services.bank_sync.providers.contract import ProviderRecord
 from app.services.bank_sync.range_days import RangeImport, brings_in
 from app.services.bank_sync.transaction_hash import hash_bank_transaction_id
@@ -62,7 +63,7 @@ async def store_holds(
             for a routine window
 
     Returns:
-        Whether any hold was added or removed
+        Whether any hold was added, removed or had its date, description, note or merchant refreshed
     """
     changed = False
     for link, records in deliveries:
@@ -113,13 +114,23 @@ async def store_holds(
                         external_transaction_hash=transaction_hash,
                         hold_date=record.date,
                         description=record.description,
+                        note=record.note,
+                        merchant=record.merchant,
                         observed_at=observed_at,
                     )
                 )
                 changed = True
-            elif (hold.hold_date, hold.description) != (record.date, record.description):
+            elif (hold.hold_date, hold.description, hold.note, hold.merchant) != (
+                record.date,
+                record.description,
+                record.note,
+                record.merchant,
+            ):
+                # A hold kept before holds kept a note and merchant takes them here too
                 hold.hold_date = record.date
                 hold.description = record.description
+                hold.note = record.note
+                hold.merchant = record.merchant
                 hold.observed_at = observed_at
                 changed = True
     await db.flush()
@@ -161,15 +172,25 @@ async def list_holds(
     """
     scope = await own_personal_accounts_scope(db, user.id, account_ids, BankHold.account_id, not_own_detail=_NOT_OWN_DETAIL)
 
-    holds = await db.scalars(
-        select(BankHold).join(Account, Account.id == BankHold.account_id).where(*scope).order_by(BankHold.hold_date.desc(), BankHold.id.desc())
-    )
+    holds = (
+        await db.scalars(
+            select(BankHold)
+            .join(Account, Account.id == BankHold.account_id)
+            .where(*scope)
+            .order_by(BankHold.hold_date.desc(), BankHold.id.desc())
+        )
+    ).all()
+    names = await read_provider_labels(db, (hold.provider for hold in holds))
     return [
         BankHoldResponse(
             id=hold.id,
             account_id=hold.account_id,
+            provider=hold.provider,
+            provider_name=names[hold.provider],
             date=hold.hold_date,
             description=hold.description,
+            note=hold.note,
+            merchant=hold.merchant,
             observed_at=hold.observed_at,
         )
         for hold in holds

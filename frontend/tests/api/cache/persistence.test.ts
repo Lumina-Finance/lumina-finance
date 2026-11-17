@@ -200,19 +200,19 @@ describe('saving the query cache', () => {
     expect(isRestoredCacheFor(USER_A)).toBe(true)
   })
 
-  it("restores no copy saved before bank values carried the bank's note and merchant", async () => {
+  it("restores no copy saved before bank holds carried their provider and the bank's note and merchant", async () => {
     const saving = loadPage({ [SESSION_KEY]: USER_A })
-    saving.client.setQueryData(['transactions'], [{ id: 'saved-before-the-bank-note' }])
+    saving.client.setQueryData(['bank-sync', 'holds'], [{ id: 'saved-before-the-hold-card' }])
     saving.hide()
     const stored = Object.fromEntries(saving.localStorage.items)
     // The shape that was current before. This copy then reads it as saved by
-    stored[QUERY_CACHE_STORAGE_KEY] = stored[QUERY_CACHE_STORAGE_KEY].replace(`"buster":"8:`, `"buster":"7:`)
-    expect(stored[QUERY_CACHE_STORAGE_KEY]).toContain('"buster":"7:')
+    stored[QUERY_CACHE_STORAGE_KEY] = stored[QUERY_CACHE_STORAGE_KEY].replace(`"buster":"9:`, `"buster":"8:`)
+    expect(stored[QUERY_CACHE_STORAGE_KEY]).toContain('"buster":"8:')
 
     const reloaded = loadPage(stored)
     await reloaded.restore()
 
-    expect(reloaded.client.getQueryData(['transactions'])).toBeUndefined()
+    expect(reloaded.client.getQueryData(['bank-sync', 'holds'])).toBeUndefined()
   })
 
   it.each([

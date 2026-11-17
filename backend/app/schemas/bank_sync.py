@@ -675,8 +675,17 @@ class BankHoldResponse(BaseModel):
 
     id: uuid.UUID
     account_id: uuid.UUID
+    provider: str
+    provider_name: str
     date: date
     description: str
+
+    # The provider's own note about the record, never a merchant's name standing in for one. Null when
+    # it sent none
+    note: str | None
+
+    # The merchant the provider names, never the bank's text standing in for one. Null when it named none
+    merchant: str | None
 
     # When the request that brought it was sent
     observed_at: datetime
