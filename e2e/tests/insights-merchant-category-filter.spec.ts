@@ -5,7 +5,7 @@
 import { expect, test, type APIRequestContext, type Locator } from '@playwright/test'
 
 import { asUser, createAccount, createCategory, createTransaction, findReferenceId, signUpUser } from '../support/api'
-import { expectSignedIn, logInViaApi, openPage } from '../support/app'
+import { expectSignedIn, logInViaApi, openPage, waitForPageReady } from '../support/app'
 import { card, matchesApi, navigate } from '../support/insights'
 import { API_BASE_URL } from '../support/target'
 
@@ -330,9 +330,14 @@ test('the category choice is gone after leaving Insights and coming back', async
   await expect(distribution.getByText(names.groceries)).toHaveCount(0)
   await expect(distribution.getByText(names.dining)).toBeVisible()
 
+  // The page being left stays on screen through its exit fade, and going back inside that fade mounts it afresh
+  // under the test's hands. The next test covers that return, so here each page is waited for to have entered
   await navigate(page, 'Transactions')
+  await expect(page.getByRole('main').getByRole('heading', { name: 'Transactions', exact: true })).toBeVisible()
+  await waitForPageReady(page)
   await navigate(page, 'Insights')
   await expect(page.getByRole('heading', { name: 'Insights', exact: true })).toBeVisible()
+  await waitForPageReady(page)
   await distribution.scrollIntoViewIfNeeded()
 
   await expect(distribution.getByText(names.groceries)).toBeVisible()
