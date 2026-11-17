@@ -1,5 +1,5 @@
 name: Prepare the E2E image
-description: Loads the images built or pulled for this architecture and writes the operator env file the stack reads. The job's env supplies the DB_* values
+description: Loads the image built for this architecture and writes the operator env file the stack reads. The job's env supplies the DB_* values
 
 inputs:
   platform:
@@ -28,19 +28,6 @@ runs:
     - name: Load the image
       shell: bash
       run: docker load --input "${RUNNER_TEMP}/lumina-image.tar"
-
-    # Only the image build job shares the database, cache and mail images. A workflow that builds its own image uploads none, so its
-    # stack pulls them. A shared file that will not load fails the job, since pulling instead would hide
-    # that every job is back to fetching its own
-    - name: Load the images the stack runs beside the app
-      shell: bash
-      run: |
-        file="${RUNNER_TEMP}/service-images.tar.gz"
-        if [ ! -f "${file}" ]; then
-          echo "No shared service images, the stack pulls them"
-          exit 0
-        fi
-        docker load --input "${file}"
 
     - name: Log in to Docker Hub
       uses: docker/login-action@v4
