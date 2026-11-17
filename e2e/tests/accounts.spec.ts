@@ -11,7 +11,7 @@ import {
   whileApiRequestHeld,
 } from '../support/selectors'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
-import { AT_EVERY_SIZE } from '../support/sizes'
+import { AT_EVERY_SIZE, ON_ARM64 } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only. The lost save and account row focus tests run at every size:
@@ -97,7 +97,8 @@ function watchStartingBalanceRequests(page: Page): string[] {
   return urls
 }
 
-test('starts a new user with no accounts and creates one with its starting balance', async ({ page, request }) => {
+// The arm64 test of database access, through asyncpg, SQLAlchemy and greenlet, all compiled for the processor type
+test('starts a new user with no accounts and creates one with its starting balance', ON_ARM64, async ({ page, request }) => {
   const user = await signUpUser(request)
 
   await logInViaApi(page, user)

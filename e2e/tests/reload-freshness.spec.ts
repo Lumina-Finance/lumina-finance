@@ -9,6 +9,7 @@ import {
   waitForPageReady,
   waitForSavedCache,
 } from '../support/app'
+import { ON_ARM64 } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what a reload restores comes from browser storage, the same at every size
@@ -49,7 +50,9 @@ async function setVisibility(page: Page, state: 'visible' | 'hidden') {
   expect(shown).toBe(state)
 }
 
-test('keeps a transaction recorded elsewhere through two quick reloads, in an unused search too', async ({ page, request }) => {
+// The arm64 test of Caddy, a binary the image adds for the processor type. Each reload of the deep
+// link /transactions is answered by Caddy with the app's page, and the data after it is proxied to the API
+test('keeps a transaction recorded elsewhere through two quick reloads, in an unused search too', ON_ARM64, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })
   const coffee = await createTransaction(request, user, { accountId: account.id, categoryName: 'Dining', amount: -500, notes: 'Coffee' })

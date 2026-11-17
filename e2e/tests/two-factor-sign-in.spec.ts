@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
 import { expectSignedIn, reachTwoFactorChallenge } from '../support/app'
+import { ON_ARM64 } from '../support/sizes'
 import { currentTotp, enrollTotpWithRecoveryCodes } from '../support/totp'
 
 // Runs on desktop only: the second-factor step behaves the same at every size
@@ -11,7 +12,9 @@ const WRONG_CODE = '000000'
 
 const WRONG_CODE_MESSAGE = 'That code was incorrect. Please try again.'
 
-test('refuses a wrong authenticator code and signs in once the right one is entered', async ({ page, request }) => {
+// The arm64 test of secrets stored at rest. The cryptography package, compiled for the processor type,
+// encrypts the authenticator secret when it is saved and decrypts it to check the code
+test('refuses a wrong authenticator code and signs in once the right one is entered', ON_ARM64, async ({ page, request }) => {
   const user = await signUpUser(request)
   const { secret } = await enrollTotpWithRecoveryCodes(request, user)
 

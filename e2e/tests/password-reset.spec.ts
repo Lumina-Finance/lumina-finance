@@ -3,12 +3,14 @@ import { expect, test } from '@playwright/test'
 import { signUpUser } from '../support/api'
 import { expectSignedIn, logIn } from '../support/app'
 import { chooseNewPassword, requestResetLink } from '../support/reset'
+import { ON_ARM64 } from '../support/sizes'
 
 // Runs on desktop only: asking for a link and choosing a password behave the same at every size
 
 const NEW_PASSWORD = 'N3wE2ePassw0rd!'
 
-test('resets a forgotten password through the emailed link', async ({ page, request }) => {
+// The arm64 test of emails, with templates rendered by markupsafe, compiled for the processor type
+test('resets a forgotten password through the emailed link', ON_ARM64, async ({ page, request }) => {
   const user = await signUpUser(request)
 
   // The link is the only way to the new-password form, and it chooses the account
