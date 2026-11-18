@@ -38,7 +38,7 @@ const COUNTDOWN = { posted: daysFromTodayInTestTimezone(-2), amount: '-42.10', d
 const HARBOUR = { posted: daysFromTodayInTestTimezone(-4), amount: '-12.50', description: 'HARBOUR COFFEE' } as const
 const CAFE = { posted: daysFromTodayInTestTimezone(-6), amount: '-8.75', description: 'CAFE ROMA' } as const
 
-// The bank sends a tenth of a cent, which the account's currency can't hold, so its amount has to be typed in
+// The bank sends a tenth of a cent. The account's currency can't hold that, so the amount has to be typed in
 const UNPRICED = { posted: daysFromTodayInTestTimezone(-3), amount: '-3.333', description: 'PARKING METER' } as const
 
 // Three more that wait below the others, for the items a test dismisses once the others have been added

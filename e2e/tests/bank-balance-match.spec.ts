@@ -209,7 +209,7 @@ test('shows Record adjustment whole, beside the amount from the width it fits th
     // The amount's row, its label and figure, against the button
     const [field, recordBox] = await readBoxes(page, [offer.amount.locator('..'), offer.record])
 
-    // The label sits in a box of its own inside the button, which clips it rather than the button
+    // The label sits in a box of its own inside the button. That box clips the label, not the button
     const clipped = await offer.record.evaluate((button) =>
       [button, ...button.querySelectorAll('*')]
         .filter((part) => part.clientWidth > 0 && part.scrollWidth > part.clientWidth)

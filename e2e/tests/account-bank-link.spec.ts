@@ -1191,8 +1191,8 @@ test("names the institution on the identity card for a linked, an unlinked and a
     await page.unrouteAll({ behavior: 'ignoreErrors' })
   })
 
-  // An account of the user's own says so once its bank link is read and found to be none, and a group
-  // account straight away, since the page never reads a group account's link
+  // An account of the user's own shows the message once its bank link is read and found to be none. A
+  // group account shows the message straight away, since the page never reads a group account's link
   await test.step("says an account with no institution and no bank link has none, whether it's the user's own or a group's", async () => {
     for (const account of [plain, shared]) {
       await openPage(page, `/accounts/${account.id}`)

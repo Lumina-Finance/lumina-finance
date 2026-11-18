@@ -643,7 +643,7 @@ test("draws a connection's name, status dot and actions in the list", AT_EVERY_S
   await test.step("fits a connection's name in the list at every size, so the columns never squeeze it", async () => {
     // The list takes its columns from its own width, and the sidebar and settings menu narrow that, so at
     // 1280 wide a screen-wide switch left the name 50px for its 70
-    // The name scrolls in place only when it overflows, and its data-overflow says so. The component says
+    // The name scrolls in place only when it overflows, and its data-overflow marks that. The component says
     // false until it has measured, so the page waits for the fonts its measurement waits on and for two
     // frames after them before the attribute is read
     await page.evaluate(async () => {

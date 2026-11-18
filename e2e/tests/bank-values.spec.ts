@@ -197,7 +197,7 @@ test('restores the bank amount and date under edited ones and says a restore fai
     await expect(amount).toHaveValue('42.10')
     await expect(dialog.getByRole('tab', { name: 'Credit', exact: true })).toHaveAttribute('aria-selected', 'true')
 
-    // While it restores, the action says so and the modal takes no save
+    // While the value restores, the action reads as restoring and the modal takes no save
     const restore = restoreAction(dialog, 'amount')
     await expect(restore).toHaveAccessibleName('Restore bank value')
     await restore.click()

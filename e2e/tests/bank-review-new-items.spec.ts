@@ -283,7 +283,7 @@ test('opens a new item beside its filing card, and dismisses it only on a second
     const decisions = watchDecisions(page)
     const announcement = dialog.getByRole('status').filter({ hasText: 'Please press again to dismiss this item for good.' })
 
-    // One press only asks, saying so to a screen reader, and a press elsewhere takes it back
+    // One press only asks and tells a screen reader of the question. A press elsewhere takes the question back
     await expect(form.dismiss).toHaveClass(/app-danger-button/)
     await form.dismiss.click()
     await expect(form.confirmDismiss).toBeVisible()
