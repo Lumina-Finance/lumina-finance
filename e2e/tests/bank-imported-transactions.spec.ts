@@ -165,7 +165,7 @@ async function startWithImported(
 }
 
 // One unedited bank row beside a manual one serves the marker, the near miss and, last on desktop, the
-// icon's place beside the title, which puts a note and a tag on the row
+// icon's place beside the title. That last step puts a note and a tag on the row
 test('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked, and places its icon beside the title', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, account, id: importedId } = await startWithImported(request)
   const manualId = await createTransaction(request, user, {
@@ -352,6 +352,7 @@ test('opens the bank icon tooltip on the side that has room, and adds a dot and 
   await test.step('adds a dot and the edited note to a bank-imported row whose bank value the user changed', async () => {
     // Opened again, so the page is at its top with nothing focused or open
     await openPage(page, '/transactions')
+    await page.evaluate(() => window.scrollTo(0, 0))
 
     // The closed panel isn't read, so the marker's name says the value was edited
     const dot = row.getByTestId('bank-edited-dot').filter({ visible: true })

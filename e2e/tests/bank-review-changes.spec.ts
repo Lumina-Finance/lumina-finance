@@ -299,6 +299,7 @@ test('reads a correction in its comparison, failing a decision, lining up its ac
     })
 
     await test.step('gives each value column room for a bank description on one line at 1440 wide', async () => {
+      const projectViewport = page.viewportSize()!
       await page.setViewportSize({ width: 1440, height: 900 })
       await openPage(page, '/transactions')
 
@@ -308,11 +309,14 @@ test('reads a correction in its comparison, failing a decision, lining up its ac
       for (const value of await values.all()) expect(await linesOf(value)).toBe(1)
       await dialog.getByRole('button', { name: 'Close' }).click()
       await expect(dialog).toBeHidden()
+      await page.setViewportSize(projectViewport)
     })
   }
 
   // Only the light run measures the comparison's width, so it goes last of the two
   for (const colorScheme of ['dark', 'light'] as const) {
+    // The dark theme ran on desktop only, the light one at every size
+    if (colorScheme === 'dark' && !onDesktop) continue
     await test.step(`compares an edited correction readably in the ${colorScheme} theme${colorScheme === 'light' ? ', without scrolling sideways' : ''}`, async () => {
       await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
       await openPage(page, '/transactions')

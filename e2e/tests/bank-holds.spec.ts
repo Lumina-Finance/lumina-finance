@@ -48,7 +48,7 @@ function holdsStrip(page: Page) {
   return page.getByRole('region', { name: 'Bank holds' })
 }
 
-// One import serves the strip's list, which opens the row, and then the hold's filing card
+// One import serves the strip's list and then the hold's filing card. The list opens the row
 test("lists a $0 record as a hold, closed to start, and keeps it out of review, then opens its filing card from its row and closes it back to the row", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   await start(page, request)
   await openPage(page, '/transactions')

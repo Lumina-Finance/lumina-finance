@@ -69,7 +69,7 @@ function watchDismissals(page: Page): string[] {
 }
 
 // One import that was cut short serves the cut-off reminder's words, then the held dismissal of the
-// history reminder, which moves focus on to the cut-off one's ✕, and then the dismissal of that one. A
+// history reminder and then the dismissal of the cut-off one. The first moves focus on to the cut-off one's ✕. A
 // reminder can fold away before its dismissal answers, as a read of the link the server answers once the
 // dismissal has gone through comes back without it. The modal reads the link again as it opens, and that
 // read is held until the dismissal has reached the server, while the dismissal itself is held on its way
