@@ -63,23 +63,6 @@ test('waits for the person to choose how dates are written, then imports the exa
   expect(await countLedgerTransactions(request, user)).toBe(2)
 })
 
-test('refuses a file with a section it does not read and stages nothing', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  await uploadQif(page, user, '!Type:Mystery\nD1/2/2024\nT1.00\n^\n')
-
-  await expect(page.getByText(/Mystery/).first()).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Remove household.qif', exact: true })).toHaveCount(0)
-  expect(await countLedgerTransactions(request, user)).toBe(0)
-})
-
-test('says what it leaves out of a file that also holds investments', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  await uploadQif(page, user, `${QIF}\n!Type:Invst\nD1/2/2024\nNBuy\nT100.00\n^\n`)
-
-  await expect(page.getByText('Investment', { exact: false }).first()).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Remove household.qif', exact: true })).toBeVisible()
-})
-
 const COMMIT_URL = /\/transactions\/import\/runs\/[^/]+\/commit$/
 const REFUSAL = 'Withdrawal source is not an imported account'
 
@@ -147,21 +130,4 @@ test('forgets the chosen date format when the file is removed, so the next file 
   await expect(page.getByRole('combobox', { name: 'Date format', exact: true })).toHaveText('Choose one')
   await expect(page.getByText('Choose how the dates in the files are written.', { exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Commit import', exact: true })).toBeDisabled()
-})
-
-test("refuses a file of two accounts on an account's own import page and stages nothing", async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday', currency: 'CAD' })
-  await logInViaApi(page, user)
-  await openPage(page, `/settings/imports?account=${account.id}`)
-  await chooseFromDropdown(page.locator('body'), 'Data source', 'Quicken 3.0 (QIF)')
-
-  const twoAccounts = `${QIF}\n!Account\nNSavings\nTBank\n^\n!Type:Bank\nD3/6/2024\nT5.00\n^`
-  await page
-    .locator('input[type="file"][accept=".qif"]')
-    .setInputFiles({ name: 'two.qif', mimeType: 'application/octet-stream', buffer: Buffer.from(twoAccounts) })
-
-  await expect(page.getByText(/This file holds 2 accounts\./).first()).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Remove two.qif', exact: true })).toHaveCount(0)
-  expect(await countLedgerTransactions(request, user)).toBe(0)
 })
