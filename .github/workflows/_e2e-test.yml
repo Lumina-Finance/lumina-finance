@@ -11,7 +11,8 @@ jobs:
     name: E2E tests (${{ matrix.platform }}, ${{ matrix.projects }}${{ matrix.bank == 'on' && ', bank sync' || '' }}${{ matrix.shards > 1 && format(', {0}/{1}', matrix.shard, matrix.shards) || '' }}${{ matrix.grep && ', tagged tests' || '' }})
     runs-on: ${{ matrix.runner }}
     strategy:
-      fail-fast: false
+      # One failed job cancels the others, since the run can no longer pass
+      fail-fast: true
       # Every job is listed by hand, since the shard counts differ. With the cross-origin job below
       # they make 19 browser jobs. The organisation's plan runs 20 jobs at once, and the 8 backend test
       # jobs hold 8 of them while the browser jobs start, so a job past the free runners waits for
