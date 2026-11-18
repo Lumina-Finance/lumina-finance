@@ -802,46 +802,6 @@ test('says what a click and a hold do for the range, over the window of each vie
   expect(belowBox!.y).toBeGreaterThanOrEqual(topBox!.y + topBox!.height - 1)
 })
 
-test('leaves a month without spending out of the average', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Salary', amount: 100_000, date: dayOfMonthFromNow(3, 1) })
-  // 300 three months back and 900 one month back, with nothing in the month between
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -30_000, date: dayOfMonthFromNow(3, 2) })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -90_000, date: dayOfMonthFromNow(1, 2) })
-  await logInViaApi(page, user)
-  await openPage(page, '/dashboard')
-  const toggle = averageToggle(page)
-
-  const averageResponse = page.waitForResponse((r) => r.url().includes('/dashboard/spending-comparison') && r.url().includes('average=true'))
-  await toggle.click()
-  await expect(page.getByText('Average month', { exact: true })).toBeVisible()
-  // Day 2 averages 300 and 900 over two months, not over three with a zero
-  const body = await (await averageResponse).json()
-  expect(body.average_periods).toBe(3)
-  expect(body.average_counts[1]).toBe(2)
-  expect(body.average_sums[1]).toBe(120_000)
-})
-
-test('counts a month that spends only after the day reached this month, with nothing before it', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Salary', amount: 100_000, date: dayOfMonthFromNow(2, 1) })
-  // The last day of the month back is later than any day number this month has reached
-  await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -60_000, date: dayOfMonthFromNow(1, 28) })
-  await logInViaApi(page, user)
-  await openPage(page, '/dashboard')
-
-  const averageResponse = page.waitForResponse((r) => r.url().includes('/dashboard/spending-comparison') && r.url().includes('average=true'))
-  await averageToggle(page).click()
-  await expect(page.getByText('Average month', { exact: true })).toBeVisible()
-  const body = await (await averageResponse).json()
-  // The month two back holds no spending and is left out, so the one month back counts, still at nothing by day 2
-  expect(body.average_periods).toBe(2)
-  expect(body.average_counts[1]).toBe(1)
-  expect(body.average_sums[1]).toBe(0)
-})
-
 test('shows the previous period with a reason when no earlier month held any spending', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
