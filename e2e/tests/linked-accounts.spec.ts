@@ -17,9 +17,10 @@ import { faintestText } from '../support/contrast'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the refused day and the refused move. Those run at every size: the
-// transaction modal's fields and messages sit differently at each width. The struck day's reason, the
-// greyed Delete and the bulk delete follow them on desktop, since they read nothing that depends on width
+// Runs on desktop only, apart from the new manual entry's refusal, the refused move and the greyed Delete.
+// Those run at every size, since the transaction modal's fields, messages and reasons sit differently at
+// each width. The struck day's reason and the bulk delete run on desktop alone, since they read nothing
+// that depends on width
 
 // A linked account's bank supplies its transactions from the import start through today, so the
 // transaction modal refuses those days, a bank transaction can't leave the account or be deleted, and
@@ -122,7 +123,7 @@ test.afterEach(async ({ page }) => {
 
 // One linked account serves the struck day's reason and the refused entry. The reason's press creates
 // nothing, so it goes first and on desktop only. The entry's save creates a transaction, so it comes last
-test('says why a struck calendar day is refused when it is pressed, then refuses a new manual entry on the days a linked account’s bank supplies', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('refuses a struck calendar day and a new manual entry on the days a linked account’s bank supplies', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
@@ -333,10 +334,10 @@ test('lets an edit keep a date the linked account’s bank supplies, and refuses
 })
 
 // One import of the bank's coffee serves three refusals. The bulk delete's ticked pair and the refused
-// move run first, since the move's save changes the coffee's day, and the single Delete, which unlinks and
-// deletes the coffee, comes last. The bulk and single deletes read nothing that depends on the width, so
-// only desktop runs them. Every step opens the page afresh
-test('keeps a bank transaction in its linked account, refusing the move on the account field, and greys out Delete on it and in a bulk delete while the account is linked', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+// move run first, since the move's save changes the coffee's day. The single Delete comes last, since it
+// unlinks and deletes the coffee. The bulk delete reads nothing that depends on the width, so only desktop
+// runs it. The move and the single Delete run at every size. Every step opens the page afresh
+test('keeps a bank transaction in its linked account and greys out Delete on it', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await createAccount(request, user, { name: 'Savings' })
@@ -421,65 +422,63 @@ test('keeps a bank transaction in its linked account, refusing the move on the a
     expect(sentDates).toEqual([correctedDate])
   })
 
-  if (isDesktop) {
-    await test.step('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', async () => {
-      await openPage(page, `/accounts/${account.id}`)
-      const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
-      const remove = dialog.getByTestId('transaction-delete')
+  await test.step('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', async () => {
+    await openPage(page, `/accounts/${account.id}`)
+    const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
+    const remove = dialog.getByTestId('transaction-delete')
 
-      // Every delete sent, so one the browser should have held back shows up
-      const deletesSent: string[] = []
-      page.on('request', (sent) => {
-        if (sent.url() === `${API_BASE_URL}/transactions/${id}` && sent.method() === 'DELETE') deletesSent.push(sent.url())
-      })
-
-      await page.getByTestId(`transaction-row-${id}`).click()
-      await expect(remove).toHaveAttribute('aria-disabled', 'true')
-      await expect(remove).toHaveAccessibleDescription(DELETE_LINKED_REASON)
-
-      // Pointing at Delete shows the reason, and it follows the cursor down the button. Hovering waits for
-      // Delete to stop moving, so the pointer lands where it is aimed once the modal has grown in
-      const reason = page.getByText(DELETE_LINKED_REASON).filter({ visible: true })
-      await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX } })
-      await expect.poll(() => readTooltipOpacity(reason)).toBe('1')
-      const shownAt = await getBox(reason)
-      await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX + POINTER_STEP_PX } })
-      await expect.poll(async () => Math.round((await getBox(reason)).y - shownAt.y)).toBe(POINTER_STEP_PX)
-
-      // Pressed twice, since the first press of a free Delete only asks to confirm and the second is the
-      // one that sends. Forced, because the button is marked unavailable and pressing it anyway is what is
-      // checked
-      await remove.click({ force: true })
-      await remove.click({ force: true })
-      await expect(dialog).toBeVisible()
-      expect(deletesSent).toEqual([])
-      await expect(remove).toHaveAccessibleName('Delete')
-
-      // The app keeps what it last read across a reload, so this load starts without that copy and reads
-      // the list afresh, as it does once unlinking refreshes it
-      const unlinked = await request.delete(`${API_BASE_URL}/accounts/${account.id}/bank-link`, { headers: asUser(user) })
-      expect(unlinked.ok()).toBe(true)
-      await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
-      await openPage(page, `/accounts/${account.id}`)
-      await page.getByTestId(`transaction-row-${id}`).click()
-      await expect(remove).not.toHaveAttribute('aria-disabled')
-      await remove.click()
-      await expect(remove).toHaveAccessibleName('Yes, delete')
-      const deleted = page.waitForResponse((response) =>
-        response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'DELETE')
-      await remove.click()
-      expect((await deleted).status()).toBe(204)
-      await expect(dialog).toBeHidden()
-      await expect(page.getByTestId(`transaction-row-${id}`)).toBeHidden()
+    // Every delete sent, so one the browser should have held back shows up
+    const deletesSent: string[] = []
+    page.on('request', (sent) => {
+      if (sent.url() === `${API_BASE_URL}/transactions/${id}` && sent.method() === 'DELETE') deletesSent.push(sent.url())
     })
-  }
+
+    await page.getByTestId(`transaction-row-${id}`).click()
+    await expect(remove).toHaveAttribute('aria-disabled', 'true')
+    await expect(remove).toHaveAccessibleDescription(DELETE_LINKED_REASON)
+
+    // Pointing at Delete shows the reason, and it follows the cursor down the button. Hovering waits for
+    // Delete to stop moving, so the pointer lands where it is aimed once the modal has grown in
+    const reason = page.getByText(DELETE_LINKED_REASON).filter({ visible: true })
+    await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX } })
+    await expect.poll(() => readTooltipOpacity(reason)).toBe('1')
+    const shownAt = await getBox(reason)
+    await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX + POINTER_STEP_PX } })
+    await expect.poll(async () => Math.round((await getBox(reason)).y - shownAt.y)).toBe(POINTER_STEP_PX)
+
+    // Pressed twice, since the first press of a free Delete only asks to confirm and the second is the
+    // one that sends. Forced, because the button is marked unavailable and pressing it anyway is what is
+    // checked
+    await remove.click({ force: true })
+    await remove.click({ force: true })
+    await expect(dialog).toBeVisible()
+    expect(deletesSent).toEqual([])
+    await expect(remove).toHaveAccessibleName('Delete')
+
+    // The app keeps what it last read across a reload, so this load starts without that copy and reads
+    // the list afresh, as it does once unlinking refreshes it
+    const unlinked = await request.delete(`${API_BASE_URL}/accounts/${account.id}/bank-link`, { headers: asUser(user) })
+    expect(unlinked.ok()).toBe(true)
+    await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
+    await openPage(page, `/accounts/${account.id}`)
+    await page.getByTestId(`transaction-row-${id}`).click()
+    await expect(remove).not.toHaveAttribute('aria-disabled')
+    await remove.click()
+    await expect(remove).toHaveAccessibleName('Yes, delete')
+    const deleted = page.waitForResponse((response) =>
+      response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'DELETE')
+    await remove.click()
+    expect((await deleted).status()).toBe(204)
+    await expect(dialog).toBeHidden()
+    await expect(page.getByTestId(`transaction-row-${id}`)).toBeHidden()
+  })
 })
 
 // One linked account with a later-dated transaction serves the focus on Archive instead and what greys
 // Archive out. The link goes first and the later-dated transaction last, so what blocks archiving is
 // first the link and the transaction together, then the transaction alone with the account unlinked, then
 // nothing. Every step opens the page afresh
-test('greys out Archive with its reason while the account is linked, then fades the whole row when later-dated transactions block it, and offers it again once unlinked', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('greys out Archive on a linked account, and offers it again once unlinked', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const laterId = await createTransaction(request, user, {
@@ -591,7 +590,7 @@ test('greys out Archive with its reason while the account is linked, then fades 
 // The link is read only for the user's own personal accounts, so archiving one in a group never waits on
 // it. One user with four accounts serves the four reads of the link, each answered or held as its step
 // needs. Every step opens its own account's page and lifts its answers before the next
-test('holds Archive back until the link has been read, and offers it on a group account, once the link fails to load and for an archived account', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('decides Archive from how an account’s link reads, across four kinds of account', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const groupId = await createGroup(request, user, 'Household')
   const linked = await createAccount(request, user, { name: 'Everyday' })

@@ -188,7 +188,7 @@ function catchEase(form: ReturnType<typeof formOf>) {
 // Two items wait for all three steps. The first two change nothing on the server, and each opens the page
 // afresh, so the second finds no dialogue or draft the first left. The dismissals come last, since they
 // change what waits
-test('opens a new item as the bank sent it beside its filing card, eases Dismiss to Yes, dismiss and back, then dismisses only on a second press', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('opens a new item beside its filing card, and dismisses it only on a second press', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR])
 
   await test.step('opens a new item as the bank sent it beside its filing card, and adds nothing until a merchant and category are chosen', async () => {
@@ -622,7 +622,7 @@ async function expectFilingCardReadable(page: Page, colorScheme: 'light' | 'dark
 }
 
 // One item serves the card in each theme and the footer. The light theme runs at every size, since it places
-// the card. The dark theme, which differs from it in colour alone, and the footer's two layouts follow on
+// the card. The dark theme differs from it in colour alone. It and the footer's two layouts follow on
 // desktop, the footer on the phone too. Every step opens the page afresh, and the footer comes last so its
 // width and the default motion setting touch no step before it. The tablet has no footer step, as before.
 //
@@ -631,7 +631,7 @@ async function expectFilingCardReadable(page: Page, colorScheme: 'light' | 'dark
 // and Add to ledger stopped short of where the fields end. The footer stacks its items below 640 and sets
 // them in a row from there, so each layout is checked once: stacked on the phone, and in a row at the
 // widest screen the dialogue fills
-test('hangs the filing card beside the form or heads it, readable in the light theme, keeps it readable in the dark theme, and lines the footer up with the form above it', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('places the filing card by the form in each theme, and lines the footer up with the form', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   await start(page, request, [COUNTDOWN])
   const project = test.info().project.name
 
@@ -716,8 +716,8 @@ test.describe('on a short phone screen', AT_EVERY_SIZE_NEEDS_BANK_SYNC, () => {
 
   // Three items wait for four steps. Cafe's amount can't be held by the currency, so its form starts on the
   // amount. Every step opens the page afresh. The failed dismissal's stand-in is lifted before the last
-  // step, which really dismisses Countdown and so comes last
-  test('starts on the first field to fill in, brings into view the first field Add still needs and a failed decision’s message, and shows the next item from the top of its form', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  // step. That step really dismisses Countdown and so comes last
+  test('starts each item on the first field to fill in, and shows the next item from the top of its form', NEEDS_BANK_SYNC, async ({ page, request }) => {
     await start(page, request, [COUNTDOWN, HARBOUR, { ...CAFE, amount: '-8.755' }])
 
     await test.step('starts on the first field to fill in, the amount where the bank’s can’t be used', async () => {

@@ -18,7 +18,7 @@ import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankS
 import { ICON_ALIGNMENT_TOLERANCE_PX, ICON_GAP_PX, measureIconBesideText } from '../support/iconBesideText'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the icon's geometry, which opens the first test of the file at every
+// Runs on desktop only, apart from the icon's geometry. That opens the first test of the file at every
 // size, since the label's font and line differ. What a sync asks of the bank and how its wording ages are
 // the same at every size, so the steps after the geometry run on desktop
 
@@ -39,10 +39,10 @@ const BANK_LINK_OPEN_MS = 5 * 60 * 1000
 const SYNCED_BEFORE_MS = 3 * 60 * 60 * 1000
 
 // One linked account, Synced with a balance that matches its ledger, serves the icon's geometry at every
-// size. Desktop then reads the spent budget, which the page answers in place of the server's, and last
+// size. Desktop then reads the spent budget, with the page answering in place of the server, and last
 // runs the two real syncs that spend a request each. Every step opens the page afresh, and the answered
 // budget is lifted before the syncs, so the syncs read the server's own
-test('keeps the icon beside the Bank sync label to its own line, centred on the capitals, then greys it once the requests are spent and syncs from it and from the dialogue', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('keeps the Sync now icon beside the Bank sync label, and syncs from it and from the dialogue', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
 

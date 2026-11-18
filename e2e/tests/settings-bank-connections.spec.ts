@@ -632,8 +632,8 @@ test('stops Save spinning as soon as a rename is saved and the modal can close a
 })
 
 // One claimed connection serves the list's name and dot and the connection's two actions at every size.
-// The actions are read in the modal the dot step opened, which nothing since has changed
-test("fits a connection's name in the list at every size, draws its status as a round dot, and gives Rename and Disconnect one width", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+// The actions are read in the modal the dot step opened. Nothing since has changed it
+test("draws a connection's name, status dot and actions in the list", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
@@ -641,9 +641,9 @@ test("fits a connection's name in the list at every size, draws its status as a 
   let dialog: Locator
 
   await test.step("fits a connection's name in the list at every size, so the columns never squeeze it", async () => {
-    // The list takes its columns from its own width, which the sidebar and settings menu narrow, so at
+    // The list takes its columns from its own width, and the sidebar and settings menu narrow that, so at
     // 1280 wide a screen-wide switch left the name 50px for its 70
-    // The name scrolls in place only when it overflows, which its data-overflow says. The component says
+    // The name scrolls in place only when it overflows, and its data-overflow says so. The component says
     // false until it has measured, so the page waits for the fonts its measurement waits on and for two
     // frames after them before the attribute is read
     await page.evaluate(async () => {
@@ -676,9 +676,9 @@ test("fits a connection's name in the list at every size, draws its status as a 
   })
 })
 
-// A new connection's requests left are read before its first link, which spends some. The link changes
-// the connection, so the facts that follow it come last
-test("shows each connection's requests left in its row, counting a new connection's listing alone, then shows a connection's facts", NEEDS_BANK_SYNC, async ({ page, request }) => {
+// A new connection's requests left are read before its first link, and the link spends some. The link
+// changes the connection, so the facts that follow it come last
+test("shows a connection's requests left in its row, and then its facts", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
@@ -1073,7 +1073,7 @@ test('says to try again when Reconnect loses its answer, and shows the connectio
 
 // One connection whose bank needs signing in to serves both tests, with one wait for the worker. The
 // status details are opened in the first step, so the second opens the page afresh to read the icon closed
-test("shows a bank that needs signing in to on the connection and its institution, and keeps a connection's facts column from scrolling sideways", NEEDS_BANK_SYNC, async ({ page, request }) => {
+test("shows a bank that needs signing in to, and keeps the facts column from scrolling sideways", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
 
   // Only the status's note, opening from after the longest status, reaches past the column's edge while closed

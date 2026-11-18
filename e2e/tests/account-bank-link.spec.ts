@@ -644,7 +644,7 @@ test('sends an account with no connection to settings first', NEEDS_BANK_SYNC, a
 
 // One account with a claimed connection serves the link flow's button and then its custom dates. Each step
 // opens the page afresh and the flow from its start, and the custom dates' link comes last
-test('fits the link flow button to the label it shows, easing its width as the label changes, then opens custom dates at today and keeps From within the range', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('fits the link flow button to its label, and opens custom dates at today', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -991,7 +991,7 @@ test('opens the link flow on the new account’s page when the new-account promp
 // The page answers that the worker isn't running, and keeps answering it as each step opens the page
 // afresh. The hover and Escape step runs on desktop only. The step that follows the link to Settings leaves
 // the page, so it comes last
-test("prints the reason on Link bank account while bank sync isn't set up under the button with a link to Settings, Bank connections, and shows it on hover", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+test("prints the reason on Link bank account while bank sync isn't set up, and shows it on hover", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   await changeProviders(page, (body) => {
@@ -1158,7 +1158,7 @@ function identityCard(page: Page): Locator {
 // One user with a linked account, a plain one and a group's serves the identity card's institution. The
 // held read comes first and is let go before the next step. The institution the user gives the linked
 // account changes it, so that comes last
-test("names no institution on the identity card while its bank link is being read, says an account with no institution and no bank link has none, and names the linked bank's institution until the account has one of its own", NEEDS_BANK_SYNC, async ({ page, request }) => {
+test("names the institution on the identity card for a linked, an unlinked and an unread account", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const groupId = await createGroup(request, user, 'Household')
   const everyday = await createAccount(request, user, { name: 'Everyday' })

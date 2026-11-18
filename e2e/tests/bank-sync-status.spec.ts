@@ -295,7 +295,7 @@ const REASON_SHOWN_BY = [
 // One link whose balances differ serves the reason at four window sizes. Each step opens the page afresh
 // at its own size, so it finds nothing the one before scrolled or opened. The step that signs in as another
 // user comes last
-test('opens the reason for a gap clear of the balances at each window size, and bounds the edit modal\'s tooltips only for an account linked to a bank', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('opens the reason for a balance gap clear of the balances, and bounds the edit modal\'s tooltips', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, account: linkedAccount } = await linkBalancesThatDiffer(request)
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await logInViaApi(page, user)
@@ -323,6 +323,8 @@ test('opens the reason for a gap clear of the balances at each window size, and 
       // A small phone. Each balance takes a row. The reason shows above the three while they have
       // room above them
       const dialog = await openBalancesThatDiffer(page, linkedAccount.id, { width: 390, height: 667 })
+      // The pointer kept off the icon, since a press in the step before leaves it there across the reload
+      await page.mouse.move(0, 0)
       await show(dialog.getByRole('button', { name: 'Why the balances differ' }))
       const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Could come from items waiting for review' })
       await expect(reason.locator('..')).toHaveCSS('opacity', '1')
@@ -430,7 +432,7 @@ async function scrollShownDetailsToFoot(page: Page, dialog: Locator, showDetails
 // One failed sync serves the status and the details' ring at every size, then on desktop the details
 // reopened clear of the foot of the modal by pointer and by keyboard. Each step opens the page afresh, and
 // the steps after the first set the one size they check
-test('reads as retrying at the time of the retry when the Bridge fails, then opens Sync details clear of the foot of the modal', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('reads as retrying when the Bridge fails, and opens Sync details clear of the modal foot', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const account = await linkIntoFailedSync(page, request)
 
   await test.step('reads as retrying at the time of the retry when the Bridge fails', async () => {
@@ -484,7 +486,7 @@ test('reads as retrying at the time of the retry when the Bridge fails, then ope
 // has rendered, the card's once the modal has opened and the modal's once Sync details has, a press
 // landing only once the page has drawn twice without moving. One answered link serves both motion
 // settings, each step opening the page afresh under its own
-test('blinks the status dot while a sync fetches, and holds it still for anyone who asks for reduced motion, in the modal as on the card', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('blinks the status dot while a sync fetches, in the modal as on the card', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await answerSyncing(page, account.id)
@@ -541,7 +543,7 @@ test('words how long ago the link synced anew as minutes pass with the page open
 
 // One rejected connection serves the notice and its way to Settings at every size, then on desktop the
 // reconnect that SimpleFIN lists differently. That reconnect changes the connection, so it comes last
-test('stops on a rejected connection, with a notice that leads to Settings to reconnect it, then asks for the bank account again once SimpleFIN lists it differently', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('stops on a rejected connection, then asks for the bank account again once it is relisted', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const { scenario, connection } = await linkIntoFault(request, user, account.id, (scenarioId) => revokeBridgeAccess(request, scenarioId))
