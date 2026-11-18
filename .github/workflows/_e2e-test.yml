@@ -87,7 +87,6 @@ jobs:
         uses: ./.github/actions/e2e-browser
         with:
           cache-dependency-paths: e2e/package-lock.json
-          typecheck: "true"
 
       - name: Wait for the stack
         uses: ./.github/actions/e2e-health
@@ -102,7 +101,7 @@ jobs:
           E2E_BASE_URL: http://localhost:8080
           E2E_MAIL_API_URL: http://127.0.0.1:8025
           E2E_BANK_SYNC: "off"
-        run: npm test -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }} ${{ matrix.grep && format('--grep {0}', matrix.grep) || '' }}
+        run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }} ${{ matrix.grep && format('--grep {0}', matrix.grep) || '' }}
 
       # The app restarts below, which ends the log of the server these tests ran against
       - name: Dump container logs from the server with no bank provider
@@ -146,8 +145,8 @@ jobs:
           ${compose} logs app fake-simplefin-bridge fake-lunchflow fake-akahu fake-pluggy fake-enable-banking
           exit 1
 
-      # A shard can hold none of the tests needing bank sync, so finding none passes. The contract
-      # checks ran with the first half. The report and results go beside the first run's
+      # A shard can hold none of the tests needing bank sync, so finding none passes. The report and
+      # results go beside the first run's
       - name: Run E2E tests with bank sync
         id: bank-sync-tests
         if: ${{ !cancelled() && !matrix.grep && steps.no-bank-sync-tests.outcome != 'skipped' }}

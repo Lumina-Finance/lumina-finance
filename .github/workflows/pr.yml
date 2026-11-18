@@ -103,6 +103,17 @@ jobs:
     uses: ./.github/workflows/_docker-build.yml
     secrets: inherit
 
+  # The browser tests' type check and contract tests need no image, so they start at once and a type
+  # error shows without waiting for the image build or a browser job's setup
+  e2e-check:
+    needs: changes
+    if: >-
+      ${{ needs.changes.outputs.backend == 'true'
+        || needs.changes.outputs.frontend == 'true'
+        || needs.changes.outputs.docker == 'true'
+        || needs.changes.outputs.lockfiles == 'true' }}
+    uses: ./.github/workflows/_e2e-check.yml
+
   e2e-test:
     needs: [docker-build, service-images]
     if: ${{ !cancelled() && needs.docker-build.result == 'success' && needs.service-images.result == 'success' }}
@@ -122,6 +133,7 @@ jobs:
       - frontend-build
       - docker-build
       - service-images
+      - e2e-check
       - e2e-test
     if: ${{ always() }}
     runs-on: ubuntu-latest

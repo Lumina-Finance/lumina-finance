@@ -5,9 +5,6 @@ inputs:
   cache-dependency-paths:
     description: Lockfiles the npm cache is keyed on, one per line
     required: true
-  typecheck:
-    description: Type-check the E2E tests after installing their dependencies, true or false
-    default: "false"
 
 runs:
   using: composite
@@ -24,13 +21,6 @@ runs:
       shell: bash
       working-directory: e2e
       run: npm ci --ignore-scripts
-
-    # E2E tests have a separate TypeScript project from the frontend
-    - name: Type-check E2E tests
-      if: ${{ inputs.typecheck == 'true' }}
-      shell: bash
-      working-directory: e2e
-      run: npm run typecheck
 
     - name: Install Chromium
       shell: bash

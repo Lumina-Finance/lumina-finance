@@ -1,0 +1,38 @@
+name: E2E type check and contracts
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Type-check and contract-test the E2E suite
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: e2e
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "26.13.0"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install E2E dependencies
+        run: npm ci --ignore-scripts
+
+      # E2E tests have a separate TypeScript project from the frontend
+      - name: Type-check E2E tests
+        run: npm run typecheck
+
+      # Plain Node tests of the suite's helpers and rules, which need neither a browser nor the app
+      - name: Run the contract tests
+        run: npm run test:contracts
