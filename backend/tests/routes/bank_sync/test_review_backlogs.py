@@ -8,8 +8,6 @@ user's own personal accounts have a backlog
 import uuid
 from datetime import UTC, datetime
 
-import pytest
-
 from app.models.account import Account
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import (
@@ -67,37 +65,31 @@ async def test_backlogs_show_each_accounts_waiting_items_pause_and_warning(clien
     ]
 
 
-async def test_backlogs_for_every_account_leave_out_group_and_other_users_accounts(client):
-    """Without accounts named, Everyday and Savings each have a backlog, and neither the Joint group account nor another user's does
+async def test_backlogs_for_every_account_leave_out_group_and_other_users_accounts_and_naming_them_is_refused(client):
+    """Without accounts named, Everyday and Savings each have a backlog, and neither the Joint account nor another user's does
+
+    Naming either one is refused.
 
     Joint's item is recorded as its admin's own, so only the group scope leaves it out
     """
     headers, user_id = await _sign_up(client)
     everyday_id = await _new_account(client, headers, "Everyday")
     savings_id = await _new_account(client, headers, "Savings")
+    joint_id = await _new_group_account(client, headers)
+    theirs_id = str((await _commit_other_users_account()).id)
     await _commit_review_item(everyday_id)
-    await _commit_review_item(await _new_group_account(client, headers), owner_id=user_id)
-    await _commit_review_item((await _commit_other_users_account()).id)
+    await _commit_review_item(joint_id, owner_id=user_id)
+    await _commit_review_item(theirs_id)
 
     response = await client.get("/bank-review/backlogs", headers=headers)
+    with_group = await client.get("/bank-review/backlogs", params={"account_id": [everyday_id, joint_id]}, headers=headers)
+    with_theirs = await client.get("/bank-review/backlogs", params={"account_id": [everyday_id, theirs_id]}, headers=headers)
 
     assert response.status_code == 200, response.text
     assert sorted(response.json(), key=lambda backlog: backlog["account_id"]) == sorted(
         [_backlog(everyday_id, 1), _backlog(savings_id, 0)], key=lambda backlog: backlog["account_id"]
     )
-
-
-@pytest.mark.parametrize(
-    ("second", "status_code", "detail"),
-    [("group", 403, _NOT_OWN_DETAIL), ("theirs", 404, "Account not found")],
-)
-async def test_backlogs_refuse_accounts_that_arent_the_users_own(client, second, status_code, detail):
-    """Everyday named with the Joint group account is refused, even for its admin, and with another user's account is not found"""
-    headers, _ = await _sign_up(client)
-    everyday_id = await _new_account(client, headers, "Everyday")
-    second_id = await _new_group_account(client, headers) if second == "group" else str((await _commit_other_users_account()).id)
-
-    response = await client.get("/bank-review/backlogs", params={"account_id": [everyday_id, second_id]}, headers=headers)
-
-    assert response.status_code == status_code, response.text
-    assert response.json()["detail"] == detail
+    assert with_group.status_code == 403, f"Everyday named with the group account, even for its admin: {with_group.text}"
+    assert with_group.json()["detail"] == _NOT_OWN_DETAIL
+    assert with_theirs.status_code == 404, f"Everyday named with another user's account: {with_theirs.text}"
+    assert with_theirs.json()["detail"] == "Account not found"

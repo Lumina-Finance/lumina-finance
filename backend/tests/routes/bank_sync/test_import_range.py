@@ -19,22 +19,12 @@ async def _read_range(client, headers, account_id, provider: str = FAKE_PROVIDER
     return await client.get(f"/accounts/{account_id}/bank-link/import-range", params={"provider": provider}, headers=headers)
 
 
-async def test_import_range_of_a_group_account_is_refused_to_its_admin(client):
-    """A group account isn't the user's own, so even the group's admin can't link it"""
+async def test_import_range_of_accounts_that_arent_the_users_own_is_refused(client):
+    """Even the group's admin can't link a group account, and another user's account reads as one that doesn't exist"""
     headers, _ = await _sign_up(client)
     group = await client.post("/groups", json={"name": "Smith Family"}, headers=headers)
     assert group.status_code == 201, group.text
-    account_id = await _new_account(client, headers, "Joint", group_id=group.json()["id"])
-
-    refused = await _read_range(client, headers, account_id)
-
-    assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "Accounts shared with a group can't be linked to a bank yet"
-
-
-async def test_import_range_of_another_users_account_is_not_found(client):
-    """Another user's account reads the same as one that doesn't exist"""
-    headers, _ = await _sign_up(client)
+    group_account_id = await _new_account(client, headers, "Joint", group_id=group.json()["id"])
     async with TestSession() as session:
         other = _build_user("other@example.com")
         session.add(other)
@@ -43,9 +33,12 @@ async def test_import_range_of_another_users_account_is_not_found(client):
         session.add(theirs)
         await session.commit()
 
+    group_refused = await _read_range(client, headers, group_account_id)
     refused = await _read_range(client, headers, theirs.id)
     missing = await _read_range(client, headers, uuid.uuid4())
 
+    assert group_refused.status_code == 403, group_refused.text
+    assert group_refused.json()["detail"] == "Accounts shared with a group can't be linked to a bank yet"
     assert refused.status_code == 404, refused.text
     assert refused.json()["detail"] == "Account not found"
     assert missing.status_code == 404, missing.text

@@ -250,41 +250,25 @@ async def test_sync_now_after_the_provider_said_its_quota_is_spent_says_whose_li
     assert await _queued_requests() == []
 
 
-async def test_sync_now_on_an_account_that_isnt_linked_is_not_found(client):
-    """Everyday has no bank link, so there's nothing to sync"""
+async def test_sync_now_refuses_accounts_that_arent_linked_or_arent_the_users_own(client):
+    """An unlinked, another user's and a group account are each refused, and nothing is queued"""
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
-
-    response = await _sync_now(client, headers, account_id)
-
-    assert response.status_code == 404, response.text
-    assert response.json()["detail"] == "This account is not linked to a bank"
-
-
-async def test_sync_now_on_another_users_linked_account_reads_as_one_that_doesnt_exist(client):
-    """Another user's linked account and an id no account has give the same answer, and nothing is queued"""
-    headers, _ = await _sign_up(client)
+    group_account_id = await _new_group_account(client, headers)
     theirs = await _commit_other_users_account()
     connection = await _commit_listed_connection(theirs.owner_id, discovered_at=_NOW)
     await _commit_link(theirs.id, connection, **_SYNCED)
 
+    unlinked = await _sync_now(client, headers, account_id)
     refused = await _sync_now(client, headers, theirs.id)
     missing = await _sync_now(client, headers, uuid.uuid4())
+    group = await _sync_now(client, headers, group_account_id)
 
-    assert (refused.status_code, refused.json()["detail"]) == (404, "Account not found")
-    assert (missing.status_code, missing.json()["detail"]) == (404, "Account not found")
-    assert await _queued_requests() == []
-
-
-async def test_sync_now_on_a_group_account_is_refused_to_its_admin(client):
-    """A group account isn't the user's own, so it can't be linked or synced"""
-    headers, _ = await _sign_up(client)
-    account_id = await _new_group_account(client, headers)
-
-    response = await _sync_now(client, headers, account_id)
-
-    assert response.status_code == 403, response.text
-    assert response.json()["detail"] == "Accounts shared with a group can't be linked to a bank yet"
+    assert (unlinked.status_code, unlinked.json()["detail"]) == (404, "This account is not linked to a bank"), "an unlinked account"
+    assert (refused.status_code, refused.json()["detail"]) == (404, "Account not found"), "another user's linked account"
+    assert (missing.status_code, missing.json()["detail"]) == (404, "Account not found"), "an id no account has"
+    assert (group.status_code, group.json()["detail"]) == (403, "Accounts shared with a group can't be linked to a bank yet"), "a group account"
+    assert await _queued_requests() == [], "nothing is queued"
 
 
 @pytest.fixture

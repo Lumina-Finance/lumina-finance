@@ -159,17 +159,10 @@ async def test_range_import_leaves_a_queued_import_starting_when_it_was_due(clie
 @pytest.mark.parametrize(
     ("values", "connection_values", "running", "detail"),
     [
+        # Sync now shares the check for every other reason, so its tests hold the full table. The import
+        # with no running job stays here, because sync now wakes that import instead of refusing
         pytest.param(_SYNCED | _RUNNING | {"importing": True}, {}, False, "A date range import is already in progress", id="range-running"),
         pytest.param({}, {}, False, "The import is still in progress", id="importing"),
-        pytest.param(_SYNCED, {}, True, "A sync is already in progress", id="syncing"),
-        pytest.param(_SYNCED, {"credential_rejected_at": _NOW}, False, "Please reconnect Fake Bank in Settings first", id="reconnect-needed"),
-        pytest.param(
-            {"state": BankLinkState.CHOOSE_ACCOUNT, "importing": False},
-            {},
-            False,
-            "Please choose the bank account again first",
-            id="choose-bank-account",
-        ),
         pytest.param(
             _SYNCED | {"paused": True},
             {},
@@ -242,39 +235,23 @@ async def test_unlinking_ends_the_range_and_forgets_how_the_last_one_ended(clien
     assert (stored.state, stored.range_first_day, stored.range_next_day, stored.range_outcome) == (BankLinkState.UNLINKED, None, None, None)
 
 
-async def test_range_import_on_an_account_that_isnt_linked_is_not_found(client):
-    """Everyday has no bank link, so there's nothing to import into"""
+async def test_range_import_refuses_accounts_that_arent_linked_or_arent_the_users_own(client):
+    """An unlinked, another user's and a group account are each refused, and nothing is stored or queued"""
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
-
-    response = await _import_range(client, headers, account_id, **_MARCH)
-
-    assert response.status_code == 404, response.text
-    assert response.json()["detail"] == "This account is not linked to a bank"
-
-
-async def test_range_import_on_another_users_linked_account_reads_as_one_that_doesnt_exist(client):
-    """Another user's linked account and an id no account has give the same answer, and nothing is stored or queued"""
-    headers, _ = await _sign_up(client)
+    group_account_id = await _new_group_account(client, headers)
     theirs = await _commit_other_users_account()
     connection = await _commit_listed_connection(theirs.owner_id, discovered_at=_NOW)
     link = await _commit_link(theirs.id, connection, **_SYNCED)
 
+    unlinked = await _import_range(client, headers, account_id, **_MARCH)
     refused = await _import_range(client, headers, theirs.id, **_MARCH)
     missing = await _import_range(client, headers, uuid.uuid4(), **_MARCH)
+    group = await _import_range(client, headers, group_account_id, **_MARCH)
 
-    assert (refused.status_code, refused.json()["detail"]) == (404, "Account not found")
-    assert (missing.status_code, missing.json()["detail"]) == (404, "Account not found")
-    assert await _stored_range(link) == (None, None, None, None, False)
-    assert await _queued() == []
-
-
-async def test_range_import_on_a_group_account_is_refused_to_its_admin(client):
-    """A group account isn't the user's own, so it can't be linked or imported into"""
-    headers, _ = await _sign_up(client)
-    account_id = await _new_group_account(client, headers)
-
-    response = await _import_range(client, headers, account_id, **_MARCH)
-
-    assert response.status_code == 403, response.text
-    assert response.json()["detail"] == "Accounts shared with a group can't be linked to a bank yet"
+    assert (unlinked.status_code, unlinked.json()["detail"]) == (404, "This account is not linked to a bank"), "an unlinked account"
+    assert (refused.status_code, refused.json()["detail"]) == (404, "Account not found"), "another user's linked account"
+    assert (missing.status_code, missing.json()["detail"]) == (404, "Account not found"), "an id no account has"
+    assert (group.status_code, group.json()["detail"]) == (403, "Accounts shared with a group can't be linked to a bank yet"), "a group account"
+    assert await _stored_range(link) == (None, None, None, None, False), "another user's link keeps its range"
+    assert await _queued() == [], "nothing is queued"

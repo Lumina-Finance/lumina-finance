@@ -37,18 +37,6 @@ async def test_rename_sets_and_clears_the_nickname_in_any_state(client, cleared_
     assert await _stored_nickname(connection.id) is None
 
 
-async def test_rename_without_a_nickname_is_refused(client):
-    """An empty body leaves Joint in place rather than clearing it"""
-    headers, user_id = await _sign_up(client)
-    connection = await _commit_bank_connection(user_id, created_at=datetime.now(UTC), nickname="Joint")
-
-    refused = await client.patch(f"/bank-sync/connections/{connection.id}", json={}, headers=headers)
-
-    assert refused.status_code == 422, refused.text
-    assert [(error["loc"], error["type"]) for error in refused.json()["detail"]] == [(["body", "nickname"], "missing")]
-    assert await _stored_nickname(connection.id) == "Joint"
-
-
 async def test_rename_updates_cache_status(client):
     """Renaming a connection marks the user's data changed for cache validation"""
     headers, user_id = await _sign_up(client)
@@ -67,32 +55,29 @@ async def test_rename_updates_cache_status(client):
     assert after.json()["personal"]["last_change_from_current_session"] is True
 
 
-async def test_rename_with_a_nickname_over_64_characters_is_refused(client):
-    """The nickname is kept as it was"""
+async def test_rename_refuses_an_empty_body_a_long_nickname_and_another_users_connection(client):
+    """The nickname stays Joint after an empty body or one over 64 characters, and another user's connection stays as it was"""
     headers, user_id = await _sign_up(client)
     connection = await _commit_bank_connection(user_id, created_at=datetime.now(UTC), nickname="Joint")
-
-    refused = await client.patch(f"/bank-sync/connections/{connection.id}", json={"nickname": "J" * 65}, headers=headers)
-
-    assert refused.status_code == 422, refused.text
-    assert refused.json()["detail"] == "Keep the nickname to 64 characters or fewer"
-    assert await _stored_nickname(connection.id) == "Joint"
-
-
-async def test_rename_of_another_users_connection_is_not_found(client):
-    """Naming another user's connection changes nothing and doesn't reveal it exists"""
-    headers, _ = await _sign_up(client)
     async with TestSession() as session:
         other = _build_user("other@example.com")
         session.add(other)
         await session.commit()
     theirs = await _commit_bank_connection(other.id, created_at=datetime.now(UTC), nickname="Theirs")
 
+    empty = await client.patch(f"/bank-sync/connections/{connection.id}", json={}, headers=headers)
+    too_long = await client.patch(f"/bank-sync/connections/{connection.id}", json={"nickname": "J" * 65}, headers=headers)
     refused = await client.patch(f"/bank-sync/connections/{theirs.id}", json={"nickname": "Mine"}, headers=headers)
     missing = await client.patch(f"/bank-sync/connections/{uuid.uuid4()}", json={"nickname": "Mine"}, headers=headers)
 
+    assert empty.status_code == 422, empty.text
+    empty_errors = [(error["loc"], error["type"]) for error in empty.json()["detail"]]
+    assert empty_errors == [(["body", "nickname"], "missing")], "an empty body is missing its nickname"
+    assert too_long.status_code == 422, too_long.text
+    assert too_long.json()["detail"] == "Keep the nickname to 64 characters or fewer"
+    assert await _stored_nickname(connection.id) == "Joint", "a refused rename leaves the nickname as it was"
     assert refused.status_code == 404, refused.text
     assert refused.json()["detail"] == "Bank connection not found"
     assert missing.status_code == 404, missing.text
     assert missing.json()["detail"] == "Bank connection not found"
-    assert await _stored_nickname(theirs.id) == "Theirs"
+    assert await _stored_nickname(theirs.id) == "Theirs", "another user's connection keeps its nickname"

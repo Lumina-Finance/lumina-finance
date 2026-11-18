@@ -9,7 +9,6 @@ pages neither repeats nor skips one, and only the user's own personal accounts h
 import uuid
 from datetime import UTC, date, datetime
 
-import pytest
 from sqlalchemy import delete
 
 from app.models.account import Account
@@ -124,26 +123,19 @@ async def test_review_list_reads_as_few_as_one_item_at_a_time(client):
     assert second["next_cursor"] is None
 
 
-@pytest.mark.parametrize("limit", [0, 51])
-async def test_review_list_refuses_a_page_of_none_or_more_than_50(client, limit):
-    """A page holds from one item to 50"""
-    headers, _, _ = await _everyday(client)
-
-    refused = await client.get("/bank-review/items", params={"limit": limit}, headers=headers)
-
-    assert refused.status_code == 422, refused.text
-    assert [error["loc"] for error in refused.json()["detail"]] == [["query", "limit"]]
-
-
-async def test_review_list_refuses_a_cursor_no_page_returned(client):
-    """A cursor without a bank date and item id reads nothing"""
+async def test_review_list_refuses_a_page_of_none_or_more_than_50_and_a_cursor_no_page_returned(client):
+    """A page holds from one item to 50, and a cursor without a bank date and item id reads nothing"""
     headers, _, account_id = await _everyday(client)
     await _commit_review_item(account_id)
 
-    refused = await client.get("/bank-review/items", params={"cursor": "page-2"}, headers=headers)
+    for limit in (0, 51):
+        refused = await client.get("/bank-review/items", params={"limit": limit}, headers=headers)
+        assert refused.status_code == 422, f"a page of {limit}: {refused.text}"
+        assert [error["loc"] for error in refused.json()["detail"]] == [["query", "limit"]], f"a page of {limit}"
+    bad_cursor = await client.get("/bank-review/items", params={"cursor": "page-2"}, headers=headers)
 
-    assert refused.status_code == 422, refused.text
-    assert refused.json()["detail"] == "Unknown review list cursor"
+    assert bad_cursor.status_code == 422, bad_cursor.text
+    assert bad_cursor.json()["detail"] == "Unknown review list cursor"
 
 
 async def test_review_list_shows_each_kind_with_the_values_its_review_compares(client):
@@ -338,52 +330,28 @@ async def test_review_list_protects_only_the_edited_fields_a_correction_changes(
     )
 
 
-async def test_review_list_for_one_account_leaves_out_the_others(client):
-    """Everyday's two items list without Savings' one. Every account's list includes it"""
-    headers, _, everyday_id = await _everyday(client)
-    savings_id = await _new_account(client, headers, "Savings")
-    everyday_items = [await _commit_review_item(everyday_id, "TRN-1"), await _commit_review_item(everyday_id, "TRN-2")]
-    savings_item = await _commit_review_item(savings_id, "TRN-1")
-
-    everyday = await _review_page(client, headers, account_id=everyday_id)
-    every_account = await _review_page(client, headers)
-
-    assert sorted(item["id"] for item in everyday["items"]) == sorted(str(item_id) for item_id in everyday_items)
-    assert everyday["counts"] == {"new": 2, "correction": 0, "removal": 0}
-    assert sorted(item["id"] for item in every_account["items"]) == sorted(str(item_id) for item_id in [*everyday_items, savings_item])
-    assert every_account["counts"] == {"new": 3, "correction": 0, "removal": 0}
-
-
-async def test_review_list_for_several_accounts_counts_only_theirs(client):
-    """A list filtered to Everyday and Savings shows and counts their items without Travel's"""
+async def test_review_list_for_some_accounts_leaves_out_the_others(client):
+    """A list for Everyday or for Everyday and Savings leaves out the other accounts' items, and every account's list has them all"""
     headers, _, everyday_id = await _everyday(client)
     savings_id = await _new_account(client, headers, "Savings")
     travel_id = await _new_account(client, headers, "Travel")
-    listed = [await _commit_review_item(everyday_id, "TRN-1"), await _commit_review_item(savings_id, "TRN-1")]
-    await _commit_review_item(travel_id, "TRN-1")
+    everyday_items = [await _commit_review_item(everyday_id, "TRN-1"), await _commit_review_item(everyday_id, "TRN-2")]
+    savings_item = await _commit_review_item(savings_id, "TRN-1")
+    travel_item = await _commit_review_item(travel_id, "TRN-1")
 
-    page = await _review_page(client, headers, account_id=[everyday_id, savings_id])
+    everyday = await _review_page(client, headers, account_id=everyday_id)
+    two_accounts = await _review_page(client, headers, account_id=[everyday_id, savings_id])
+    every_account = await _review_page(client, headers)
 
-    assert sorted(item["id"] for item in page["items"]) == sorted(str(item_id) for item_id in listed)
-    assert page["counts"] == {"new": 2, "correction": 0, "removal": 0}
+    def ids(page: dict) -> list[str]:
+        return sorted(item["id"] for item in page["items"])
 
-
-@pytest.mark.parametrize(
-    ("second", "status_code", "detail"),
-    [
-        ("group", 403, "Bank items aren't listed for accounts shared with a group"),
-        ("theirs", 404, "Account not found"),
-    ],
-)
-async def test_review_list_refuses_several_accounts_when_any_isnt_the_users_own(client, second, status_code, detail):
-    """Everyday listed with the Joint group account is refused, and with another user's account is not found"""
-    headers, _, everyday_id = await _everyday(client)
-    second_id = await _new_group_account(client, headers) if second == "group" else str((await _commit_other_users_account()).id)
-
-    response = await client.get("/bank-review/items", params={"account_id": [everyday_id, second_id]}, headers=headers)
-
-    assert response.status_code == status_code, response.text
-    assert response.json()["detail"] == detail
+    assert ids(everyday) == sorted(str(item_id) for item_id in everyday_items), "one account lists only its own items"
+    assert everyday["counts"] == {"new": 2, "correction": 0, "removal": 0}, "one account counts only its own items"
+    assert ids(two_accounts) == sorted(str(item_id) for item_id in [*everyday_items, savings_item]), "two accounts list theirs without Travel's"
+    assert two_accounts["counts"] == {"new": 3, "correction": 0, "removal": 0}, "two accounts count only theirs"
+    assert ids(every_account) == sorted(str(item_id) for item_id in [*everyday_items, savings_item, travel_item]), "every account lists all"
+    assert every_account["counts"] == {"new": 4, "correction": 0, "removal": 0}, "every account counts all"
 
 
 async def test_review_list_checks_three_accounts_in_as_many_queries_as_one(client):
@@ -398,32 +366,28 @@ async def test_review_list_checks_three_accounts_in_as_many_queries_as_one(clien
     assert len(three_selects) == len(one_selects)
 
 
-async def test_review_list_never_shows_another_users_items(client):
-    """Another user's waiting item is in neither list, and their account reads as not found"""
-    headers, _, _ = await _everyday(client)
+async def test_review_list_refuses_accounts_that_arent_the_users_own_and_never_shows_their_items(client):
+    """Another user's item and a group account's, even one recorded as the admin's own, are in no list, and asking for either is refused"""
+    headers, user_id, everyday_id = await _everyday(client)
     theirs = await _commit_other_users_account()
     await _commit_review_item(theirs.id)
-
-    every_account = await _review_page(client, headers)
-    their_account = await client.get("/bank-review/items", params={"account_id": str(theirs.id)}, headers=headers)
-
-    assert every_account == EMPTY_REVIEW_PAGE
-    assert their_account.status_code == 404, their_account.text
-    assert their_account.json()["detail"] == "Account not found"
-
-
-async def test_review_list_leaves_out_group_accounts_even_for_their_admin(client):
-    """A group account's list is refused, and an item recorded on it as the admin's own isn't in theirs"""
-    headers, user_id, _ = await _everyday(client)
     joint_id = await _new_group_account(client, headers)
     await _commit_review_item(joint_id, owner_id=user_id)
+    group_detail = "Bank items aren't listed for accounts shared with a group"
 
-    refused = await client.get("/bank-review/items", params={"account_id": joint_id}, headers=headers)
     every_account = await _review_page(client, headers)
+    attempts = {
+        "another user's account": ([str(theirs.id)], 404, "Account not found"),
+        "a group account": ([joint_id], 403, group_detail),
+        "Everyday with another user's account": ([everyday_id, str(theirs.id)], 404, "Account not found"),
+        "Everyday with a group account": ([everyday_id, joint_id], 403, group_detail),
+    }
 
-    assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "Bank items aren't listed for accounts shared with a group"
-    assert every_account == EMPTY_REVIEW_PAGE
+    assert every_account == EMPTY_REVIEW_PAGE, "no list shows the other user's or the group account's items"
+    for name, (account_ids, status_code, detail) in attempts.items():
+        refused = await client.get("/bank-review/items", params={"account_id": account_ids}, headers=headers)
+        assert refused.status_code == status_code, f"{name}: {refused.text}"
+        assert refused.json()["detail"] == detail, name
 
 
 async def test_review_list_reads_a_page_of_50_in_as_many_queries_as_a_page_of_one(client):
