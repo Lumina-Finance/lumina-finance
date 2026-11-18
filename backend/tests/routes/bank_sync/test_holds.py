@@ -90,16 +90,19 @@ async def test_a_listed_hold_carries_its_provider_and_everything_the_bank_sent(c
     ]
 
 
-async def test_another_users_holds_are_not_listed(client):
-    """The signed-in user sees none of another user's holds"""
+async def test_another_users_holds_are_not_listed_and_a_group_accounts_holds_are_refused(client):
+    """The signed-in user sees none of another user's holds, and holds are listed only for the user's own personal accounts"""
     headers, _ = await _sign_up(client)
     theirs = await _commit_other_users_account()
     await _commit_hold(str(theirs.id))
+    group_account_id = await _new_group_account(client, headers)
 
     listed = await client.get("/bank-sync/holds", headers=headers)
+    group_listed = await client.get("/bank-sync/holds", params={"account_id": group_account_id}, headers=headers)
 
     assert listed.status_code == 200
-    assert listed.json() == []
+    assert listed.json() == [], "another user's holds are not listed"
+    assert group_listed.status_code == 403, "a group account's holds are refused"
 
 
 async def _linked_with_holds(client) -> tuple[dict, str, str, BankConnection]:
@@ -133,13 +136,3 @@ async def test_disconnecting_clears_the_holds_of_every_account_on_the_connection
 
     assert disconnected.status_code == 200, disconnected.text
     assert await _hold_descriptions() == []
-
-
-async def test_a_group_accounts_holds_are_refused(client):
-    """Holds are listed only for the user's own personal accounts"""
-    headers, _ = await _sign_up(client)
-    group_account_id = await _new_group_account(client, headers)
-
-    listed = await client.get("/bank-sync/holds", params={"account_id": group_account_id}, headers=headers)
-
-    assert listed.status_code == 403

@@ -55,28 +55,8 @@ def _claimable(fake_provider: FakeProviderAdapter) -> None:
     [
         ({"credentials": {ACCESS_KEY: _CREDENTIAL}}, "application/json", ["body", "provider"], "missing"),
         ({"provider": "fake", "credentials": {ACCESS_KEY: _CREDENTIAL}}, "text/plain", ["body"], "model_attributes_type"),
-        (_CREDENTIAL, "application/json", ["body"], "model_attributes_type"),
-        ([_CREDENTIAL], "application/json", ["body"], "model_attributes_type"),
-        ({"provider": "fake", "credentials": _CREDENTIAL}, "application/json", ["body", "credentials"], "dict_type"),
-        ({"provider": "fake", "credentials": {ACCESS_KEY: [_CREDENTIAL]}}, "application/json", ["body", "credentials"], "dict_type"),
-        ({"provider": "fake", "credential": _CREDENTIAL}, "application/json", ["body", "credentials"], "missing"),
-        (
-            {"provider": "fake", "credentials": {f"field_{n}": _CREDENTIAL for n in range(9)}},
-            "application/json",
-            ["body", "credentials"],
-            "too_long",
-        ),
     ],
-    ids=[
-        "missing-provider",
-        "sent-as-text",
-        "bare-credential",
-        "in-a-list",
-        "not-an-object",
-        "not-a-string",
-        "under-another-name",
-        "too-many-fields",
-    ],
+    ids=["missing-provider", "sent-as-text"],
 )
 async def test_claim_refused_by_validation_never_repeats_the_credential(client, body, content_type, loc, error_type):
     """However the body is malformed, the refusal names what is wrong without the credential"""

@@ -98,29 +98,20 @@ async def test_pending_list_for_some_accounts_lists_only_theirs(client):
     assert await _listed_ids(client, headers, account_id=[everyday_id, savings_id]) == [str(everyday_item), str(savings_item)]
 
 
-async def test_pending_list_never_shows_another_users_items(client):
-    """Another user's hold is in neither list, and their account reads as not found"""
-    headers, _ = await _sign_up(client)
+async def test_pending_list_refuses_accounts_that_arent_the_users_own_and_never_shows_their_items(client):
+    """Another user's hold and a group account's, even one recorded as the admin's own, are in no list, and asking for either is refused"""
+    headers, user_id = await _sign_up(client)
     theirs = await _commit_other_users_account()
     await _commit_pending(theirs.id)
-
-    every_account = await _pending(client, headers)
-    their_account = await client.get("/bank-sync/pending", params={"account_id": str(theirs.id)}, headers=headers)
-
-    assert every_account == []
-    assert their_account.status_code == 404, their_account.text
-    assert their_account.json()["detail"] == "Account not found"
-
-
-async def test_pending_list_leaves_out_group_accounts_even_for_their_admin(client):
-    """A group account's list is refused, and a hold recorded on it as the admin's own isn't in theirs"""
-    headers, user_id = await _sign_up(client)
     joint_id = await _new_group_account(client, headers)
     await _commit_pending(joint_id, owner_id=user_id)
 
-    refused = await client.get("/bank-sync/pending", params={"account_id": joint_id}, headers=headers)
     every_account = await _pending(client, headers)
+    their_account = await client.get("/bank-sync/pending", params={"account_id": str(theirs.id)}, headers=headers)
+    group_account = await client.get("/bank-sync/pending", params={"account_id": joint_id}, headers=headers)
 
-    assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == _GROUP_DETAIL
-    assert every_account == []
+    assert every_account == [], "no list shows the other user's or the group account's holds"
+    assert their_account.status_code == 404, their_account.text
+    assert their_account.json()["detail"] == "Account not found"
+    assert group_account.status_code == 403, group_account.text
+    assert group_account.json()["detail"] == _GROUP_DETAIL
