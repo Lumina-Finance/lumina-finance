@@ -13,19 +13,21 @@ runs:
   using: composite
 
   steps:
+    # Every second, since the app is ready the moment it answers and each job waits for it before
+    # its first test. The 150 attempts keep the same two and a half minutes the app has to start
     - name: Ping the health endpoint
       shell: bash
       env:
         HEALTH_URL: ${{ inputs.health-url }}
         COMPOSE_FILES: ${{ inputs.compose-files }}
       run: |
-        for attempt in $(seq 1 30); do
+        for attempt in $(seq 1 150); do
           if curl -fsS "${HEALTH_URL}" | grep -qE '"status":\s*"ok"'; then
             echo "Health check passed"
             exit 0
           fi
           echo "Attempt ${attempt}: app not ready yet"
-          sleep 5
+          sleep 1
         done
         echo "Health check never succeeded, dumping logs"
         # shellcheck disable=SC2086

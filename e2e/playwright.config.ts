@@ -15,9 +15,9 @@ if (configuredWorkers !== undefined && (!/^[1-9]\d*$/.test(configuredWorkers) ||
   throw new Error('E2E_WORKERS must be a positive integer')
 }
 
-// Set by CI, which runs the suite once against a server with no bank provider enabled, with `off`,
-// and once against a server offering SimpleFIN, with `on`. Each run takes only the tests written for
-// that server. Unset, as the development runner leaves it, every test runs against the one instance
+// Set by CI. A job whose server has no bank provider enabled sets `off`, and a job whose server has
+// the bank providers on sets `on`. Each job takes only the tests written for its server. Unset, as
+// the development runner leaves it, every test runs against the one instance
 const bankSync = process.env.E2E_BANK_SYNC
 if (bankSync !== undefined && bankSync !== 'on' && bankSync !== 'off') {
   throw new Error('E2E_BANK_SYNC must be on or off')

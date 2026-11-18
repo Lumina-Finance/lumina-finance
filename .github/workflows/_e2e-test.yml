@@ -8,51 +8,52 @@ permissions:
 
 jobs:
   test:
-    name: E2E tests (${{ matrix.platform }}, ${{ matrix.project }}${{ matrix.shards > 1 && format(', {0}/{1}', matrix.shard, matrix.shards) || '' }}${{ matrix.grep && ', tagged tests' || '' }})
+    name: E2E tests (${{ matrix.platform }}, ${{ matrix.projects }}${{ matrix.bank == 'on' && ', bank sync' || '' }}${{ matrix.shards > 1 && format(', {0}/{1}', matrix.shard, matrix.shards) || '' }}${{ matrix.grep && ', tagged tests' || '' }})
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
-      # Every job is listed by hand, since the shard counts differ by project. With the cross-origin job
-      # below they make 19 browser jobs. The organisation's plan runs 20 jobs at once, and the 8 backend
-      # test jobs hold 8 of them while the browser jobs start, so a job past the free runners waits for
-      # one. In a measured run with desktop in 8 shards, a desktop job spent about 98 seconds on setup
-      # and 372 in its two test steps, the phone job took 467 seconds and tablet 378. arm64 runs one job
-      # and gives up 7 runners, and they go to amd64: 5 to desktop for 13 shards, and 1 each to tablet
-      # and phone for 2 shards. No single job then stays far longer than the rest
+      # Every job is listed by hand, since the shard counts differ. With the cross-origin job below
+      # they make 19 browser jobs. The organisation's plan runs 20 jobs at once, and the 8 backend test
+      # jobs hold 8 of them while the browser jobs start, so a job past the free runners waits for
+      # one. Each job's stack starts once, so the tests needing bank sync have jobs of their own, on a
+      # stack with the bank providers on, and every other test runs on a stack with none. The shards
+      # are sized to the test time measured for each part: about 2,500 seconds of desktop tests with no
+      # bank provider, 680 of desktop bank sync tests, 240 of tablet and 215 of phone tests with no
+      # bank provider and 245 of tablet and phone bank sync tests together. Every job then spends 215
+      # to 245 seconds in its tests
       matrix:
         include:
           # The one arm64 job, at desktop with only the tests tagged `ON_ARM64` in e2e/support/sizes.ts.
           # They cover the parts of the image compiled for the processor type. It passes no
           # `--pass-with-no-tests`, so it fails when the tag selects no test. None of those tests needs
-          # bank sync, a contract test keeps it so, and the job skips the second run
-          - { platform: arm64, runner: ubuntu-24.04-arm, project: desktop, shard: 1, shards: 1, grep: "@arm64" }
+          # bank sync, a contract test keeps it so, and the job has no bank sync stack
+          - { platform: arm64, runner: ubuntu-24.04-arm, projects: desktop, bank: "off", shard: 1, shards: 1, grep: "@arm64" }
           # Every test runs on amd64. Tablet and phone run only the tests that depend on the screen's
-          # width or on touch
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 1, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 2, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 3, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 4, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 5, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 6, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 7, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 8, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 9, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 10, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 11, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 12, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: desktop, shard: 13, shards: 13 }
-          - { platform: amd64, runner: ubuntu-latest, project: tablet, shard: 1, shards: 2 }
-          - { platform: amd64, runner: ubuntu-latest, project: tablet, shard: 2, shards: 2 }
-          - { platform: amd64, runner: ubuntu-latest, project: phone, shard: 1, shards: 2 }
-          - { platform: amd64, runner: ubuntu-latest, project: phone, shard: 2, shards: 2 }
+          # width or on touch, and `projects` lists the projects a job runs
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 1, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 2, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 3, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 4, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 5, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 6, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 7, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 8, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 9, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 10, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "off", shard: 11, shards: 11 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "on", shard: 1, shards: 3 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "on", shard: 2, shards: 3 }
+          - { platform: amd64, runner: ubuntu-latest, projects: desktop, bank: "on", shard: 3, shards: 3 }
+          - { platform: amd64, runner: ubuntu-latest, projects: tablet, bank: "off", shard: 1, shards: 1 }
+          - { platform: amd64, runner: ubuntu-latest, projects: phone, bank: "off", shard: 1, shards: 1 }
+          - { platform: amd64, runner: ubuntu-latest, projects: tablet phone, bank: "on", shard: 1, shards: 1 }
 
-    # Every matrix job starts its own application and database on its runner, and runs its tests
-    # against two servers in turn. The arm64 job stops after the first. The first offers no bank sync,
-    # with no provider enabled and so no bank sync worker, for every test but those tagged as needing
-    # bank sync. The same stack then
-    # restarts with SimpleFIN, Lunch Flow, Akahu, Pluggy and Enable Banking on, the worker running inside
-    # the app as it does by default, and the fake SimpleFIN Bridge, Lunch Flow, Akahu, Pluggy and Enable
-    # Banking the tagged tests connect bank accounts through
+    # Every matrix job starts its own application and database on its runner, once, and runs its tests
+    # against them. With bank sync off, no provider is enabled and so no bank sync worker runs, which
+    # is the server every test but those tagged as needing bank sync is written for. With it on, the
+    # stack has SimpleFIN, Lunch Flow, Akahu, Pluggy and Enable Banking on, the worker running inside
+    # the app as it does by default, and the fake SimpleFIN Bridge, Lunch Flow, Akahu, Pluggy and
+    # Enable Banking the tagged tests connect bank accounts through
     env:
       APP_IMAGE_TAG: ci
       DB_HOST: postgres
@@ -60,6 +61,11 @@ jobs:
       DB_NAME: lumina
       DB_USER: lumina
       DB_PASSWORD: lumina-smoke
+      COMPOSE_FILES: >-
+        -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fast-health.compose.yaml
+        ${{ matrix.bank == 'on'
+        && '-f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml'
+        || '-f e2e/no-bank-provider.compose.yaml' }}
 
     steps:
       - name: Check out repository
@@ -79,57 +85,28 @@ jobs:
         with:
           platform: ${{ matrix.platform }}
 
-      - name: Start the stack with no bank provider
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml up -d --pull never
+      - name: Start the stack
+        run: docker compose ${{ env.COMPOSE_FILES }} up -d --pull never
 
-      # Overlap E2E setup with application migrations and seeding
+      # The app takes a while to migrate and seed its database, and this setup runs meanwhile
       - name: Set up the browser suite
         uses: ./.github/actions/e2e-browser
         with:
           cache-dependency-paths: e2e/package-lock.json
-          typecheck: "true"
 
       - name: Wait for the stack
         uses: ./.github/actions/e2e-health
         with:
           health-url: http://localhost:8080/api/health
-          compose-files: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml
-
-      - name: Run E2E tests with no bank provider
-        id: no-bank-sync-tests
-        working-directory: e2e
-        env:
-          E2E_BASE_URL: http://localhost:8080
-          E2E_MAIL_API_URL: http://127.0.0.1:8025
-          E2E_BANK_SYNC: "off"
-        run: npm test -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }} ${{ matrix.grep && format('--grep {0}', matrix.grep) || '' }}
-
-      # The app restarts below, which ends the log of the server these tests ran against
-      - name: Dump container logs from the server with no bank provider
-        if: ${{ failure() && steps.no-bank-sync-tests.outcome == 'failure' }}
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml logs || true
-
-      # The app is recreated with the bank providers on and the database kept. Every test creates its
-      # own user, so nothing the first run wrote reaches the second. Runs after a failed first run
-      # too, so a run reports both halves
-      - name: Restart the stack with bank sync
-        if: ${{ !cancelled() && !matrix.grep && steps.no-bank-sync-tests.outcome != 'skipped' }}
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml up -d --pull never
-
-      - name: Wait for the stack with bank sync
-        if: ${{ !cancelled() && !matrix.grep && steps.no-bank-sync-tests.outcome != 'skipped' }}
-        uses: ./.github/actions/e2e-health
-        with:
-          health-url: http://localhost:8080/api/health
-          compose-files: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml
+          compose-files: ${{ env.COMPOSE_FILES }}
 
       # The worker counts as running once its first scan for due work stamps its heartbeat. That
       # comes after it has waited for the app to migrate the database
       - name: Wait for bank sync
-        if: ${{ !cancelled() && !matrix.grep && steps.no-bank-sync-tests.outcome != 'skipped' }}
+        if: ${{ matrix.bank == 'on' }}
         run: |
-          compose="docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml"
-          for attempt in $(seq 1 30); do
+          compose="docker compose ${{ env.COMPOSE_FILES }}"
+          for attempt in $(seq 1 150); do
             if ${compose} exec -T app python -m app.worker check-health \
               && curl -fsS -o /dev/null http://localhost:8790/docs \
               && curl -fsS -o /dev/null http://localhost:8791/docs \
@@ -140,17 +117,27 @@ jobs:
               exit 0
             fi
             echo "Attempt ${attempt}: bank sync not ready yet"
-            sleep 5
+            sleep 1
           done
           echo "Bank sync never became ready, dumping logs"
           ${compose} logs app fake-simplefin-bridge fake-lunchflow fake-akahu fake-pluggy fake-enable-banking
           exit 1
 
-      # A shard can hold none of the tests needing bank sync, so finding none passes. The contract
-      # checks ran with the first half. The report and results go beside the first run's
+      # A job runs one of the two steps below. Neither passes with no tests, so a shard that selects
+      # none fails the job
+      - name: Run E2E tests with no bank provider
+        id: no-bank-sync-tests
+        if: ${{ matrix.bank == 'off' }}
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: http://localhost:8080
+          E2E_MAIL_API_URL: http://127.0.0.1:8025
+          E2E_BANK_SYNC: "off"
+        run: npx playwright test --project ${{ matrix.projects }} --shard=${{ matrix.shard }}/${{ matrix.shards }} ${{ matrix.grep && format('--grep {0}', matrix.grep) || '' }}
+
       - name: Run E2E tests with bank sync
         id: bank-sync-tests
-        if: ${{ !cancelled() && !matrix.grep && steps.no-bank-sync-tests.outcome != 'skipped' }}
+        if: ${{ matrix.bank == 'on' }}
         working-directory: e2e
         env:
           E2E_BASE_URL: http://localhost:8080
@@ -162,28 +149,25 @@ jobs:
           E2E_FAKE_AKAHU_URL: http://localhost:8792
           E2E_FAKE_PLUGGY_URL: http://localhost:8793
           E2E_FAKE_ENABLE_BANKING_URL: http://localhost:8794
-          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-bank-sync
-        run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }} --pass-with-no-tests --output=test-results-bank-sync
+        run: npx playwright test --project ${{ matrix.projects }} --shard=${{ matrix.shard }}/${{ matrix.shards }} ${{ matrix.grep && format('--grep {0}', matrix.grep) || '' }}
 
       # The report shows only what the browser saw, so a failed request is explained by the app's own log
-      - name: Dump container logs from the server with bank sync
-        if: ${{ failure() && steps.bank-sync-tests.outcome == 'failure' }}
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml logs || true
+      - name: Dump container logs
+        if: ${{ failure() && (steps.no-bank-sync-tests.outcome == 'failure' || steps.bank-sync-tests.outcome == 'failure') }}
+        run: docker compose ${{ env.COMPOSE_FILES }} logs || true
 
       # Setup failures do not produce an E2E report
-      - name: Keep the reports from a failed run
+      - name: Keep the report from a failed run
         if: ${{ failure() && (steps.no-bank-sync-tests.outcome == 'failure' || steps.bank-sync-tests.outcome == 'failure') }}
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-tests-${{ matrix.platform }}-${{ matrix.project }}-${{ matrix.shard }}
-          path: |
-            e2e/playwright-report
-            e2e/playwright-report-bank-sync
+          name: e2e-tests-${{ matrix.platform }}-${{ matrix.projects }}-bank-${{ matrix.bank }}-${{ matrix.shard }}
+          path: e2e/playwright-report
           retention-days: 7
 
       - name: Tear down the stack
         if: always()
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml down -v
+        run: docker compose ${{ env.COMPOSE_FILES }} down -v
 
   # The packaged image serves the app and the API from one origin, so the tests that need two run
   # here. The frontend is built a second time to reach the API at another address of the same stack,
@@ -204,6 +188,7 @@ jobs:
       # 127.0.0.1 would not carry, and the session would never start
       APP_ORIGIN: http://localhost:8080
       API_URL: http://localhost:8081/api
+      COMPOSE_FILES: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fast-health.compose.yaml -f e2e/no-bank-provider.compose.yaml -f docker/compose.cross-origin.yml
 
     steps:
       - name: Check out repository
@@ -254,13 +239,13 @@ jobs:
           EOF
 
       - name: Start the stack
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml -f docker/compose.cross-origin.yml up -d --pull never
+        run: docker compose ${{ env.COMPOSE_FILES }} up -d --pull never
 
       - name: Wait for the stack
         uses: ./.github/actions/e2e-health
         with:
           health-url: ${{ env.API_URL }}/health
-          compose-files: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml -f docker/compose.cross-origin.yml
+          compose-files: ${{ env.COMPOSE_FILES }}
 
       - name: Run E2E tests
         id: e2e-tests
@@ -275,7 +260,7 @@ jobs:
 
       - name: Dump container logs
         if: failure()
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml -f docker/compose.cross-origin.yml logs || true
+        run: docker compose ${{ env.COMPOSE_FILES }} logs || true
 
       - name: Keep the report from a failed run
         if: ${{ failure() && steps.e2e-tests.outcome == 'failure' }}
@@ -287,4 +272,4 @@ jobs:
 
       - name: Tear down the stack
         if: always()
-        run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml -f docker/compose.cross-origin.yml down -v
+        run: docker compose ${{ env.COMPOSE_FILES }} down -v
