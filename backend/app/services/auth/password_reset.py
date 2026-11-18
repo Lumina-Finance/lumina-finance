@@ -229,6 +229,7 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
         session_factory: Opens the session that drops the token of a link that was not sent
     """
     is_expired = False
+    is_failed = False
     try:
         # The raw token only ever leaves the server inside the emailed link
         reset_link = f"{APP_URL}{_RESET_PATH}?token={pending.raw_token}"
@@ -239,14 +240,11 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
                 # Marked as the send starts, so a send slower than the grace still blocks other requests
                 await _mark_reset_emailed(pending, session_factory)
                 await get_email_sender().send(pending.recipient, message)
-    except Exception:
-        # Recorded before the token is dropped, so a drop that fails cannot lose the failure
+    except Exception as error:
+        # Only the class is logged, since the mail library's error text can quote the address
         reset_backoff.record_failed(pending.ticket.user_id)
-
-        # A failed send must drop the token it just stored, otherwise the one-live-link throttle would
-        # suppress every retry until the token expires
-        await _drop_token_by_id(pending.token_id, session_factory)
-        logger.warning("Password reset email failed to send", exc_info=True)
+        logger.warning("Password reset email failed to send: %s", type(error).__name__)
+        is_failed = True
     except asyncio.CancelledError:
         # A cancelled send counts as unsent, so its link must not stay live and block a new request
         await _drop_token_by_id(pending.token_id, session_factory)
@@ -258,6 +256,13 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
             reset_backoff.record_succeeded(pending.ticket.user_id)
     finally:
         end_send(pending.ticket)
+
+    # A failed send must drop the token it just stored, otherwise the one-live-link throttle would
+    # suppress every retry until the token expires. Dropped outside the handler, so an error from the
+    # drop does not carry the mail error, and the address its text can quote, into the server's
+    # traceback. The failure is already recorded, so a drop that fails cannot lose it
+    if is_failed:
+        await _drop_token_by_id(pending.token_id, session_factory)
 
 
 async def _mark_reset_emailed(pending: PendingResetEmail, session_factory: async_sessionmaker[AsyncSession]) -> None:

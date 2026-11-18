@@ -1,10 +1,13 @@
 """Limits on password reset sends while the mail server fails or hangs"""
 
 import asyncio
+import logging
+import traceback
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import aiosmtplib
 import pytest
 from fastapi import BackgroundTasks
 from sqlalchemy import delete, select, update
@@ -571,3 +574,39 @@ async def test_a_request_cut_off_after_its_link_commits_leaves_no_live_link(clie
 
     assert await _token_count(user_ids[0]) == 0
     assert reset_send_limit.try_start_send(user_ids[0]) is not None
+
+
+async def test_a_refused_recipient_is_logged_by_error_class_and_never_by_address(client, caplog, monkeypatch):
+    """The mail library's error text quotes the address, so the warning names only the class"""
+    emails, _user_ids = await _create_users(client, 1)
+    error = aiosmtplib.SMTPRecipientsRefused([aiosmtplib.SMTPRecipientRefused(550, "Mailbox unavailable", emails[0])])
+    assert emails[0] in str(error), "the error carries the address, so only the log decides whether it leaks"
+
+    async def refuse(*_args):
+        raise error
+
+    _use_mailer(monkeypatch, refuse)
+    with caplog.at_level(logging.INFO):
+        await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert "SMTPRecipientsRefused" in caplog.text
+    assert emails[0] not in caplog.text
+
+
+async def test_a_refused_recipient_stays_out_of_the_traceback_when_dropping_its_token_also_fails(client, caplog, monkeypatch):
+    """The server logs an error escaping a background task with its whole chain, so the mail error must not ride along"""
+    emails, _user_ids = await _create_users(client, 1)
+
+    async def refuse(*_args):
+        raise aiosmtplib.SMTPRecipientsRefused([aiosmtplib.SMTPRecipientRefused(550, "Mailbox unavailable", emails[0])])
+
+    async def broken_drop(_token_id, _session_factory):
+        raise RuntimeError("database is down")
+
+    _use_mailer(monkeypatch, refuse)
+    monkeypatch.setattr(password_reset, "_drop_token_by_id", broken_drop)
+    with caplog.at_level(logging.INFO), pytest.raises(RuntimeError, match="database is down") as raised:
+        await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert emails[0] not in "".join(traceback.format_exception(raised.value))
+    assert "SMTPRecipientsRefused" in caplog.text, "the warning is logged before the drop fails"
