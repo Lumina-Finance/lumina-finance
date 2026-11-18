@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.abuse_log import log_source_address
+from app.config.email import EMAIL_BACKEND, EMAIL_BACKEND_LOGGING
 from app.config.log_level import LOG_LEVEL
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
 from app.config.runtime import ALLOWED_ORIGINS
@@ -51,6 +52,12 @@ from app.valkey_store import use_valkey
 configure_logging(LOG_LEVEL)
 
 logger = logging.getLogger(__name__)
+
+_LOGGING_BACKEND_WARNING = (
+    "EMAIL_BACKEND is set to logging, so sign-up and password reset links go to this log, and anyone "
+    "who can read the log can use the links to take over an account. Please set EMAIL_BACKEND to smtp, "
+    "with your SMTP settings, before inviting anyone else"
+)
 
 
 @asynccontextmanager
@@ -103,6 +110,11 @@ app = FastAPI(
 
 # Install the configured email sender before any request can send mail
 set_email_sender(build_email_sender())
+
+# Said on every start, since logging is the default and a first run works without mail, so an install
+# can run for months writing live links where anyone reading its log can use them
+if EMAIL_BACKEND == EMAIL_BACKEND_LOGGING:
+    logger.warning(_LOGGING_BACKEND_WARNING)
 
 app.add_exception_handler(RequestValidationError, handle_request_validation_error)
 

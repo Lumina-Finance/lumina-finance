@@ -86,6 +86,24 @@ def test_retired_runtime_and_passkey_name_settings_are_ignored():
     assert _output(_start_app(_RETIRED_SETTINGS_SCRIPT, settings)) == ["Lumina Finance Self-Hosted", False]
 
 
+_LOGGING_BACKEND_WARNING_LINE = "WARNING app.main: EMAIL_BACKEND is set to logging"
+
+
+@pytest.mark.parametrize(
+    ("settings", "is_warned"),
+    [
+        ({"EMAIL_BACKEND": "logging", "LOG_LEVEL": "INFO"}, True),
+        ({"EMAIL_BACKEND": "smtp", "SMTP_HOST": "mail.example.test", "LOG_LEVEL": "INFO"}, False),
+    ],
+)
+def test_start_warns_when_emails_go_to_the_log(settings, is_warned):
+    """Starting with the logging backend, the default, warns that sign-up and reset links are written to the log"""
+    completed = _start_app("import app.main", settings)
+
+    assert completed.returncode == 0, completed.stderr
+    assert (_LOGGING_BACKEND_WARNING_LINE in completed.stderr) is is_warned
+
+
 def test_api_docs_paths_answer_404():
     """The API docs paths are never served, even with the retired API_DOCS_ENABLED set to true"""
     assert _output(_start_app(_DOCS_STATUS_SCRIPT, {"API_DOCS_ENABLED": "true"})) == [404, 404, 404]
