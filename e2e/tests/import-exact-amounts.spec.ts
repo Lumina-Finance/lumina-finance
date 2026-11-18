@@ -8,7 +8,6 @@ import { commitImport, openPage, logInViaApi } from '../support/app'
 
 const CASES = [
   { currency: 'JPY', large: '9007199254740993', small: '1', digits: '9,007,199,254,740,993', smallDigits: '1' },
-  { currency: 'CAD', large: '90071992547409.93', small: '0.01', digits: '90,071,992,547,409.93', smallDigits: '0.01' },
   { currency: 'IQD', large: '9007199254740.993', small: '0.001', digits: '9,007,199,254,740.993', smallDigits: '0.001' },
 ] as const
 

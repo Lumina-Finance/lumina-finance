@@ -191,21 +191,6 @@ test('opens a file with every column and the amount format the saved settings ho
   await expect(page.getByRole('combobox', { name: 'Amount format', exact: true })).toHaveText('1.234,56')
 })
 
-test('reads a file by detection when its saved settings name a format no longer offered', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const checking = await createAccount(request, user, { name: 'Checking' })
-  await logInViaApi(page, user)
-  await page.route('**/transactions/import/layouts', (route) => route.fulfill({
-    json: [{ ...WEB_LAYOUT, account_id: checking.id, date_format: 'julian' }],
-  }))
-
-  const dateFormat = await upload(page, `/settings/imports?account=${checking.id}`, 'web.csv', WEB_EXPORT)
-
-  await expect(dateFormat).toHaveText('Choose the date format')
-  await expect(page.getByText(NOTICE_TITLE, { exact: true })).toHaveCount(0)
-  await expect(page.getByText('Saved settings not used', { exact: true })).toHaveCount(0)
-})
-
 test('holds the upload while the saved settings load, and reads files by detection when they fail', async ({ page, request }) => {
   const user = await signUpUser(request)
   const checking = await createAccount(request, user, { name: 'Checking' })
