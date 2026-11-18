@@ -7,32 +7,10 @@ permissions:
   contents: read
 
 jobs:
-  # Warm the shared uv cache before starting the parallel test jobs
-  prime-cache:
-    name: Prime the uv cache
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: backend
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.3.2
-        with:
-          # The same uv as UV_VERSION in docker/Dockerfile
-          version: "0.13.7"
-          enable-cache: true
-
-      - name: Sync locked dependencies
-        run: uv sync --frozen
-
+  # The groups start at once, with no job ahead of them filling the uv cache. The cache is saved from
+  # main for every pull request, and a group finding none installs the dependencies itself
   test:
     name: Test backend ${{ matrix.group }} of 8
-    needs: prime-cache
     runs-on: ubuntu-latest
 
     # Eight groups leave room for the browser tests within the free plan's 20 jobs at once.
