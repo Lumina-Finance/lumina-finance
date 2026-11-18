@@ -1,5 +1,5 @@
 name: Set up the browser suite
-description: Installs Node, the E2E dependencies and Chromium
+description: Installs Node, the E2E dependencies and the browser the tests launch
 
 inputs:
   cache-dependency-paths:
@@ -22,7 +22,18 @@ runs:
       working-directory: e2e
       run: npm ci --ignore-scripts
 
-    - name: Install Chromium
+    # The same system packages and fonts as installing the whole of Chromium, since the tests
+    # measure text and a different font would move it
+    - name: Install the browser's system packages
       shell: bash
       working-directory: e2e
-      run: npx playwright install --with-deps chromium
+      run: npx playwright install-deps chromium
+
+    # The tests launch Chromium headless, which Playwright runs from its separate headless shell, so
+    # the full Chrome it also ships is never opened and is not downloaded. The config names no
+    # channel and no headed run, and a browser the tests need but this leaves out fails the job
+    # when Playwright cannot find it
+    - name: Install the headless Chromium
+      shell: bash
+      working-directory: e2e
+      run: npx playwright install --only-shell chromium
