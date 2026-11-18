@@ -1,12 +1,14 @@
 import pytest
 
-from app.services.auth import registration, reset_send_limit, send_backoff
+from app.services.auth import registration, reset_send_limit, send_backoff, signup
 
 
 @pytest.fixture(autouse=True)
 def reset_clock(monkeypatch):
     """Start each test with no email back-offs or queued sends and a clock it moves with advance"""
     reset_send_limit.reset_backoff._entries.clear()
+    signup._signup_backoff._entries.clear()
+    signup._sends_under_way.clear()
     reset_send_limit._admitted.clear()
     monkeypatch.setattr(reset_send_limit, "_slots", None)
     now = [1000.0]
