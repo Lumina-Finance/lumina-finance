@@ -22,12 +22,44 @@ runs:
       working-directory: e2e
       run: npm ci --ignore-scripts
 
+    - name: Name the runner image and week the system packages belong to
+      id: packages
+      shell: bash
+      run: |
+        echo "os=${ImageOS:-unknown}" >> "${GITHUB_OUTPUT}"
+        echo "week=$(date -u +%G-%V)" >> "${GITHUB_OUTPUT}"
+
+    # A job downloads fonts and system packages from the runner's package server, and a slow server
+    # has held one for minutes. The package files are kept from one run to the next, saved from main
+    # for every pull request. A saved cache is never written again under its key, so the key changes
+    # each week to take in newer package versions, and a new week starts from the latest older cache
+    - name: Restore the browser's system packages
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/browser-system-packages
+        key: browser-system-packages-${{ steps.packages.outputs.os }}-${{ runner.arch }}-${{ hashFiles('e2e/package-lock.json') }}-${{ steps.packages.outputs.week }}
+        restore-keys: |
+          browser-system-packages-${{ steps.packages.outputs.os }}-${{ runner.arch }}-${{ hashFiles('e2e/package-lock.json') }}-
+
     # The same system packages and fonts as installing the whole of Chromium, since the tests
-    # measure text and a different font would move it
+    # measure text and a different font would move it. apt still decides each package's version
+    # and installs a kept file only when the file is that version, so a kept file changes no font.
+    # A package with no kept file is downloaded as before. apt dates a downloaded file as the server
+    # does, so the files this install added are found by when they arrived, not by their date
     - name: Install the browser's system packages
       shell: bash
       working-directory: e2e
-      run: npx playwright install-deps chromium
+      run: |
+        kept="${HOME}/.cache/browser-system-packages"
+        mkdir -p "${kept}"
+        if compgen -G "${kept}/*.deb" > /dev/null; then
+          sudo cp "${kept}"/*.deb /var/cache/apt/archives/
+        fi
+        touch "${RUNNER_TEMP}/before-system-packages"
+        npx playwright install-deps chromium
+        find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -cnewer "${RUNNER_TEMP}/before-system-packages" \
+          -exec cp {} "${kept}/" \;
+        echo "Package files kept for the next run: $(find "${kept}" -name '*.deb' | wc -l)"
 
     # The tests launch Chromium headless, which Playwright runs from its separate headless shell, so
     # the full Chrome it also ships is never opened and is not downloaded. The config names no

@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
+      backend-image: ${{ steps.image-filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docker: ${{ steps.filter.outputs.docker }}
       lockfiles: ${{ steps.filter.outputs.lockfiles }}
@@ -40,10 +41,12 @@ jobs:
             frontend:
               - 'frontend/**'
               - '.github/workflows/**'
-            # E2E and Docker jobs exercise these tests and composite actions
+            # E2E and Docker jobs exercise these tests and composite actions. The browser stack runs
+            # the fake bank providers straight from the backend's tests
             docker:
               - 'docker/**'
               - 'e2e/**'
+              - 'backend/tests/fake_*/**'
               - '.github/workflows/**'
               - '.github/actions/**'
 
@@ -51,6 +54,20 @@ jobs:
             lockfiles:
               - 'backend/uv.lock'
               - 'frontend/package-lock.json'
+
+      # The app image holds none of the backend's tests, so a change to those alone builds the same
+      # image and gets the same browser result as main. The exclusions need their own step, since
+      # the setting reading them applies to every filter of a step
+      - name: Filter backend changes that reach the app image
+        id: image-filter
+        uses: dorny/paths-filter@v4
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: |
+            backend:
+              - 'backend/**'
+              - '!backend/tests/**'
+              - '!backend/.test_durations'
 
   backend-lint:
     needs: changes
@@ -92,11 +109,12 @@ jobs:
 
   # The image build starts alongside lint and unit tests rather than after them, so the browser
   # suite that follows it, the longest check, starts sooner. The PR gate still blocks merging on
-  # any failed job
+  # any failed job. A change to the backend's tests alone skips the build, and the browser suite
+  # with it
   docker-build:
     needs: changes
     if: >-
-      ${{ needs.changes.outputs.backend == 'true'
+      ${{ needs.changes.outputs.backend-image == 'true'
         || needs.changes.outputs.frontend == 'true'
         || needs.changes.outputs.docker == 'true'
         || needs.changes.outputs.lockfiles == 'true' }}
@@ -108,7 +126,7 @@ jobs:
   e2e-check:
     needs: changes
     if: >-
-      ${{ needs.changes.outputs.backend == 'true'
+      ${{ needs.changes.outputs.backend-image == 'true'
         || needs.changes.outputs.frontend == 'true'
         || needs.changes.outputs.docker == 'true'
         || needs.changes.outputs.lockfiles == 'true' }}

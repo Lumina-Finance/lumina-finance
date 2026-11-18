@@ -2,6 +2,11 @@ name: Docker build
 
 on:
   workflow_call:
+    inputs:
+      save-cache:
+        description: Save the build's layers for later builds to read. Only a run on main saves them
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,7 +40,10 @@ jobs:
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
           registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Export once per architecture so each device job tests the same image without rebuilding it
+      # Export once per architecture so each device job tests the same image without rebuilding it.
+      # Layers saved from main are read, so a build with unchanged lockfiles installs no dependency
+      # again. A pull request can read main's saved layers and never another pull request's, and
+      # saving from each one would fill the repository's cache storage, so only the run on main saves
       - name: Build image
         uses: docker/build-push-action@v7
         env:
@@ -50,6 +58,8 @@ jobs:
           tags: ${{ env.IMAGE_REF }}
           build-args: |
             APP_VERSION=ci
+          cache-from: type=gha,scope=app-image-${{ matrix.platform }}
+          cache-to: ${{ inputs.save-cache && format('type=gha,mode=max,scope=app-image-{0}', matrix.platform) || '' }}
 
       - name: Share the built image with E2E jobs
         uses: actions/upload-artifact@v7
