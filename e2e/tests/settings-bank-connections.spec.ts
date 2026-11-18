@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
 
 import { asUser, createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage, watchServerRequests } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openPage, waitForPageReady, watchServerRequests } from '../support/app'
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
@@ -74,6 +74,12 @@ async function openBankConnections(page: Page, user: TestUser): Promise<Locator>
   const section = page.locator('#bank-connections')
   await expect(section.getByRole('status', { name: 'Loading bank connections' })).toHaveCount(0)
   return section
+}
+
+// Going to the address the page is already at, hash included, loads nothing anew, so a step reloads
+async function reloadPage(page: Page): Promise<void> {
+  await page.reload()
+  await waitForPageReady(page)
 }
 
 function connectionRow(section: Locator, name: string): Locator {
@@ -701,7 +707,7 @@ test("shows a connection's requests left in its row, and then its facts", NEEDS_
       externalAccountId: chequing.external_id,
       startDate: todayInTestTimezone(),
     })
-    await openPage(page, '/settings#bank-connections')
+    await reloadPage(page)
     await expect(section.getByRole('status', { name: 'Loading bank connections' })).toHaveCount(0)
     const dialog = await openConnection(page, section, 'Joint banks')
 
@@ -1090,7 +1096,7 @@ test("shows a bank that needs signing in to, and keeps the facts column from scr
   })
 
   await test.step("keeps a connection's facts column from scrolling sideways, so the status note's icon stays under the pointer", async () => {
-    await openPage(page, '/settings#bank-connections')
+    await reloadPage(page)
     await expect(section.getByRole('status', { name: 'Loading bank connections' })).toHaveCount(0)
     const dialog = await openConnection(page, section, 'SimpleFIN')
     await expect(dialog).toHaveCSS('transform', 'none')
