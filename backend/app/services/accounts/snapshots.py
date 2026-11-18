@@ -12,7 +12,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, func, select
+from sqlalchemy import BigInteger, and_, cast, delete, func, inspect, literal, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -173,45 +174,75 @@ async def _recompute_account_snapshots_from(
         .limit(1),
     )
     anchor = anchor_result.scalar_one_or_none()
-    running_balance = anchor if anchor is not None else 0
 
-    # Delete existing snapshots in the rebuild window before writing replacements
+    # Each active day's balance after the day, summed as numeric so a balance past the column's
+    # range can be found and refused rather than failing the write as a server error
+    daily_balances = (
+        select(
+            Transaction.dt.label("dt"),
+            (literal(anchor or 0, BigInteger) + func.sum(func.sum(Transaction.amount)).over(order_by=Transaction.dt)).label("balance"),
+        )
+        .where(Transaction.account_id == account_id, Transaction.dt >= from_dt)
+        .group_by(Transaction.dt)
+        .cte("daily_balances")
+    )
+
+    unstorable_balance = await db.scalar(
+        select(daily_balances.c.balance)
+        .where(~daily_balances.c.balance.between(MIN_MINOR_UNITS, MAX_MINOR_UNITS))
+        .order_by(daily_balances.c.dt)
+        .limit(1),
+    )
+    if unstorable_balance is not None:
+        account_name = await db.scalar(select(Account.name).where(Account.id == account_id))
+        refuse_unstorable_balance(account_name, int(unstorable_balance))
+
+    # Days left with no transactions lose their snapshot, as a rewrite of the window would drop them
+    has_transactions = (
+        select(Transaction.id)
+        .where(Transaction.account_id == AccountBalanceSnapshot.account_id, Transaction.dt == AccountBalanceSnapshot.dt)
+        .exists()
+    )
     await db.execute(
         delete(AccountBalanceSnapshot).where(
             AccountBalanceSnapshot.account_id == account_id,
             AccountBalanceSnapshot.dt >= from_dt,
+            ~has_transactions,
         ),
     )
 
-    # Aggregate transaction amounts by day so each active date becomes one snapshot
-    delta_col = func.sum(Transaction.amount).label("delta")
-    deltas_result = await db.execute(
-        select(Transaction.dt, delta_col)
-        .where(
-            Transaction.account_id == account_id,
-            Transaction.dt >= from_dt,
+    # Only days whose stored balance differs are written. They're left out of the source rows
+    # rather than skipped by a condition on the update, since PostgreSQL locks a conflicting row
+    # even when that condition turns the update down
+    snapshots = AccountBalanceSnapshot.__table__
+    stored = snapshots.alias("stored")
+    changed_days = (
+        select(
+            literal(account_id, snapshots.c.account_id.type),
+            daily_balances.c.dt,
+            cast(daily_balances.c.balance, BigInteger),
         )
-        .group_by(Transaction.dt)
-        .order_by(Transaction.dt),
+        .select_from(
+            daily_balances.outerjoin(stored, and_(stored.c.account_id == account_id, stored.c.dt == daily_balances.c.dt)),
+        )
+        .where(stored.c.balance.is_distinct_from(daily_balances.c.balance))
+    )
+    upsert = insert(snapshots).from_select(["account_id", "dt", "balance"], changed_days)
+    await db.execute(
+        upsert.on_conflict_do_update(
+            index_elements=[snapshots.c.account_id, snapshots.c.dt],
+            set_={"balance": upsert.excluded.balance},
+        ),
     )
 
-    # Walk forward through daily totals and write the running balance after each active day
-    for row in deltas_result:
-        running_balance += row.delta
-        # Each amount fits the column on its own, but their sum can leave it, and the insert would
-        # then fail as a server error instead of a refusal the caller can show
-        if not MIN_MINOR_UNITS <= running_balance <= MAX_MINOR_UNITS:
-            account_name = await db.scalar(select(Account.name).where(Account.id == account_id))
-            refuse_unstorable_balance(account_name, running_balance)
-        db.add(
-            AccountBalanceSnapshot(
-                account_id=account_id,
-                dt=row.dt,
-                balance=running_balance,
-            )
-        )
+    # The write bypasses the session, so snapshots the session already holds reload their balance on next use.
+    # Each is matched by its identity key, since reading an attribute of one expired earlier would load it
+    for held in list(db.identity_map.values()):
+        if isinstance(held, AccountBalanceSnapshot):
+            held_account_id, held_dt = inspect(held).identity
+            if held_account_id == account_id and held_dt >= from_dt:
+                db.expire(held)
 
-    await db.flush()
     await restore_zero_anchor_if_empty(db, account_id)
 
 

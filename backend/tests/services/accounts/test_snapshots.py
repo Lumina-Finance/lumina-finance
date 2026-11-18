@@ -1,10 +1,10 @@
 """Tests for the account balance snapshot recomputation service."""
 
 import asyncio
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import event, select, text
 
 from app.models.account import Account, AccountBalanceSnapshot
 from app.models.base import AccountKind, AccountType, CategoryKind
@@ -14,7 +14,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.services.accounts import snapshots as snapshots_module
 from app.services.accounts.snapshots import recompute_account_snapshots
-from tests.conftest import TestSession
+from tests.conftest import TestSession, engine
 
 # --- Fixtures ---
 
@@ -509,3 +509,82 @@ async def test_recompute_lock_key_collision_serializes_correct_independent_balan
     assert [(snapshot.dt, snapshot.balance) for snapshot in second_snapshots] == [
         (date(2026, 3, 1), 2000),
     ]
+
+
+async def _seed_daily_history(db, user, account, category, days):
+    """Give the account one transaction of 100 on each of the given number of days and build its snapshots"""
+    first_day = date(2020, 1, 1)
+    transactions = [_make_transaction(user, account, category, 100, first_day + timedelta(days=offset)) for offset in range(days)]
+    db.add_all(transactions)
+    await recompute_account_snapshots(db, {account.id: first_day})
+    return transactions
+
+
+async def _measure_rebuild(db, account_id, from_dt):
+    """Rebuild one account, returning the statements it ran and the snapshot rows it wrote"""
+    await db.flush()
+    rows_written = text(
+        "SELECT coalesce(sum(n_tup_ins + n_tup_upd + n_tup_del), 0) FROM pg_stat_xact_user_tables WHERE relname = 'account_balance_snapshots'",
+    )
+    rows_before = await db.scalar(rows_written)
+    statements = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        """Count each statement the rebuild sends"""
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", record)
+    try:
+        await recompute_account_snapshots(db, {account_id: from_dt})
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", record)
+    return len(statements), await db.scalar(rows_written) - rows_before
+
+
+async def test_recompute_after_earliest_amount_edit_writes_each_later_day_once_in_fixed_statements(
+    db,
+    user,
+    account,
+    second_account,
+    category,
+):
+    """An old amount edit writes each later day once, with as many statements on a long history as a short one"""
+    long_history = await _seed_daily_history(db, user, account, category, 1000)
+    short_history = await _seed_daily_history(db, user, second_account, category, 3)
+    long_history[0].amount = 50
+    short_history[0].amount = 50
+
+    long_statements, long_rows = await _measure_rebuild(db, account.id, long_history[0].dt)
+    short_statements, short_rows = await _measure_rebuild(db, second_account.id, short_history[0].dt)
+
+    assert long_statements == short_statements, "a long history needs no more statements than a short one"
+    assert (long_rows, short_rows) == (1000, 3), "each later day's snapshot is written once"
+    snapshots = await _get_snapshots(db, account.id)
+    assert [snapshot.balance for snapshot in snapshots] == [100 * day - 50 for day in range(1, 1001)], "every balance matches a full rewrite"
+
+
+async def test_recompute_after_date_move_writes_only_the_days_whose_balance_changed(db, user, account, second_account, category):
+    """Moving a transaction later rewrites only the days it passes over, and a repeat rebuild writes nothing"""
+    history = await _seed_daily_history(db, user, account, category, 10)
+    second_day = history[1].dt
+    history[1].dt = history[4].dt
+    # Activity on another account that day must not keep the emptied day's snapshot
+    db.add(_make_transaction(user, second_account, category, 100, second_day))
+
+    _, rows_written = await _measure_rebuild(db, account.id, second_day)
+    _, repeat_rows_written = await _measure_rebuild(db, account.id, second_day)
+
+    assert rows_written == 3, "the emptied day is deleted and the two days after it are updated, later days untouched"
+    assert repeat_rows_written == 0, "a rebuild that changes no balance writes no row"
+    snapshots = await _get_snapshots(db, account.id)
+    assert [(snapshot.dt.day, snapshot.balance) for snapshot in snapshots] == [
+        (1, 100),
+        (3, 200),
+        (4, 300),
+        (5, 500),
+        (6, 600),
+        (7, 700),
+        (8, 800),
+        (9, 900),
+        (10, 1000),
+    ], "every balance matches a full rewrite"
