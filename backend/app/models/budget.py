@@ -93,7 +93,8 @@ class Budget(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     base_budget_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("base_budgets.id", ondelete="CASCADE"), nullable=False,
+        ForeignKey("base_budgets.id", ondelete="CASCADE"),
+        nullable=False,
     )
     period_start: Mapped[date] = mapped_column(Date, nullable=False)
     period_end: Mapped[date] = mapped_column(Date, nullable=False)
@@ -113,14 +114,18 @@ class BudgetTrackedCategory(Base):
         # At most one active row per (base_budget, category); multiple historical rows allowed so
         # re-adds after removal keep a clean audit trail
         Index(
-            "uq_budget_tracked_category_active", "base_budget_id", "category_id",
-            unique=True, postgresql_where=text("removed_at IS NULL"),
+            "uq_budget_tracked_category_active",
+            "base_budget_id",
+            "category_id",
+            unique=True,
+            postgresql_where=text("removed_at IS NULL"),
         ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     base_budget_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("base_budgets.id", ondelete="CASCADE"), nullable=False,
+        ForeignKey("base_budgets.id", ondelete="CASCADE"),
+        nullable=False,
     )
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False)
     added_at: Mapped[date] = mapped_column(Date, nullable=False)
@@ -144,7 +149,8 @@ class BudgetPermission(Base):
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     base_budget_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("base_budgets.id", ondelete="CASCADE"), nullable=False,
+        ForeignKey("base_budgets.id", ondelete="CASCADE"),
+        nullable=False,
     )
     level: Mapped[PermissionLevel] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

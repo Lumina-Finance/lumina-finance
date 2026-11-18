@@ -38,16 +38,24 @@ class Category(Base):
         # refuse: Groceries beside GROCERIES in one scope. Surrounding spaces are trimmed on the
         # way in instead, so the stored name is already what these compare
         Index(
-            "uq_category_system_name", text("lower(name)"),
-            unique=True, postgresql_where=text("is_system = true"),
+            "uq_category_system_name",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("is_system = true"),
         ),
         Index(
-            "uq_category_owner_name", "owner_id", text("lower(name)"),
-            unique=True, postgresql_where=text("owner_id IS NOT NULL AND group_id IS NULL"),
+            "uq_category_owner_name",
+            "owner_id",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("owner_id IS NOT NULL AND group_id IS NULL"),
         ),
         Index(
-            "uq_category_group_name", "group_id", text("lower(name)"),
-            unique=True, postgresql_where=text("group_id IS NOT NULL"),
+            "uq_category_group_name",
+            "group_id",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("group_id IS NOT NULL"),
         ),
     )
 

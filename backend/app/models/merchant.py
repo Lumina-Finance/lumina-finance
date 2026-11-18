@@ -35,19 +35,27 @@ class Merchant(Base):
         # the way in instead, so the stored name is already what these compare
         # Personal merchants: unique per user (only when not group-scoped)
         Index(
-            "uq_merchant_owner_name", "owner_id", text("lower(name)"),
-            unique=True, postgresql_where=text("group_id IS NULL"),
+            "uq_merchant_owner_name",
+            "owner_id",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("group_id IS NULL"),
         ),
         # Group merchants: unique per group, as an index rather than a unique constraint, which
         # cannot be written against an expression
         Index(
-            "uq_merchant_group_name", "group_id", text("lower(name)"),
-            unique=True, postgresql_where=text("group_id IS NOT NULL"),
+            "uq_merchant_group_name",
+            "group_id",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("group_id IS NOT NULL"),
         ),
         # One merchant per name across the whole app, so a second Myself cannot be seeded
         Index(
-            "uq_merchant_system_name", text("lower(name)"),
-            unique=True, postgresql_where=text("is_system = true"),
+            "uq_merchant_system_name",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("is_system = true"),
         ),
     )
 
