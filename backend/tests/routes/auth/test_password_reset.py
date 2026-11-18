@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app
 from app.models.auth import PasswordCredential, PasswordResetToken
-from app.services.auth import password_reset, reset_send_limit
+from app.services.auth import password_reset, reset_send_limit, send_backoff
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession, scoped_engine
 from tests.routes.support import (
@@ -167,7 +167,7 @@ async def test_forgot_password_drops_the_token_when_the_email_fails(client, monk
     assert resp.status_code == 204
     assert [row.id for row in await _reset_tokens_for(user_id)] == [original_id]
 
-    reset_clock(reset_send_limit.FIRST_FAILURE_WAIT_SECONDS)
+    reset_clock(send_backoff.FIRST_FAILURE_WAIT_SECONDS)
     retry = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
     assert retry.status_code == 204
     rows = await _reset_tokens_for(user_id)
@@ -282,7 +282,7 @@ async def test_forgot_password_runs_the_same_statements_before_answering_for_eve
 
     # A reset that is due but whose send the limiter refuses, as after a failed send
     await clear_rows()
-    reset_send_limit.record_send_failed(user_id)
+    reset_send_limit.reset_backoff.record_failed(user_id)
     refused, refused_rows = await request(registered)
     assert await _reset_tokens_for(user_id) == []
 

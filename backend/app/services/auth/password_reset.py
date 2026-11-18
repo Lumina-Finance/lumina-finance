@@ -27,8 +27,7 @@ from app.services.auth.reset_send_limit import (
     SendTicket,
     end_send,
     has_send_under_way,
-    record_send_failed,
-    record_send_succeeded,
+    reset_backoff,
     try_start_send,
     wait_for_send_turn,
 )
@@ -242,7 +241,7 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
                 await get_email_sender().send(pending.recipient, message)
     except Exception:
         # Recorded before the token is dropped, so a drop that fails cannot lose the failure
-        record_send_failed(pending.ticket.user_id)
+        reset_backoff.record_failed(pending.ticket.user_id)
 
         # A failed send must drop the token it just stored, otherwise the one-live-link throttle would
         # suppress every retry until the token expires
@@ -256,7 +255,7 @@ async def send_password_reset_email(pending: PendingResetEmail, session_factory:
         if is_expired:
             await _drop_token_by_id(pending.token_id, session_factory)
         else:
-            record_send_succeeded(pending.ticket.user_id)
+            reset_backoff.record_succeeded(pending.ticket.user_id)
     finally:
         end_send(pending.ticket)
 
