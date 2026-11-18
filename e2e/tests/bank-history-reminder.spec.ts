@@ -98,66 +98,58 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('reminds that the import returned less history than it asked for, naming the day its history starts', NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One import that returned less history serves the reminder's words, where the modal puts focus, a dismissal
+// that never arrives and the dismissal for good. The dismissal for good goes last since it ends the
+// reminder. Focus is read first, before any step moves it
+test('reminds that the import returned less history than it asked for, then keeps the reminder through a failed dismissal and dismisses it for good', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkGettingLess(request)
   const earliest = await readEarliestItem(request, setup)
   await logInViaApi(page, setup.user)
-
-  const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
-
-  const note = reminderNote(dialog, LESS_HISTORY)
-  await expect(note).toContainText(
-    `SimpleFIN returned transactions from ${formatDateLabel(earliest)}, not ${formatDateLabel(daysFromTodayInTestTimezone(-45))}. ${LIMIT_NOTE}`,
-  )
-  await expect(note.getByRole('button', { name: 'Dismiss' })).toBeVisible()
-})
-
-test('opens the bank link on Sync now rather than on the reminder\'s ✕ above it', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const setup = await linkGettingLess(request)
-  await logInViaApi(page, setup.user)
-
-  const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
-
-  await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
-})
-
-test('dismisses the reminder it showed for good, moving focus on to Sync now', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const setup = await linkGettingLess(request)
-  const sent = watchDismissals(page)
-  await logInViaApi(page, setup.user)
   const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
   const note = reminderNote(dialog, LESS_HISTORY)
 
-  await note.getByRole('button', { name: 'Dismiss' }).click()
+  await test.step('opens the bank link on Sync now rather than on the reminder\'s ✕ above it', async () => {
+    await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
+  })
 
-  await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
-  await expect(note).toBeHidden()
-  expect(sent).toEqual([JSON.stringify(setup.reminder)])
-  expect(await readReminder(request, setup.user, setup.accountId)).toBeNull()
+  await test.step('reminds that the import returned less history than it asked for, naming the day its history starts', async () => {
+    await expect(note).toContainText(
+      `SimpleFIN returned transactions from ${formatDateLabel(earliest)}, not ${formatDateLabel(daysFromTodayInTestTimezone(-45))}. ${LIMIT_NOTE}`,
+    )
+    await expect(note.getByRole('button', { name: 'Dismiss' })).toBeVisible()
+  })
 
-  // Neither the edit modal opened again nor the page loaded again shows it
-  await page.keyboard.press('Escape')
-  await expect(dialog).toBeHidden()
-  await page.getByRole('button', { name: /^Bank sync: .+ Open bank link$/ }).click()
-  await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeVisible()
-  await expect(dialog.getByText(LESS_HISTORY)).toHaveCount(0)
-  const again = await openBankLink(page, setup.accountId, ANY_STATUS)
-  await expect(again.getByRole('button', { name: 'Unlink' })).toBeVisible()
-  await expect(again.getByText(LESS_HISTORY)).toHaveCount(0)
-})
+  await test.step('keeps the reminder when a dismissal never reaches the server, saying something went wrong', async () => {
+    await page.route(`${API_BASE_URL}/accounts/${setup.accountId}/bank-link/history-reminder/dismiss`, (route) => route.abort('failed'), { times: 1 })
 
-test('keeps the reminder when a dismissal never reaches the server, saying something went wrong', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const setup = await linkGettingLess(request)
-  await logInViaApi(page, setup.user)
-  const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
-  await page.route(`${API_BASE_URL}/accounts/${setup.accountId}/bank-link/history-reminder/dismiss`, (route) => route.abort('failed'), { times: 1 })
-  const note = reminderNote(dialog, LESS_HISTORY)
+    await note.getByRole('button', { name: 'Dismiss' }).click()
 
-  await note.getByRole('button', { name: 'Dismiss' }).click()
+    await expect(errorToast(page, DISMISS_FAILED_MESSAGE)).toBeVisible()
+    await expect(note).toBeVisible()
+    expect(await readReminder(request, setup.user, setup.accountId)).toEqual(setup.reminder)
+  })
 
-  await expect(errorToast(page, DISMISS_FAILED_MESSAGE)).toBeVisible()
-  await expect(note).toBeVisible()
-  expect(await readReminder(request, setup.user, setup.accountId)).toEqual(setup.reminder)
+  await test.step('dismisses the reminder it showed for good, moving focus on to Sync now', async () => {
+    // Watched from here, since the refused dismissal above was sent too
+    const sent = watchDismissals(page)
+
+    await note.getByRole('button', { name: 'Dismiss' }).click()
+
+    await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
+    await expect(note).toBeHidden()
+    expect(sent).toEqual([JSON.stringify(setup.reminder)])
+    expect(await readReminder(request, setup.user, setup.accountId)).toBeNull()
+
+    // Neither the edit modal opened again nor the page loaded again shows it
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+    await page.getByRole('button', { name: /^Bank sync: .+ Open bank link$/ }).click()
+    await expect(dialog.getByRole('button', { name: 'Unlink' })).toBeVisible()
+    await expect(dialog.getByText(LESS_HISTORY)).toHaveCount(0)
+    const again = await openBankLink(page, setup.accountId, ANY_STATUS)
+    await expect(again.getByRole('button', { name: 'Unlink' })).toBeVisible()
+    await expect(again.getByText(LESS_HISTORY)).toHaveCount(0)
+  })
 })
 
 test('says why the server refuses a dismissal once the account was unlinked in another window, showing it unlinked', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -234,19 +226,23 @@ test('shows the reminder of an import that got nothing above the balance match o
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
 })
 
-for (const colorScheme of ['light', 'dark'] as const) {
-  test(`keeps the reminder readable in the ${colorScheme} theme`, NEEDS_BANK_SYNC, async ({ page, request }) => {
-    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
-    const setup = await linkGettingNothing(request)
-    await logInViaApi(page, setup.user)
-    const dialog = await openBankLink(page, setup.accountId, SYNCED_STATUS)
-    if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
-    else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
+// Only the colours differ, so one import that returned nothing serves both themes
+test('keeps the reminder readable in the light and dark themes', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const setup = await linkGettingNothing(request)
+  await logInViaApi(page, setup.user)
 
-    const note = reminderNote(dialog, NO_HISTORY)
-    for (const text of [note.getByText(NO_HISTORY, { exact: true }), note.getByText(/hasn't returned any posted transactions from/)]) {
-      await expect(text).toBeVisible()
-      expect((await faintestText(text)).contrast).toBeGreaterThanOrEqual(4.5)
-    }
-  })
-}
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await test.step(`keeps the reminder readable in the ${colorScheme} theme`, async () => {
+      await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
+      const dialog = await openBankLink(page, setup.accountId, SYNCED_STATUS)
+      if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+      else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
+
+      const note = reminderNote(dialog, NO_HISTORY)
+      for (const text of [note.getByText(NO_HISTORY, { exact: true }), note.getByText(/hasn't returned any posted transactions from/)]) {
+        await expect(text).toBeVisible()
+        expect((await faintestText(text)).contrast).toBeGreaterThanOrEqual(4.5)
+      }
+    })
+  }
+})
