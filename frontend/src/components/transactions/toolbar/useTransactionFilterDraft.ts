@@ -131,7 +131,9 @@ export function useTransactionFilterDraft({
   // user never picks a currency twice
   const currencyLocked = Boolean(lockedCurrency)
   const amountCurrency = lockedCurrency ?? selections.currency[0] ?? baseCurrency
-  const amountSymbol = currencies.some((currency) => currency.id === amountCurrency) ? formatCurrencySymbol(amountCurrency) : ''
+  const amountSymbol = currencies.some((currency) => currency.id === amountCurrency)
+    ? formatCurrencySymbol(amountCurrency)
+    : ''
   const amountExponent = getCurrencyExponent(currencies, amountCurrency)
   // Both fields refuse input while the decimal places are unknown, since a bound typed against the
   // two-place fallback would be stored at the wrong scale. Decided here rather than in the body, so
@@ -199,7 +201,7 @@ export function useTransactionFilterDraft({
       ...EMPTY_SELECTIONS,
       // The fixed account scope is not a user-applied filter, so it is left out of the draft to keep
       // the account facet empty rather than showing a count, badge, or chip
-      accounts: showAccountFilter ? filters.account_id ?? [] : [],
+      accounts: showAccountFilter ? (filters.account_id ?? []) : [],
       categories: filters.category_id ?? [],
       merchants: filters.merchant_id ?? [],
       tags: filters.tag_id ?? [],
@@ -236,10 +238,7 @@ export function useTransactionFilterDraft({
   }
 
   // The account scope of a list that fixes it is no applied filter, so it is not compared
-  const isDraftApplied = isFilterPatchApplied(
-    draftPatch,
-    showAccountFilter ? filters : { ...filters, account_id: [] },
-  )
+  const isDraftApplied = isFilterPatchApplied(draftPatch, showAccountFilter ? filters : { ...filters, account_id: [] })
 
   /**
    * Adds or removes a value from a facet draft, recording the label for server-searched facets
@@ -253,9 +252,7 @@ export function useTransactionFilterDraft({
       if (isSingle) {
         return { ...current, [facetId]: values.includes(value) ? [] : [value] }
       }
-      const next = values.includes(value)
-        ? values.filter((entry) => entry !== value)
-        : [...values, value]
+      const next = values.includes(value) ? values.filter((entry) => entry !== value) : [...values, value]
       return { ...current, [facetId]: next }
     })
 
