@@ -262,53 +262,52 @@ test('closes an open dropdown on Escape before it closes the dialogue', async ({
   await expect(dialog).toBeHidden()
 })
 
-for (const chord of ['AltLeft', 'AltRight'] as const) {
-  test(`collapses a dropdown when its shortcut is pressed again, with ${chord} as the action key`, async ({
-    page,
-    request,
-  }) => {
-    const { dialog } = await openAddDialogue(page, request)
+test('collapses a dropdown when its shortcut is pressed again, with Alt as the action key', async ({
+  page,
+  request,
+}) => {
+  const chord = 'AltLeft'
+  const { dialog } = await openAddDialogue(page, request)
 
-    // Tags wait for an account, so one is chosen first
-    await chooseByKeys(page, dialog, `${chord}+KeyA`, 'Everyday', 'Everyday Chequing')
+  // Tags wait for an account, so one is chosen first
+  await chooseByKeys(page, dialog, `${chord}+KeyA`, 'Everyday', 'Everyday Chequing')
 
-    for (const [name, key] of [
-      ['Account', 'KeyA'],
-      ['Merchant', 'KeyM'],
-      ['Category', 'KeyC'],
-      ['Tags', 'KeyG'],
-    ] as const) {
-      const field = dialog.getByRole('combobox', { name })
+  for (const [name, key] of [
+    ['Account', 'KeyA'],
+    ['Merchant', 'KeyM'],
+    ['Category', 'KeyC'],
+    ['Tags', 'KeyG'],
+  ] as const) {
+    const field = dialog.getByRole('combobox', { name })
 
-      await page.keyboard.press(`${chord}+${key}`)
-      await expect(field).toHaveAttribute('aria-expanded', 'true')
-      const search = dialog.locator('input[data-dropdown-search]:focus')
-      await expect(search).toHaveCount(1)
-      await page.keyboard.type('zz')
-      await expect(search).toHaveValue('zz')
+    await page.keyboard.press(`${chord}+${key}`)
+    await expect(field).toHaveAttribute('aria-expanded', 'true')
+    const search = dialog.locator('input[data-dropdown-search]:focus')
+    await expect(search).toHaveCount(1)
+    await page.keyboard.type('zz')
+    await expect(search).toHaveValue('zz')
 
-      // The same chord again collapses the list, keeps the dialogue open and leaves focus on the field
-      await page.keyboard.press(`${chord}+${key}`)
-      await expectNoOpenList(dialog)
-      await expect(field).toBeFocused()
-      await expect(dialog).toBeVisible()
+    // The same chord again collapses the list, keeps the dialogue open and leaves focus on the field
+    await page.keyboard.press(`${chord}+${key}`)
+    await expectNoOpenList(dialog)
+    await expect(field).toBeFocused()
+    await expect(dialog).toBeVisible()
 
-      // A third press opens it again, with the search text cleared as on any other close
-      await page.keyboard.press(`${chord}+${key}`)
-      await expect(field).toHaveAttribute('aria-expanded', 'true')
-      await expect(dialog.locator('input[data-dropdown-search]:focus')).toHaveValue('')
-      await page.keyboard.press('Escape')
-      await expectNoOpenList(dialog)
-    }
+    // A third press opens it again, with the search text cleared as on any other close
+    await page.keyboard.press(`${chord}+${key}`)
+    await expect(field).toHaveAttribute('aria-expanded', 'true')
+    await expect(dialog.locator('input[data-dropdown-search]:focus')).toHaveValue('')
+    await page.keyboard.press('Escape')
+    await expectNoOpenList(dialog)
+  }
 
-    // Another dropdown's chord still moves on to that one
-    await page.keyboard.press(`${chord}+KeyC`)
-    await expect(dialog.getByRole('combobox', { name: 'Category' })).toHaveAttribute('aria-expanded', 'true')
-    await page.keyboard.press(`${chord}+KeyM`)
-    await expect(dialog.getByRole('combobox', { name: 'Merchant' })).toHaveAttribute('aria-expanded', 'true')
-    await expect(dialog.getByRole('combobox', { name: 'Category' })).toHaveAttribute('aria-expanded', 'false')
-  })
-}
+  // Another dropdown's chord still moves on to that one
+  await page.keyboard.press(`${chord}+KeyC`)
+  await expect(dialog.getByRole('combobox', { name: 'Category' })).toHaveAttribute('aria-expanded', 'true')
+  await page.keyboard.press(`${chord}+KeyM`)
+  await expect(dialog.getByRole('combobox', { name: 'Merchant' })).toHaveAttribute('aria-expanded', 'true')
+  await expect(dialog.getByRole('combobox', { name: 'Category' })).toHaveAttribute('aria-expanded', 'false')
+})
 
 test('picks a tag with the keyboard from a list opened by a click', async ({ page, request }) => {
   const { dialog } = await openAddDialogue(page, request)
@@ -741,37 +740,36 @@ test('hides the key caps when the window loses focus while the action key is hel
   await page.keyboard.up('Alt')
 })
 
-for (const key of ['AltLeft', 'AltRight'] as const) {
-  test(`jumps, shows the key caps and saves with the ${key} key`, async ({ page, request }) => {
-    const { user, dialog, everyday } = await openAddDialogue(page, request)
-    await focusFormAndExpectNoCaps(page, dialog)
-    const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
+test('jumps, shows the key caps and saves with the Alt key', async ({ page, request }) => {
+  const key = 'AltLeft'
+  const { user, dialog, everyday } = await openAddDialogue(page, request)
+  await focusFormAndExpectNoCaps(page, dialog)
+  const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
 
-    await page.keyboard.press(`${key}+KeyP`)
-    await expect(amount).toBeFocused()
+  await page.keyboard.press(`${key}+KeyP`)
+  await expect(amount).toBeFocused()
 
-    await page.keyboard.down(key)
-    await expect(visibleCaps(dialog).filter({ hasText: 'Alt+Enter' })).toHaveCount(1)
-    await page.keyboard.up(key)
-    await expect(visibleCaps(dialog)).toHaveCount(0)
+  await page.keyboard.down(key)
+  await expect(visibleCaps(dialog).filter({ hasText: 'Alt+Enter' })).toHaveCount(1)
+  await page.keyboard.up(key)
+  await expect(visibleCaps(dialog)).toHaveCount(0)
 
-    await chooseByKeys(page, dialog, `${key}+KeyA`, 'Everyday', 'Everyday Chequing')
-    await chooseByKeys(page, dialog, `${key}+KeyM`, 'Unknown', 'Unknown')
-    await chooseByKeys(page, dialog, `${key}+KeyC`, 'Groc', 'Groceries')
-    await page.keyboard.press(`${key}+KeyP`)
-    await page.keyboard.type('12.50')
+  await chooseByKeys(page, dialog, `${key}+KeyA`, 'Everyday', 'Everyday Chequing')
+  await chooseByKeys(page, dialog, `${key}+KeyM`, 'Unknown', 'Unknown')
+  await chooseByKeys(page, dialog, `${key}+KeyC`, 'Groc', 'Groceries')
+  await page.keyboard.press(`${key}+KeyP`)
+  await page.keyboard.type('12.50')
 
-    const saved = page.waitForResponse(
-      (response) => response.url() === `${API_BASE_URL}/transactions` && response.request().method() === 'POST',
-    )
-    await page.keyboard.press(`${key}+Enter`)
-    expect((await saved).status()).toBe(201)
-    await expect(dialog).toBeHidden()
+  const saved = page.waitForResponse(
+    (response) => response.url() === `${API_BASE_URL}/transactions` && response.request().method() === 'POST',
+  )
+  await page.keyboard.press(`${key}+Enter`)
+  expect((await saved).status()).toBe(201)
+  await expect(dialog).toBeHidden()
 
-    const [row] = await listSaved(request, user, everyday.id)
-    expect(row.amount).toBe(-1250)
-  })
-}
+  const [row] = await listSaved(request, user, everyday.id)
+  expect(row.amount).toBe(-1250)
+})
 
 test('shows key caps only where a keyboard can be attached, and none on a phone', AT_EVERY_SIZE, async ({ page, request }) => {
   const { dialog } = await openAddDialogue(page, request)

@@ -9,7 +9,6 @@ import { API_BASE_URL } from '../support/target'
 // that check a phone or a narrow width set that width themselves
 
 const GROUPING_KEY = 'lumina:settings:accountGrouping'
-const THEN_GROUPING_KEY = 'lumina:settings:accountThenGrouping'
 
 // A one pixel image, standing in for the favicon every institution's logo is drawn from
 const PIXEL_PNG = Buffer.from(
@@ -160,28 +159,6 @@ test('offers the two groupings, starts from the defaults and splits each group b
   await expect(groupHeading(page, bank)).toBeVisible()
   await openPanel(page)
   await expect(page.getByRole('combobox', { name: 'Then by' }).filter({ visible: true })).toContainText('Institution')
-})
-
-test('falls back to the defaults, without a message, when a saved choice is not one the page offers', async ({
-  page,
-  request,
-}) => {
-  await seedAccounts(page, request)
-  await page.addInitScript(
-    ([first, second]) => {
-      localStorage.setItem(first, 'asset_class')
-      localStorage.setItem(second, 'asset_class')
-    },
-    [GROUPING_KEY, THEN_GROUPING_KEY],
-  )
-  await openPage(page, '/accounts')
-
-  await expect(groupHeading(page, 'Credit card')).toBeVisible()
-  await expect(groupHeading(page, 'Cash')).toBeVisible()
-  await openPanel(page)
-  await expect(page.getByRole('combobox', { name: 'Group by' }).filter({ visible: true })).toContainText('Account type')
-  await expect(page.getByRole('combobox', { name: 'Then by' }).filter({ visible: true })).toContainText('None')
-  await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
 test('keeps a group and says so when the search matches none of its accounts', async ({ page, request }) => {

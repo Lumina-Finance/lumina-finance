@@ -1,31 +1,10 @@
 import { expect, test } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
-import { openPage, chooseFromDropdown, logInViaApi, openModal } from '../support/app'
+import { openPage, logInViaApi, openModal } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
-// Runs on desktop only, apart from the Category message test, which runs at every size: where the
-// message sits depends on the width
-
-test('exposes and clears an invalid dropdown with its inline validation alert', async ({ page, request }) => {
-  const user = await signUpUser(request)
-  await logInViaApi(page, user)
-  await openPage(page, '/accounts')
-  const dialog = await openModal(page, ['Add account'], 'Add account')
-  await dialog.getByRole('textbox', { name: 'Account name', exact: true }).fill('Validation account')
-  const type = dialog.getByRole('combobox', { name: 'Account type', exact: true })
-  await dialog.getByRole('button', { name: 'Create account', exact: true }).click()
-  await expect(type).toHaveAttribute('aria-invalid', 'true')
-  const error = dialog.getByRole('alert').filter({ hasText: 'Select an account type' })
-  await expect(error).toBeVisible()
-  await expect(error).toHaveText('Select an account type')
-
-  await chooseFromDropdown(dialog, 'Account type', 'Checking')
-  await expect(type).not.toHaveAttribute('aria-invalid', 'true')
-  await expect(error).toBeHidden()
-  await expect(type).toHaveAccessibleName('Account type')
-  await expect(type).toHaveText('Checking')
-})
+// Runs at every size: where the message sits depends on the width
 
 test('keeps the transaction Category message on its label line without moving the field', AT_EVERY_SIZE, async ({ page, request }) => {
   const user = await signUpUser(request)

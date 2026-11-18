@@ -27,9 +27,11 @@ import { isUncovered, MESSAGE_IN_CORNER, readMessageInset } from '../support/sel
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the test linking an account from its page. That one runs at every size
-// since the linked view is taller than the one it replaces, so on a phone it could push the action it focuses
-// out of view. The rest set the window sizes they check themselves
+// Runs on desktop only, apart from the test linking an account from its page, and the test of the reason
+// on Link bank account while sync isn't set up. The first runs at every size since the linked view is taller
+// than the one it replaces, so on a phone it could push the action it focuses out of view. The second
+// places Settings' section at every size, and its hover step runs on desktop. The rest set the window sizes
+// they check themselves
 
 // An account links to a bank account from its own page, through the Bank link section of its edit
 // modal (the identity card's Bank sync fact opens it) and straight after it is created. Connections
@@ -640,7 +642,9 @@ test('sends an account with no connection to settings first', NEEDS_BANK_SYNC, a
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
-test('fits the link flow button to the label it shows, easing its width as the label changes', NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One account with a claimed connection serves the link flow's button and then its custom dates. Each step
+// opens the page afresh and the flow from its start, and the custom dates' link comes last
+test('fits the link flow button to its label, and opens custom dates at today', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [everyday, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Everyday' }),
@@ -648,88 +652,84 @@ test('fits the link flow button to the label it shows, easing its width as the l
   ])
   await claimSetupToken(request, user, scenario.setupToken)
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'No bank link')
-  await dialog.getByRole('button', { name: 'Link bank account' }).click()
-  const flow = page.getByRole('dialog', { name: 'Link bank account' })
 
-  // Continue is as wide as its own label, not as wide as the longer labels the button shows on other steps
-  const continueButton = flow.getByRole('button', { name: 'Continue', exact: true })
-  await expectFitsLabel(continueButton)
-  const continueWidth = (await continueButton.boundingBox())!.width
+  await test.step('fits the link flow button to the label it shows, easing its width as the label changes', async () => {
+    const dialog = await openBankLink(page, everyday.id, 'No bank link')
+    await dialog.getByRole('button', { name: 'Link bank account' }).click()
+    const flow = page.getByRole('dialog', { name: 'Link bank account' })
 
-  await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
-  await continueButton.click()
-  const submit = flow.getByRole('button', { name: 'Link and import', exact: true })
-  await expectFitsLabel(submit)
-  const submitWidth = (await submit.boundingBox())!.width
-  expect(submitWidth).toBeGreaterThan(continueWidth)
+    // Continue is as wide as its own label, not as wide as the longer labels the button shows on other steps
+    const continueButton = flow.getByRole('button', { name: 'Continue', exact: true })
+    await expectFitsLabel(continueButton)
+    const continueWidth = (await continueButton.boundingBox())!.width
 
-  // Back on the first step the button eases back to fit Continue, the shorter label
-  await flow.getByRole('button', { name: 'Back' }).click()
-  await expectFitsLabel(continueButton)
-  expect((await continueButton.boundingBox())!.width).toBeLessThan(submitWidth)
-})
+    await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
+    await continueButton.click()
+    const submit = flow.getByRole('button', { name: 'Link and import', exact: true })
+    await expectFitsLabel(submit)
+    const submitWidth = (await submit.boundingBox())!.width
+    expect(submitWidth).toBeGreaterThan(continueWidth)
 
-test('opens custom dates at today and keeps From within the range', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const [everyday, scenario] = await Promise.all([
-    createAccount(request, user, { name: 'Everyday' }),
-    createSampleBridgeScenario(request),
-  ])
-  await claimSetupToken(request, user, scenario.setupToken)
-  await logInViaApi(page, user)
-  const dialog = await openBankLink(page, everyday.id, 'No bank link')
-  await dialog.getByRole('button', { name: 'Link bank account' }).click()
-  const flow = page.getByRole('dialog', { name: 'Link bank account' })
-  await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
-  await flow.getByRole('button', { name: 'Continue' }).click()
+    // Back on the first step the button eases back to fit Continue, the shorter label
+    await flow.getByRole('button', { name: 'Back' }).click()
+    await expectFitsLabel(continueButton)
+    expect((await continueButton.boundingBox())!.width).toBeLessThan(submitWidth)
+  })
 
-  // The step opens with nothing chosen and the custom dates folded away
-  await expect(flow.getByText('Choose where history starts')).toBeVisible()
-  const custom = flow.getByRole('radio', { name: /^Custom dates/ })
-  const customDates = flow.getByRole('group', { name: 'Custom dates' })
-  await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
-  await expect(customDates).toHaveCount(0)
+  await test.step('opens custom dates at today and keeps From within the range', async () => {
+    const dialog = await openBankLink(page, everyday.id, 'No bank link')
+    await dialog.getByRole('button', { name: 'Link bank account' }).click()
+    const flow = page.getByRole('dialog', { name: 'Link bank account' })
+    await flow.getByRole('radio', { name: new RegExp(`^${SAMPLE_CHEQUING}`) }).click()
+    await flow.getByRole('button', { name: 'Continue' }).click()
 
-  // Choosing them unfolds From, empty, and To, at today
-  const submit = flow.getByRole('button', { name: 'Link and import' })
-  await custom.click()
-  await expect(custom).toBeChecked()
-  const [year, month, day] = todayInTestTimezone().split('-')
-  const to = customDates.getByRole('group', { name: 'To', exact: true })
-  await expect(to.getByRole('textbox', { name: 'Year', exact: true })).toHaveValue(year)
-  await expect(to.getByRole('textbox', { name: 'Month', exact: true })).toHaveValue(month)
-  await expect(to.getByRole('textbox', { name: 'Day', exact: true })).toHaveValue(day)
-  await expect(customDates.getByRole('group', { name: 'From', exact: true }).getByRole('textbox', { name: 'Year', exact: true })).toHaveValue('')
-  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+    // The step opens with nothing chosen and the custom dates folded away
+    await expect(flow.getByText('Choose where history starts')).toBeVisible()
+    const custom = flow.getByRole('radio', { name: /^Custom dates/ })
+    const customDates = flow.getByRole('group', { name: 'Custom dates' })
+    await expect(flow.getByRole('radio', { checked: true })).toHaveCount(0)
+    await expect(customDates).toHaveCount(0)
 
-  // A date that is wrong is not called out while it is typed, only once focus leaves it
-  // The field's own message, naming the earliest day, not the faded button's tooltip that gives the same reason
-  const rangeMessage = flow.getByRole('alert').filter({ hasText: `The earliest start is ${formatDateLabel(firstOfMonthsAgo(12))}` })
-  await typeDate(page, 'From', '2020-01-01')
-  await expect(rangeMessage).toBeHidden()
-  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
-  await flow.getByText('Choose where history starts').click()
-  await expect(rangeMessage).toBeVisible()
-  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+    // Choosing them unfolds From, empty, and To, at today
+    const submit = flow.getByRole('button', { name: 'Link and import' })
+    await custom.click()
+    await expect(custom).toBeChecked()
+    const [year, month, day] = todayInTestTimezone().split('-')
+    const to = customDates.getByRole('group', { name: 'To', exact: true })
+    await expect(to.getByRole('textbox', { name: 'Year', exact: true })).toHaveValue(year)
+    await expect(to.getByRole('textbox', { name: 'Month', exact: true })).toHaveValue(month)
+    await expect(to.getByRole('textbox', { name: 'Day', exact: true })).toHaveValue(day)
+    await expect(customDates.getByRole('group', { name: 'From', exact: true }).getByRole('textbox', { name: 'Year', exact: true })).toHaveValue('')
+    await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
 
-  // A press then fades the button until the date is fixed
-  await submit.click()
-  await expect(submit).toHaveAttribute('aria-disabled', 'true')
-  await expect(rangeMessage).toBeVisible()
+    // A date that is wrong is not called out while it is typed, only once focus leaves it
+    // The field's own message, naming the earliest day, not the faded button's tooltip that gives the same reason
+    const rangeMessage = flow.getByRole('alert').filter({ hasText: `The earliest start is ${formatDateLabel(firstOfMonthsAgo(12))}` })
+    await typeDate(page, 'From', '2020-01-01')
+    await expect(rangeMessage).toBeHidden()
+    await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+    await flow.getByText('Choose where history starts').click()
+    await expect(rangeMessage).toBeVisible()
+    await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
 
-  await typeDate(page, 'From', firstOfMonthsAgo(2))
-  await expect(rangeMessage).toBeHidden()
-  await expect(submit).toBeEnabled()
-  await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+    // A press then fades the button until the date is fixed
+    await submit.click()
+    await expect(submit).toHaveAttribute('aria-disabled', 'true')
+    await expect(rangeMessage).toBeVisible()
 
-  // A To left at today asks for no end, so syncing carries on from it
-  const linked = page.waitForResponse((answer) => answer.url() === `${API_BASE_URL}/accounts/${everyday.id}/bank-link` && answer.request().method() === 'POST')
-  await submit.click()
-  const link = await linked
-  expect(link.status()).toBe(201)
-  expect(link.request().postDataJSON()).toEqual(expect.objectContaining({ start_date: firstOfMonthsAgo(2) }))
-  expect(link.request().postDataJSON()).not.toHaveProperty('end_date')
+    await typeDate(page, 'From', firstOfMonthsAgo(2))
+    await expect(rangeMessage).toBeHidden()
+    await expect(submit).toBeEnabled()
+    await expect(submit).not.toHaveAttribute('aria-disabled', 'true')
+
+    // A To left at today asks for no end, so syncing carries on from it
+    const linked = page.waitForResponse((answer) => answer.url() === `${API_BASE_URL}/accounts/${everyday.id}/bank-link` && answer.request().method() === 'POST')
+    await submit.click()
+    const link = await linked
+    expect(link.status()).toBe(201)
+    expect(link.request().postDataJSON()).toEqual(expect.objectContaining({ start_date: firstOfMonthsAgo(2) }))
+    expect(link.request().postDataJSON()).not.toHaveProperty('end_date')
+  })
 })
 
 test('unlinks the account alone, then reconnects it with the relink wording', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -988,20 +988,39 @@ test('opens the link flow on the new account’s page when the new-account promp
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
-test.describe("the reason on Link bank account while bank sync isn't set up", () => {
-  test.beforeEach(async ({ page, request }) => {
-    const user = await signUpUser(request)
-    const everyday = await createAccount(request, user, { name: 'Everyday' })
-    await changeProviders(page, (body) => {
-      body.sync_running = false
-    })
-    await logInViaApi(page, user)
-    await openBankLink(page, everyday.id, 'No bank link')
+// The page answers that the worker isn't running, and keeps answering it as each step opens the page
+// afresh. The hover and Escape step runs on desktop only. The step that follows the link to Settings leaves
+// the page, so it comes last
+test("prints the reason on Link bank account while bank sync isn't set up, and shows it on hover", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  await changeProviders(page, (body) => {
+    body.sync_running = false
   })
+  await logInViaApi(page, user)
+  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+  const link = dialog.getByRole('button', { name: 'Link bank account' })
 
-  test('prints under the button with a link to Settings, Bank connections', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page }) => {
-    const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
-    const link = dialog.getByRole('button', { name: 'Link bank account' })
+  if (test.info().project.name === 'desktop') {
+    await test.step('shows on hover, and Escape puts it away while the modal stays open', async () => {
+      await openBankLink(page, everyday.id, 'No bank link')
+      await expect(link).toHaveAttribute('aria-disabled', 'true')
+
+      await link.hover()
+      await expect(shownReason(page, NOT_SET_UP)).toHaveCSS('opacity', '1')
+      await page.keyboard.press('Escape')
+      // Faded out, or gone from the page once its fade has ended
+      await expect.poll(() => shownReason(page, NOT_SET_UP).evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).opacity === '0'))).toBe(true)
+
+      // Pressing it anyway opens nothing, in the modal Escape left open
+      await link.click({ force: true })
+      await expect(page.getByRole('dialog', { name: 'Link bank account' })).toHaveCount(0)
+      await expect(dialog).toBeVisible()
+    })
+  }
+
+  await test.step('prints under the button with a link to Settings, Bank connections', async () => {
+    await openBankLink(page, everyday.id, 'No bank link')
     await expect(link).toHaveAccessibleDescription(`${NOT_SET_UP} ${BANK_CONNECTIONS_LINK}`)
     await expect(dialog.getByText(NOT_SET_UP)).toBeVisible()
 
@@ -1023,23 +1042,6 @@ test.describe("the reason on Link bank account while bank sync isn't set up", ()
       await expect.poll(sectionTop).toBeGreaterThanOrEqual(0)
       await expect.poll(sectionTop).toBeLessThanOrEqual(160)
     }
-  })
-
-  test('shows on hover, and Escape puts it away while the modal stays open', NEEDS_BANK_SYNC, async ({ page }) => {
-    const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
-    const link = dialog.getByRole('button', { name: 'Link bank account' })
-    await expect(link).toHaveAttribute('aria-disabled', 'true')
-
-    await link.hover()
-    await expect(shownReason(page, NOT_SET_UP)).toHaveCSS('opacity', '1')
-    await page.keyboard.press('Escape')
-    // Faded out, or gone from the page once its fade has ended
-    await expect.poll(() => shownReason(page, NOT_SET_UP).evaluateAll((nodes) => nodes.every((node) => getComputedStyle(node).opacity === '0'))).toBe(true)
-
-    // Pressing it anyway opens nothing, in the modal Escape left open
-    await link.click({ force: true })
-    await expect(page.getByRole('dialog', { name: 'Link bank account' })).toHaveCount(0)
-    await expect(dialog).toBeVisible()
   })
 })
 
@@ -1153,73 +1155,69 @@ function identityCard(page: Page): Locator {
   return page.locator('section').filter({ has: page.getByRole('button', { name: 'Edit account', exact: true }) })
 }
 
-// The identity card names the account's own institution, so the bank's shows there only where the
-// account has none. Each look waits for the page to have read the link, since the bank's name comes in
-test("names the linked bank's institution on the identity card until the account has one of its own", NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const everyday = await createAccount(request, user, { name: 'Everyday' })
-  await linkToSampleBankAccount(request, user, { accountId: everyday.id, bankAccountName: SAMPLE_CHEQUING })
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${everyday.id}`)
-  const card = identityCard(page)
-  await expect(bankSyncFact(page, READ_LINK_STATUS)).toBeVisible()
-  await expect(card.getByText(SAMPLE_BANK, { exact: true })).toBeVisible()
-  await expect(card.getByText('No institution')).toHaveCount(0)
-
-  const ownName = `Own Credit Union ${crypto.randomUUID()}`
-  const institutionId = await createInstitution(request, user, ownName)
-  const changed = await request.patch(`${API_BASE_URL}/accounts/${everyday.id}`, { headers: asUser(user), data: { institution_id: institutionId } })
-  expect(changed.status()).toBe(200)
-  await openPage(page, `/accounts/${everyday.id}`)
-  await expect(bankSyncFact(page, READ_LINK_STATUS)).toBeVisible()
-  await expect(card.getByText(ownName, { exact: true })).toBeVisible()
-  await expect(card.getByText(SAMPLE_BANK, { exact: true })).toHaveCount(0)
-})
-
-// The bank's name comes in with the account's bank link, so until that read lands the card can't tell
-// whether the account has an institution, and names none. The read is held until both have been looked for
-test('names no institution on the identity card while its bank link is being read', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const everyday = await createAccount(request, user, { name: 'Everyday' })
-  await linkToSampleBankAccount(request, user, { accountId: everyday.id, bankAccountName: SAMPLE_CHEQUING })
-  const linkUrl = `${API_BASE_URL}/accounts/${everyday.id}/bank-link`
-  let release = () => {}
-  const released = new Promise<void>((resolve) => { release = resolve })
-  await page.route(linkUrl, async (route) => {
-    await released
-    await route.fallback()
-  })
-  await logInViaApi(page, user)
-  const held = page.waitForRequest((sent) => sent.url() === linkUrl && sent.method() === 'GET')
-  await openPage(page, `/accounts/${everyday.id}`)
-  await held
-  const card = identityCard(page)
-  await expect(card.getByRole('heading', { name: 'Everyday', exact: true })).toBeVisible()
-  await expect(card.getByText(SAMPLE_BANK, { exact: true })).toHaveCount(0)
-  await expect(card.getByText('No institution', { exact: true })).toHaveCount(0)
-
-  release()
-  await expect(card.getByText(SAMPLE_BANK, { exact: true })).toBeVisible()
-  await expect(card.getByText('No institution', { exact: true })).toHaveCount(0)
-})
-
-// An account of the user's own says so once its bank link is read and found to be none, and a group
-// account straight away, since the page never reads a group account's link
-test("says an account with no institution and no bank link has none, whether it's the user's own or a group's", NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One user with a linked account, a plain one and a group's serves the identity card's institution. The
+// held read comes first and is let go before the next step. The institution the user gives the linked
+// account changes it, so that comes last
+test("names the institution on the identity card for a linked, an unlinked and an unread account", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const groupId = await createGroup(request, user, 'Household')
-  const accounts = await Promise.all([
-    createAccount(request, user, { name: 'Everyday' }),
-    createAccount(request, user, { name: 'Shared bills', groupId }),
-  ])
+  const everyday = await createAccount(request, user, { name: 'Everyday' })
+  const plain = await createAccount(request, user, { name: 'Plain' })
+  const shared = await createAccount(request, user, { name: 'Shared bills', groupId })
+  await linkToSampleBankAccount(request, user, { accountId: everyday.id, bankAccountName: SAMPLE_CHEQUING })
   await logInViaApi(page, user)
+  const card = identityCard(page)
 
-  for (const account of accounts) {
-    await openPage(page, `/accounts/${account.id}`)
-    const card = identityCard(page)
-    await expect(card.getByRole('heading', { name: account.name, exact: true })).toBeVisible()
-    await expect(card.getByText('No institution', { exact: true })).toBeVisible()
-  }
+  // The bank's name comes in with the account's bank link, so until that read lands the card can't tell
+  // whether the account has an institution, and names none. The read is held until both have been looked for
+  await test.step('names no institution on the identity card while its bank link is being read', async () => {
+    const linkUrl = `${API_BASE_URL}/accounts/${everyday.id}/bank-link`
+    let release = () => {}
+    const released = new Promise<void>((resolve) => { release = resolve })
+    await page.route(linkUrl, async (route) => {
+      await released
+      await route.fallback()
+    })
+    const held = page.waitForRequest((sent) => sent.url() === linkUrl && sent.method() === 'GET')
+    await openPage(page, `/accounts/${everyday.id}`)
+    await held
+    await expect(card.getByRole('heading', { name: 'Everyday', exact: true })).toBeVisible()
+    await expect(card.getByText(SAMPLE_BANK, { exact: true })).toHaveCount(0)
+    await expect(card.getByText('No institution', { exact: true })).toHaveCount(0)
+
+    release()
+    await expect(card.getByText(SAMPLE_BANK, { exact: true })).toBeVisible()
+    await expect(card.getByText('No institution', { exact: true })).toHaveCount(0)
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
+  })
+
+  // An account of the user's own shows the message once its bank link is read and found to be none. A
+  // group account shows the message straight away, since the page never reads a group account's link
+  await test.step("says an account with no institution and no bank link has none, whether it's the user's own or a group's", async () => {
+    for (const account of [plain, shared]) {
+      await openPage(page, `/accounts/${account.id}`)
+      await expect(card.getByRole('heading', { name: account.name, exact: true })).toBeVisible()
+      await expect(card.getByText('No institution', { exact: true })).toBeVisible()
+    }
+  })
+
+  // The identity card names the account's own institution, so the bank's shows there only where the
+  // account has none. Each look waits for the page to have read the link, since the bank's name comes in
+  await test.step("names the linked bank's institution on the identity card until the account has one of its own", async () => {
+    await openPage(page, `/accounts/${everyday.id}`)
+    await expect(bankSyncFact(page, READ_LINK_STATUS)).toBeVisible()
+    await expect(card.getByText(SAMPLE_BANK, { exact: true })).toBeVisible()
+    await expect(card.getByText('No institution')).toHaveCount(0)
+
+    const ownName = `Own Credit Union ${crypto.randomUUID()}`
+    const institutionId = await createInstitution(request, user, ownName)
+    const changed = await request.patch(`${API_BASE_URL}/accounts/${everyday.id}`, { headers: asUser(user), data: { institution_id: institutionId } })
+    expect(changed.status()).toBe(200)
+    await openPage(page, `/accounts/${everyday.id}`)
+    await expect(bankSyncFact(page, READ_LINK_STATUS)).toBeVisible()
+    await expect(card.getByText(ownName, { exact: true })).toBeVisible()
+    await expect(card.getByText(SAMPLE_BANK, { exact: true })).toHaveCount(0)
+  })
 })
 
 // The Bank sync fact takes a row of its own under the account's other facts, so its status has the card's

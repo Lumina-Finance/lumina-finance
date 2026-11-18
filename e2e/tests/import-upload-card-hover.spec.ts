@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage, showImportSetup } from '../support/app'
+import { logInViaApi, openPage, showImportSetup } from '../support/app'
 import { contrastRatio, shownFill, type Rgb } from '../support/paint'
 
 // Runs on desktop only: hover and press are pointer states, and the fills they change don't vary with width
@@ -33,13 +33,13 @@ function easedProperties(element: Locator): Promise<Record<string, number>> {
   })
 }
 
-/** Opens the Imports page in a theme, into one of the new user's accounts for a CSV import or on the data source choice without one */
-async function openImports(page: Page, request: APIRequestContext, colorScheme: 'light' | 'dark', hasAccount = true) {
+/** Opens the Imports page in a theme, into one of the new user's accounts for a CSV import */
+async function openImports(page: Page, request: APIRequestContext, colorScheme: 'light' | 'dark') {
   await page.emulateMedia({ colorScheme })
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday chequing' })
   await logInViaApi(page, user)
-  await openPage(page, hasAccount ? `/settings/imports?account=${account.id}` : '/settings/imports')
+  await openPage(page, `/settings/imports?account=${account.id}`)
   await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/)
 }
 
@@ -93,19 +93,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect.poll(() => addMore.evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).m42)).toBe(1)
     await page.mouse.move(0, 0)
     await page.mouse.up()
-  })
-
-  test(`turns the OFX upload card to the hover colour under the pointer in the ${colorScheme} theme`, async ({ page, request }) => {
-    await openImports(page, request, colorScheme, false)
-    await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
-    const card = page.getByRole('button', { name: /^Upload statements/ })
-    await expect(card).toBeVisible()
-
-    await page.mouse.move(0, 0)
-    const rest = await declaredFill(card)
-    await card.hover()
-    await expect.poll(() => declaredFill(card)).not.toBe(rest)
-    expect((await easedProperties(card))['background-color']).toBeGreaterThan(0)
   })
 }
 

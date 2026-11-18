@@ -68,49 +68,16 @@ function watchDismissals(page: Page): string[] {
   return sent
 }
 
-test('reminds that some of today\'s transactions may be missing once today alone brings back as many as SimpleFIN sends at once', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const setup = await linkCutShort(request)
-  await logInViaApi(page, setup.user)
-
-  const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
-
-  const note = reminderNote(dialog, CUT_OFF)
-  await expect(note).toContainText(
-    `SimpleFIN sent its maximum number of transactions for ${formatDateLabel(todayInTestTimezone())}, so that day may have more transactions. Please check that day's transactions.`,
-  )
-  await expect(note.getByRole('button', { name: 'Dismiss' })).toBeVisible()
-  expect((await readReminders(request, setup.user, setup.accountId)).cut_off_day).toBe(todayInTestTimezone())
-})
-
-test('dismisses each reminder for good, focus moving from one ✕ to the next and then on to Sync now', NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One import that was cut short serves the cut-off reminder's words, then the held dismissal of the
+// history reminder and then the dismissal of the cut-off one. The first moves focus on to the cut-off one's ✕. A
+// reminder can fold away before its dismissal answers, as a read of the link the server answers once the
+// dismissal has gone through comes back without it. The modal reads the link again as it opens, and that
+// read is held until the dismissal has reached the server, while the dismissal itself is held on its way
+// there until the ✕s have been looked at, and its answer until the reminder has gone. The plain click on
+// the history reminder's ✕ that moved focus on to the cut-off one is the held dismissal's own
+test('reminds that some of today\'s transactions may be missing, then dismisses each reminder for good, focus moving from one ✕ to the next and then on to Sync now', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const setup = await linkCutShort(request)
   const sent = watchDismissals(page)
-  await logInViaApi(page, setup.user)
-  const dialog = await openBankLink(page, setup.accountId, ANY_STATUS)
-  const history = reminderNote(dialog, NO_HISTORY)
-  const cutOff = reminderNote(dialog, CUT_OFF)
-
-  await history.getByRole('button', { name: 'Dismiss' }).click()
-  await expect(cutOff.getByRole('button', { name: 'Dismiss' })).toBeFocused()
-  await expect(history).toBeHidden()
-  await page.keyboard.press('Enter')
-  await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
-  await expect(cutOff).toBeHidden()
-
-  expect(sent).toEqual([JSON.stringify({ day: todayInTestTimezone() })])
-  expect(await readReminders(request, setup.user, setup.accountId)).toEqual({ history_reminder: null, cut_off_day: null })
-  const again = await openBankLink(page, setup.accountId, ANY_STATUS)
-  await expect(again.getByRole('button', { name: 'Unlink' })).toBeVisible()
-  await expect(again.getByText(CUT_OFF)).toHaveCount(0)
-  await expect(again.getByText(NO_HISTORY)).toHaveCount(0)
-})
-
-// A reminder can fold away before its dismissal answers, as a read of the link the server answers once
-// the dismissal has gone through comes back without it. The modal reads the link again as it opens, and
-// that read is held until the dismissal has reached the server, while the dismissal itself is held on
-// its way there until the ✕s have been looked at, and its answer until the reminder has gone
-test('spins only the dismissed reminder’s ✕, and moves focus on from it once its reminder folds away before its dismissal answers', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const setup = await linkCutShort(request)
   const dismissUrl = `${API_BASE_URL}/accounts/${setup.accountId}/bank-link/history-reminder/dismiss`
   let sendDismissal = () => {}
   const sendReleased = new Promise<void>((resolve) => { sendDismissal = resolve })
@@ -129,18 +96,42 @@ test('spins only the dismissed reminder’s ✕, and moves focus on from it once
   const dialog = await openBankLinkHoldingRead(page, setup.accountId, READ_LINK_STATUS, reached)
   const history = reminderNote(dialog, NO_HISTORY)
   const historyDismiss = history.getByRole('button', { name: 'Dismiss' })
-  const cutOffDismiss = reminderNote(dialog, CUT_OFF).getByRole('button', { name: 'Dismiss' })
+  const cutOff = reminderNote(dialog, CUT_OFF)
+  const cutOffDismiss = cutOff.getByRole('button', { name: 'Dismiss' })
 
-  await historyDismiss.click()
-  await expect(historyDismiss).toHaveAttribute('aria-busy', 'true')
-  await expect(cutOffDismiss).not.toHaveAttribute('aria-busy', 'true')
+  await test.step('reminds that some of today\'s transactions may be missing once today alone brings back as many as SimpleFIN sends at once', async () => {
+    await expect(cutOff).toContainText(
+      `SimpleFIN sent its maximum number of transactions for ${formatDateLabel(todayInTestTimezone())}, so that day may have more transactions. Please check that day's transactions.`,
+    )
+    await expect(cutOffDismiss).toBeVisible()
+    expect((await readReminders(request, setup.user, setup.accountId)).cut_off_day).toBe(todayInTestTimezone())
+  })
 
-  sendDismissal()
-  await expect(history).toBeHidden()
-  await expect(cutOffDismiss).toBeFocused()
+  await test.step('spins only the dismissed reminder’s ✕, and moves focus on from it once its reminder folds away before its dismissal answers', async () => {
+    await historyDismiss.click()
+    await expect(historyDismiss).toHaveAttribute('aria-busy', 'true')
+    await expect(cutOffDismiss).not.toHaveAttribute('aria-busy', 'true')
 
-  const answered = page.waitForResponse(dismissUrl)
-  answerDismissal()
-  expect((await answered).status()).toBe(200)
-  expect((await readReminders(request, setup.user, setup.accountId)).history_reminder).toBeNull()
+    sendDismissal()
+    await expect(history).toBeHidden()
+    await expect(cutOffDismiss).toBeFocused()
+
+    const answered = page.waitForResponse(dismissUrl)
+    answerDismissal()
+    expect((await answered).status()).toBe(200)
+    expect((await readReminders(request, setup.user, setup.accountId)).history_reminder).toBeNull()
+  })
+
+  await test.step('dismisses the cut-off reminder for good, focus moving on to Sync now', async () => {
+    await page.keyboard.press('Enter')
+    await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
+    await expect(cutOff).toBeHidden()
+
+    expect(sent).toEqual([JSON.stringify({ day: todayInTestTimezone() })])
+    expect(await readReminders(request, setup.user, setup.accountId)).toEqual({ history_reminder: null, cut_off_day: null })
+    const again = await openBankLink(page, setup.accountId, ANY_STATUS)
+    await expect(again.getByRole('button', { name: 'Unlink' })).toBeVisible()
+    await expect(again.getByText(CUT_OFF)).toHaveCount(0)
+    await expect(again.getByText(NO_HISTORY)).toHaveCount(0)
+  })
 })

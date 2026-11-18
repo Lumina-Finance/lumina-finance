@@ -27,8 +27,8 @@ import { MINUS, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the button's layout test and the light theme's readable offer test,
-// which run at every size: the button takes a row of its own under the amount on a phone, and the
+// Runs on desktop only, apart from the test of the button's layout and the light theme's readable offer,
+// which runs at every size: the button takes a row of its own under the amount on a phone, and the
 // offer may not scroll sideways at any width
 
 // The balance match a linked account offers whenever its ledger and the bank's balance differ, at the
@@ -69,6 +69,11 @@ async function linkWithGap(request: APIRequestContext): Promise<Setup> {
 async function openOffer(page: Page, request: APIRequestContext): Promise<{ setup: Setup; offer: Offer }> {
   const setup = await linkWithGap(request)
   await logInViaApi(page, setup.user)
+  return { setup, offer: await openOfferAgain(page, setup) }
+}
+
+/** Opens the offer of an account that is linked and logged in, as the first open does, for a step that reads it afresh */
+async function openOfferAgain(page: Page, setup: Setup): Promise<Offer> {
   const dialog = await openBankLink(page, setup.accountId, SYNCED_STATUS)
   const offer = {
     dialog,
@@ -77,12 +82,25 @@ async function openOffer(page: Page, request: APIRequestContext): Promise<{ setu
     record: dialog.getByRole('button', { name: 'Record adjustment' }),
   }
   await expect(offer.sentence).toBeVisible({ timeout: WORKER_RESULT_TIMEOUT_MS })
-  return { setup, offer }
+  return offer
 }
 
 /** The offer's sentence, naming the day before the import start as the app writes a day with its year */
 function offerText(dialog: Locator, adjustmentDate: string): Locator {
   return dialog.getByText(`Adds a balance adjustment on ${formatDateLabel(adjustmentDate)}.`)
+}
+
+/** Asserts each text of the offer reads against its background at the least WCAG asks of text */
+async function expectOfferReadable({ dialog, amount }: Offer, { adjustmentDate }: Setup): Promise<void> {
+  for (const text of [
+    dialog.getByText("Match SimpleFIN's balance", { exact: true }),
+    offerText(dialog, adjustmentDate),
+    dialog.getByRole('term').filter({ hasText: /^Adjustment/ }),
+    amount,
+  ]) {
+    await expect(text).toBeVisible()
+    expect((await faintestText(text)).contrast).toBeGreaterThanOrEqual(4.5)
+  }
 }
 
 /** The bodies of the recordings the page sends */
@@ -117,28 +135,50 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test("offers to match SimpleFIN's balance under the balances, showing the offered amount with no field to change it, with the status still synced", NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { offer } = await openOffer(page, request)
+// One offer that nothing records serves what the modal says, the offer's colours in the dark theme and a
+// recording that never reaches the server. That one goes last, since it presses Record adjustment
+test("offers to match SimpleFIN's balance, readable in the dark theme and kept when a recording never reaches the server", NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const { setup, offer } = await openOffer(page, request)
 
-  await expect(fact(offer.dialog, 'Status')).toHaveText(/^Synced/)
-  await expect(offer.dialog.getByText("Match SimpleFIN's balance", { exact: true })).toBeVisible()
-  await expect(fact(offer.dialog, /^Difference/)).toHaveText(`${MINUS}$250.00`)
-  await expect(offer.amount).toHaveText('+$250.00')
-  await expect(offer.dialog.getByRole('textbox', { name: /adjustment/i })).toHaveCount(0)
+  await test.step("offers to match SimpleFIN's balance under the balances, showing the offered amount with no field to change it, with the status still synced", async () => {
+    await expect(fact(offer.dialog, 'Status')).toHaveText(/^Synced/)
+    await expect(offer.dialog.getByText("Match SimpleFIN's balance", { exact: true })).toBeVisible()
+    await expect(fact(offer.dialog, /^Difference/)).toHaveText(`${MINUS}$250.00`)
+    await expect(offer.amount).toHaveText('+$250.00')
+    await expect(offer.dialog.getByRole('textbox', { name: /adjustment/i })).toHaveCount(0)
 
-  // How the figure is worked out opens as the keyboard reaches its icon, as it does on hover
-  const how = offer.dialog.getByRole('button', { name: 'How the adjustment is worked out' })
-  await how.focus()
-  await page.keyboard.press('Shift+Tab')
-  await page.keyboard.press('Tab')
-  await expect(how).toBeFocused()
-  const hint = offer.dialog.locator('.app-tooltip-panel').filter({ hasText: "SimpleFIN's balance minus your ledger's" })
-  await expect(hint.locator('..')).toHaveCSS('opacity', '1')
-  await how.blur()
-  await expect(hint.locator('..')).toHaveCSS('opacity', '0')
-  await expect(offer.dialog.getByRole('button', { name: 'Skip', exact: true })).toHaveCount(0)
-  const [caption, sentence] = await readBoxes(page, [offer.dialog.getByText(/^As of /), offer.sentence])
-  expect(sentence.y).toBeGreaterThan(caption.y + caption.height)
+    // How the figure is worked out opens as the keyboard reaches its icon, as it does on hover
+    const how = offer.dialog.getByRole('button', { name: 'How the adjustment is worked out' })
+    await how.focus()
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Tab')
+    await expect(how).toBeFocused()
+    const hint = offer.dialog.locator('.app-tooltip-panel').filter({ hasText: "SimpleFIN's balance minus your ledger's" })
+    await expect(hint.locator('..')).toHaveCSS('opacity', '1')
+    await how.blur()
+    await expect(hint.locator('..')).toHaveCSS('opacity', '0')
+    await expect(offer.dialog.getByRole('button', { name: 'Skip', exact: true })).toHaveCount(0)
+    const [caption, sentence] = await readBoxes(page, [offer.dialog.getByText(/^As of /), offer.sentence])
+    expect(sentence.y).toBeGreaterThan(caption.y + caption.height)
+  })
+
+  await test.step('keeps the offer readable in the dark theme', async () => {
+    await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' })
+    const dark = await openOfferAgain(page, setup)
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+    await expectOfferReadable(dark, setup)
+  })
+
+  await test.step('keeps the offer when a recording never reaches the server, saying something went wrong', async () => {
+    const again = await openOfferAgain(page, setup)
+    await page.route(`${API_BASE_URL}/accounts/${setup.accountId}/bank-link/balance-match`, (route) => route.abort('failed'), { times: 1 })
+
+    await again.record.click()
+
+    await expect(errorToast(page, 'Oops, something went wrong. Please try again.')).toBeVisible()
+    await expect(again.sentence).toBeVisible()
+    expect(await countLedgerTransactions(request, setup.user)).toBe(1)
+  })
 })
 
 test('keeps the offer when a sync brings an item to review, leaving the item out and asking for it to be reviewed first',NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -160,26 +200,40 @@ test('keeps the offer when a sync brings an item to review, leaving the item out
   await expect(dialog.getByText('If you entered any waiting items by hand, please review those items first.')).toBeVisible()
 })
 
-test('shows Record adjustment whole, beside the amount from the width it fits there and on a row of its own on a phone', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { offer } = await openOffer(page, request)
+// One offer that nothing records serves the button's layout and the offer's colours in the light theme,
+// both read at every size
+test('shows Record adjustment whole, beside the amount from the width it fits there and on a row of its own on a phone, and keeps the offer readable in the light theme with no sideways scroll', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const { setup, offer } = await openOffer(page, request)
 
-  // The amount's row, its label and figure, against the button
-  const [field, recordBox] = await readBoxes(page, [offer.amount.locator('..'), offer.record])
+  await test.step('shows Record adjustment whole, beside the amount from the width it fits there and on a row of its own on a phone', async () => {
+    // The amount's row, its label and figure, against the button
+    const [field, recordBox] = await readBoxes(page, [offer.amount.locator('..'), offer.record])
 
-  // The label sits in a box of its own inside the button, which clips it rather than the button
-  const clipped = await offer.record.evaluate((button) =>
-    [button, ...button.querySelectorAll('*')]
-      .filter((part) => part.clientWidth > 0 && part.scrollWidth > part.clientWidth)
-      .map((part) => part.outerHTML.slice(0, 80)),
-  )
-  expect(clipped).toEqual([])
-  if (page.viewportSize()!.width >= OFFER_ROW_MIN_WIDTH) {
-    expect(Math.abs((recordBox.y + recordBox.height) - (field.y + field.height))).toBeLessThan(0.5)
-    expect(recordBox.x).toBeGreaterThan(field.x + field.width)
-  } else {
-    expect(recordBox.y).toBeGreaterThan(field.y + field.height)
-    expect(Math.abs(recordBox.width - field.width)).toBeLessThan(0.5)
-  }
+    // The label sits in a box of its own inside the button. That box clips the label, not the button
+    const clipped = await offer.record.evaluate((button) =>
+      [button, ...button.querySelectorAll('*')]
+        .filter((part) => part.clientWidth > 0 && part.scrollWidth > part.clientWidth)
+        .map((part) => part.outerHTML.slice(0, 80)),
+    )
+    expect(clipped).toEqual([])
+    if (page.viewportSize()!.width >= OFFER_ROW_MIN_WIDTH) {
+      expect(Math.abs((recordBox.y + recordBox.height) - (field.y + field.height))).toBeLessThan(0.5)
+      expect(recordBox.x).toBeGreaterThan(field.x + field.width)
+    } else {
+      expect(recordBox.y).toBeGreaterThan(field.y + field.height)
+      expect(Math.abs(recordBox.width - field.width)).toBeLessThan(0.5)
+    }
+  })
+
+  await test.step('keeps the offer readable in the light theme, with no sideways scroll', async () => {
+    await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
+    const light = await openOfferAgain(page, setup)
+    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
+    await expectOfferReadable(light, setup)
+
+    // The layout is the same in either theme, so it is measured in the light one only
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+  })
 })
 
 test('records the offered amount and closes the modal, leaving nothing to match', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -213,17 +267,6 @@ test('offers the match again once a new gap opens after an earlier one was recor
   const again = await openBankLink(page, setup.accountId, SYNCED_STATUS)
   await expect(fact(again, /^Difference/)).toHaveText(`${MINUS}$20.00`, { timeout: WORKER_RESULT_TIMEOUT_MS })
   await expect(fact(again, /^Adjustment/)).toHaveText('+$20.00')
-})
-
-test('keeps the offer when a recording never reaches the server, saying something went wrong', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { setup, offer } = await openOffer(page, request)
-  await page.route(`${API_BASE_URL}/accounts/${setup.accountId}/bank-link/balance-match`, (route) => route.abort('failed'), { times: 1 })
-
-  await offer.record.click()
-
-  await expect(errorToast(page, 'Oops, something went wrong. Please try again.')).toBeVisible()
-  await expect(offer.sentence).toBeVisible()
-  expect(await countLedgerTransactions(request, setup.user)).toBe(1)
 })
 
 test('folds the offer away when a recording finds it recorded in another window, saying why', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -329,28 +372,3 @@ test('leaves focus where the person put it when a read of the link folds the off
   await expect(offerText(dialog, setup.adjustmentDate)).toHaveCount(0)
   await expect(name).toBeFocused()
 })
-
-for (const colorScheme of ['light', 'dark'] as const) {
-  // Only the light run measures the offer's width, so only it runs at every size
-  test(`keeps the offer readable in the ${colorScheme} theme${colorScheme === 'light' ? ', with no sideways scroll' : ''}`, colorScheme === 'light' ? AT_EVERY_SIZE_NEEDS_BANK_SYNC : NEEDS_BANK_SYNC, async ({ page, request }) => {
-    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
-    const { setup, offer } = await openOffer(page, request)
-    if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
-    else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
-
-    for (const text of [
-      offer.dialog.getByText("Match SimpleFIN's balance", { exact: true }),
-      offerText(offer.dialog, setup.adjustmentDate),
-      offer.dialog.getByRole('term').filter({ hasText: /^Adjustment/ }),
-      offer.amount,
-    ]) {
-      await expect(text).toBeVisible()
-      expect((await faintestText(text)).contrast).toBeGreaterThanOrEqual(4.5)
-    }
-
-    // The layout is the same in either theme, so it is measured in the light one only
-    if (colorScheme === 'light') {
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
-    }
-  })
-}

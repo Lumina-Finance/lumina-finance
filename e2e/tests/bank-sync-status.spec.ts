@@ -7,6 +7,7 @@ import {
   daysFromTodayInTestTimezone,
   signUpUser,
   todayInTestTimezone,
+  type SeededAccount,
   type TestUser,
 } from '../support/api'
 import { fact, logInViaApi, openPage, watchServerRequests } from '../support/app'
@@ -35,7 +36,8 @@ import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only, apart from the balance comparison, unavailable balance, retry and rejected
 // connection tests. These run at every size: the balances, the notes over them and the notice's action
-// take their own layouts at each width. The tests that reopen Sync details set the one size they check
+// take their own layouts at each width. The steps after the retry's and the rejected connection's first
+// run on desktop only, and those that reopen Sync details set the one size they check
 
 // A linked account's bank sync status, as its page shows it once the worker has met each situation
 // on the fake SimpleFIN Bridge: the identity card's Bank sync fact, the Bank link section's Status,
@@ -129,20 +131,24 @@ async function coversAnyBalance(dialog: Locator, note: Locator): Promise<boolean
 }
 
 /**
- * Links a new account with an empty ledger to the sample chequing account, so the balances differ,
- * and opens its Bank link in a window of the given size. It returns once the modal has focused the
- * section's first action and jumped down to the section, either of which undoes a scroll made earlier
+ * Links a new account with an empty ledger to the sample chequing account, so the balances differ
  */
-async function openBalancesThatDiffer(page: Page, request: APIRequestContext, size: { width: number; height: number }): Promise<Locator> {
+async function linkBalancesThatDiffer(request: APIRequestContext): Promise<{ user: TestUser; account: SeededAccount }> {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
+  return { user, account }
+}
 
-  // The jump is instant without motion, so it has ended once it has started
+/**
+ * Opens the Bank link of an account whose balances differ, in a window of the given size, for a user
+ * already signed in with reduced motion asked for, so the jump is instant and has ended once it has
+ * started. It returns once the modal has focused the section's first action and jumped down to the
+ * section, either of which undoes a scroll made earlier
+ */
+async function openBalancesThatDiffer(page: Page, accountId: string, size: { width: number; height: number }): Promise<Locator> {
   await page.setViewportSize(size)
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, SYNCED_STATUS)
+  const dialog = await openBankLink(page, accountId, SYNCED_STATUS)
   const difference = fact(dialog, /^Difference/)
   await expect(difference).toHaveText(`${MINUS}$2,418.36`)
   await expect(dialog.getByRole('button', { name: 'Sync now' })).toBeFocused()
@@ -274,44 +280,8 @@ test('shows a bank balance that can\'t be read exactly as unavailable, its reaso
   expect(await isCovering(reason, bankBalance)).toBe(false)
 })
 
-test('opens the reason for a gap below the difference where the dialog leaves no room above it', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  // A short window. Each balance's value sits under its label and the dialogue's body scrolls
-  const dialog = await openBalancesThatDiffer(page, request, { width: 1280, height: 480 })
-  const difference = fact(dialog, /^Difference/)
-
-  // Scrolled until the difference is at the top of the dialogue's body
-  await difference.evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
-  await dialog.getByRole('button', { name: 'Why the balances differ' }).click()
-  const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Could come from items waiting for review' })
-  await expect(reason.locator('..')).toHaveCSS('opacity', '1')
-  expect(await isCovering(reason, difference)).toBe(false)
-  await expect.poll(() => readClippingBoxes(reason)).toEqual([])
-
-  // Below the value, since above the balance it would run off the top of the dialogue's body
-  const [opened, explained] = await readBoxes(page, [reason, difference])
-  expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
-})
-
-test('bounds the edit modal\'s tooltips only for an account linked to a bank, leaving those of any other as they were', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  // A linked account's body is the surface its Sync details and balance reasons keep inside
-  const linked = await openBalancesThatDiffer(page, request, { width: 1280, height: 800 })
-  await expect(linked.locator('[data-dropdown-bounds]')).toHaveAttribute('data-tooltip-bounds', /.*/)
-
-  // An account with no link leaves the body unmarked, so a tooltip such as the Credit limit hint rises
-  // over the header as on main
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Unlinked' })
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
-  const body = dialog.locator('[data-dropdown-bounds]')
-  await expect(body).toBeVisible()
-  await expect(body).not.toHaveAttribute('data-tooltip-bounds')
-})
-
 // Shown by a press or by the keyboard reaching its icon, the reason moves alike
-for (const { shown, show } of [
+const REASON_SHOWN_BY = [
   { shown: 'opened with a press', show: (icon: Locator) => icon.click() },
   {
     shown: 'shown on keyboard focus',
@@ -320,24 +290,73 @@ for (const { shown, show } of [
       await icon.focus()
     },
   },
-]) {
-  test(`moves the reason for a gap below the balances as the dialog body scrolls them to its top, ${shown}`, NEEDS_BANK_SYNC, async ({ page, request }) => {
-    // A small phone. Each balance takes a row. The reason shows above the three while they have
-    // room above them
-    const dialog = await openBalancesThatDiffer(page, request, { width: 390, height: 667 })
-    await show(dialog.getByRole('button', { name: 'Why the balances differ' }))
+]
+
+// One link whose balances differ serves the reason at four window sizes. Each step opens the page afresh
+// at its own size, so it finds nothing the one before scrolled or opened. The step that signs in as another
+// user comes last
+test('opens the reason for a balance gap clear of the balances, and bounds the edit modal\'s tooltips', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const { user, account: linkedAccount } = await linkBalancesThatDiffer(request)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await logInViaApi(page, user)
+
+  await test.step('opens the reason for a gap below the difference where the dialog leaves no room above it', async () => {
+    // A short window. Each balance's value sits under its label and the dialogue's body scrolls
+    const dialog = await openBalancesThatDiffer(page, linkedAccount.id, { width: 1280, height: 480 })
+    const difference = fact(dialog, /^Difference/)
+
+    // Scrolled until the difference is at the top of the dialogue's body
+    await difference.evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
+    await dialog.getByRole('button', { name: 'Why the balances differ' }).click()
     const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Could come from items waiting for review' })
     await expect(reason.locator('..')).toHaveCSS('opacity', '1')
-    const [opened, bankBalance] = await readBoxes(page, [reason, fact(dialog, 'SimpleFIN').locator('..')])
-    expect(opened.y + opened.height).toBeLessThanOrEqual(bankBalance.y)
-
-    // Scrolled with the reason showing until the difference is at the top of the dialogue's body. That
-    // leaves the reason no room above the balances
-    await fact(dialog, /^Difference/).evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
+    expect(await isCovering(reason, difference)).toBe(false)
     await expect.poll(() => readClippingBoxes(reason)).toEqual([])
-    expect(await coversAnyBalance(dialog, reason)).toBe(false)
+
+    // Below the value, since above the balance it would run off the top of the dialogue's body
+    const [opened, explained] = await readBoxes(page, [reason, difference])
+    expect(opened.y).toBeGreaterThanOrEqual(explained.y + explained.height)
   })
-}
+
+  for (const { shown, show } of REASON_SHOWN_BY) {
+    await test.step(`moves the reason for a gap below the balances as the dialog body scrolls them to its top, ${shown}`, async () => {
+      // A small phone. Each balance takes a row. The reason shows above the three while they have
+      // room above them
+      const dialog = await openBalancesThatDiffer(page, linkedAccount.id, { width: 390, height: 667 })
+      // The pointer kept off the icon, since a press in the step before leaves it there across the reload
+      await page.mouse.move(0, 0)
+      await show(dialog.getByRole('button', { name: 'Why the balances differ' }))
+      const reason = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Could come from items waiting for review' })
+      await expect(reason.locator('..')).toHaveCSS('opacity', '1')
+      const [opened, bankBalance] = await readBoxes(page, [reason, fact(dialog, 'SimpleFIN').locator('..')])
+      expect(opened.y + opened.height).toBeLessThanOrEqual(bankBalance.y)
+
+      // Scrolled with the reason showing until the difference is at the top of the dialogue's body. That
+      // leaves the reason no room above the balances
+      await fact(dialog, /^Difference/).evaluate((element) => element.parentElement!.scrollIntoView({ block: 'start', behavior: 'instant' }))
+      await expect.poll(() => readClippingBoxes(reason)).toEqual([])
+      expect(await coversAnyBalance(dialog, reason)).toBe(false)
+    })
+  }
+
+  await test.step('bounds the edit modal\'s tooltips only for an account linked to a bank, leaving those of any other as they were', async () => {
+    // A linked account's body is the surface its Sync details and balance reasons keep inside
+    const linked = await openBalancesThatDiffer(page, linkedAccount.id, { width: 1280, height: 800 })
+    await expect(linked.locator('[data-dropdown-bounds]')).toHaveAttribute('data-tooltip-bounds', /.*/)
+
+    // An account with no link leaves the body unmarked, so a tooltip such as the Credit limit hint rises
+    // over the header as on main
+    const other = await signUpUser(request)
+    const account = await createAccount(request, other, { name: 'Unlinked' })
+    await logInViaApi(page, other)
+    await openPage(page, `/accounts/${account.id}`)
+    await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+    const body = dialog.locator('[data-dropdown-bounds]')
+    await expect(body).toBeVisible()
+    await expect(body).not.toHaveAttribute('data-tooltip-bounds')
+  })
+})
 
 // A link whose last sync failed: the time's own period ends the sentence in the fact's name, with no
 // second one after it
@@ -376,16 +395,21 @@ async function readOffsetFromIcon(page: Page, panel: Locator, icon: Locator): Pr
 // of the tablet project's. Tests that need a screen this short set the size themselves
 const FOOT_LEAVES_NO_ROOM_BELOW = { width: 1194, height: 834 }
 
-/**
- * Links a new account into a failed sync and opens its Bank link, returning the dialogue with the Sync
- * details icon and panel in it
- */
-async function openRetryingLink(page: Page, request: APIRequestContext) {
+/** Links a new account into a failed sync, with the user signed in */
+async function linkIntoFailedSync(page: Page, request: APIRequestContext): Promise<SeededAccount> {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkIntoFault(request, user, account.id, (scenarioId) => breakBridge(request, scenarioId))
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, RETRYING_STATUS)
+  return account
+}
+
+/**
+ * Opens the Bank link of an account in a failed sync, returning the dialogue with the Sync details icon
+ * and panel in it
+ */
+async function openRetryingLink(page: Page, accountId: string) {
+  const dialog = await openBankLink(page, accountId, RETRYING_STATUS)
   const details = dialog.locator('.app-tooltip-panel').filter({ hasText: 'Not synced yet' })
   await expect(details).toContainText('Last attempt failed: ')
   return { dialog, showDetails: dialog.getByRole('button', { name: 'Sync details' }), details }
@@ -405,91 +429,96 @@ async function scrollShownDetailsToFoot(page: Page, dialog: Locator, showDetails
   return shownAt
 }
 
-test('reads as retrying at the time of the retry when the Bridge fails', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { dialog, showDetails, details } = await openRetryingLink(page, request)
-  await expect(fact(dialog, 'Status')).toHaveText(/^Retrying at /)
+// One failed sync serves the status and the details' ring at every size, then on desktop the details
+// reopened clear of the foot of the modal by pointer and by keyboard. Each step opens the page afresh, and
+// the steps after the first set the one size they check
+test('reads as retrying when the Bridge fails, and opens Sync details clear of the modal foot', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const account = await linkIntoFailedSync(page, request)
 
-  // The details show whole, reaching past the section where they need the room, and so does the ring
-  // around Unlink, the section's last control
-  await showDetails.click()
-  await expect.poll(() => readClippingBoxes(details)).toEqual([])
-  expect(await readClippingBoxes(dialog.getByRole('button', { name: 'Unlink', exact: true }), FOCUS_RING_PX)).toEqual([])
-})
+  await test.step('reads as retrying at the time of the retry when the Bridge fails', async () => {
+    const { dialog, showDetails, details } = await openRetryingLink(page, account.id)
+    await expect(fact(dialog, 'Status')).toHaveText(/^Retrying at /)
 
-test('opens Sync details again clear of the foot of the modal after closing them under the pointer', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await page.setViewportSize(FOOT_LEAVES_NO_ROOM_BELOW)
-  const { dialog, showDetails, details } = await openRetryingLink(page, request)
-  await showDetails.click()
-  const openedAt = await scrollShownDetailsToFoot(page, dialog, showDetails, details)
+    // The details show whole, reaching past the section where they need the room, and so does the ring
+    // around Unlink, the section's last control
+    await showDetails.click()
+    await expect.poll(() => readClippingBoxes(details)).toEqual([])
+    expect(await readClippingBoxes(dialog.getByRole('button', { name: 'Unlink', exact: true }), FOCUS_RING_PX)).toEqual([])
+  })
 
-  // Closed under the pointer they stay where they were, shown where the screen has hover and invisible
-  // where it hasn't, and opened again without the pointer moving they pick their side afresh, above
-  await showDetails.click()
-  expect(await readOffsetFromIcon(page, details, showDetails)).toBeCloseTo(openedAt, 0)
-  await showDetails.click()
-  await expect.poll(() => readClippingBoxes(details)).toEqual([])
-})
+  // The pointer and keyboard cases are the same at every size, so only desktop runs them
+  if (test.info().project.name !== 'desktop') return
 
-test('opens Sync details clear of the foot of the modal from the keyboard', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await page.setViewportSize(FOOT_LEAVES_NO_ROOM_BELOW)
-  const { dialog, showDetails, details } = await openRetryingLink(page, request)
+  await test.step('opens Sync details again clear of the foot of the modal after closing them under the pointer', async () => {
+    await page.setViewportSize(FOOT_LEAVES_NO_ROOM_BELOW)
+    const { dialog, showDetails, details } = await openRetryingLink(page, account.id)
+    await showDetails.click()
+    const openedAt = await scrollShownDetailsToFoot(page, dialog, showDetails, details)
 
-  // Focus arriving from the keyboard shows them beside the icon, the pointer being kept off it
-  await page.mouse.move(0, 0)
-  await showDetails.focus()
-  await page.keyboard.press('Shift+Tab')
-  await page.keyboard.press('Tab')
-  await expect(showDetails).toBeFocused()
-  await expect(details.locator('..')).toHaveCSS('opacity', '1')
-  await scrollShownDetailsToFoot(page, dialog, showDetails, details)
+    // Closed under the pointer they stay where they were, shown where the screen has hover and invisible
+    // where it hasn't, and opened again without the pointer moving they pick their side afresh, above
+    await showDetails.click()
+    expect(await readOffsetFromIcon(page, details, showDetails)).toBeCloseTo(openedAt, 0)
+    await showDetails.click()
+    await expect.poll(() => readClippingBoxes(details)).toEqual([])
+  })
 
-  // Focus keeps them showing where they were, and a press on the icon opens them there afresh
-  await page.keyboard.press('Enter')
-  await expect.poll(() => readClippingBoxes(details)).toEqual([])
-})
+  await test.step('opens Sync details clear of the foot of the modal from the keyboard', async () => {
+    const { dialog, showDetails, details } = await openRetryingLink(page, account.id)
 
-test('blinks the status dot while a sync fetches, in the modal as on the card', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await answerSyncing(page, account.id)
+    // Focus arriving from the keyboard shows them beside the icon, the pointer being kept off it
+    await page.mouse.move(0, 0)
+    await showDetails.focus()
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Tab')
+    await expect(showDetails).toBeFocused()
+    await expect(details.locator('..')).toHaveCSS('opacity', '1')
+    await scrollShownDetailsToFoot(page, dialog, showDetails, details)
 
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  const bankSync = page.getByRole('button', { name: 'Bank sync: Syncing. Open bank link' })
-  await expect.poll(() => isBlinking(bankSync.getByTestId('sync-status-dot'))).toBe(true)
-
-  // The modal opens with the link already read. Its first view mustn't hold still
-  await bankSync.click()
-  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
-  await expect.poll(() => isBlinking(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(true)
+    // Focus keeps them showing where they were, and a press on the icon opens them there afresh
+    await page.keyboard.press('Enter')
+    await expect.poll(() => readClippingBoxes(details)).toEqual([])
+  })
 })
 
 // A dot starts or stops its blink once it has rendered, in work React finishes before it renders
 // anything after it, and a blink starts by the frame after. So each dot is checked once a later press
 // has rendered, the card's once the modal has opened and the modal's once Sync details has, a press
-// landing only once the page has drawn twice without moving
-test('holds the status dot still while a sync fetches for anyone who asks for reduced motion, in the modal as on the card', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' })
+// landing only once the page has drawn twice without moving. One answered link serves both motion
+// settings, each step opening the page afresh under its own
+test('blinks the status dot while a sync fetches, in the modal as on the card', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await answerSyncing(page, account.id)
-
   await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
   const bankSync = page.getByRole('button', { name: 'Bank sync: Syncing. Open bank link' })
-
-  // Held on to, since the open modal takes the card out of what the page offers to assistive technology
-  const cardDot = (await bankSync.getByTestId('sync-status-dot').elementHandle())!
-  await bankSync.click()
   const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
-  await expect(dialog).toBeVisible()
-  expect(await cardDot.evaluate(isBlinkRunning)).toBe(false)
 
-  const showDetails = dialog.getByRole('button', { name: 'Sync details' })
-  await showDetails.click()
-  await expect(showDetails).toHaveAttribute('aria-expanded', 'true')
-  expect(await isBlinking(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(false)
+  await test.step('blinks the status dot while a sync fetches, in the modal as on the card', async () => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    await openPage(page, `/accounts/${account.id}`)
+    await expect.poll(() => isBlinking(bankSync.getByTestId('sync-status-dot'))).toBe(true)
+
+    // The modal opens with the link already read. Its first view mustn't hold still
+    await bankSync.click()
+    await expect.poll(() => isBlinking(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(true)
+  })
+
+  await test.step('holds the status dot still while a sync fetches for anyone who asks for reduced motion, in the modal as on the card', async () => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await openPage(page, `/accounts/${account.id}`)
+
+    // Held on to, since the open modal takes the card out of what the page offers to assistive technology
+    const cardDot = (await bankSync.getByTestId('sync-status-dot').elementHandle())!
+    await bankSync.click()
+    await expect(dialog).toBeVisible()
+    expect(await cardDot.evaluate(isBlinkRunning)).toBe(false)
+
+    const showDetails = dialog.getByRole('button', { name: 'Sync details' })
+    await showDetails.click()
+    await expect(showDetails).toHaveAttribute('aria-expanded', 'true')
+    expect(await isBlinking(fact(dialog, 'Status').getByTestId('sync-status-dot'))).toBe(false)
+  })
 })
 
 // Answered here, synced as the page's clock starts, since a real sync can't be timed to it
@@ -512,49 +541,72 @@ test('words how long ago the link synced anew as minutes pass with the page open
   await expect(page.getByRole('button', { name: 'Bank sync: Synced 5 minutes ago. Open bank link' })).toBeVisible()
 })
 
-test('stops on a rejected connection, with a notice that leads to Settings to reconnect it', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One rejected connection serves the notice and its way to Settings at every size, then on desktop the
+// reconnect that SimpleFIN lists differently. That reconnect changes the connection, so it comes last
+test('stops on a rejected connection, then asks for the bank account again once it is relisted', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
-  const { connection } = await linkIntoFault(request, user, account.id, (scenarioId) => revokeBridgeAccess(request, scenarioId))
+  const { scenario, connection } = await linkIntoFault(request, user, account.id, (scenarioId) => revokeBridgeAccess(request, scenarioId))
   await waitForConnection(request, user, connection.id, (current) => current.status === 'credential_rejected')
-
   await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, 'Needs reconnection')
-  // The notice's full wording is the Bank link section's unit tests' to hold
-  const notice = dialog.getByText(/^SimpleFIN Bridge rejected the connection this account uses\./)
-  const openSettings = dialog.getByRole('button', { name: 'Open settings' })
-  await expect(notice).toBeVisible()
 
-  // The notice's action is what resumes the sync, so the modal opens on it rather than on the link's own actions
-  await expect(openSettings).toBeFocused()
+  await test.step('stops on a rejected connection, with a notice that leads to Settings to reconnect it', async () => {
+    const dialog = await openBankLink(page, account.id, 'Needs reconnection')
+    // The notice's full wording is the Bank link section's unit tests' to hold
+    const notice = dialog.getByText(/^SimpleFIN Bridge rejected the connection this account uses\./)
+    const openSettings = dialog.getByRole('button', { name: 'Open settings' })
+    await expect(notice).toBeVisible()
 
-  // Beside the text from 640px, and on its own row under it on a phone
-  const [noticeBox, actionBox] = await Promise.all([notice.boundingBox(), openSettings.boundingBox()])
-  if (page.viewportSize()!.width >= NOTICE_ROW_MIN_WIDTH) {
-    expect(actionBox!.x).toBeGreaterThanOrEqual(noticeBox!.x + noticeBox!.width)
-  } else {
-    expect(actionBox!.y).toBeGreaterThanOrEqual(noticeBox!.y + noticeBox!.height)
-  }
+    // The notice's action is what resumes the sync, so the modal opens on it rather than on the link's own actions
+    await expect(openSettings).toBeFocused()
 
-  // Settings opens with that connection's modal over it, where Reconnect lives
-  await openSettings.click()
-  await expect(page).toHaveURL(/\/settings#bank-connections$/)
-  const connectionModal = page.getByRole('dialog')
-  await expect(connectionModal).toHaveCount(1)
-  await expect(connectionModal.getByRole('button', { name: /^Reconnect/ })).toBeVisible()
-  // The request is cleared from the history entry once it is read
-  await expect.poll(() => page.evaluate(() => (history.state as { usr?: unknown } | null)?.usr ?? null)).toBeNull()
+    // Beside the text from 640px, and on its own row under it on a phone
+    const [noticeBox, actionBox] = await Promise.all([notice.boundingBox(), openSettings.boundingBox()])
+    if (page.viewportSize()!.width >= NOTICE_ROW_MIN_WIDTH) {
+      expect(actionBox!.x).toBeGreaterThanOrEqual(noticeBox!.x + noticeBox!.width)
+    } else {
+      expect(actionBox!.y).toBeGreaterThanOrEqual(noticeBox!.y + noticeBox!.height)
+    }
 
-  // Closing leaves the user on Settings with focus on that connection's row, and Back then forward
-  // never reopens it
-  await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(page.locator(`[data-connection-id="${connection.id}"] button`)).toBeFocused()
-  await page.goBack()
-  await expect(page).toHaveURL(/\/accounts\/[^/]+$/)
-  await page.goForward()
-  await expect(page.locator('#bank-connections')).toBeVisible()
-  await expect(page.getByRole('dialog')).toHaveCount(0)
+    // Settings opens with that connection's modal over it, where Reconnect lives
+    await openSettings.click()
+    await expect(page).toHaveURL(/\/settings#bank-connections$/)
+    const connectionModal = page.getByRole('dialog')
+    await expect(connectionModal).toHaveCount(1)
+    await expect(connectionModal.getByRole('button', { name: /^Reconnect/ })).toBeVisible()
+    // The request is cleared from the history entry once it is read
+    await expect.poll(() => page.evaluate(() => (history.state as { usr?: unknown } | null)?.usr ?? null)).toBeNull()
+
+    // Closing leaves the user on Settings with focus on that connection's row, and Back then forward
+    // never reopens it
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.locator(`[data-connection-id="${connection.id}"] button`)).toBeFocused()
+    await page.goBack()
+    await expect(page).toHaveURL(/\/accounts\/[^/]+$/)
+    await page.goForward()
+    await expect(page.locator('#bank-connections')).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+
+  // The relisted account is the same at every size, so only desktop runs it
+  if (test.info().project.name !== 'desktop') return
+
+  await test.step('asks for the bank account again once SimpleFIN lists it differently, opening the choice from the notice', async () => {
+    // SimpleFIN lists the bank account differently once reconnected, so the link waits for it to be chosen again
+    const chequing = connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!
+    await changeBridgeBankAccountId(request, scenario.id, chequing.external_id, `${chequing.external_id}-relisted`)
+    const reconnected = await request.post(`${API_BASE_URL}/bank-sync/connections/${connection.id}/reconnect`, {
+      headers: asUser(user),
+      data: { credentials: { setup_token: await createBridgeSetupToken(request, scenario.id) } },
+    })
+    expect(reconnected.ok()).toBe(true)
+
+    const dialog = await openBankLink(page, account.id, 'Choose bank account')
+    await expect(dialog.getByText(/^SimpleFIN now lists Everyday Chequing differently/)).toBeVisible()
+    await dialog.getByRole('button', { name: 'Choose bank account', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: 'Choose bank account again' })).toBeVisible()
+  })
 })
 
 test('stops on a bank asking for its sign-in, saying where to sign in again', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -577,26 +629,4 @@ test('stops on a bank asking for its sign-in, saying where to sign in again', NE
   await logInViaApi(page, user)
   const dialog = await openBankLink(page, account.id, 'Needs bank sign-in')
   await expect(dialog.getByText('Please sign in to your bank again in SimpleFIN Bridge.', { exact: true })).toBeVisible()
-})
-
-test('asks for the bank account again once SimpleFIN lists it differently, opening the choice from the notice', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const { scenario, connection } = await linkIntoFault(request, user, account.id, (scenarioId) => revokeBridgeAccess(request, scenarioId))
-  await waitForConnection(request, user, connection.id, (current) => current.status === 'credential_rejected')
-
-  // SimpleFIN lists the bank account differently once reconnected, so the link waits for it to be chosen again
-  const chequing = connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!
-  await changeBridgeBankAccountId(request, scenario.id, chequing.external_id, `${chequing.external_id}-relisted`)
-  const reconnected = await request.post(`${API_BASE_URL}/bank-sync/connections/${connection.id}/reconnect`, {
-    headers: asUser(user),
-    data: { credentials: { setup_token: await createBridgeSetupToken(request, scenario.id) } },
-  })
-  expect(reconnected.ok()).toBe(true)
-
-  await logInViaApi(page, user)
-  const dialog = await openBankLink(page, account.id, 'Choose bank account')
-  await expect(dialog.getByText(/^SimpleFIN now lists Everyday Chequing differently/)).toBeVisible()
-  await dialog.getByRole('button', { name: 'Choose bank account', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: 'Choose bank account again' })).toBeVisible()
 })

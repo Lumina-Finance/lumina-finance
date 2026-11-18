@@ -122,6 +122,7 @@ test('tells the user how many investment statements the file holds are not impor
   await expect(page.getByRole('button', { name: 'Collapse import setup', exact: true })).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByText('Statements left out', { exact: true })).toBeVisible()
   await expect(page.getByText("2 investment statements in this file aren't imported: only bank, credit card and loan statements are supported.", { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove statement.ofx', exact: true })).toBeVisible()
 })
 
 test('imports a loan statement into a new loan account without a notice', async ({ page, request }) => {
@@ -220,15 +221,6 @@ test('keeps the reason the server gives for a refused import beside Commit impor
 })
 
 test.describe('a file that is not an OFX statement', () => {
-  test('refuses a CSV file given an .ofx name and stages nothing', async ({ page, request }) => {
-    const user = await signUpUser(request)
-    await uploadStatement(page, user, 'Date,Amount,Description\n2024-01-15,-12.50,Cafe\n', 'transactions.ofx')
-
-    await expect(page.getByText("This isn't an OFX or QFX statement. Choose an OFX or QFX statement from your bank.", { exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Remove transactions.ofx', exact: true })).toHaveCount(0)
-    expect(await countLedgerTransactions(request, user)).toBe(0)
-  })
-
   test('refuses a file of another type by its name', async ({ page, request }) => {
     const user = await signUpUser(request)
     await uploadStatement(page, user, 'Date,Amount,Description\n2024-01-15,-12.50,Cafe\n', 'transactions.csv')

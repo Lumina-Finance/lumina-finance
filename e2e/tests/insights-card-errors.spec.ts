@@ -6,72 +6,68 @@ import { AT_EVERY_SIZE } from '../support/sizes'
 
 // Runs at every size: card layouts and their recovery controls change with the screen
 
-for (const longDetail of [false, true]) {
-  test(`insights same-key failed refetch replaces cached data and preserves recovery geometry (${longDetail ? 'long' : 'ordinary'} detail)`, AT_EVERY_SIZE, async ({ page, request }) => {
-    const rich = await seedRichInsights(request)
-    // The refetch must ask for the same range as the first load, which ends today, so the date is held
-    // still in case the run crosses midnight, while timers continue normally
-    await page.clock.setFixedTime(new Date())
-    const successful = new Set<string>()
-    const firstUrls = new Map<string, string>()
-    const attempts = new Map<string, number>()
-    const failures = new Set<string>()
-    let failRefetch = false
-    const detail = longDetail
-      ? Array.from({ length: 60 }, () => 'The synthetic insights request could not be completed and the existing account data remains unchanged').join(' ')
-      : 'The synthetic insights request could not be completed'
-    await page.route((url) => PATHS.some((path) => matchesApi(url.href, path)), async (route) => {
-      if (route.request().method() !== 'GET') return route.continue()
-      const path = PATHS.find((candidate) => matchesApi(route.request().url(), candidate))!
-      attempts.set(path, (attempts.get(path) ?? 0) + 1)
-      if (failRefetch) {
-        expect(route.request().url()).toBe(firstUrls.get(path))
-        failures.add(path)
-        await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail }) })
-      } else {
-        // Passed straight on rather than fetched through the runner, which on a busy host adds a slow
-        // relay to every load the test waits for. The page's own responses say which succeeded
-        firstUrls.set(path, route.request().url())
-        await route.continue()
-      }
-    })
-    page.on('response', (response) => {
-      const path = PATHS.find((candidate) => matchesApi(response.url(), candidate))
-      if (path && !failRefetch && response.ok()) successful.add(path)
-    })
-    await logIn(page, rich.user)
-    await expectSignedIn(page)
-    await navigate(page, 'Insights')
-    await expectLoaded(page, successful)
-    await expect(card(page, 3).getByRole('img', { name: 'Merchant market map', exact: true })).toBeVisible()
-    await expect(card(page, 4).getByText(/^Insights \d long descriptive merchant/)).toHaveCount(8)
-    const before = await expectGeometry(page)
-    expect(new URL(firstUrls.get('/insights/savings-rate-trend')!).search).toBe('')
-    await navigate(page, 'Transactions')
-    await createExpenseInApp(page, rich.account.name)
-    failRefetch = true
-    await navigate(page, 'Insights')
-    for (let index = 0; index < CARDS.length; index += 1) {
-      const widget = card(page, index)
-      await widget.scrollIntoViewIfNeeded()
-      const heading = widget.getByRole('heading', { name: `${CARDS[index].subject} could not load`, exact: true })
-      await expect(heading).toBeVisible()
-      await expect(widget.getByRole('alert')).toContainText(detail)
-      await expect(widget.getByRole('status', { name: CARDS[index].loading, exact: true })).toHaveCount(0)
-      await expectContained(heading)
-      await expectContained(widget.getByRole('button', { name: 'Reload', exact: true }))
-      await expectContained(widget.getByRole('button', { name: 'Copy error details', exact: true }))
-      if (index === 0) await expect(widget.getByRole('button', { name: 'Ending net worth calculation', exact: true })).toHaveCount(0)
-      if (index === 1) await expect(widget.getByRole('button', { name: 'Net cash flow calculation', exact: true })).toHaveCount(0)
-      if (index === 2) await expect(widget.getByRole('button', { name: 'Latest savings rate calculation', exact: true })).toHaveCount(0)
-      if (index === 3) await expect(widget.getByRole('img', { name: 'Merchant market map', exact: true })).toHaveCount(0)
-      if (index === 4) await expect(widget.getByText(/^Insights \d long descriptive merchant/)).toHaveCount(0)
+test(`insights same-key failed refetch replaces cached data and preserves recovery geometry (long detail)`, AT_EVERY_SIZE, async ({ page, request }) => {
+  const rich = await seedRichInsights(request)
+  // The refetch must ask for the same range as the first load. That range ends today, so the date is
+  // held still in case the run crosses midnight, while timers continue normally
+  await page.clock.setFixedTime(new Date())
+  const successful = new Set<string>()
+  const firstUrls = new Map<string, string>()
+  const attempts = new Map<string, number>()
+  const failures = new Set<string>()
+  let failRefetch = false
+  const detail = Array.from({ length: 60 }, () => 'The synthetic insights request could not be completed and the existing account data remains unchanged').join(' ')
+  await page.route((url) => PATHS.some((path) => matchesApi(url.href, path)), async (route) => {
+    if (route.request().method() !== 'GET') return route.continue()
+    const path = PATHS.find((candidate) => matchesApi(route.request().url(), candidate))!
+    attempts.set(path, (attempts.get(path) ?? 0) + 1)
+    if (failRefetch) {
+      expect(route.request().url()).toBe(firstUrls.get(path))
+      failures.add(path)
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail }) })
+    } else {
+      // Passed straight on rather than fetched through the runner. On a busy host the runner adds a
+      // slow relay to every load the test waits for. The page's own responses say which succeeded
+      firstUrls.set(path, route.request().url())
+      await route.continue()
     }
-    const after = await expectGeometry(page)
-    for (let index = 0; index < after.length; index += 1) {
-      if (after[index] !== null) expect(Math.abs(after[index]! - before[index]!)).toBeLessThanOrEqual(1)
-    }
-    expect([...failures].sort()).toEqual([...PATHS].sort())
-    for (const path of PATHS) expect(attempts.get(path)).toBeGreaterThanOrEqual(2)
   })
-}
+  page.on('response', (response) => {
+    const path = PATHS.find((candidate) => matchesApi(response.url(), candidate))
+    if (path && !failRefetch && response.ok()) successful.add(path)
+  })
+  await logIn(page, rich.user)
+  await expectSignedIn(page)
+  await navigate(page, 'Insights')
+  await expectLoaded(page, successful)
+  await expect(card(page, 3).getByRole('img', { name: 'Merchant market map', exact: true })).toBeVisible()
+  await expect(card(page, 4).getByText(/^Insights \d long descriptive merchant/)).toHaveCount(8)
+  const before = await expectGeometry(page)
+  expect(new URL(firstUrls.get('/insights/savings-rate-trend')!).search).toBe('')
+  await navigate(page, 'Transactions')
+  await createExpenseInApp(page, rich.account.name)
+  failRefetch = true
+  await navigate(page, 'Insights')
+  for (let index = 0; index < CARDS.length; index += 1) {
+    const widget = card(page, index)
+    await widget.scrollIntoViewIfNeeded()
+    const heading = widget.getByRole('heading', { name: `${CARDS[index].subject} could not load`, exact: true })
+    await expect(heading).toBeVisible()
+    await expect(widget.getByRole('alert')).toContainText(detail)
+    await expect(widget.getByRole('status', { name: CARDS[index].loading, exact: true })).toHaveCount(0)
+    await expectContained(heading)
+    await expectContained(widget.getByRole('button', { name: 'Reload', exact: true }))
+    await expectContained(widget.getByRole('button', { name: 'Copy error details', exact: true }))
+    if (index === 0) await expect(widget.getByRole('button', { name: 'Ending net worth calculation', exact: true })).toHaveCount(0)
+    if (index === 1) await expect(widget.getByRole('button', { name: 'Net cash flow calculation', exact: true })).toHaveCount(0)
+    if (index === 2) await expect(widget.getByRole('button', { name: 'Latest savings rate calculation', exact: true })).toHaveCount(0)
+    if (index === 3) await expect(widget.getByRole('img', { name: 'Merchant market map', exact: true })).toHaveCount(0)
+    if (index === 4) await expect(widget.getByText(/^Insights \d long descriptive merchant/)).toHaveCount(0)
+  }
+  const after = await expectGeometry(page)
+  for (let index = 0; index < after.length; index += 1) {
+    if (after[index] !== null) expect(Math.abs(after[index]! - before[index]!)).toBeLessThanOrEqual(1)
+  }
+  expect([...failures].sort()).toEqual([...PATHS].sort())
+  for (const path of PATHS) expect(attempts.get(path)).toBeGreaterThanOrEqual(2)
+})

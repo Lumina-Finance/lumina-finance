@@ -7,9 +7,10 @@ import { faintestText } from '../support/contrast'
 import { MINUS, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 
-// Runs on desktop only, apart from the closed strip test and the light theme's readable text test.
-// Those run at every size: a phone moves the explanation inside the opened strip, and the strip has to fit every
-// width
+// Runs on desktop only, apart from the closed strip test's count and list and the light theme's readable
+// text. Those run at every size: a phone moves the explanation inside the opened strip, and the strip has to
+// fit every width. The press on a row, the filters, the account's page and the dark theme follow them on
+// desktop
 
 // Transactions the bank hasn't posted yet show in a muted strip under the review block, read-only
 // and outside the ledger.
@@ -126,77 +127,73 @@ async function answerThreePending(page: Page, { everyday, visa, savings }: Accou
   return asked
 }
 
-test('shows the pending count closed, and each pending transaction newest first once opened', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await answerThreePending(page, await start(page, request))
-
-  await openPage(page, '/transactions')
-
-  // Closed, with the explanation beside the count except on phones. There it waits inside
+// The three pending transactions serve the closed count and the opened list at every size, then on
+// desktop the press on a row, the filter and an account's own page. The page opens afresh for the
+// account's page, so the filter leaves nothing behind
+test('shows the pending count closed, and each pending transaction newest first once opened, then opens nothing from a row and counts only the accounts it is filtered to', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const accounts = await start(page, request)
+  const asked = await answerThreePending(page, accounts)
   const strip = pendingStrip(page)
   const toggle = strip.getByRole('button', { name: /^3 pending/ })
   const rows = strip.getByRole('listitem')
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
-  await expect(toggle).toHaveAccessibleName(isPhoneLayout(page) ? '3 pending' : '3 pending · Not in your balance until settlement')
-  await expect(rows).toHaveCount(0)
 
-  await toggle.click()
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
-  await expect(rows).toHaveCount(3)
-  const explanationInside = strip.getByText('Not in your balance until settlement.')
-  if (isPhoneLayout(page)) await expect(explanationInside).toBeVisible()
-  else await expect(explanationInside).toBeHidden()
-  await expect(rows.nth(0)).toContainText('UBER TRIP')
-  await expect(rows.nth(0)).toContainText('Sep 23 · Everyday · Pending · Checked 3 hours ago')
-  await expect(rows.nth(0)).toContainText(`${MINUS}$18.00`)
-  await expect(rows.nth(1)).toContainText('Sep 21 · Everyday · Pending · Checked 3 hours ago')
-  await expect(rows.nth(2)).toContainText('Sep 20 · Visa · Pending · Checked 3 days ago')
-  await expect(rows.nth(2)).toContainText(`${MINUS}$240.00`)
-})
+  await test.step('shows the pending count closed, and each pending transaction newest first once opened', async () => {
+    await openPage(page, '/transactions')
 
-test('opens nothing from a pending row', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await answerThreePending(page, await start(page, request))
-  await openPage(page, '/transactions')
-  const strip = pendingStrip(page)
-  await strip.getByRole('button', { name: /^3 pending/ }).click()
+    // Closed, with the explanation beside the count except on phones. There it waits inside
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(toggle).toHaveAccessibleName(isPhoneLayout(page) ? '3 pending' : '3 pending · Not in your balance until settlement')
+    await expect(rows).toHaveCount(0)
 
-  const row = strip.getByRole('listitem').first()
-  await row.click()
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await expect(rows).toHaveCount(3)
+    const explanationInside = strip.getByText('Not in your balance until settlement.')
+    if (isPhoneLayout(page)) await expect(explanationInside).toBeVisible()
+    else await expect(explanationInside).toBeHidden()
+    await expect(rows.nth(0)).toContainText('UBER TRIP')
+    await expect(rows.nth(0)).toContainText('Sep 23 · Everyday · Pending · Checked 3 hours ago')
+    await expect(rows.nth(0)).toContainText(`${MINUS}$18.00`)
+    await expect(rows.nth(1)).toContainText('Sep 21 · Everyday · Pending · Checked 3 hours ago')
+    await expect(rows.nth(2)).toContainText('Sep 20 · Visa · Pending · Checked 3 days ago')
+    await expect(rows.nth(2)).toContainText(`${MINUS}$240.00`)
+  })
 
-  await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(row).not.toBeFocused()
-})
+  // The filters and the account's page are the same at every size, so only desktop runs them
+  if (test.info().project.name !== 'desktop') return
 
-test('counts only the accounts the list is filtered to, hiding for those with nothing pending', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const accounts = await start(page, request)
-  const asked = await answerThreePending(page, accounts)
-  await openPage(page, '/transactions')
-  const strip = pendingStrip(page)
-  await expect(strip.getByRole('button', { name: /^3 pending/ })).toBeVisible()
+  await test.step('opens nothing from a pending row', async () => {
+    const row = rows.first()
+    await row.click()
+    await expect(row).not.toBeFocused()
 
-  await filterTransactions(page, 'Accounts', 'Visa')
+    // Closing the strip is the fence: a dialogue the press opened would show by the time it has closed
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
 
-  await expect(strip.getByRole('button', { name: /^1 pending/ })).toBeVisible()
-  expect(asked.at(-1)).toEqual([accounts.visa.id])
+  await test.step('counts only the accounts the list is filtered to, hiding for those with nothing pending', async () => {
+    await filterTransactions(page, 'Accounts', 'Visa')
 
-  await filterTransactions(page, 'Accounts', 'Visa', 1)
-  await filterTransactions(page, 'Accounts', 'Savings')
+    await expect(strip.getByRole('button', { name: /^1 pending/ })).toBeVisible()
+    expect(asked.at(-1)).toEqual([accounts.visa.id])
 
-  await expect(strip).toBeHidden()
-  expect(asked.at(-1)).toEqual([accounts.savings.id])
-})
+    await filterTransactions(page, 'Accounts', 'Visa', 1)
+    await filterTransactions(page, 'Accounts', 'Savings')
 
-test("shows only an account's own pending transactions on its page, leaving out its name", NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const accounts = await start(page, request)
-  await answerThreePending(page, accounts)
+    await expect(strip).toBeHidden()
+    expect(asked.at(-1)).toEqual([accounts.savings.id])
+  })
 
-  await openPage(page, `/accounts/${accounts.everyday.id}`)
+  await test.step("shows only an account's own pending transactions on its page, leaving out its name", async () => {
+    await openPage(page, `/accounts/${accounts.everyday.id}`)
 
-  const strip = pendingStrip(page)
-  const rows = strip.getByRole('listitem')
-  await strip.getByRole('button', { name: /^2 pending/ }).click()
-  await expect(rows).toHaveCount(2)
-  await expect(rows.first()).toContainText('Sep 23 · Pending · Checked 3 hours ago')
-  await expect(strip).not.toContainText('Everyday')
+    await strip.getByRole('button', { name: /^2 pending/ }).click()
+    await expect(rows).toHaveCount(2)
+    await expect(rows.first()).toContainText('Sep 23 · Pending · Checked 3 hours ago')
+    await expect(strip).not.toContainText('Everyday')
+  })
 })
 
 // Asked as the page's clock starts, since a real sync can't be timed to it
@@ -332,15 +329,16 @@ test("reads the server's pending transactions for every account and for several 
   await expect(page.getByText('Pending bank transactions could not load.')).toHaveCount(0)
 })
 
-for (const colorScheme of ['light', 'dark'] as const) {
-  // Only the light run places the strip, so only it runs at every size
-  test(`${colorScheme === 'light' ? 'sits under the review block and above the list, its' : 'keeps its'} text readable in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE_NEEDS_BANK_SYNC : NEEDS_BANK_SYNC, async ({ page, request }) => {
-    const { everyday, visa } = await start(page, request)
-    await page.route(isRead('/bank-review/items'), (route) => route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)], { new: 1 }) }))
-    await answerPending(page, () => [
-      pendingTransaction('uber', everyday.id, { description: 'UBER TRIP WITH A LONGER BANK DESCRIPTION THAN MOST' }),
-      pendingTransaction('refund', visa.id, { description: 'HARBOUR REFUND', amount: 4250 }),
-    ])
+// Only the light run places the strip, so only it runs at every size. The dark run follows it on desktop
+test('sits under the review block and above the list, its text readable in the light and dark themes', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const { everyday, visa } = await start(page, request)
+  await page.route(isRead('/bank-review/items'), (route) => route.fulfill({ json: pageOf([reviewItem('everyday-1', 'new', everyday.id)], { new: 1 }) }))
+  await answerPending(page, () => [
+    pendingTransaction('uber', everyday.id, { description: 'UBER TRIP WITH A LONGER BANK DESCRIPTION THAN MOST' }),
+    pendingTransaction('refund', visa.id, { description: 'HARBOUR REFUND', amount: 4250 }),
+  ])
+
+  const readInTheme = async (colorScheme: 'light' | 'dark') => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
 
     await openPage(page, '/transactions')
@@ -398,5 +396,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
     for (const text of texts) {
       expect((await faintestText(text)).contrast, await text.textContent() ?? '').toBeGreaterThanOrEqual(4.5)
     }
-  })
-}
+  }
+
+  await test.step('sits under the review block and above the list, its text readable in the light theme', () => readInTheme('light'))
+  if (test.info().project.name === 'desktop') {
+    await test.step('keeps its text readable in the dark theme', () => readInTheme('dark'))
+  }
+})

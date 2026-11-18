@@ -27,9 +27,9 @@ import { expectTransactionRow, getTransactionRowButton, MINUS } from '../support
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the light theme's filing card test and the footer and short phone
-// screen tests. Those run at every size: the card and the footer take their own layouts at each width,
-// and a phone gives the dialogue its whole screen
+// Runs on desktop only, apart from the filing card test and the short phone screen test. Those run at
+// every size: the card and the footer take their own layouts at each width, and a phone gives the dialogue
+// its whole screen. The card test's dark theme and its footer on desktop follow its light theme
 
 // A new bank item opens from its row in the review block in the transaction modal. The item is filed
 // into the ledger or dismissed.
@@ -150,58 +150,166 @@ async function readWaiting(request: APIRequestContext, user: TestUser, accountId
   return (await readReviewItems(request, user, accountId)).map((item) => item.bank.description)
 }
 
-test('opens a new item as the bank sent it beside its filing card, and adds nothing until a merchant and category are chosen', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { user, everyday } = await start(page, request, [COUNTDOWN])
-  await openPage(page, '/transactions')
+/**
+ * Catches the width ease the app starts with the next change of the Dismiss button's label. The ease is moved
+ * to its start and then to a quarter of its length to read the drawn width at each, then returned to the time
+ * the ease had reached, so the ease carries on unchanged. The ease's curve covers most of the change by
+ * halfway, so a quarter leaves room beside the 1px tolerance. A change with no ease gives null
+ */
+function catchEase(form: ReturnType<typeof formOf>) {
+  return form.dismiss.or(form.confirmDismiss).evaluateHandle((button) => {
+    const label = button.getAttribute('aria-label')
+    return {
+      widths: new Promise<{ start: number; quarter: number } | null>((resolve) => {
+        const observer = new MutationObserver(() => {
+          if (button.getAttribute('aria-label') === label) return
+          observer.disconnect()
+          const ease = button.getAnimations().find((animation) => animation.id === 'eased-width')
+          if (!ease) {
+            resolve(null)
+            return
+          }
+          const playedTo = ease.currentTime
+          const widthAt = (time: number) => {
+            ease.currentTime = time
+            return button.getBoundingClientRect().width
+          }
+          const start = widthAt(0)
+          const quarter = widthAt(Number(ease.effect!.getComputedTiming().duration) / 4)
+          ease.currentTime = playedTo
+          resolve({ start, quarter })
+        })
+        observer.observe(button, { attributes: true, attributeFilter: ['aria-label'] })
+      }),
+    }
+  })
+}
 
-  const dialog = await openReview(page, COUNTDOWN.description)
-  const form = formOf(dialog)
-  const decisions = watchDecisions(page)
-  await expect(dialog.getByText('New from SimpleFIN', { exact: true })).toBeVisible()
+// Two items wait for all three steps. The first two change nothing on the server, and each opens the page
+// afresh, so the second finds no dialogue or draft the first left. The dismissals come last, since they
+// change what waits
+test('opens a new item beside its filing card, and dismisses it only on a second press', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR])
 
-  // An expense, since the money went out, for the bank's amount on its date in the account it came to.
-  // That account stays put
-  const [year, month, day] = COUNTDOWN.posted.split('-')
-  await expect(dialog.getByRole('tab', { name: 'Expense', exact: true })).toHaveAttribute('aria-selected', 'true')
-  await expect(form.amount).toHaveValue('42.10')
-  await expect(form.year).toHaveValue(year)
-  await expect(form.month).toHaveValue(month)
-  await expect(form.day).toHaveValue(day)
-  await expect(form.account).toContainText('Everyday')
-  await expect(form.account).toHaveAttribute('aria-disabled', 'true')
-  await expect(form.account).toHaveAccessibleDescription(/A bank item stays in the account whose bank sent it/)
-  await expectMerchantAndCategoryEmpty(dialog)
+  await test.step('opens a new item as the bank sent it beside its filing card, and adds nothing until a merchant and category are chosen', async () => {
+    await openPage(page, '/transactions')
 
-  // Closing leaves the item waiting, so the header's Close is the only way out besides a decision
-  await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0)
-  await expect(form.keepOpen).not.toBeChecked()
-  await expect(form.keepOpen).toHaveAccessibleName('Keep window open Review one item after another')
+    const dialog = await openReview(page, COUNTDOWN.description)
+    const form = formOf(dialog)
+    const decisions = watchDecisions(page)
+    await expect(dialog.getByText('New from SimpleFIN', { exact: true })).toBeVisible()
 
-  // Add to ledger is the form's submit, so it announces the submit shortcut as every dialogue's does
-  await expect(form.add).toHaveAttribute('aria-keyshortcuts', 'Alt+Enter')
-  await expect(form.dismiss).not.toHaveAttribute('aria-keyshortcuts')
+    // An expense, since the money went out, for the bank's amount on its date in the account it came to.
+    // That account stays put
+    const [year, month, day] = COUNTDOWN.posted.split('-')
+    await expect(dialog.getByRole('tab', { name: 'Expense', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await expect(form.amount).toHaveValue('42.10')
+    await expect(form.year).toHaveValue(year)
+    await expect(form.month).toHaveValue(month)
+    await expect(form.day).toHaveValue(day)
+    await expect(form.account).toContainText('Everyday')
+    await expect(form.account).toHaveAttribute('aria-disabled', 'true')
+    await expect(form.account).toHaveAccessibleDescription(/A bank item stays in the account whose bank sent it/)
+    await expectMerchantAndCategoryEmpty(dialog)
 
-  // The card's fields are covered with the card, leaving what the link and the item's account bring it
-  const card = filingCard(page)
-  await expect(card).toContainText('Harbour Bank')
-  await expect(card).toContainText('Everyday Chequing')
-  await expect(card).toContainText(COUNTDOWN.description)
+    // Closing leaves the item waiting, so the header's Close is the only way out besides a decision
+    await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toHaveCount(0)
+    await expect(form.keepOpen).not.toBeChecked()
+    await expect(form.keepOpen).toHaveAccessibleName('Keep window open Review one item after another')
 
-  // The bank's description starts the notes, and the user may change them
-  await expect(form.notes).toHaveValue(COUNTDOWN.description)
+    // Add to ledger is the form's submit, so it announces the submit shortcut as every dialogue's does
+    await expect(form.add).toHaveAttribute('aria-keyshortcuts', 'Alt+Enter')
+    await expect(form.dismiss).not.toHaveAttribute('aria-keyshortcuts')
 
-  // As every other dialogue's submit, Add to ledger stays whole until a press finds what is missing, then fades
-  await expect(form.add).not.toHaveAttribute('aria-disabled', 'true')
-  await form.add.click()
-  await expect(form.merchant).toHaveAttribute('aria-invalid', 'true')
-  await expect(form.category).toHaveAttribute('aria-invalid', 'true')
-  await expect(form.merchant).toHaveAccessibleDescription('Select or create a merchant')
-  await expect(form.category).toHaveAccessibleDescription('Select a category')
-  await expect(form.add).toHaveAttribute('aria-disabled', 'true')
-  await expect(form.add).toHaveAccessibleDescription('Select or create a merchant')
-  expect(decisions).toEqual([])
-  await expect(dialog).toBeVisible()
-  expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description])
+    // The card's fields are covered with the card, leaving what the link and the item's account bring it
+    const card = filingCard(page)
+    await expect(card).toContainText('Harbour Bank')
+    await expect(card).toContainText('Everyday Chequing')
+    await expect(card).toContainText(COUNTDOWN.description)
+
+    // The bank's description starts the notes, and the user may change them
+    await expect(form.notes).toHaveValue(COUNTDOWN.description)
+
+    // As every other dialogue's submit, Add to ledger stays whole until a press finds what is missing, then fades
+    await expect(form.add).not.toHaveAttribute('aria-disabled', 'true')
+    await form.add.click()
+    await expect(form.merchant).toHaveAttribute('aria-invalid', 'true')
+    await expect(form.category).toHaveAttribute('aria-invalid', 'true')
+    await expect(form.merchant).toHaveAccessibleDescription('Select or create a merchant')
+    await expect(form.category).toHaveAccessibleDescription('Select a category')
+    await expect(form.add).toHaveAttribute('aria-disabled', 'true')
+    await expect(form.add).toHaveAccessibleDescription('Select or create a merchant')
+    expect(decisions).toEqual([])
+    await expect(dialog).toBeVisible()
+    expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description, HARBOUR.description])
+  })
+
+  // Dismiss widens to Yes, dismiss and back over the app's ease rather than jumping. The ease is caught as the app
+  // starts it, before any frame is drawn, and the button's width read at its start and a quarter of the way through,
+  // so a busy runner that draws few frames can't make an ease look like a jump. A jump starts no ease and so fails the test
+  await test.step('eases Dismiss to Yes, dismiss and back rather than jumping between their widths', async () => {
+    await openPage(page, '/transactions')
+    const dialog = await openReview(page, COUNTDOWN.description)
+    const form = formOf(dialog)
+    await expect(form.dismiss).toBeVisible()
+
+    // The dialogue slides and scales in as it opens, beside the filing card or alone, so the narrow width is read
+    // once the entrance has ended
+    const narrow = (await readSettledBox(form.dismiss)).width
+    const widening = await catchEase(form)
+    await form.dismiss.click()
+    await expect(form.confirmDismiss).toBeVisible()
+    const wideningEase = await widening.evaluate((watch) => watch.widths)
+    const wide = (await readSettledBox(form.confirmDismiss)).width
+    expect(wide).toBeGreaterThan(narrow + 10)
+    expect(wideningEase, 'Dismiss eases to Yes, dismiss').not.toBeNull()
+    expect(Math.abs(wideningEase!.start - narrow)).toBeLessThanOrEqual(1)
+    expect(wideningEase!.quarter).toBeLessThan(wide - 1)
+
+    const narrowing = await catchEase(form)
+    await dialog.getByRole('heading', { name: 'Review bank item' }).click()
+    await expect(form.dismiss).toBeVisible()
+    const narrowingEase = await narrowing.evaluate((watch) => watch.widths)
+    expect(narrowingEase, 'Yes, dismiss eases back to Dismiss').not.toBeNull()
+    expect(Math.abs(narrowingEase!.start - wide)).toBeLessThanOrEqual(1)
+    expect(narrowingEase!.quarter).toBeGreaterThan(narrow + 1)
+  })
+
+  await test.step('dismisses only on a second press, by mouse or keyboard, and takes the first back when the user moves on', async () => {
+    await openPage(page, '/transactions')
+
+    const dialog = await openReview(page, COUNTDOWN.description)
+    const form = formOf(dialog)
+    const decisions = watchDecisions(page)
+    const announcement = dialog.getByRole('status').filter({ hasText: 'Please press again to dismiss this item for good.' })
+
+    // One press only asks and tells a screen reader of the question. A press elsewhere takes the question back
+    await expect(form.dismiss).toHaveClass(/app-danger-button/)
+    await form.dismiss.click()
+    await expect(form.confirmDismiss).toBeVisible()
+    await expect(announcement).toHaveCount(1)
+    await dialog.getByRole('heading', { name: 'Review bank item' }).click()
+    await expect(form.dismiss).toBeVisible()
+    await expect(announcement).toHaveCount(0)
+    expect(decisions).toEqual([])
+
+    // Moving focus on with the keyboard takes it back too
+    await form.dismiss.focus()
+    await page.keyboard.press('Enter')
+    await expect(form.confirmDismiss).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(form.dismiss).toBeVisible()
+    expect(decisions).toEqual([])
+    expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description, HARBOUR.description])
+
+    // The second press from the keyboard decides, and the window closes with the next item still waiting
+    await form.dismiss.focus()
+    await page.keyboard.press('Enter')
+    await page.keyboard.press('Space')
+    await expect(dialog).toBeHidden()
+    expect(decisions).toEqual(['dismiss'])
+    expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
+  })
 })
 
 test('opens a bank description over 500 characters whole in Notes, and takes typing after it in review and once in the ledger', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -331,43 +439,6 @@ test('records money in from Savings as one transfer that names Savings, kept as 
     counterparty_account_scope: 'tracked',
   })
   expect(await countLedgerTransactions(request, user)).toBe(1)
-  expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
-})
-
-test('dismisses only on a second press, by mouse or keyboard, and takes the first back when the user moves on', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR])
-  await openPage(page, '/transactions')
-
-  const dialog = await openReview(page, COUNTDOWN.description)
-  const form = formOf(dialog)
-  const decisions = watchDecisions(page)
-  const announcement = dialog.getByRole('status').filter({ hasText: 'Please press again to dismiss this item for good.' })
-
-  // One press only asks, saying so to a screen reader, and a press elsewhere takes it back
-  await expect(form.dismiss).toHaveClass(/app-danger-button/)
-  await form.dismiss.click()
-  await expect(form.confirmDismiss).toBeVisible()
-  await expect(announcement).toHaveCount(1)
-  await dialog.getByRole('heading', { name: 'Review bank item' }).click()
-  await expect(form.dismiss).toBeVisible()
-  await expect(announcement).toHaveCount(0)
-  expect(decisions).toEqual([])
-
-  // Moving focus on with the keyboard takes it back too
-  await form.dismiss.focus()
-  await page.keyboard.press('Enter')
-  await expect(form.confirmDismiss).toBeFocused()
-  await page.keyboard.press('Tab')
-  await expect(form.dismiss).toBeVisible()
-  expect(decisions).toEqual([])
-  expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description, HARBOUR.description])
-
-  // The second press from the keyboard decides, and the window closes with the next item still waiting
-  await form.dismiss.focus()
-  await page.keyboard.press('Enter')
-  await page.keyboard.press('Space')
-  await expect(dialog).toBeHidden()
-  expect(decisions).toEqual(['dismiss'])
   expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
 })
 
@@ -506,110 +577,135 @@ test('opens an amount its currency cannot hold empty, and adds the item once one
   })
 })
 
-for (const colorScheme of ['light', 'dark'] as const) {
-  // Only the light run places the card, so only it runs at every size
-  test(`${colorScheme === 'light' ? 'hangs the filing card beside the form or heads it, readable' : 'keeps the filing card readable'} in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE_NEEDS_BANK_SYNC : NEEDS_BANK_SYNC, async ({ page, request }) => {
-    await start(page, request, [COUNTDOWN])
-    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
-    await openPage(page, '/transactions')
+/**
+ * Reads the filing card's labels, its note and the contrast of its text in the theme the page is showing.
+ * The card's own layout is the same in either theme, so the caller measures where it sits
+ */
+async function expectFilingCardReadable(page: Page, colorScheme: 'light' | 'dark'): Promise<void> {
+  const card = filingCard(page)
 
-    if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
-    else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
-    const dialog = await openReview(page, COUNTDOWN.description)
-    const card = filingCard(page)
-    const amount = formOf(dialog).amount
-    const viewport = page.viewportSize()!
+  // The bank's merchant is a row like the others and its note closes the card under its own label, both
+  // labels set in capitals. SimpleFIN names no merchant, so its row shows a dash
+  for (const label of ['Merchant', 'Note']) {
+    const term = card.getByText(label, { exact: true })
+    expect(await term.evaluate((shown) => (shown as HTMLElement).innerText)).toBe(label.toUpperCase())
+  }
+  await expect(card.getByRole('definition').first()).toHaveText('—')
 
-    // The layout is the same in either theme, so it is measured in the light one only
-    if (colorScheme === 'light') {
-      // Beside the dialogue, level with its top, wherever there is room, and otherwise at the head of the
-      // form inside it. A phone gives the dialogue its whole screen. Read once the dialogue has settled
-      await expect(async () => {
-        const [dialogBox, cardBox, amountBox] = await Promise.all([dialog, card, amount].map((part) => part.boundingBox()))
-        if (viewport.width >= ASIDE_MIN_WIDTH) {
-          expect(cardBox!.x).toBeGreaterThan(dialogBox!.x + dialogBox!.width)
-          expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(viewport.width)
-          expect(Math.abs(cardBox!.y - dialogBox!.y)).toBeLessThan(40)
-        } else {
-          expect(cardBox!.y + cardBox!.height).toBeLessThanOrEqual(amountBox!.y)
-        }
-        if (viewport.width < FULL_SCREEN_BELOW) expect(dialogBox).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height })
-      }).toPass()
-      await expect(dialog.getByRole('region', { name: 'SimpleFIN filing card' })).toHaveCount(viewport.width >= ASIDE_MIN_WIDTH ? 0 : 1)
-      expect(await dialog.evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true)
-    }
-
-    // The bank's merchant is a row like the others and its note closes the card under its own label, both
-    // labels set in capitals. SimpleFIN names no merchant, so its row shows a dash
-    for (const label of ['Merchant', 'Note']) {
-      const term = card.getByText(label, { exact: true })
-      expect(await term.evaluate((shown) => (shown as HTMLElement).innerText)).toBe(label.toUpperCase())
-    }
-    await expect(card.getByRole('definition').first()).toHaveText('—')
-
-    // The note is justified, and its section paints over the card's rules in the card's own colour so none
-    // runs between its lines, with one rule drawn under it to close it
-    const note = await card.getByRole('definition').last().evaluate((value) => {
-      const section = getComputedStyle(value.parentElement!)
-      return {
-        textAlign: getComputedStyle(value).textAlign,
-        sectionBackground: section.backgroundColor,
-        cardBackground: getComputedStyle(value.closest('[role="region"]')!).backgroundColor,
-        closingRule: section.boxShadow,
-      }
-    })
-    expect(note.textAlign).toBe('justify')
-    expect(note.sectionBackground).toBe(note.cardBackground)
-    expect(note.sectionBackground).not.toBe('rgba(0, 0, 0, 0)')
-    expect(note.closingRule).toMatch(/ 0px -1px 0px 0px inset$/)
-
-    const texts = [
-      page.getByText('SimpleFIN', { exact: true }).filter({ visible: true }).first(),
-      card.getByText('Harbour Bank', { exact: true }),
-      card.getByText('New', { exact: true }),
-      card.getByText('Everyday Chequing', { exact: true }),
-      card.getByText(COUNTDOWN.description, { exact: true }),
-      ...await card.locator('dt, dd').all(),
-    ]
-    for (const text of texts) {
-      expect((await faintestText(text)).contrast, `${await text.textContent()} in the ${colorScheme} theme`).toBeGreaterThanOrEqual(4.5)
+  // The note is justified, and its section paints over the card's rules in the card's own colour so none
+  // runs between its lines, with one rule drawn under it to close it
+  const note = await card.getByRole('definition').last().evaluate((value) => {
+    const section = getComputedStyle(value.parentElement!)
+    return {
+      textAlign: getComputedStyle(value).textAlign,
+      sectionBackground: section.backgroundColor,
+      cardBackground: getComputedStyle(value.closest('[role="region"]')!).backgroundColor,
+      closingRule: section.boxShadow,
     }
   })
+  expect(note.textAlign).toBe('justify')
+  expect(note.sectionBackground).toBe(note.cardBackground)
+  expect(note.sectionBackground).not.toBe('rgba(0, 0, 0, 0)')
+  expect(note.closingRule).toMatch(/ 0px -1px 0px 0px inset$/)
+
+  const texts = [
+    page.getByText('SimpleFIN', { exact: true }).filter({ visible: true }).first(),
+    card.getByText('Harbour Bank', { exact: true }),
+    card.getByText('New', { exact: true }),
+    card.getByText('Everyday Chequing', { exact: true }),
+    card.getByText(COUNTDOWN.description, { exact: true }),
+    ...await card.locator('dt, dd').all(),
+  ]
+  for (const text of texts) {
+    expect((await faintestText(text)).contrast, `${await text.textContent()} in the ${colorScheme} theme`).toBeGreaterThanOrEqual(4.5)
+  }
 }
 
+// One item serves the card in each theme and the footer. The light theme runs at every size, since it places
+// the card. The dark theme differs from it in colour alone. It and the footer's two layouts follow on
+// desktop, the footer on the phone too. Every step opens the page afresh, and the footer comes last so its
+// width and the default motion setting touch no step before it. The tablet has no footer step, as before.
+//
 // Below 1050 the form sits further from the right edge than the left, and the footer once padded both
 // sides alike, so Keep window open started further in than the title and the form's numbered sections,
 // and Add to ledger stopped short of where the fields end. The footer stacks its items below 640 and sets
 // them in a row from there, so each layout is checked once: stacked on the phone, and in a row at the
 // widest screen the dialogue fills
-for (const { project, width } of [{ project: 'phone', width: null }, { project: 'desktop', width: 1049 }] as const) {
-  test(`lines the footer up with the form above it on the ${project}`, AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-    test.skip(test.info().project.name !== project, 'Each layout of the footer is checked at one width')
-    await start(page, request, [COUNTDOWN])
-    if (width) await page.setViewportSize({ width, height: page.viewportSize()!.height })
+test('places the filing card by the form in each theme, and lines the footer up with the form', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+  await start(page, request, [COUNTDOWN])
+  const project = test.info().project.name
+
+  await test.step('hangs the filing card beside the form or heads it, readable in the light theme', async () => {
+    await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
     await openPage(page, '/transactions')
 
+    await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
     const dialog = await openReview(page, COUNTDOWN.description)
-    const form = formOf(dialog)
-    // Measured together and polled, since the dialogue scales in as it opens and edges read mid-animation
-    // drift apart by however far it has to go. Keep window open's checkbox starts the footer, as it does
-    // in the Add Transaction footer, and Amount ends the fields
-    const readEdgeOffsets = async () => {
-      const [keepOpen, add, title, amount] = await Promise.all([
-        dialog.getByRole('checkbox', { name: /Keep window open/ }).boundingBox(),
-        form.add.boundingBox(),
-        dialog.getByRole('heading', { name: DIALOG_NAME, exact: true }).boundingBox(),
-        form.amount.boundingBox(),
-      ])
-      return {
-        left: Math.round(keepOpen!.x - title!.x) || 0,
-        right: Math.round(add!.x + add!.width - (amount!.x + amount!.width)) || 0,
-      }
-    }
+    const card = filingCard(page)
+    const amount = formOf(dialog).amount
+    const viewport = page.viewportSize()!
 
-    await expect.poll(readEdgeOffsets).toEqual({ left: 0, right: 0 })
+    // Beside the dialogue, level with its top, wherever there is room, and otherwise at the head of the
+    // form inside it. A phone gives the dialogue its whole screen. Read once the dialogue has settled
+    await expect(async () => {
+      const [dialogBox, cardBox, amountBox] = await Promise.all([dialog, card, amount].map((part) => part.boundingBox()))
+      if (viewport.width >= ASIDE_MIN_WIDTH) {
+        expect(cardBox!.x).toBeGreaterThan(dialogBox!.x + dialogBox!.width)
+        expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(viewport.width)
+        expect(Math.abs(cardBox!.y - dialogBox!.y)).toBeLessThan(40)
+      } else {
+        expect(cardBox!.y + cardBox!.height).toBeLessThanOrEqual(amountBox!.y)
+      }
+      if (viewport.width < FULL_SCREEN_BELOW) expect(dialogBox).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height })
+    }).toPass()
+    await expect(dialog.getByRole('region', { name: 'SimpleFIN filing card' })).toHaveCount(viewport.width >= ASIDE_MIN_WIDTH ? 0 : 1)
+    expect(await dialog.evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true)
+
+    await expectFilingCardReadable(page, 'light')
   })
-}
+
+  // The layout is the same in either theme, so only the colours are read again, and on desktop alone
+  if (project === 'desktop') {
+    await test.step('keeps the filing card readable in the dark theme', async () => {
+      await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' })
+      await openPage(page, '/transactions')
+
+      await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+      await openReview(page, COUNTDOWN.description)
+
+      await expectFilingCardReadable(page, 'dark')
+    })
+  }
+
+  // Each layout of the footer is checked at one width: stacked on the phone, in a row on desktop
+  if (project === 'phone' || project === 'desktop') {
+    await test.step(`lines the footer up with the form above it on the ${project}`, async () => {
+      await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' })
+      if (project === 'desktop') await page.setViewportSize({ width: 1049, height: page.viewportSize()!.height })
+      await openPage(page, '/transactions')
+
+      const dialog = await openReview(page, COUNTDOWN.description)
+      const form = formOf(dialog)
+      // Measured together and polled, since the dialogue scales in as it opens and edges read mid-animation
+      // drift apart by however far it has to go. Keep window open's checkbox starts the footer, as it does
+      // in the Add Transaction footer, and Amount ends the fields
+      const readEdgeOffsets = async () => {
+        const [keepOpen, add, title, amount] = await Promise.all([
+          dialog.getByRole('checkbox', { name: /Keep window open/ }).boundingBox(),
+          form.add.boundingBox(),
+          dialog.getByRole('heading', { name: DIALOG_NAME, exact: true }).boundingBox(),
+          form.amount.boundingBox(),
+        ])
+        return {
+          left: Math.round(keepOpen!.x - title!.x) || 0,
+          right: Math.round(add!.x + add!.width - (amount!.x + amount!.width)) || 0,
+        }
+      }
+
+      await expect.poll(readEdgeOffsets).toEqual({ left: 0, right: 0 })
+    })
+  }
+})
 
 // A short phone screen. The card heading the form leaves most of the form below the fold
 test.describe('on a short phone screen', AT_EVERY_SIZE_NEEDS_BANK_SYNC, () => {
@@ -618,120 +714,60 @@ test.describe('on a short phone screen', AT_EVERY_SIZE_NEEDS_BANK_SYNC, () => {
     await page.setViewportSize({ width: 390, height: 667 })
   })
 
-  test('starts on the first field to fill in, the amount where the bank’s can’t be used', NEEDS_BANK_SYNC, async ({ page, request }) => {
-    await start(page, request, [COUNTDOWN, { ...HARBOUR, amount: '-12.505' }])
-    await openPage(page, '/transactions')
+  // Three items wait for four steps. Cafe's amount can't be held by the currency, so its form starts on the
+  // amount. Every step opens the page afresh. The failed dismissal's stand-in is lifted before the last
+  // step. That step really dismisses Countdown and so comes last
+  test('starts each item on the first field to fill in, and shows the next item from the top of its form', NEEDS_BANK_SYNC, async ({ page, request }) => {
+    await start(page, request, [COUNTDOWN, HARBOUR, { ...CAFE, amount: '-8.755' }])
 
-    const dialog = await openReview(page, COUNTDOWN.description)
-    await expect(formOf(dialog).merchant).toBeFocused()
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
-    await expect(dialog).toBeHidden()
+    await test.step('starts on the first field to fill in, the amount where the bank’s can’t be used', async () => {
+      await openPage(page, '/transactions')
 
-    await openReview(page, HARBOUR.description)
-    await expect(formOf(dialog).amount).toBeFocused()
-  })
+      const dialog = await openReview(page, COUNTDOWN.description)
+      await expect(formOf(dialog).merchant).toBeFocused()
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+      await expect(dialog).toBeHidden()
 
-  test('shows the next item from the top of its form, wherever the last one was scrolled to', NEEDS_BANK_SYNC, async ({ page, request }) => {
-    await start(page, request, [COUNTDOWN, HARBOUR])
-    await openPage(page, '/transactions')
-
-    const dialog = await openReview(page, COUNTDOWN.description)
-    const form = formOf(dialog)
-    await form.keepOpen.check()
-    await form.amount.scrollIntoViewIfNeeded()
-    await expect(filingCard(page)).not.toBeInViewport()
-    await dismissItem(dialog)
-
-    await expect(filingCard(page)).toContainText(HARBOUR.description)
-    await expect(filingCard(page)).toBeInViewport()
-  })
-
-  test('brings the first field Add still needs into view, and focuses it', NEEDS_BANK_SYNC, async ({ page, request }) => {
-    await start(page, request, [COUNTDOWN])
-    await openPage(page, '/transactions')
-
-    const dialog = await openReview(page, COUNTDOWN.description)
-    const form = formOf(dialog)
-    await form.add.click()
-
-    await expect(form.merchant).toBeFocused()
-    await expect(form.merchant).toBeInViewport({ ratio: 1 })
-  })
-
-  test('brings a failed decision’s message into view', NEEDS_BANK_SYNC, async ({ page, request }) => {
-    await start(page, request, [COUNTDOWN])
-
-    // The dismissal fails as the server never would
-    await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), (route) =>
-      route.fulfill({ status: 409, json: { detail: DISMISS_REFUSED } }))
-    await openPage(page, '/transactions')
-
-    const dialog = await openReview(page, COUNTDOWN.description)
-    await dismissItem(dialog)
-
-    await expect(dialog.getByText(DISMISS_REFUSED, { exact: true })).toBeInViewport({ ratio: 1 })
-  })
-})
-
-// Dismiss widens to Yes, dismiss and back over the app's ease rather than jumping. The ease is caught as the app
-// starts it, before any frame is drawn, and the button's width read at its start and a quarter of the way through,
-// so a busy runner that draws few frames can't make an ease look like a jump. A jump starts no ease and so fails the test
-test('eases Dismiss to Yes, dismiss and back rather than jumping between their widths', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await start(page, request, [COUNTDOWN])
-  await openPage(page, '/transactions')
-  const dialog = await openReview(page, COUNTDOWN.description)
-  const form = formOf(dialog)
-  await expect(form.dismiss).toBeVisible()
-  // Watches the button through its next change of label. The width ease the app starts with that change is moved
-  // to its start and then to a quarter of its length to read the drawn width at each, then returned to the time the
-  // ease had reached, so the ease carries on unchanged. The ease's curve covers most of the change by halfway, so a
-  // quarter leaves room beside the 1px tolerance. A change with no ease gives null
-  const catchEase = () =>
-    form.dismiss.or(form.confirmDismiss).evaluateHandle((button) => {
-      const label = button.getAttribute('aria-label')
-      return {
-        widths: new Promise<{ start: number; quarter: number } | null>((resolve) => {
-          const observer = new MutationObserver(() => {
-            if (button.getAttribute('aria-label') === label) return
-            observer.disconnect()
-            const ease = button.getAnimations().find((animation) => animation.id === 'eased-width')
-            if (!ease) {
-              resolve(null)
-              return
-            }
-            const playedTo = ease.currentTime
-            const widthAt = (time: number) => {
-              ease.currentTime = time
-              return button.getBoundingClientRect().width
-            }
-            const start = widthAt(0)
-            const quarter = widthAt(Number(ease.effect!.getComputedTiming().duration) / 4)
-            ease.currentTime = playedTo
-            resolve({ start, quarter })
-          })
-          observer.observe(button, { attributes: true, attributeFilter: ['aria-label'] })
-        }),
-      }
+      await openReview(page, CAFE.description)
+      await expect(formOf(dialog).amount).toBeFocused()
     })
 
-  // The dialogue slides and scales in as it opens, beside the filing card or alone, so the narrow width is read
-  // once the entrance has ended
-  const narrow = (await readSettledBox(form.dismiss)).width
-  const widening = await catchEase()
-  await form.dismiss.click()
-  await expect(form.confirmDismiss).toBeVisible()
-  const wideningEase = await widening.evaluate((watch) => watch.widths)
-  const wide = (await readSettledBox(form.confirmDismiss)).width
-  expect(wide).toBeGreaterThan(narrow + 10)
-  expect(wideningEase, 'Dismiss eases to Yes, dismiss').not.toBeNull()
-  expect(Math.abs(wideningEase!.start - narrow)).toBeLessThanOrEqual(1)
-  expect(wideningEase!.quarter).toBeLessThan(wide - 1)
+    await test.step('brings the first field Add still needs into view, and focuses it', async () => {
+      await openPage(page, '/transactions')
 
-  const narrowing = await catchEase()
-  await dialog.getByRole('heading', { name: 'Review bank item' }).click()
-  await expect(form.dismiss).toBeVisible()
-  const narrowingEase = await narrowing.evaluate((watch) => watch.widths)
-  expect(narrowingEase, 'Yes, dismiss eases back to Dismiss').not.toBeNull()
-  expect(Math.abs(narrowingEase!.start - wide)).toBeLessThanOrEqual(1)
-  expect(narrowingEase!.quarter).toBeGreaterThan(narrow + 1)
+      const dialog = await openReview(page, COUNTDOWN.description)
+      const form = formOf(dialog)
+      await form.add.click()
+
+      await expect(form.merchant).toBeFocused()
+      await expect(form.merchant).toBeInViewport({ ratio: 1 })
+    })
+
+    await test.step('brings a failed decision’s message into view', async () => {
+      // The dismissal fails as the server never would
+      await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), (route) =>
+        route.fulfill({ status: 409, json: { detail: DISMISS_REFUSED } }))
+      await openPage(page, '/transactions')
+
+      const dialog = await openReview(page, COUNTDOWN.description)
+      await dismissItem(dialog)
+
+      await expect(dialog.getByText(DISMISS_REFUSED, { exact: true })).toBeInViewport({ ratio: 1 })
+      await page.unrouteAll({ behavior: 'ignoreErrors' })
+    })
+
+    await test.step('shows the next item from the top of its form, wherever the last one was scrolled to', async () => {
+      await openPage(page, '/transactions')
+
+      const dialog = await openReview(page, COUNTDOWN.description)
+      const form = formOf(dialog)
+      await form.keepOpen.check()
+      await form.amount.scrollIntoViewIfNeeded()
+      await expect(filingCard(page)).not.toBeInViewport()
+      await dismissItem(dialog)
+
+      await expect(filingCard(page)).toContainText(HARBOUR.description)
+      await expect(filingCard(page)).toBeInViewport()
+    })
+  })
 })

@@ -38,6 +38,14 @@ const COUNTDOWN = { posted: daysFromTodayInTestTimezone(-2), amount: '-42.10', d
 const HARBOUR = { posted: daysFromTodayInTestTimezone(-4), amount: '-12.50', description: 'HARBOUR COFFEE' } as const
 const CAFE = { posted: daysFromTodayInTestTimezone(-6), amount: '-8.75', description: 'CAFE ROMA' } as const
 
+// The bank sends a tenth of a cent. The account's currency can't hold that, so the amount has to be typed in
+const UNPRICED = { posted: daysFromTodayInTestTimezone(-3), amount: '-3.333', description: 'PARKING METER' } as const
+
+// Three more that wait below the others, for the items a test dismisses once the others have been added
+const BOOKSHOP = { posted: daysFromTodayInTestTimezone(-7), amount: '-21.00', description: 'BOOKSHOP' } as const
+const TAXI = { posted: daysFromTodayInTestTimezone(-8), amount: '-15.30', description: 'TAXI CO' } as const
+const PHARMACY = { posted: daysFromTodayInTestTimezone(-9), amount: '-6.40', description: 'PHARMACY' } as const
+
 // The day of the one ledger transaction. Its checkbox is named by it
 const LEDGER_DATE = daysFromTodayInTestTimezone(-20)
 
@@ -68,9 +76,14 @@ async function start(page: Page, request: APIRequestContext, transactions: Bridg
   })
   await waitForReviewItems(request, user, everyday.id, (items) => items.length === transactions.length)
   await logInViaApi(page, user)
+  await startSelecting(page)
+  return { user, everyday, savings, ledgerId }
+}
+
+/** Opens the transactions page afresh and turns on selecting, with nothing ticked */
+async function startSelecting(page: Page): Promise<void> {
   await openPage(page, '/transactions')
   await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
-  return { user, everyday, savings, ledgerId }
 }
 
 /** Ticks a new item in the review block */
@@ -164,158 +177,170 @@ async function readLedger(request: APIRequestContext, user: TestUser, accountId:
   return (await response.json()) as { dt: string; amount: number; category_id: string; merchant_id: string }[]
 }
 
-test('adds the ticked items to the ledger at their bank amounts once a merchant and category are chosen', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR, CAFE])
-  await tickItem(page, COUNTDOWN.description)
-  await tickItem(page, HARBOUR.description)
+// The review block lists the four newest items and holds the rest back, so the steps run in the order
+// that keeps each step's items among them. The steps that only read go first, since the phone widths they
+// set are put back and each later step opens the page afresh with nothing ticked. A step that adds or
+// dismisses goes after them, and its ledger read counts what the steps before it added
+test('keeps Edit off over an item missing its amount, fits the phone bar and wraps a row, then adds, updates and dismisses the ticked items', NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const { user, everyday, ledgerId } = await start(page, request, [COUNTDOWN, UNPRICED, HARBOUR, CAFE, BOOKSHOP, TAXI, PHARMACY])
+  const viewport = page.viewportSize()!
 
-  // Items waiting for review aren't in the ledger, so they can't be deleted or exported
-  const deleteAction = page.getByRole('button', { name: 'Delete the selected transactions', exact: true })
-  await expect(deleteAction).toHaveAccessibleDescription('Use Dismiss, not Delete, for items waiting for review')
-  await expect(page.getByRole('button', { name: 'Export selected', exact: true })).toHaveAccessibleDescription(
-    "Items waiting for review aren't in your ledger yet",
-  )
+  await test.step('keeps Edit off while a ticked item is missing its amount', async () => {
+    await tickItem(page, COUNTDOWN.description)
+    await tickItem(page, UNPRICED.description)
+    await tickLedger(page)
 
-  await page.getByRole('button', { name: 'Edit the selected transactions', exact: true }).click()
-  const edit = page.getByRole('dialog', { name: 'Add 2 items to your ledger', exact: true })
-  await expect(edit).toBeVisible()
-  await expect(edit.getByText('Account & Direction', { exact: true })).toHaveCount(0)
+    const editAction = page.getByRole('button', { name: 'Edit the selected transactions', exact: true })
+    await expect(editAction).toHaveAccessibleDescription('Items missing an amount are added one at a time')
+    await editAction.click({ force: true })
+    await expect(page.getByRole('dialog')).toHaveCount(0)
 
-  // Nothing is sent until both are chosen
-  const writes: string[] = []
-  page.on('request', (sent) => {
-    if (sent.method() === 'POST' && sent.url().includes('/bank-review/items/bulk-')) writes.push(sent.url())
+    // Unticking it lets the rest be edited together
+    await page.getByRole('checkbox', { name: `Select ${UNPRICED.description}, waiting for review`, exact: true }).uncheck()
+    await expect(editAction).not.toHaveAccessibleDescription('Items missing an amount are added one at a time')
+    await editAction.click()
+    await expect(page.getByRole('dialog', { name: 'Add 1 item and update 1 transaction', exact: true })).toBeVisible()
+    expect(await readWaiting(request, user, everyday.id)).toEqual([
+      COUNTDOWN, UNPRICED, HARBOUR, CAFE, BOOKSHOP, TAXI, PHARMACY,
+    ].map(({ description }) => description))
   })
-  const add = edit.getByRole('button', { name: 'Add 2 to ledger', exact: true })
-  await add.click()
 
-  // Each field marks itself as missing, as any form's required field does, and the button keeps the reason
-  const merchant = edit.getByRole('combobox', { name: 'Merchant' })
-  const category = edit.getByRole('combobox', { name: 'Category' })
-  await expect(edit.getByRole('alert').filter({ hasText: 'Select a merchant' })).toBeVisible()
-  await expect(edit.getByRole('alert').filter({ hasText: 'Select a category' })).toBeVisible()
-  await expect(merchant).toHaveAttribute('aria-invalid', 'true')
-  await expect(category).toHaveAttribute('aria-invalid', 'true')
-  await expect(merchant).toBeFocused()
-  await expect(add).toHaveAccessibleDescription('Please choose a merchant and a category to add items to your ledger')
-  expect(writes).toEqual([])
+  await test.step('keeps every action inside the phone selection bar while Dismiss is offered', async () => {
+    await startSelecting(page)
+    await expect(page.getByRole('button', { name: 'Dismiss the selected items', exact: true })).toBeAttached()
 
-  await chooseFromDropdown(edit, 'Merchant', 'Unknown')
-  await expect(merchant).not.toHaveAttribute('aria-invalid', 'true')
-  await expect(category).toHaveAttribute('aria-invalid', 'true')
-  await chooseFromDropdown(edit, 'Category', 'Groceries')
-  const saved = page.waitForResponse((response) => response.url() === `${API_BASE_URL}/bank-review/items/bulk-add`)
-  await add.click()
-  expect((await saved).status()).toBe(200)
+    await expectPhoneBarFits(page)
+  })
 
-  await expect(edit).toBeHidden()
-  await expect(page.getByText('Added 2 items to your ledger.', { exact: true })).toBeVisible()
-  expect(await readWaiting(request, user, everyday.id)).toEqual([CAFE.description])
+  await test.step("wraps a review row's detail line between whole phrases on a phone while selecting", async () => {
+    const wrapped: number[] = []
 
-  const groceries = await findReferenceId(request, user, 'categories', 'Groceries')
-  const ledger = await readLedger(request, user, everyday.id)
-  expect(ledger.map(({ dt, amount, category_id }) => ({ dt, amount, category_id }))).toEqual([
-    { dt: COUNTDOWN.posted, amount: -4210, category_id: groceries },
-    { dt: HARBOUR.posted, amount: -1250, category_id: groceries },
-  ])
-})
+    // Read until it holds, since the row takes a moment to settle into a new width
+    for (const width of PHONE_WIDTHS) {
+      await page.setViewportSize({ width, height: 844 })
+      await expect.poll(async () => {
+        const { lineLines, phraseLines, phraseFits } = await readNeedsPhraseLines(page, COUNTDOWN.description)
+        if (lineLines > 1 && !wrapped.includes(width)) wrapped.push(width)
+        return phraseFits ? phraseLines : 1
+      }, { message: `the needs phrase at ${width}px` }).toBe(1)
+    }
+    // The check means something only where the line had to wrap
+    expect(wrapped).toContain(390)
+    await page.setViewportSize(viewport)
+  })
 
-test('adds a ticked item and updates a ticked ledger transaction in one edit', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { user, everyday, ledgerId } = await start(page, request, [CAFE])
-  await tickItem(page, CAFE.description)
-  await tickLedger(page)
+  await test.step('adds the ticked items to the ledger at their bank amounts once a merchant and category are chosen', async () => {
+    await startSelecting(page)
+    await tickItem(page, COUNTDOWN.description)
+    await tickItem(page, HARBOUR.description)
 
-  // A ledger transaction in the selection can't be dismissed
-  const dismiss = page.getByRole('button', { name: 'Dismiss the selected items', exact: true })
-  await expect(dismiss).toHaveAccessibleDescription('Dismiss works only on items waiting for review')
+    // Items waiting for review aren't in the ledger, so they can't be deleted or exported
+    const deleteAction = page.getByRole('button', { name: 'Delete the selected transactions', exact: true })
+    await expect(deleteAction).toHaveAccessibleDescription('Use Dismiss, not Delete, for items waiting for review')
+    await expect(page.getByRole('button', { name: 'Export selected', exact: true })).toHaveAccessibleDescription(
+      "Items waiting for review aren't in your ledger yet",
+    )
 
-  await page.getByRole('button', { name: 'Edit the selected transactions', exact: true }).click()
-  const edit = page.getByRole('dialog', { name: 'Add 1 item and update 1 transaction', exact: true })
-  await chooseFromDropdown(edit, 'Merchant', 'Unknown')
-  await chooseFromDropdown(edit, 'Category', 'Dining')
-  await edit.getByRole('button', { name: 'Add 1 and update 1', exact: true }).click()
+    await page.getByRole('button', { name: 'Edit the selected transactions', exact: true }).click()
+    const edit = page.getByRole('dialog', { name: 'Add 2 items to your ledger', exact: true })
+    await expect(edit).toBeVisible()
+    await expect(edit.getByText('Account & Direction', { exact: true })).toHaveCount(0)
 
-  const confirmation = page.getByRole('dialog', { name: 'Add 1 item and update 1 transaction?', exact: true })
-  const added = page.waitForResponse((response) => response.url() === `${API_BASE_URL}/bank-review/items/bulk-add`)
-  const updated = page.waitForResponse(
-    (response) => response.request().method() === 'PATCH' && response.url() === `${API_BASE_URL}/transactions/bulk`,
-  )
-  await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
-  expect((await added).status()).toBe(200)
-  expect((await updated).status()).toBe(200)
+    // Nothing is sent until both are chosen
+    const writes: string[] = []
+    page.on('request', (sent) => {
+      if (sent.method() === 'POST' && sent.url().includes('/bank-review/items/bulk-')) writes.push(sent.url())
+    })
+    const add = edit.getByRole('button', { name: 'Add 2 to ledger', exact: true })
+    await add.click()
 
-  await expect(page.getByText('Added 1 item to your ledger and updated 1 transaction.', { exact: true })).toBeVisible()
-  const dining = await findReferenceId(request, user, 'categories', 'Dining')
-  expect(await readWaiting(request, user, everyday.id)).toEqual([])
-  expect((await readTransaction(request, user, ledgerId)).category_id).toBe(dining)
-  expect((await readLedger(request, user, everyday.id)).map(({ amount, category_id }) => ({ amount, category_id }))).toEqual([
-    { amount: -875, category_id: dining },
-  ])
-})
+    // Each field marks itself as missing, as any form's required field does, and the button keeps the reason
+    const merchant = edit.getByRole('combobox', { name: 'Merchant' })
+    const category = edit.getByRole('combobox', { name: 'Category' })
+    await expect(edit.getByRole('alert').filter({ hasText: 'Select a merchant' })).toBeVisible()
+    await expect(edit.getByRole('alert').filter({ hasText: 'Select a category' })).toBeVisible()
+    await expect(merchant).toHaveAttribute('aria-invalid', 'true')
+    await expect(category).toHaveAttribute('aria-invalid', 'true')
+    await expect(merchant).toBeFocused()
+    await expect(add).toHaveAccessibleDescription('Please choose a merchant and a category to add items to your ledger')
+    expect(writes).toEqual([])
 
-test('keeps Edit off while a ticked item is missing its amount', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  // The bank sends a tenth of a cent, which the account's currency can't hold, so its amount has to be typed in
-  const UNPRICED = { posted: daysFromTodayInTestTimezone(-3), amount: '-3.333', description: 'PARKING METER' } as const
-  const { user, everyday } = await start(page, request, [COUNTDOWN, UNPRICED])
-  await tickItem(page, COUNTDOWN.description)
-  await tickItem(page, UNPRICED.description)
-  await tickLedger(page)
+    await chooseFromDropdown(edit, 'Merchant', 'Unknown')
+    await expect(merchant).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(category).toHaveAttribute('aria-invalid', 'true')
+    await chooseFromDropdown(edit, 'Category', 'Groceries')
+    const saved = page.waitForResponse((response) => response.url() === `${API_BASE_URL}/bank-review/items/bulk-add`)
+    await add.click()
+    expect((await saved).status()).toBe(200)
 
-  const editAction = page.getByRole('button', { name: 'Edit the selected transactions', exact: true })
-  await expect(editAction).toHaveAccessibleDescription('Items missing an amount are added one at a time')
-  await editAction.click({ force: true })
-  await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(edit).toBeHidden()
+    await expect(page.getByText('Added 2 items to your ledger.', { exact: true })).toBeVisible()
+    expect(await readWaiting(request, user, everyday.id)).toEqual([UNPRICED, CAFE, BOOKSHOP, TAXI, PHARMACY].map(({ description }) => description))
 
-  // Unticking it lets the rest be edited together
-  await page.getByRole('checkbox', { name: `Select ${UNPRICED.description}, waiting for review`, exact: true }).uncheck()
-  await expect(editAction).not.toHaveAccessibleDescription('Items missing an amount are added one at a time')
-  await editAction.click()
-  await expect(page.getByRole('dialog', { name: 'Add 1 item and update 1 transaction', exact: true })).toBeVisible()
-  expect(await readWaiting(request, user, everyday.id)).toEqual([COUNTDOWN.description, UNPRICED.description])
-})
+    const groceries = await findReferenceId(request, user, 'categories', 'Groceries')
+    const ledger = await readLedger(request, user, everyday.id)
+    expect(ledger.map(({ dt, amount, category_id }) => ({ dt, amount, category_id }))).toEqual([
+      { dt: COUNTDOWN.posted, amount: -4210, category_id: groceries },
+      { dt: HARBOUR.posted, amount: -1250, category_id: groceries },
+    ])
+  })
 
-test('dismisses the ticked items together and leaves the ledger as it was', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { user, everyday } = await start(page, request, [COUNTDOWN, HARBOUR, CAFE])
-  const dismiss = page.getByRole('button', { name: 'Dismiss the selected items', exact: true })
-  await expect(dismiss).toHaveAccessibleDescription('Please tick a transaction or review item first')
+  await test.step('adds a ticked item and updates a ticked ledger transaction in one edit', async () => {
+    await startSelecting(page)
+    await tickItem(page, CAFE.description)
+    await tickLedger(page)
 
-  await tickItem(page, COUNTDOWN.description)
-  await tickItem(page, CAFE.description)
-  await dismiss.click()
+    // A ledger transaction in the selection can't be dismissed
+    const dismiss = page.getByRole('button', { name: 'Dismiss the selected items', exact: true })
+    await expect(dismiss).toHaveAccessibleDescription('Dismiss works only on items waiting for review')
 
-  const confirmation = page.getByRole('dialog', { name: 'Dismiss 2 items?', exact: true })
-  await expect(confirmation.getByText("This can't be undone.", { exact: true })).toBeVisible()
-  const saved = page.waitForResponse((response) => response.url() === `${API_BASE_URL}/bank-review/items/bulk-dismiss`)
-  await confirmation.getByRole('button', { name: 'Dismiss', exact: true }).click()
-  expect((await saved).status()).toBe(200)
+    await page.getByRole('button', { name: 'Edit the selected transactions', exact: true }).click()
+    const edit = page.getByRole('dialog', { name: 'Add 1 item and update 1 transaction', exact: true })
+    await chooseFromDropdown(edit, 'Merchant', 'Unknown')
+    await chooseFromDropdown(edit, 'Category', 'Dining')
+    await edit.getByRole('button', { name: 'Add 1 and update 1', exact: true }).click()
 
-  await expect(page.getByText('Dismissed 2 items.', { exact: true })).toBeVisible()
-  expect(await readWaiting(request, user, everyday.id)).toEqual([HARBOUR.description])
-  expect(await readLedger(request, user, everyday.id)).toEqual([])
-})
+    const confirmation = page.getByRole('dialog', { name: 'Add 1 item and update 1 transaction?', exact: true })
+    const added = page.waitForResponse((response) => response.url() === `${API_BASE_URL}/bank-review/items/bulk-add`)
+    const updated = page.waitForResponse(
+      (response) => response.request().method() === 'PATCH' && response.url() === `${API_BASE_URL}/transactions/bulk`,
+    )
+    await confirmation.getByRole('button', { name: 'Confirm', exact: true }).click()
+    expect((await added).status()).toBe(200)
+    expect((await updated).status()).toBe(200)
 
-test('keeps every action inside the phone selection bar while Dismiss is offered', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await start(page, request, [COUNTDOWN, HARBOUR, CAFE])
-  await expect(page.getByRole('button', { name: 'Dismiss the selected items', exact: true })).toBeAttached()
+    await expect(page.getByText('Added 1 item to your ledger and updated 1 transaction.', { exact: true })).toBeVisible()
+    const dining = await findReferenceId(request, user, 'categories', 'Dining')
+    const groceries = await findReferenceId(request, user, 'categories', 'Groceries')
+    expect(await readWaiting(request, user, everyday.id)).toEqual([UNPRICED, BOOKSHOP, TAXI, PHARMACY].map(({ description }) => description))
+    expect((await readTransaction(request, user, ledgerId)).category_id).toBe(dining)
+    expect((await readLedger(request, user, everyday.id)).map(({ amount, category_id }) => ({ amount, category_id }))).toEqual([
+      { amount: -4210, category_id: groceries },
+      { amount: -1250, category_id: groceries },
+      { amount: -875, category_id: dining },
+    ])
+  })
 
-  await expectPhoneBarFits(page)
-})
+  await test.step('dismisses the ticked items together and leaves the ledger as it was', async () => {
+    await startSelecting(page)
+    const ledgerBefore = await readLedger(request, user, everyday.id)
+    const dismiss = page.getByRole('button', { name: 'Dismiss the selected items', exact: true })
+    await expect(dismiss).toHaveAccessibleDescription('Please tick a transaction or review item first')
 
-test("wraps a review row's detail line between whole phrases on a phone while selecting", NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await start(page, request, [COUNTDOWN])
-  const wrapped: number[] = []
+    await tickItem(page, BOOKSHOP.description)
+    await tickItem(page, PHARMACY.description)
+    await dismiss.click()
 
-  // Read until it holds, since the row takes a moment to settle into a new width
-  for (const width of PHONE_WIDTHS) {
-    await page.setViewportSize({ width, height: 844 })
-    await expect.poll(async () => {
-      const { lineLines, phraseLines, phraseFits } = await readNeedsPhraseLines(page, COUNTDOWN.description)
-      if (lineLines > 1 && !wrapped.includes(width)) wrapped.push(width)
-      return phraseFits ? phraseLines : 1
-    }, { message: `the needs phrase at ${width}px` }).toBe(1)
-  }
-  // The check means something only where the line had to wrap
-  expect(wrapped).toContain(390)
+    const confirmation = page.getByRole('dialog', { name: 'Dismiss 2 items?', exact: true })
+    await expect(confirmation.getByText("This can't be undone.", { exact: true })).toBeVisible()
+    const saved = page.waitForResponse((response) => response.url() === `${API_BASE_URL}/bank-review/items/bulk-dismiss`)
+    await confirmation.getByRole('button', { name: 'Dismiss', exact: true }).click()
+    expect((await saved).status()).toBe(200)
+
+    await expect(page.getByText('Dismissed 2 items.', { exact: true })).toBeVisible()
+    expect(await readWaiting(request, user, everyday.id)).toEqual([UNPRICED.description, TAXI.description])
+    expect(await readLedger(request, user, everyday.id)).toEqual(ledgerBefore)
+  })
 })
 
 test('keeps every action inside the phone selection bar with no item waiting for review', async ({ page, request }) => {

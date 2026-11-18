@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page, type Route } from '@playwright/test'
 
 import { asUser, createAccount, formatToday, signUpUser, todayInTestTimezone, type TestUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage, watchServerRequests } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openPage, waitForPageReady, watchServerRequests } from '../support/app'
 import {
   addBridgeBankAccount,
   addBridgeBankLogin,
@@ -25,8 +25,8 @@ import { expectMessageInCorner, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the linked account tile test (on the phone) and the linking
-// and reconnect tests (at every size): the institutions sit below the connection and its actions
+// Runs on desktop only, apart from the list name, status dot and actions test, the linked account tile test
+// (on the phone) and the linking and reconnect tests (at every size): the institutions sit below the connection and its actions
 // on a phone, the connection fills a phone's screen with its message still in the corner, and a folded
 // institution's count moves under its name on a phone. The rest set the window sizes they check
 // themselves or give the same result at every size
@@ -74,6 +74,12 @@ async function openBankConnections(page: Page, user: TestUser): Promise<Locator>
   const section = page.locator('#bank-connections')
   await expect(section.getByRole('status', { name: 'Loading bank connections' })).toHaveCount(0)
   return section
+}
+
+// Going to the address the page is already at, hash included, loads nothing anew, so a step reloads
+async function reloadPage(page: Page): Promise<void> {
+  await page.reload()
+  await waitForPageReady(page)
 }
 
 function connectionRow(section: Locator, name: string): Locator {
@@ -631,88 +637,90 @@ test('stops Save spinning as soon as a rename is saved and the modal can close a
   expect(looks).not.toContain('close enabled, save spinning')
 })
 
-test("fits a connection's name in the list at every size, so the columns never squeeze it", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One claimed connection serves the list's name and dot and the connection's two actions at every size.
+// The actions are read in the modal the dot step opened. Nothing since has changed it
+test("draws a connection's name, status dot and actions in the list", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const scenario = await createSampleBridgeScenario(request)
   await claimSetupToken(request, user, scenario.setupToken)
   const section = await openBankConnections(page, user)
+  let dialog: Locator
 
-  // The list takes its columns from its own width, which the sidebar and settings menu narrow, so at
-  // 1280 wide a screen-wide switch left the name 50px for its 70
-  // The name scrolls in place only when it overflows, which its data-overflow says
-  const name = connectionRow(section, 'SimpleFIN').locator('[data-overflow]').filter({ visible: true })
-  await expect(name).toHaveCount(1)
-  await expect(name).toHaveAttribute('data-overflow', 'false')
+  await test.step("fits a connection's name in the list at every size, so the columns never squeeze it", async () => {
+    // The list takes its columns from its own width, and the sidebar and settings menu narrow that, so at
+    // 1280 wide a screen-wide switch left the name 50px for its 70
+    // The name scrolls in place only when it overflows, and its data-overflow marks that. The component says
+    // false until it has measured, so the page waits for the fonts its measurement waits on and for two
+    // frames after them before the attribute is read
+    await page.evaluate(async () => {
+      await document.fonts.ready
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    })
+    const name = connectionRow(section, 'SimpleFIN').locator('[data-overflow]').filter({ visible: true })
+    await expect(name).toHaveCount(1)
+    await expect(name).toHaveAttribute('data-overflow', 'false')
+  })
+
+  await test.step("draws a connection's status as a round dot, never a dash", async () => {
+    const [listDot] = await readBoxes(page, [connectionRow(section, 'SimpleFIN').getByTestId('sync-status-dot').filter({ visible: true })])
+    expect(listDot.width).toBeGreaterThanOrEqual(8)
+    expect(listDot.height).toBeCloseTo(listDot.width, 0)
+
+    dialog = await openConnection(page, section, 'SimpleFIN')
+    const [factDot] = await readBoxes(page, [fact(dialog, 'Status').getByTestId('sync-status-dot')])
+    expect(factDot.height).toBeCloseTo(factDot.width, 0)
+  })
+
+  await test.step('gives Rename and Disconnect one width and clips neither label', async () => {
+    const rename = dialog.getByRole('button', { name: 'Rename' })
+    const disconnect = dialog.getByRole('button', { name: 'Disconnect' })
+    const [renameBox, disconnectBox] = await readBoxes(page, [rename, disconnect])
+    expect(Math.abs(renameBox.width - disconnectBox.width)).toBeLessThanOrEqual(1)
+    for (const button of [rename, disconnect]) {
+      expect(await button.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    }
+  })
 })
 
-test("draws a connection's status as a round dot, never a dash", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const scenario = await createSampleBridgeScenario(request)
-  await claimSetupToken(request, user, scenario.setupToken)
-  const section = await openBankConnections(page, user)
-
-  const [listDot] = await readBoxes(page, [connectionRow(section, 'SimpleFIN').getByTestId('sync-status-dot').filter({ visible: true })])
-  expect(listDot.width).toBeGreaterThanOrEqual(8)
-  expect(listDot.height).toBeCloseTo(listDot.width, 0)
-
-  const dialog = await openConnection(page, section, 'SimpleFIN')
-  const [factDot] = await readBoxes(page, [fact(dialog, 'Status').getByTestId('sync-status-dot')])
-  expect(factDot.height).toBeCloseTo(factDot.width, 0)
-})
-
-test("gives Rename and Disconnect one width and clips neither label", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const scenario = await createSampleBridgeScenario(request)
-  await claimSetupToken(request, user, scenario.setupToken)
-  const section = await openBankConnections(page, user)
-  const dialog = await openConnection(page, section, 'SimpleFIN')
-
-  const rename = dialog.getByRole('button', { name: 'Rename' })
-  const disconnect = dialog.getByRole('button', { name: 'Disconnect' })
-  const [renameBox, disconnectBox] = await readBoxes(page, [rename, disconnect])
-  expect(Math.abs(renameBox.width - disconnectBox.width)).toBeLessThanOrEqual(1)
-  for (const button of [rename, disconnect]) {
-    expect(await button.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
-  }
-})
-
-test("shows a connection's facts", NEEDS_BANK_SYNC, async ({ page, request }) => {
+// A new connection's requests left are read before its first link, and the link spends some. The link
+// changes the connection, so the facts that follow it come last
+test("shows a connection's requests left in its row, and then its facts", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const [household, scenario] = await Promise.all([
     createAccount(request, user, { name: 'Household' }),
     createSampleBridgeScenario(request),
   ])
   const connection = await claimSetupToken(request, user, scenario.setupToken, 'Joint banks')
-  const chequing = connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!
-  await linkBankAccount(request, user, {
-    accountId: household.id,
-    connectionId: connection.id,
-    externalAccountId: chequing.external_id,
-    startDate: todayInTestTimezone(),
+  const section = await openBankConnections(page, user)
+
+  // Connecting sends the token claim and one listing, and only the listing counts toward the requests
+  await test.step("shows each connection's requests left in its row, counting a new connection's listing alone", async () => {
+    await expect(section.getByText('Requests', { exact: true })).toBeVisible()
+    await expect(section.locator(`[data-connection-id="${connection.id}"]`)).toContainText('19 of 20 left')
   })
-  const section = await openBankConnections(page, user)
-  const dialog = await openConnection(page, section, 'Joint banks')
 
-  await expect(dialog.getByText('Bank connection', { exact: true })).toBeVisible()
-  await expect(fact(dialog, 'Status')).toHaveText('OK')
-  await expect(fact(dialog, 'Provider')).toHaveText('SimpleFIN')
-  await expect(fact(dialog, 'Server')).not.toBeEmpty()
-  await expect(fact(dialog, 'Added')).toHaveText(formatToday())
-  await expect(fact(dialog, 'Institutions linked')).toHaveText('1 · no limit')
-  // Left, as the row counts them
-  await expect(fact(dialog, 'Requests, 24 hours')).toHaveText(/^\d+ of 20 left$/)
-  await expect(dialog.getByRole('region', { name: 'Institutions · 1 of 2 bank accounts linked' })).toBeVisible()
-})
+  await test.step("shows a connection's facts", async () => {
+    const chequing = connection.accounts.find((bankAccount) => bankAccount.name === SAMPLE_CHEQUING)!
+    await linkBankAccount(request, user, {
+      accountId: household.id,
+      connectionId: connection.id,
+      externalAccountId: chequing.external_id,
+      startDate: todayInTestTimezone(),
+    })
+    await reloadPage(page)
+    await expect(section.getByRole('status', { name: 'Loading bank connections' })).toHaveCount(0)
+    const dialog = await openConnection(page, section, 'Joint banks')
 
-// Connecting sends the token claim and one listing, and only the listing counts toward the requests
-test("shows each connection's requests left in its row, counting a new connection's listing alone", NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const scenario = await createSampleBridgeScenario(request)
-  const connection = await claimSetupToken(request, user, scenario.setupToken, 'Joint banks')
-  const section = await openBankConnections(page, user)
-
-  await expect(section.getByText('Requests', { exact: true })).toBeVisible()
-  await expect(section.locator(`[data-connection-id="${connection.id}"]`)).toContainText('19 of 20 left')
+    await expect(dialog.getByText('Bank connection', { exact: true })).toBeVisible()
+    await expect(fact(dialog, 'Status')).toHaveText('OK')
+    await expect(fact(dialog, 'Provider')).toHaveText('SimpleFIN')
+    await expect(fact(dialog, 'Server')).not.toBeEmpty()
+    await expect(fact(dialog, 'Added')).toHaveText(formatToday())
+    await expect(fact(dialog, 'Institutions linked')).toHaveText('1 · no limit')
+    // Left, as the row counts them
+    await expect(fact(dialog, 'Requests, 24 hours')).toHaveText(/^\d+ of 20 left$/)
+    await expect(dialog.getByRole('region', { name: 'Institutions · 1 of 2 bank accounts linked' })).toBeVisible()
+  })
 })
 
 test("says a connection's provider is gone from the server, holding Reconnect back with the reason", AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -1069,45 +1077,48 @@ test('says to try again when Reconnect loses its answer, and shows the connectio
   await expect(row).not.toContainText('Needs reconnection')
 })
 
-test('shows a bank that needs signing in to on the connection and its institution', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  await claimConnectionNeedingSignIn(request, user)
-  const section = await openBankConnections(page, user)
-
-  await expect(connectionRow(section, 'SimpleFIN')).toContainText('Needs bank sign-in')
-  const dialog = await openConnection(page, section, 'SimpleFIN')
-  await expect(fact(dialog, 'Status')).toContainText('Needs bank sign-in')
-  await dialog.getByRole('button', { name: 'Status details' }).click()
-  await expect(dialog.getByText(`Sign in to ${SAMPLE_BANK} again`)).toBeVisible()
-  await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('Sign in again in SimpleFIN Bridge')
-})
-
-test("keeps a connection's facts column from scrolling sideways, so the status note's icon stays under the pointer", NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One connection whose bank needs signing in to serves both tests, with one wait for the worker. The
+// status details are opened in the first step, so the second opens the page afresh to read the icon closed
+test("shows a bank that needs signing in to, and keeps the facts column from scrolling sideways", NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
 
   // Only the status's note, opening from after the longest status, reaches past the column's edge while closed
   await claimConnectionNeedingSignIn(request, user)
   const section = await openBankConnections(page, user)
-  const dialog = await openConnection(page, section, 'SimpleFIN')
-  await expect(dialog).toHaveCSS('transform', 'none')
-  const column = dialog.getByRole('complementary')
-  const icon = dialog.getByRole('button', { name: 'Status details' })
-  const atRest = (await icon.boundingBox())!
-  const drawnAtRest = await page.screenshot({ clip: atRest })
 
-  // A trackpad swipe across the column, further than the closed note reaches past its edge. The browser
-  // answers once it has drawn the swipe, and the page itself learns of it only at a later frame, so what
-  // is drawn where the icon sat is compared rather than where the page places the icon
-  const columnBox = (await column.boundingBox())!
-  const browser = await page.context().newCDPSession(page)
-  await browser.send('Input.synthesizeScrollGesture', {
-    x: columnBox.x + columnBox.width / 2,
-    y: columnBox.y + columnBox.height / 2,
-    xDistance: -SIDEWAYS_SWIPE_PX,
-    yDistance: 0,
-    gestureSourceType: 'mouse',
+  await test.step('shows a bank that needs signing in to on the connection and its institution', async () => {
+    await expect(connectionRow(section, 'SimpleFIN')).toContainText('Needs bank sign-in')
+    const dialog = await openConnection(page, section, 'SimpleFIN')
+    await expect(fact(dialog, 'Status')).toContainText('Needs bank sign-in')
+    await dialog.getByRole('button', { name: 'Status details' }).click()
+    await expect(dialog.getByText(`Sign in to ${SAMPLE_BANK} again`)).toBeVisible()
+    await expect(dialog.getByRole('region', { name: SAMPLE_BANK })).toContainText('Sign in again in SimpleFIN Bridge')
   })
-  expect(await page.screenshot({ clip: atRest })).toEqual(drawnAtRest)
+
+  await test.step("keeps a connection's facts column from scrolling sideways, so the status note's icon stays under the pointer", async () => {
+    await reloadPage(page)
+    await expect(section.getByRole('status', { name: 'Loading bank connections' })).toHaveCount(0)
+    const dialog = await openConnection(page, section, 'SimpleFIN')
+    await expect(dialog).toHaveCSS('transform', 'none')
+    const column = dialog.getByRole('complementary')
+    const icon = dialog.getByRole('button', { name: 'Status details' })
+    const atRest = (await icon.boundingBox())!
+    const drawnAtRest = await page.screenshot({ clip: atRest })
+
+    // A trackpad swipe across the column, further than the closed note reaches past its edge. The browser
+    // answers once it has drawn the swipe, and the page itself learns of it only at a later frame, so what
+    // is drawn where the icon sat is compared rather than where the page places the icon
+    const columnBox = (await column.boundingBox())!
+    const browser = await page.context().newCDPSession(page)
+    await browser.send('Input.synthesizeScrollGesture', {
+      x: columnBox.x + columnBox.width / 2,
+      y: columnBox.y + columnBox.height / 2,
+      xDistance: -SIDEWAYS_SWIPE_PX,
+      yDistance: 0,
+      gestureSourceType: 'mouse',
+    })
+    expect(await page.screenshot({ clip: atRest })).toEqual(drawnAtRest)
+  })
 })
 
 test("opens a fact's note below its value where the dialog leaves no room above the fact", NEEDS_BANK_SYNC, async ({ page, request }) => {
