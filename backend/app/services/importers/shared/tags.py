@@ -164,8 +164,9 @@ async def create_missing_import_tags(
     A value the user answered is taken as answered: pointed at a tag they chose, created under a name
     they wrote, or dropped from its rows. Every other value matches an existing tag whatever its
     capitals and creates one where nothing matches, and two spellings of one name make one tag
-    between them, written under the first. Whatever the file introduces is written in one insert, so
-    a file carrying many new tags costs one round trip rather than one for each
+    between them, written under the first. Whatever the file introduces is written in batches rather
+    than one statement for each tag, so a file carrying thousands of new tags stays under the
+    driver's limit on arguments
 
     Args:
         db: Active database session
