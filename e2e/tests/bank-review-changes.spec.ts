@@ -26,9 +26,10 @@ import { expectTransactionRow, getAccountRow, MINUS } from '../support/selectors
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only, apart from the removal, failed decision and action alignment tests and the light
-// theme's readable comparison test (these run at every size): the comparison fills a phone's screen and
-// stacks its actions there, and a removal's rows each keep to one line even on a phone
+// Runs on desktop only, apart from the removal test and the correction reads that share one test (these run
+// at every size): the comparison fills a phone's screen and stacks its actions there, and a removal's rows
+// each keep to one line even on a phone. The correction test's keyboard, 1440 wide and account deletion
+// steps run on desktop only
 
 // A correction or a removal opens from its row in the review block in a comparison with its ledger
 // transaction. The comparison accepts or keeps the bank's change, or removes or keeps the transaction.
@@ -227,122 +228,132 @@ test('keeps a transaction the bank no longer reports, clearing the marker withou
   expect(ledgerReads).toEqual([])
 })
 
-test('says why a decision failed in the comparison, leaving the item waiting', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { id } = await startWithCorrection(page, request)
+// One edited correction serves every read that leaves the server's item waiting, each in a step. The
+// account's deletion goes last since it ends the item, and the failed decisions stay answered by the
+// stand-in, so no later step decides anything. The keyboard, the 1440 wide window and the account's page
+// are read on desktop only, as they were before
+test('reads a correction in its comparison, failing a decision, lining up its actions, keeping its columns on one line and its texts readable in both themes, then going on to the accounts once its account is deleted', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const { everyday, id } = await startWithCorrection(page, request, -4000)
+  const onDesktop = test.info().project.name === 'desktop'
 
-  // Decisions fail in ways the server can't be made to here: refused over a removal SimpleFIN never
-  // reports, then with no answer at all
-  let failure: 'refused' | 'no answer' = 'refused'
-  await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), (route) => failure === 'refused'
-    ? route.fulfill({ status: 409, json: { detail: 'This transaction has a bank removal waiting. Please decide the removal first' } })
-    : route.abort())
-  await openPage(page, '/transactions')
-  const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
+  await test.step('says why a decision failed in the comparison, leaving the item waiting', async () => {
+    // Decisions fail in ways the server can't be made to here: refused over a removal SimpleFIN never
+    // reports, then with no answer at all
+    let failure: 'refused' | 'no answer' = 'refused'
+    await page.route((url) => url.href.startsWith(`${API_BASE_URL}/bank-review/items/`), (route) => failure === 'refused'
+      ? route.fulfill({ status: 409, json: { detail: 'This transaction has a bank removal waiting. Please decide the removal first' } })
+      : route.abort())
+    await openPage(page, '/transactions')
+    const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
 
-  // A refusal says the server's reason
-  await dialog.getByRole('button', { name: 'Accept bank change' }).click()
-  const reason = dialog.getByRole('alert')
-  await expect(reason).toHaveText('This transaction has a bank removal waiting. Please decide the removal first')
-  await expect(reason).toBeInViewport()
-  await expect(dialog.getByRole('button', { name: 'Accept bank change' })).toBeEnabled()
+    // A refusal says the server's reason
+    await dialog.getByRole('button', { name: 'Accept bank change' }).click()
+    const reason = dialog.getByRole('alert')
+    await expect(reason).toHaveText('This transaction has a bank removal waiting. Please decide the removal first')
+    await expect(reason).toBeInViewport()
+    await expect(dialog.getByRole('button', { name: 'Accept bank change' })).toBeEnabled()
 
-  // A decision that gets no answer says to try again
-  failure = 'no answer'
-  await dialog.getByRole('button', { name: 'Keep current value' }).click()
-  await expect(reason).toHaveText('Something went wrong. Please try again.')
+    // A decision that gets no answer says to try again
+    failure = 'no answer'
+    await dialog.getByRole('button', { name: 'Keep current value' }).click()
+    await expect(reason).toHaveText('Something went wrong. Please try again.')
 
-  await dialog.getByRole('button', { name: 'Close' }).click()
-  await expect(dialog).toBeHidden()
-  await expect(reviewBlock(page).getByRole('listitem')).toHaveCount(1)
-  await expect(needsReview(page.getByTestId(`transaction-row-${id}`))).toBeVisible()
-})
+    await dialog.getByRole('button', { name: 'Close' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(reviewBlock(page).getByRole('listitem')).toHaveCount(1)
+    await expect(needsReview(page.getByTestId(`transaction-row-${id}`))).toBeVisible()
+  })
 
-test('goes on to the accounts once the account whose item was reviewed on its page is deleted', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { everyday } = await startWithCorrection(page, request)
-  await openPage(page, `/accounts/${everyday.id}`)
-  const comparison = await openComparison(page, COUNTDOWN, 'Review bank change')
-  await comparison.getByRole('button', { name: 'Close' }).click()
-  await expect(comparison).toBeHidden()
-
-  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const editor = page.getByRole('dialog')
-  await editor.getByRole('button', { name: 'Delete account', exact: true }).click()
-  await editor.getByRole('button', { name: 'Continue', exact: true }).click()
-  const typedName = editor.getByRole('textbox', { name: 'Type "Everyday" to delete.' })
-  await typedName.fill('Everyday')
-  await typedName.press('Enter')
-
-  await expect(page).toHaveURL(/\/accounts$/)
-  await expect(page.getByRole('heading', { name: 'Accounts', level: 1 })).toBeVisible()
-  await expect(getAccountRow(page, 'Everyday')).toHaveCount(0)
-})
-
-test('starts focus on keeping the current value when the comparison opens from the keyboard', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await startWithCorrection(page, request)
-  await openPage(page, '/transactions')
-
-  await reviewBlock(page).getByRole('button', { name: COUNTDOWN }).focus()
-  await page.keyboard.press('Enter')
-  const dialog = page.getByRole('dialog', { name: 'Review bank change' })
-  await expect(dialog.getByRole('button', { name: 'Keep current value' })).toBeFocused()
-})
-
-// The ledger-changing action starts where the title starts and the keeping one ends where the close
-// button above it ends, at every width, as the other confirmations' do
-test('lines the comparison actions up with its header', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await startWithCorrection(page, request)
-  await openPage(page, '/transactions')
-
-  const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
-  // Measured together and polled, since the panel scales in as it opens and edges read mid-animation
-  // drift apart by however far it has to go
-  const readEdgeOffsets = async () => {
-    const [title, close, keep, accept] = await Promise.all([
-      dialog.getByRole('heading', { name: 'Review bank change', exact: true }).boundingBox(),
-      dialog.getByRole('button', { name: 'Close', exact: true }).boundingBox(),
-      dialog.getByRole('button', { name: 'Keep current value', exact: true }).boundingBox(),
-      dialog.getByRole('button', { name: 'Accept bank change', exact: true }).boundingBox(),
-    ])
-    return {
-      left: Math.round(accept!.x - title!.x) || 0,
-      right: Math.round(keep!.x + keep!.width - (close!.x + close!.width)) || 0,
+  // The ledger-changing action starts where the title starts and the keeping one ends where the close
+  // button above it ends, at every width, as the other confirmations' do
+  await test.step('lines the comparison actions up with its header', async () => {
+    const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
+    // Measured together and polled, since the panel scales in as it opens and edges read mid-animation
+    // drift apart by however far it has to go
+    const readEdgeOffsets = async () => {
+      const [title, close, keep, accept] = await Promise.all([
+        dialog.getByRole('heading', { name: 'Review bank change', exact: true }).boundingBox(),
+        dialog.getByRole('button', { name: 'Close', exact: true }).boundingBox(),
+        dialog.getByRole('button', { name: 'Keep current value', exact: true }).boundingBox(),
+        dialog.getByRole('button', { name: 'Accept bank change', exact: true }).boundingBox(),
+      ])
+      return {
+        left: Math.round(accept!.x - title!.x) || 0,
+        right: Math.round(keep!.x + keep!.width - (close!.x + close!.width)) || 0,
+      }
     }
+
+    await expect.poll(readEdgeOffsets).toEqual({ left: 0, right: 0 })
+    await dialog.getByRole('button', { name: 'Close' }).click()
+    await expect(dialog).toBeHidden()
+  })
+
+  if (onDesktop) {
+    await test.step('starts focus on keeping the current value when the comparison opens from the keyboard', async () => {
+      await reviewBlock(page).getByRole('button', { name: COUNTDOWN }).focus()
+      await page.keyboard.press('Enter')
+      const dialog = page.getByRole('dialog', { name: 'Review bank change' })
+      await expect(dialog.getByRole('button', { name: 'Keep current value' })).toBeFocused()
+      await dialog.getByRole('button', { name: 'Close' }).click()
+      await expect(dialog).toBeHidden()
+    })
+
+    await test.step('gives each value column room for a bank description on one line at 1440 wide', async () => {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await openPage(page, '/transactions')
+
+      const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
+      const values = dialog.getByTestId('comparison-description').getByRole('cell')
+      await expect(values).toHaveText([COUNTDOWN, COUNTDOWN])
+      for (const value of await values.all()) expect(await linesOf(value)).toBe(1)
+      await dialog.getByRole('button', { name: 'Close' }).click()
+      await expect(dialog).toBeHidden()
+    })
   }
 
-  await expect.poll(readEdgeOffsets).toEqual({ left: 0, right: 0 })
+  // Only the light run measures the comparison's width, so it goes last of the two
+  for (const colorScheme of ['dark', 'light'] as const) {
+    await test.step(`compares an edited correction readably in the ${colorScheme} theme${colorScheme === 'light' ? ', without scrolling sideways' : ''}`, async () => {
+      await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
+      await openPage(page, '/transactions')
+      if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+      else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
+
+      // The layout is the same in either theme, so it is measured in the light one only
+      const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
+      if (colorScheme === 'light') expect(await dialog.evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true)
+      const texts = [
+        dialog.getByText('SimpleFIN sent new values for a transaction you already approved. Nothing changes unless you accept the new values.'),
+        ...await dialog.getByRole('columnheader').all(),
+        ...await dialog.getByRole('rowheader').all(),
+        ...await dialog.getByRole('cell').all(),
+      ]
+      for (const text of texts) {
+        expect((await faintestText(text)).contrast, `${await text.textContent()} in the ${colorScheme} theme`).toBeGreaterThanOrEqual(4.5)
+      }
+      await dialog.getByRole('button', { name: 'Close' }).click()
+      await expect(dialog).toBeHidden()
+    })
+  }
+
+  if (onDesktop) {
+    await test.step('goes on to the accounts once the account whose item was reviewed on its page is deleted', async () => {
+      await openPage(page, `/accounts/${everyday.id}`)
+      const comparison = await openComparison(page, COUNTDOWN, 'Review bank change')
+      await comparison.getByRole('button', { name: 'Close' }).click()
+      await expect(comparison).toBeHidden()
+
+      await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+      const editor = page.getByRole('dialog')
+      await editor.getByRole('button', { name: 'Delete account', exact: true }).click()
+      await editor.getByRole('button', { name: 'Continue', exact: true }).click()
+      const typedName = editor.getByRole('textbox', { name: 'Type "Everyday" to delete.' })
+      await typedName.fill('Everyday')
+      await typedName.press('Enter')
+
+      await expect(page).toHaveURL(/\/accounts$/)
+      await expect(page.getByRole('heading', { name: 'Accounts', level: 1 })).toBeVisible()
+      await expect(getAccountRow(page, 'Everyday')).toHaveCount(0)
+    })
+  }
 })
-
-test('gives each value column room for a bank description on one line at 1440 wide', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  await startWithCorrection(page, request)
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await openPage(page, '/transactions')
-
-  const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
-  const values = dialog.getByTestId('comparison-description').getByRole('cell')
-  await expect(values).toHaveText([COUNTDOWN, COUNTDOWN])
-  for (const value of await values.all()) expect(await linesOf(value)).toBe(1)
-})
-
-for (const colorScheme of ['light', 'dark'] as const) {
-  // Only the light run measures the comparison's width, so only it runs at every size
-  test(`compares an edited correction readably in the ${colorScheme} theme${colorScheme === 'light' ? ', without scrolling sideways' : ''}`, colorScheme === 'light' ? AT_EVERY_SIZE_NEEDS_BANK_SYNC : NEEDS_BANK_SYNC, async ({ page, request }) => {
-    await startWithCorrection(page, request, -4000)
-    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
-    await openPage(page, '/transactions')
-    if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/\bdark\b/)
-    else await expect(page.locator('html')).not.toHaveClass(/\bdark\b/)
-
-    // The layout is the same in either theme, so it is measured in the light one only
-    const dialog = await openComparison(page, COUNTDOWN, 'Review bank change')
-    if (colorScheme === 'light') expect(await dialog.evaluate((panel) => panel.scrollWidth <= panel.clientWidth)).toBe(true)
-    const texts = [
-      dialog.getByText('SimpleFIN sent new values for a transaction you already approved. Nothing changes unless you accept the new values.'),
-      ...await dialog.getByRole('columnheader').all(),
-      ...await dialog.getByRole('rowheader').all(),
-      ...await dialog.getByRole('cell').all(),
-    ]
-    for (const text of texts) {
-      expect((await faintestText(text)).contrast, `${await text.textContent()} in the ${colorScheme} theme`).toBeGreaterThanOrEqual(4.5)
-    }
-  })
-}
