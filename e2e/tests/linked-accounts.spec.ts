@@ -17,8 +17,9 @@ import { faintestText } from '../support/contrast'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
-// Runs on desktop only. The refused day, refused move and greyed Delete tests run at
-// every size: the transaction modal's fields, messages and reasons sit differently at each width
+// Runs on desktop only, apart from the refused day and the refused move. Those run at every size: the
+// transaction modal's fields and messages sit differently at each width. The struck day's reason, the
+// greyed Delete and the bulk delete follow them on desktop, since they read nothing that depends on width
 
 // A linked account's bank supplies its transactions from the import start through today, so the
 // transaction modal refuses those days, a bank transaction can't leave the account or be deleted, and
@@ -119,109 +120,113 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('refuses a new manual entry on the days a linked account’s bank supplies', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One linked account serves the struck day's reason and the refused entry. The reason's press creates
+// nothing, so it goes first and on desktop only. The entry's save creates a transaction, so it comes last
+test('says why a struck calendar day is refused when it is pressed, then refuses a new manual entry on the days a linked account’s bank supplies', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
   await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
 
-  const dialog = await openAddTransaction(page, 'Everyday')
-  const date = dialog.getByRole('group', { name: 'Date' })
-  const currency = dialog.getByRole('combobox', { name: 'Currency' })
-  const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
-  const message = dialog.getByRole('alert').filter({ hasText: MESSAGE_FROM_TODAY })
+  // The struck day's reason is the same at every size, so only desktop reads it
+  if (test.info().project.name === 'desktop') {
+    await test.step('says why a struck calendar day is refused when it is pressed', async () => {
+      await openPage(page, `/accounts/${account.id}`)
 
-  // Every create sent, so one the browser refused would show up ahead of the one it let through
-  const sentDates: unknown[] = []
-  page.on('request', (sent) => {
-    if (sent.url() === `${API_BASE_URL}/transactions` && sent.method() === 'POST') sentDates.push(sent.postDataJSON().dt)
-  })
+      const dialog = await openAddTransaction(page, 'Everyday')
+      await dialog.getByRole('button', { name: 'Open calendar' }).click()
+      const calendar = page.getByRole('dialog', { name: 'Choose date', exact: true })
+      const todayCell = calendar.locator(`[data-iso="${todayInTestTimezone()}"]`)
+      const tomorrowCell = calendar.locator(`[data-iso="${daysFromTodayInTestTimezone(1)}"]`)
+      const reason = page.getByTestId('disabled-reason-tooltip').filter({ hasText: MESSAGE_FROM_TODAY })
 
-  // The date starts on today, the last day the bank supplies, and says nothing until a save is tried
-  await expect(message).toBeHidden()
-  await chooseFromDropdown(dialog, 'Category', 'Groceries')
-  await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
-  await amount.fill('12.34')
-  await dialog.getByTestId('transaction-submit').click()
-  await expect(message).toBeVisible()
-  const year = date.getByRole('textbox', { name: 'Year' })
-  await expect(year).toHaveAttribute('aria-invalid', 'true')
-  await expect(year).toHaveAccessibleDescription(MESSAGE_FROM_TODAY)
+      // A screen reader hears the reason on the struck day, and a day the bank has not supplied has none
+      await expect(todayCell).toHaveAttribute('aria-disabled', 'true')
+      await expect(todayCell).toHaveAccessibleDescription(MESSAGE_FROM_TODAY)
+      await expect(tomorrowCell).not.toHaveAttribute('aria-describedby')
+      await expect(reason).toHaveCount(0)
 
-  // Under the whole row once the fields sit side by side, keeping Date, Currency and Amount level, and
-  // between the date and the currency on a phone. Read once the message has finished opening, within
-  // a pixel since its box starts where the row ends
-  const isPlaced = async () => {
-    const [dateBox, currencyBox, amountBox, messageBox] = await Promise.all([date, currency, amount, message].map(getBox))
-    const isBelow = (box: Box, above: Box) => box.y >= above.y + above.height - 1
-    return page.viewportSize()!.width >= FIELD_ROW_MIN_WIDTH
-      ? isBelow(messageBox, amountBox)
-      : isBelow(messageBox, dateBox) && isBelow(currencyBox, messageBox)
+      // A press shows the reason and picks nothing, so the calendar stays open on the same day
+      // Forced, since Playwright waits for an aria-disabled control to become enabled before it clicks. A forced press
+      // skips the wait for the day to stop moving too, so it waits for the calendar to finish easing in first
+      await readSettledBox(todayCell)
+      await todayCell.click({ force: true })
+      await expect(reason).toHaveCSS('opacity', '1')
+      await expect(calendar).toBeVisible()
+      await expect(todayCell).toHaveAttribute('aria-pressed', 'true')
+
+      // Escape puts only the reason away, and Enter on the focused day brings it back without picking it
+      await page.keyboard.press('Escape')
+      await expect(reason).toHaveCount(0)
+      await expect(calendar).toBeVisible()
+      await todayCell.focus()
+      await page.keyboard.press('Enter')
+      await expect(reason).toHaveCSS('opacity', '1')
+      await expect(calendar).toBeVisible()
+    })
   }
-  await expect.poll(isPlaced).toBe(true)
 
-  // The calendar refuses today, and a later day the bank can't have supplied yet is taken
-  await dialog.getByRole('button', { name: 'Open calendar' }).click()
-  const todayCell = page.getByRole('button').and(page.locator(`[data-iso="${todayInTestTimezone()}"]`))
-  const tomorrowCell = page.getByRole('button').and(page.locator(`[data-iso="${daysFromTodayInTestTimezone(1)}"]`))
-  await expect(todayCell).toHaveAttribute('aria-disabled', 'true')
-  await expect(tomorrowCell).not.toHaveAttribute('aria-disabled', 'true')
+  await test.step('refuses a new manual entry on the days a linked account’s bank supplies', async () => {
+    await openPage(page, `/accounts/${account.id}`)
 
-  // Today is the chosen day as well as a refused one, and its number stays readable, pointed at or not
-  await expect(todayCell).toHaveAttribute('aria-pressed', 'true')
-  expect((await faintestText(todayCell)).contrast).toBeGreaterThanOrEqual(4.5)
-  await todayCell.hover()
-  expect((await faintestText(todayCell)).contrast).toBeGreaterThanOrEqual(4.5)
-  await tomorrowCell.click()
-  await expect(message).toBeHidden()
-  await expect(year).toHaveAttribute('aria-invalid', 'false')
+    const dialog = await openAddTransaction(page, 'Everyday')
+    const date = dialog.getByRole('group', { name: 'Date' })
+    const currency = dialog.getByRole('combobox', { name: 'Currency' })
+    const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
+    const message = dialog.getByRole('alert').filter({ hasText: MESSAGE_FROM_TODAY })
 
-  const created = page.waitForResponse((response) =>
-    response.url() === `${API_BASE_URL}/transactions` && response.request().method() === 'POST')
-  await dialog.getByTestId('transaction-submit').click()
-  expect((await created).status()).toBe(201)
-  await expect(dialog).toBeHidden()
-  expect(sentDates).toEqual([daysFromTodayInTestTimezone(1)])
-})
+    // Every create sent, so one the browser refused would show up ahead of the one it let through
+    const sentDates: unknown[] = []
+    page.on('request', (sent) => {
+      if (sent.url() === `${API_BASE_URL}/transactions` && sent.method() === 'POST') sentDates.push(sent.postDataJSON().dt)
+    })
 
-test('says why a struck calendar day is refused when it is pressed', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
+    // The date starts on today, the last day the bank supplies, and says nothing until a save is tried
+    await expect(message).toBeHidden()
+    await chooseFromDropdown(dialog, 'Category', 'Groceries')
+    await chooseFromDropdown(dialog, 'Merchant', 'Unknown')
+    await amount.fill('12.34')
+    await dialog.getByTestId('transaction-submit').click()
+    await expect(message).toBeVisible()
+    const year = date.getByRole('textbox', { name: 'Year' })
+    await expect(year).toHaveAttribute('aria-invalid', 'true')
+    await expect(year).toHaveAccessibleDescription(MESSAGE_FROM_TODAY)
 
-  const dialog = await openAddTransaction(page, 'Everyday')
-  await dialog.getByRole('button', { name: 'Open calendar' }).click()
-  const calendar = page.getByRole('dialog', { name: 'Choose date', exact: true })
-  const todayCell = calendar.locator(`[data-iso="${todayInTestTimezone()}"]`)
-  const tomorrowCell = calendar.locator(`[data-iso="${daysFromTodayInTestTimezone(1)}"]`)
-  const reason = page.getByTestId('disabled-reason-tooltip').filter({ hasText: MESSAGE_FROM_TODAY })
+    // Under the whole row once the fields sit side by side, keeping Date, Currency and Amount level, and
+    // between the date and the currency on a phone. Read once the message has finished opening, within
+    // a pixel since its box starts where the row ends
+    const isPlaced = async () => {
+      const [dateBox, currencyBox, amountBox, messageBox] = await Promise.all([date, currency, amount, message].map(getBox))
+      const isBelow = (box: Box, above: Box) => box.y >= above.y + above.height - 1
+      return page.viewportSize()!.width >= FIELD_ROW_MIN_WIDTH
+        ? isBelow(messageBox, amountBox)
+        : isBelow(messageBox, dateBox) && isBelow(currencyBox, messageBox)
+    }
+    await expect.poll(isPlaced).toBe(true)
 
-  // A screen reader hears the reason on the struck day, and a day the bank has not supplied has none
-  await expect(todayCell).toHaveAttribute('aria-disabled', 'true')
-  await expect(todayCell).toHaveAccessibleDescription(MESSAGE_FROM_TODAY)
-  await expect(tomorrowCell).not.toHaveAttribute('aria-describedby')
-  await expect(reason).toHaveCount(0)
+    // The calendar refuses today, and a later day the bank can't have supplied yet is taken
+    await dialog.getByRole('button', { name: 'Open calendar' }).click()
+    const todayCell = page.getByRole('button').and(page.locator(`[data-iso="${todayInTestTimezone()}"]`))
+    const tomorrowCell = page.getByRole('button').and(page.locator(`[data-iso="${daysFromTodayInTestTimezone(1)}"]`))
+    await expect(todayCell).toHaveAttribute('aria-disabled', 'true')
+    await expect(tomorrowCell).not.toHaveAttribute('aria-disabled', 'true')
 
-  // A press shows the reason and picks nothing, so the calendar stays open on the same day
-  // Forced, since Playwright waits for an aria-disabled control to become enabled before it clicks. A forced press
-  // skips the wait for the day to stop moving too, so it waits for the calendar to finish easing in first
-  await readSettledBox(todayCell)
-  await todayCell.click({ force: true })
-  await expect(reason).toHaveCSS('opacity', '1')
-  await expect(calendar).toBeVisible()
-  await expect(todayCell).toHaveAttribute('aria-pressed', 'true')
+    // Today is the chosen day as well as a refused one, and its number stays readable, pointed at or not
+    await expect(todayCell).toHaveAttribute('aria-pressed', 'true')
+    expect((await faintestText(todayCell)).contrast).toBeGreaterThanOrEqual(4.5)
+    await todayCell.hover()
+    expect((await faintestText(todayCell)).contrast).toBeGreaterThanOrEqual(4.5)
+    await tomorrowCell.click()
+    await expect(message).toBeHidden()
+    await expect(year).toHaveAttribute('aria-invalid', 'false')
 
-  // Escape puts only the reason away, and Enter on the focused day brings it back without picking it
-  await page.keyboard.press('Escape')
-  await expect(reason).toHaveCount(0)
-  await expect(calendar).toBeVisible()
-  await todayCell.focus()
-  await page.keyboard.press('Enter')
-  await expect(reason).toHaveCSS('opacity', '1')
-  await expect(calendar).toBeVisible()
+    const created = page.waitForResponse((response) =>
+      response.url() === `${API_BASE_URL}/transactions` && response.request().method() === 'POST')
+    await dialog.getByTestId('transaction-submit').click()
+    expect((await created).status()).toBe(201)
+    await expect(dialog).toBeHidden()
+    expect(sentDates).toEqual([daysFromTodayInTestTimezone(1)])
+  })
 })
 
 test('refuses the days the other account’s bank supplies once a new transfer is recorded in both, naming it', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -327,56 +332,154 @@ test('lets an edit keep a date the linked account’s bank supplies, and refuses
   expect(sentDates).toEqual(['2025-12-31'])
 })
 
-test('keeps a bank transaction in its linked account, refusing the move on the account field', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One import of the bank's coffee serves three refusals. The bulk delete's ticked pair and the refused
+// move run first, since the move's save changes the coffee's day, and the single Delete, which unlinks and
+// deletes the coffee, comes last. The bulk and single deletes read nothing that depends on the width, so
+// only desktop runs them. Every step opens the page afresh
+test('keeps a bank transaction in its linked account, refusing the move on the account field, and greys out Delete on it and in a bulk delete while the account is linked', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   await createAccount(request, user, { name: 'Savings' })
+  const manualDate = daysFromTodayInTestTimezone(-(IMPORT_START_DAYS_AGO + 2))
+  const manual = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1500, date: manualDate })
   await linkToSampleBankAccount(request, user, {
     accountId: account.id,
     bankAccountName: SAMPLE_CHEQUING,
     startDate: daysFromTodayInTestTimezone(-IMPORT_START_DAYS_AGO),
   })
-  const { id } = await addImportedItem(request, user, account.id, SAMPLE_COFFEE)
+  const { id, date: bankDate } = await addImportedItem(request, user, account.id, SAMPLE_COFFEE)
   const correctedDate = daysFromTodayInTestTimezone(-3)
   await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
-  const refusal = dialog.getByRole('alert').filter({ hasText: MOVE_REFUSAL })
+  const isDesktop = test.info().project.name === 'desktop'
 
-  const sentDates: unknown[] = []
-  page.on('request', (sent) => {
-    if (sent.url() === `${API_BASE_URL}/transactions/${id}` && sent.method() === 'PATCH') sentDates.push(sent.postDataJSON().dt)
+  if (isDesktop) {
+    await test.step('greys out bulk Delete with its reason while a ticked bank transaction is in a linked account', async () => {
+      await openPage(page, `/accounts/${account.id}`)
+
+      // Every bulk delete sent, so one the browser should have held back shows up
+      const deletesSent: string[] = []
+      page.on('request', (sent) => {
+        if (sent.url() === `${API_BASE_URL}/transactions/bulk/delete`) deletesSent.push(sent.url())
+      })
+
+      await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+      await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${manualDate}$`) }).check()
+      const deleteAction = page.getByRole('button', { name: 'Delete the selected transactions', exact: true })
+      await expect(deleteAction).not.toHaveAttribute('aria-disabled')
+
+      // Ticking the bank transaction beside the manual one refuses the pair, saying why on Delete itself
+      await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${bankDate}$`) }).check()
+      await expect(deleteAction).toHaveAttribute('aria-disabled', 'true')
+      await expect(deleteAction).toHaveAccessibleDescription(BULK_DELETE_LINKED_REASON)
+      const reason = page.getByText(BULK_DELETE_LINKED_REASON).filter({ visible: true })
+      await deleteAction.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX } })
+      await expect.poll(() => readTooltipOpacity(reason)).toBe('1')
+
+      // Forced, because the button is marked unavailable and pressing it anyway is what is checked
+      await deleteAction.click({ force: true })
+      await expect(page.getByRole('dialog')).toHaveCount(0)
+      expect(deletesSent).toEqual([])
+      await expect(page.getByTestId(`transaction-row-${manual}`)).toBeVisible()
+    })
+  }
+
+  await test.step('keeps a bank transaction in its linked account, refusing the move on the account field', async () => {
+    await openPage(page, `/accounts/${account.id}`)
+    const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
+    const refusal = dialog.getByRole('alert').filter({ hasText: MOVE_REFUSAL })
+
+    const sentDates: unknown[] = []
+    page.on('request', (sent) => {
+      if (sent.url() === `${API_BASE_URL}/transactions/${id}` && sent.method() === 'PATCH') sentDates.push(sent.postDataJSON().dt)
+    })
+
+    // The bank's own date is the bank's to correct, so another day it supplies is taken
+    await page.getByTestId(`transaction-row-${id}`).click()
+    await enterDate(page, dialog, correctedDate)
+
+    // Leaving the account is refused on its field, and a save sends nothing
+    await chooseFromDropdown(dialog, 'Account', 'Savings')
+    await expect(refusal).toBeVisible()
+    await expect(dialog.getByRole('combobox', { name: 'Account' })).toHaveAttribute('aria-invalid', 'true')
+
+    // Beside the label with the row's gap between them, at every width, once it has slid into place
+    const label = dialog.locator('label[for="txn-account"]')
+    await expect.poll(async () => {
+      const [labelBox, refusalBox] = await Promise.all([getBox(label), getBox(refusal)])
+      return Math.round(refusalBox.x - (labelBox.x + labelBox.width))
+    }).toBeGreaterThanOrEqual(12)
+    await dialog.getByTestId('transaction-submit').click()
+    await expect(dialog).toBeVisible()
+
+    await chooseFromDropdown(dialog, 'Account', 'Everyday')
+    await expect(refusal).toBeHidden()
+    const saved = page.waitForResponse((response) =>
+      response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'PATCH')
+    await dialog.getByTestId('transaction-submit').click()
+    expect((await saved).status()).toBe(200)
+    await expect(dialog).toBeHidden()
+    expect(sentDates).toEqual([correctedDate])
   })
 
-  // The bank's own date is the bank's to correct, so another day it supplies is taken
-  await page.getByTestId(`transaction-row-${id}`).click()
-  await enterDate(page, dialog, correctedDate)
+  if (isDesktop) {
+    await test.step('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', async () => {
+      await openPage(page, `/accounts/${account.id}`)
+      const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
+      const remove = dialog.getByTestId('transaction-delete')
 
-  // Leaving the account is refused on its field, and a save sends nothing
-  await chooseFromDropdown(dialog, 'Account', 'Savings')
-  await expect(refusal).toBeVisible()
-  await expect(dialog.getByRole('combobox', { name: 'Account' })).toHaveAttribute('aria-invalid', 'true')
+      // Every delete sent, so one the browser should have held back shows up
+      const deletesSent: string[] = []
+      page.on('request', (sent) => {
+        if (sent.url() === `${API_BASE_URL}/transactions/${id}` && sent.method() === 'DELETE') deletesSent.push(sent.url())
+      })
 
-  // Beside the label with the row's gap between them, at every width, once it has slid into place
-  const label = dialog.locator('label[for="txn-account"]')
-  await expect.poll(async () => {
-    const [labelBox, refusalBox] = await Promise.all([getBox(label), getBox(refusal)])
-    return Math.round(refusalBox.x - (labelBox.x + labelBox.width))
-  }).toBeGreaterThanOrEqual(12)
-  await dialog.getByTestId('transaction-submit').click()
-  await expect(dialog).toBeVisible()
+      await page.getByTestId(`transaction-row-${id}`).click()
+      await expect(remove).toHaveAttribute('aria-disabled', 'true')
+      await expect(remove).toHaveAccessibleDescription(DELETE_LINKED_REASON)
 
-  await chooseFromDropdown(dialog, 'Account', 'Everyday')
-  await expect(refusal).toBeHidden()
-  const saved = page.waitForResponse((response) =>
-    response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'PATCH')
-  await dialog.getByTestId('transaction-submit').click()
-  expect((await saved).status()).toBe(200)
-  await expect(dialog).toBeHidden()
-  expect(sentDates).toEqual([correctedDate])
+      // Pointing at Delete shows the reason, and it follows the cursor down the button. Hovering waits for
+      // Delete to stop moving, so the pointer lands where it is aimed once the modal has grown in
+      const reason = page.getByText(DELETE_LINKED_REASON).filter({ visible: true })
+      await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX } })
+      await expect.poll(() => readTooltipOpacity(reason)).toBe('1')
+      const shownAt = await getBox(reason)
+      await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX + POINTER_STEP_PX } })
+      await expect.poll(async () => Math.round((await getBox(reason)).y - shownAt.y)).toBe(POINTER_STEP_PX)
+
+      // Pressed twice, since the first press of a free Delete only asks to confirm and the second is the
+      // one that sends. Forced, because the button is marked unavailable and pressing it anyway is what is
+      // checked
+      await remove.click({ force: true })
+      await remove.click({ force: true })
+      await expect(dialog).toBeVisible()
+      expect(deletesSent).toEqual([])
+      await expect(remove).toHaveAccessibleName('Delete')
+
+      // The app keeps what it last read across a reload, so this load starts without that copy and reads
+      // the list afresh, as it does once unlinking refreshes it
+      const unlinked = await request.delete(`${API_BASE_URL}/accounts/${account.id}/bank-link`, { headers: asUser(user) })
+      expect(unlinked.ok()).toBe(true)
+      await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
+      await openPage(page, `/accounts/${account.id}`)
+      await page.getByTestId(`transaction-row-${id}`).click()
+      await expect(remove).not.toHaveAttribute('aria-disabled')
+      await remove.click()
+      await expect(remove).toHaveAccessibleName('Yes, delete')
+      const deleted = page.waitForResponse((response) =>
+        response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'DELETE')
+      await remove.click()
+      expect((await deleted).status()).toBe(204)
+      await expect(dialog).toBeHidden()
+      await expect(page.getByTestId(`transaction-row-${id}`)).toBeHidden()
+    })
+  }
 })
 
-test('greys out Archive with its reason while the account is linked, and offers it again once unlinked', NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One linked account with a later-dated transaction serves the focus on Archive instead and what greys
+// Archive out. The link goes first and the later-dated transaction last, so what blocks archiving is
+// first the link and the transaction together, then the transaction alone with the account unlinked, then
+// nothing. Every step opens the page afresh
+test('greys out Archive with its reason while the account is linked, then fades the whole row when later-dated transactions block it, and offers it again once unlinked', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
   const laterId = await createTransaction(request, user, {
@@ -387,289 +490,176 @@ test('greys out Archive with its reason while the account is linked, and offers 
   })
   await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
   await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-
   const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   const archive = dialog.getByRole('switch', { name: /^Archive account/ })
   const warning = dialog.getByText('Balance will be set to zero')
-  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  await expect(archive).toBeDisabled()
-  await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
-
-  // The link's reason fades the row's text alone, so the focus ring on the switch stays at full strength
-  await expect.poll(() => readArchiveRow(archive)).toEqual({ cursor: 'not-allowed', row: '1', text: '0.6' })
-
-  // A later-dated transaction would block archiving too, but the switch gives one reason at a time
-  await expect(dialog.getByText(/future dated transactions/)).toHaveCount(0)
-
-  // The reason shows under the row, in the layout rather than over it, so it covers nothing
+  const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
   const archiveReason = dialog.getByText(ARCHIVE_LINKED_REASON, { exact: true })
-  await expect(archiveReason).toBeVisible()
 
-  // A press can't change the switch, so pointing at its row leaves the track as it rests. The hover rule
-  // sets the fill properties at once, so reading them needs no wait for the colour to transition
-  const row = dialog.getByText('Archive account', { exact: true })
-  const trackFill = () =>
-    archive.evaluate((input) => {
-      const style = getComputedStyle(input.nextElementSibling as Element)
-      return [style.getPropertyValue('--app-switch-off'), style.getPropertyValue('--app-switch-on'), style.backgroundColor]
-    })
-  const restingFill = await trackFill()
-  await row.hover()
-  expect(await trackFill()).toEqual(restingFill)
+  // Held back through aria-disabled, Archive instead still takes focus, as it does for an account with
+  // later-dated transactions, so its reason can be read from the keyboard
+  await test.step('focuses the held Archive instead, as with later-dated transactions, when the delete panel opens on a linked account', async () => {
+    await openPage(page, `/accounts/${account.id}`)
+    await openEditAccount(page)
 
-  // Forced, because the switch is marked unavailable and pressing it anyway is what is checked
-  await row.click({ force: true })
-  await expect(archive).not.toBeChecked()
-  await expect(warning).toBeHidden()
+    // Pressed once the link has been read, since a link still loading disables Archive instead outright
+    await expect(archive).toBeDisabled()
+    const trash = dialog.getByRole('button', { name: 'Delete account', exact: true })
+    await trash.focus()
+    await trash.press('Enter')
 
-  // Deleting offers archiving instead, and that is unavailable for the same reason
-  await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
-  const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
-  await expect(archiveInstead).toHaveAttribute('aria-disabled', 'true')
-  await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
-
-  // Without the later-dated transaction, unlinking is all archiving waits on
-  const deleted = await request.delete(`${API_BASE_URL}/transactions/${laterId}`, { headers: asUser(user) })
-  expect(deleted.ok()).toBe(true)
-
-  // The app keeps what it last read across a reload, so this load starts without that copy and reads
-  // the link afresh, as it does once unlinking refreshes it
-  const unlinked = await request.delete(`${API_BASE_URL}/accounts/${account.id}/bank-link`, { headers: asUser(user) })
-  expect(unlinked.ok()).toBe(true)
-  await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
-  await openPage(page, `/accounts/${account.id}`)
-
-  // The switch is held back until the link is read, so the read has to arrive first
-  await expect(page.getByRole('button', { name: /^Bank sync: No bank link/ })).toBeVisible()
-  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  await expect(archive).toBeEnabled()
-  await expect(archiveReason).toBeHidden()
-  await dialog.getByText('Archive account', { exact: true }).click()
-  await expect(archive).toBeChecked()
-  await expect(warning).toBeVisible()
-
-  // Archive instead is offered again too
-  await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
-  await expect(archiveInstead).not.toHaveAttribute('aria-disabled')
-})
-
-test('holds Archive back until the link has been read, so a linked account is never offered it', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
-
-  // The page and its edit modal share one read of the link, held until both controls have been checked
-  let releaseRead = () => {}
-  const readReleased = new Promise<void>((resolve) => { releaseRead = resolve })
-  await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, async (route) => {
-    await readReleased
-    await route.fallback()
+    await expect(archiveInstead).toHaveAttribute('aria-disabled', 'true')
+    await expect(archiveInstead).toBeFocused()
+    await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
   })
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
-  const archive = dialog.getByRole('switch', { name: /^Archive account/ })
-  await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
-  const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
-  await expect(archive).toBeDisabled()
-  await expect(archiveInstead).toBeDisabled()
 
-  // The switch is held with no reason yet, so its row is not faded, but it refuses a press as it will with one
-  await expect.poll(() => readArchiveRow(archive)).toEqual({ cursor: 'not-allowed', row: '1', text: '1' })
+  await test.step('greys out Archive with its reason while the account is linked', async () => {
+    await openPage(page, `/accounts/${account.id}`)
+    await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+    await expect(archive).toBeDisabled()
+    await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
 
-  releaseRead()
-  await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
-  await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
-})
+    // The link's reason fades the row's text alone, so the focus ring on the switch stays at full strength
+    await expect.poll(() => readArchiveRow(archive)).toEqual({ cursor: 'not-allowed', row: '1', text: '0.6' })
 
-// With no link to hold it, only the later-dated transactions block archiving, and the switch is disabled
-// outright, so its whole row fades
-test('fades the whole Archive row when later-dated transactions block it', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await createTransaction(request, user, {
-    accountId: account.id,
-    categoryName: 'Groceries',
-    amount: -4250,
-    date: daysFromTodayInTestTimezone(3),
+    // A later-dated transaction would block archiving too, but the switch gives one reason at a time
+    await expect(dialog.getByText(/future dated transactions/)).toHaveCount(0)
+
+    // The reason shows under the row, in the layout rather than over it, so it covers nothing
+    await expect(archiveReason).toBeVisible()
+
+    // A press can't change the switch, so pointing at its row leaves the track as it rests. The hover rule
+    // sets the fill properties at once, so reading them needs no wait for the colour to transition
+    const row = dialog.getByText('Archive account', { exact: true })
+    const trackFill = () =>
+      archive.evaluate((input) => {
+        const style = getComputedStyle(input.nextElementSibling as Element)
+        return [style.getPropertyValue('--app-switch-off'), style.getPropertyValue('--app-switch-on'), style.backgroundColor]
+      })
+    const restingFill = await trackFill()
+    await row.hover()
+    expect(await trackFill()).toEqual(restingFill)
+
+    // Forced, because the switch is marked unavailable and pressing it anyway is what is checked
+    await row.click({ force: true })
+    await expect(archive).not.toBeChecked()
+    await expect(warning).toBeHidden()
+
+    // Deleting offers archiving instead, and that is unavailable for the same reason
+    await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+    await expect(archiveInstead).toHaveAttribute('aria-disabled', 'true')
+    await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
   })
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  await page.getByRole('button', { name: 'Edit account', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
-  const archive = dialog.getByRole('switch', { name: /^Archive account/ })
 
-  await expect(archive).toBeDisabled()
-  await expect.poll(() => readArchiveRow(archive)).toEqual({ cursor: 'not-allowed', row: '0.6', text: '1' })
+  // With no link to hold it, only the later-dated transactions block archiving, and the switch is disabled
+  // outright, so its whole row fades
+  await test.step('fades the whole Archive row when later-dated transactions block it', async () => {
+    // The app keeps what it last read across a reload, so this load starts without that copy and reads
+    // the link afresh, as it does once unlinking refreshes it
+    const unlinked = await request.delete(`${API_BASE_URL}/accounts/${account.id}/bank-link`, { headers: asUser(user) })
+    expect(unlinked.ok()).toBe(true)
+    await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
+    await openPage(page, `/accounts/${account.id}`)
+    await expect(page.getByRole('button', { name: /^Bank sync: No bank link/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+
+    await expect(archive).toBeDisabled()
+    await expect.poll(() => readArchiveRow(archive)).toEqual({ cursor: 'not-allowed', row: '0.6', text: '1' })
+  })
+
+  await test.step('offers it again once unlinked', async () => {
+    // Without the later-dated transaction, unlinking is all archiving waits on
+    const deleted = await request.delete(`${API_BASE_URL}/transactions/${laterId}`, { headers: asUser(user) })
+    expect(deleted.ok()).toBe(true)
+    await openPage(page, `/accounts/${account.id}`)
+
+    // The switch is held back until the link is read, so the read has to arrive first
+    await expect(page.getByRole('button', { name: /^Bank sync: No bank link/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+    await expect(archive).toBeEnabled()
+    await expect(archiveReason).toBeHidden()
+    await dialog.getByText('Archive account', { exact: true }).click()
+    await expect(archive).toBeChecked()
+    await expect(warning).toBeVisible()
+
+    // Archive instead is offered again too
+    await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+    await expect(archiveInstead).not.toHaveAttribute('aria-disabled')
+  })
 })
 
-// Held back through aria-disabled, Archive instead still takes focus, as it does for an account with
-// later-dated transactions, so its reason can be read from the keyboard
-test('focuses the held Archive instead, as with later-dated transactions, when the delete panel opens on a linked account', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await linkToSampleBankAccount(request, user, { accountId: account.id, bankAccountName: SAMPLE_CHEQUING })
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  const dialog = await openEditAccount(page)
-
-  // Pressed once the link has been read, since a link still loading disables Archive instead outright
-  await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeDisabled()
-  const trash = dialog.getByRole('button', { name: 'Delete account', exact: true })
-  await trash.focus()
-  await trash.press('Enter')
-
-  const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
-  await expect(archiveInstead).toHaveAttribute('aria-disabled', 'true')
-  await expect(archiveInstead).toBeFocused()
-  await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
-})
-
-// The link is read only for the user's own personal accounts, so archiving one in a group never waits on it
-test('offers Archive on a group account, whose link is never read', NEEDS_BANK_SYNC, async ({ page, request }) => {
+// The link is read only for the user's own personal accounts, so archiving one in a group never waits on
+// it. One user with four accounts serves the four reads of the link, each answered or held as its step
+// needs. Every step opens its own account's page and lifts its answers before the next
+test('holds Archive back until the link has been read, and offers it on a group account, once the link fails to load and for an archived account', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
   const groupId = await createGroup(request, user, 'Household')
-  const account = await createAccount(request, user, { name: 'Shared', groupId })
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  const dialog = await openEditAccount(page)
-  await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
-
-  await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
-  await expect(dialog.getByRole('button', { name: 'Archive instead', exact: true })).toBeEnabled()
-})
-
-// The server refuses to archive a linked account with its reason, so a link that can't be read leaves it to
-test('offers Archive once the link fails to load', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, (route) =>
-    route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }))
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  await expect(page.getByRole('button', { name: "Bank sync: Status unavailable. Open bank link" })).toBeVisible()
-  const dialog = await openEditAccount(page)
-  await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
-
-  await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
-  await expect(dialog.getByRole('button', { name: 'Archive instead', exact: true })).toBeEnabled()
-})
-
-// An archived account can't be linked, so bringing it back never waits on its link
-test('offers to bring an archived account back while its link is still being read', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const archived = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, { headers: asUser(user), data: { is_archived: true } })
+  const linked = await createAccount(request, user, { name: 'Everyday' })
+  const shared = await createAccount(request, user, { name: 'Shared', groupId })
+  const failing = await createAccount(request, user, { name: 'Failing' })
+  const archivedAccount = await createAccount(request, user, { name: 'Archived' })
+  await linkToSampleBankAccount(request, user, { accountId: linked.id, bankAccountName: SAMPLE_CHEQUING })
+  const archived = await request.patch(`${API_BASE_URL}/accounts/${archivedAccount.id}`, { headers: asUser(user), data: { is_archived: true } })
   expect(archived.ok()).toBe(true)
-
-  // Never answered, so the link is still being read whenever the switch is checked
-  await page.route(`${API_BASE_URL}/accounts/${account.id}/bank-link`, () => {})
   await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  const dialog = await openEditAccount(page)
 
-  await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeChecked()
-  await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
-})
+  await test.step('holds Archive back until the link has been read, so a linked account is never offered it', async () => {
+    // The page and its edit modal share one read of the link, held until both controls have been checked
+    let releaseRead = () => {}
+    const readReleased = new Promise<void>((resolve) => { releaseRead = resolve })
+    await page.route(`${API_BASE_URL}/accounts/${linked.id}/bank-link`, async (route) => {
+      await readReleased
+      await route.fallback()
+    })
+    await openPage(page, `/accounts/${linked.id}`)
+    await page.getByRole('button', { name: 'Edit account', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
+    const archive = dialog.getByRole('switch', { name: /^Archive account/ })
+    await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+    const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
+    await expect(archive).toBeDisabled()
+    await expect(archiveInstead).toBeDisabled()
 
-test('greys out Delete on a bank transaction with its reason while the account is linked, and deletes it once unlinked', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  await linkToSampleBankAccount(request, user, {
-    accountId: account.id,
-    bankAccountName: SAMPLE_CHEQUING,
-    startDate: daysFromTodayInTestTimezone(-IMPORT_START_DAYS_AGO),
-  })
-  const { id } = await addImportedItem(request, user, account.id, SAMPLE_COFFEE)
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-  const dialog = page.getByRole('dialog', { name: 'Edit transaction', exact: true })
-  const remove = dialog.getByTestId('transaction-delete')
+    // The switch is held with no reason yet, so its row is not faded, but it refuses a press as it will with one
+    await expect.poll(() => readArchiveRow(archive)).toEqual({ cursor: 'not-allowed', row: '1', text: '1' })
 
-  // Every delete sent, so one the browser should have held back shows up
-  const deletesSent: string[] = []
-  page.on('request', (sent) => {
-    if (sent.url() === `${API_BASE_URL}/transactions/${id}` && sent.method() === 'DELETE') deletesSent.push(sent.url())
-  })
-
-  await page.getByTestId(`transaction-row-${id}`).click()
-  await expect(remove).toHaveAttribute('aria-disabled', 'true')
-  await expect(remove).toHaveAccessibleDescription(DELETE_LINKED_REASON)
-
-  // Pointing at Delete shows the reason, and it follows the cursor down the button. Hovering waits for
-  // Delete to stop moving, so the pointer lands where it is aimed once the modal has grown in
-  const reason = page.getByText(DELETE_LINKED_REASON).filter({ visible: true })
-  await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX } })
-  await expect.poll(() => readTooltipOpacity(reason)).toBe('1')
-  const shownAt = await getBox(reason)
-  await remove.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX + POINTER_STEP_PX } })
-  await expect.poll(async () => Math.round((await getBox(reason)).y - shownAt.y)).toBe(POINTER_STEP_PX)
-
-  // Pressed twice, since the first press of a free Delete only asks to confirm and the second is the
-  // one that sends. Forced, because the button is marked unavailable and pressing it anyway is what is
-  // checked
-  await remove.click({ force: true })
-  await remove.click({ force: true })
-  await expect(dialog).toBeVisible()
-  expect(deletesSent).toEqual([])
-  await expect(remove).toHaveAccessibleName('Delete')
-
-  // The app keeps what it last read across a reload, so this load starts without that copy and reads
-  // the list afresh, as it does once unlinking refreshes it
-  const unlinked = await request.delete(`${API_BASE_URL}/accounts/${account.id}/bank-link`, { headers: asUser(user) })
-  expect(unlinked.ok()).toBe(true)
-  await page.addInitScript(() => localStorage.removeItem('lumina:query-cache'))
-  await openPage(page, `/accounts/${account.id}`)
-  await page.getByTestId(`transaction-row-${id}`).click()
-  await expect(remove).not.toHaveAttribute('aria-disabled')
-  await remove.click()
-  await expect(remove).toHaveAccessibleName('Yes, delete')
-  const deleted = page.waitForResponse((response) =>
-    response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'DELETE')
-  await remove.click()
-  expect((await deleted).status()).toBe(204)
-  await expect(dialog).toBeHidden()
-  await expect(page.getByTestId(`transaction-row-${id}`)).toBeHidden()
-})
-
-test('greys out bulk Delete with its reason while a ticked bank transaction is in a linked account', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const user = await signUpUser(request)
-  const account = await createAccount(request, user, { name: 'Everyday' })
-  const manualDate = daysFromTodayInTestTimezone(-(IMPORT_START_DAYS_AGO + 2))
-  const manual = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1500, date: manualDate })
-  await linkToSampleBankAccount(request, user, {
-    accountId: account.id,
-    bankAccountName: SAMPLE_CHEQUING,
-    startDate: daysFromTodayInTestTimezone(-IMPORT_START_DAYS_AGO),
-  })
-  const bankDate = (await addImportedItem(request, user, account.id, SAMPLE_COFFEE)).date
-  await logInViaApi(page, user)
-  await openPage(page, `/accounts/${account.id}`)
-
-  // Every bulk delete sent, so one the browser should have held back shows up
-  const deletesSent: string[] = []
-  page.on('request', (sent) => {
-    if (sent.url() === `${API_BASE_URL}/transactions/bulk/delete`) deletesSent.push(sent.url())
+    releaseRead()
+    await expect(archive).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
+    await expect(archiveInstead).toHaveAccessibleDescription(ARCHIVE_LINKED_REASON)
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
   })
 
-  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
-  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${manualDate}$`) }).check()
-  const deleteAction = page.getByRole('button', { name: 'Delete the selected transactions', exact: true })
-  await expect(deleteAction).not.toHaveAttribute('aria-disabled')
+  await test.step('offers Archive on a group account, whose link is never read', async () => {
+    await openPage(page, `/accounts/${shared.id}`)
+    const dialog = await openEditAccount(page)
+    await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
 
-  // Ticking the bank transaction beside the manual one refuses the pair, saying why on Delete itself
-  await page.getByRole('checkbox', { name: new RegExp(`^Select .+ on ${bankDate}$`) }).check()
-  await expect(deleteAction).toHaveAttribute('aria-disabled', 'true')
-  await expect(deleteAction).toHaveAccessibleDescription(BULK_DELETE_LINKED_REASON)
-  const reason = page.getByText(BULK_DELETE_LINKED_REASON).filter({ visible: true })
-  await deleteAction.hover({ position: { x: POINTER_INSET_PX, y: POINTER_INSET_PX } })
-  await expect.poll(() => readTooltipOpacity(reason)).toBe('1')
+    await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
+    await expect(dialog.getByRole('button', { name: 'Archive instead', exact: true })).toBeEnabled()
+  })
 
-  // Forced, because the button is marked unavailable and pressing it anyway is what is checked
-  await deleteAction.click({ force: true })
-  await expect(page.getByRole('dialog')).toHaveCount(0)
-  expect(deletesSent).toEqual([])
-  await expect(page.getByTestId(`transaction-row-${manual}`)).toBeVisible()
+  // The server refuses to archive a linked account with its reason, so a link that can't be read leaves it to
+  await test.step('offers Archive once the link fails to load', async () => {
+    await page.route(`${API_BASE_URL}/accounts/${failing.id}/bank-link`, (route) =>
+      route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }))
+    await openPage(page, `/accounts/${failing.id}`)
+    await expect(page.getByRole('button', { name: "Bank sync: Status unavailable. Open bank link" })).toBeVisible()
+    const dialog = await openEditAccount(page)
+    await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+
+    await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
+    await expect(dialog.getByRole('button', { name: 'Archive instead', exact: true })).toBeEnabled()
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
+  })
+
+  // An archived account can't be linked, so bringing it back never waits on its link
+  await test.step('offers to bring an archived account back while its link is still being read', async () => {
+    // Never answered, so the link is still being read whenever the switch is checked
+    await page.route(`${API_BASE_URL}/accounts/${archivedAccount.id}/bank-link`, () => {})
+    await openPage(page, `/accounts/${archivedAccount.id}`)
+    const dialog = await openEditAccount(page)
+
+    await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeChecked()
+    await expect(dialog.getByRole('switch', { name: /^Archive account/ })).toBeEnabled()
+  })
 })
