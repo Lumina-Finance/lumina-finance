@@ -222,8 +222,12 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     await logInViaApi(page, user)
     await openPage(page, '/insights')
 
-    const pill = card(page, 3).getByRole('button', { name: 'Merchant category filter' }).filter({ visible: true }).first()
+    const distribution = card(page, 3)
+    const pill = distribution.getByRole('button', { name: 'Merchant category filter' }).filter({ visible: true }).first()
     await pill.scrollIntoViewIfNeeded()
+    // The card loads once it is scrolled into view, and its FX status icon comes in before the pill in the Tab
+    // order when it has loaded. Pressing Tab before then lands on that icon instead of the pill
+    await expect(distribution.getByRole('button', { name: 'Merchant distribution FX status' })).toBeVisible()
     await pill.focus()
     await page.keyboard.press('Shift+Tab')
     await page.keyboard.press('Tab')

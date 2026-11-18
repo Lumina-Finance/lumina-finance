@@ -57,6 +57,7 @@ test('keeps the account loading placeholder block clear of the bars above it at 
 
   await page.setViewportSize(DESKTOP)
   const desktop = await measureFirstCard(page)
-  expect(desktop.height, 'card height at 1280px').toBe(DESKTOP_CARD_HEIGHT)
+  // The layout reads a height as a fraction of a pixel, such as 440.00003, so a difference under 0.005px is the same height
+  expect(desktop.height, 'card height at 1280px').toBeCloseTo(DESKTOP_CARD_HEIGHT, 2)
   expect(desktop.gap, 'gap above the last block at 1280px').toBeGreaterThanOrEqual(desktop.rhythm)
 })

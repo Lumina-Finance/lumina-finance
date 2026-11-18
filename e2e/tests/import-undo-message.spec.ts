@@ -102,6 +102,11 @@ for (const size of UNDO_SIZES) {
     await expect(page.getByRole('status').filter({ hasText: REOPENED_MESSAGE })).toBeVisible()
     const commit = page.getByRole('button', { name: 'Commit import', exact: true })
     await expect(commit).toBeEnabled()
+    // The undone page puts focus on itself a frame after the undo, since the undo button went with the import. Focus
+    // set before then is taken away again, so it is waited for. The undo dialogue's panel takes focus the same way,
+    // so the dialogue is waited out first
+    await expect(page.getByRole('dialog', { name: 'Undo this import?' })).toBeHidden()
+    await expect(page.locator(':focus')).toHaveAttribute('tabindex', '-1')
     // Focus scrolls the button into view without knowing of the message
     await commit.focus()
     await expect(commit).toBeFocused()

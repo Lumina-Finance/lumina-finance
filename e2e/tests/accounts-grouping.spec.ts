@@ -75,11 +75,14 @@ function groupingPill(page: Page) {
  * The line first draws the amount, then tries each form of it in a hidden copy and keeps the longest that
  * fits. It tries again once the font has arrived. A read before that has settled finds the amount
  * missing from a line that goes on to draw it, so the font is waited for and the read repeated until
- * it holds
+ * it holds. A row the list has not drawn yet has no line to hold the amount, so it reads as none too, and
+ * the line is waited for first
  */
 async function readDrawnAvailable(page: Page, row: Locator): Promise<string> {
+  const line = row.locator('p.text-sm')
+  await expect(line).toBeVisible()
   await page.evaluate(() => document.fonts.ready.then(() => undefined))
-  const shown = row.locator('p.text-sm').locator('[data-credit-available]')
+  const shown = line.locator('[data-credit-available]')
   return readSettled(page, 'the amount available', async () =>
     (await shown.isVisible()) ? (await shown.textContent())!.trim() : 'none')
 }
