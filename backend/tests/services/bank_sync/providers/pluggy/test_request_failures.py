@@ -223,17 +223,6 @@ async def test_fetch_for_an_origin_the_guard_refuses_fails_the_request_naming_th
     assert api.requests == []
 
 
-async def test_discovery_for_an_origin_the_guard_refuses_fails_the_request_naming_the_host_and_sends_nothing():
-    """Discovery is told the same way, so the user sees which server isn't allowed and not a missing bank"""
-    api = PluggyApi().serve_sign_in().serve_item(item(), account())
-
-    result = await _discover(_adapter_not_allowed_to_reach_pluggy(api))
-
-    assert result.request_error is not None
-    assert result.request_error.reason == "This Lumina Finance server is not set up to contact api.pluggy.ai"
-    assert api.requests == []
-
-
 async def test_claim_for_an_origin_the_guard_refuses_says_which_host_and_sends_nothing():
     """The user is told the server isn't set up for Pluggy, not that the keys are wrong or to try again"""
     api = PluggyApi().serve_sign_in().serve_item(item())

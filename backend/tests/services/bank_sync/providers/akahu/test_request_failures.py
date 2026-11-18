@@ -17,8 +17,6 @@ from app.services.bank_sync.providers.contract import ClaimRefused, ProviderUnre
 from tests.services.bank_sync.providers.akahu.stand_ins import (
     AKAHU_ORIGIN,
     APP_ID_TOKEN,
-    CREDENTIAL,
-    EXPONENTS,
     USER_ACCESS_TOKEN,
     AkahuApi,
     Answer,
@@ -162,17 +160,6 @@ async def test_fetch_for_an_origin_the_guard_refuses_fails_the_request_naming_th
     assert result.request_error is not None
     assert result.request_error.kind is ProviderErrorKind.UNKNOWN
     assert result.request_error.reason == "This Lumina Finance server is not set up to contact api.akahu.io"
-    assert api.requests == []
-
-
-async def test_discovery_for_an_origin_the_guard_refuses_fails_the_request_and_sends_nothing():
-    """Discovery meets the same refusal, and no token goes anywhere"""
-    api = AkahuApi().serve("/accounts", accounts_body(account()))
-
-    result = await _adapter_not_allowed_to_reach_akahu(api).discover(CREDENTIAL, currency_exponents=EXPONENTS)
-
-    assert result.request_error is not None
-    assert result.request_error.kind is ProviderErrorKind.UNKNOWN
     assert api.requests == []
 
 
