@@ -610,7 +610,7 @@ async def issue_and_store_tokens(
 
 
 async def _delete_expired_imports(db: AsyncSession) -> None:
-    """Delete abandoned uploads and expired imports here too, since the Lambda runtime runs no scheduled cleanup"""
+    """Delete abandoned uploads and expired imports at sign-in, as well as on the cleanup schedule"""
     try:
         await delete_expired_import_runs(db)
         await db.commit()

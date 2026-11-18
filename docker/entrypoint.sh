@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export RUNTIME="${RUNTIME:-server}"
 export JWT_ACCESS_PRIVATE_KEY_PATH="${JWT_ACCESS_PRIVATE_KEY_PATH:-/data/keys/access_private.pem}"
 export JWT_REFRESH_PRIVATE_KEY_PATH="${JWT_REFRESH_PRIVATE_KEY_PATH:-/data/keys/refresh_private.pem}"
 

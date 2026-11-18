@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.abuse_log import log_source_address
 from app.config.log_level import LOG_LEVEL
 from app.config.oidc import OIDC_PROVIDER_CONFIGS
-from app.config.runtime import ALLOWED_ORIGINS, RUNTIME
+from app.config.runtime import ALLOWED_ORIGINS
 from app.database import async_session, engine, verify_app_role_is_unprivileged
 from app.db.bank_transaction_key import verify_key_matches_hashes
 from app.db.encryption_key import verify_key_matches_data
@@ -81,14 +81,8 @@ async def _lifespan(_app: FastAPI):
 
     run_startup_checks()
 
-    # The cache's pool lives as long as the app, in every runtime, and a server without ValKey starts as usual
+    # The cache's pool lives as long as the app, and a server without ValKey starts as usual
     async with use_valkey():
-        # Only a long-running server can keep a timer going. A Lambda process is frozen between
-        # invocations, so that runtime calls prune_expired_records from its own scheduler instead
-        if RUNTIME != "server":
-            yield
-            return
-
         pruning = asyncio.create_task(prune_expired_records_on_schedule())
         try:
             yield
@@ -98,7 +92,7 @@ async def _lifespan(_app: FastAPI):
                 await pruning
 
 
-# The API publishes no map of its routes in any runtime, and no setting brings one back
+# The API publishes no map of its routes, and no setting brings one back
 app = FastAPI(
     title="Lumina Finance API",
     openapi_url=None,
@@ -172,10 +166,3 @@ async def health():
         Static health status payload
     """
     return {"status": "ok"}
-
-
-# Lambda handler — only created when running on Lambda
-if RUNTIME == "lambda":
-    from mangum import Mangum
-
-    handler = Mangum(app)

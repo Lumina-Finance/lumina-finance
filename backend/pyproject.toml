@@ -14,7 +14,6 @@ dependencies = [
     "greenlet>=3.5.5",
     "httpx>=0.28.1",
     "jinja2>=3.1.6",
-    "mangum>=0.22.0",
     "pydantic[email]>=2.13.5",
     "pyjwt[crypto]>=2.15.1",
     "pyotp>=2.10.0",

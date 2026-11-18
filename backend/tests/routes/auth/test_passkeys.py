@@ -147,6 +147,7 @@ async def test_registration_options_persist_single_challenge(client):
     assert options["authenticatorSelection"]["residentKey"] == "required"
     assert options["authenticatorSelection"]["userVerification"] == "required"
     assert options["rp"]["id"] == WEBAUTHN_RP_ID
+    assert options["rp"]["name"] == "Lumina Finance Self-Hosted"
 
     assert await _count_registration_challenges(user_id) == 1
 
