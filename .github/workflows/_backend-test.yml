@@ -36,9 +36,10 @@ jobs:
     runs-on: ubuntu-latest
 
     # Eight groups leave room for the browser tests within the free plan's 20 jobs at once.
-    # pytest-split evens them out by the run times in backend/.test_durations
+    # pytest-split evens them out by the run times in backend/.test_durations. One failed group
+    # cancels the others, since the run can no longer pass
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         group: [1, 2, 3, 4, 5, 6, 7, 8]
 
