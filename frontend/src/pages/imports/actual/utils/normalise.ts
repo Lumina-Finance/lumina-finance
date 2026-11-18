@@ -43,7 +43,9 @@ const ACTUAL_TAG_PATTERN = /(?<!#)#([^#\s]+)/g
 
 // Built-in transfer categories a new spending category can't share a name with, since it would reuse
 // one that can't carry spending
-const ACTUAL_RESERVED_PAYMENT_NAMES = [IMPORT_TRANSFER_CATEGORY_NAME, BALANCE_ADJUSTMENT_CATEGORY_NAME].map((name) => name.toLowerCase())
+const ACTUAL_RESERVED_PAYMENT_NAMES = [IMPORT_TRANSFER_CATEGORY_NAME, BALANCE_ADJUSTMENT_CATEGORY_NAME].map((name) =>
+  name.toLowerCase(),
+)
 
 /**
  * Turns a read Actual budget into the rows the import uploads, and the ones it leaves out
@@ -89,7 +91,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
     const rowParent = row.parentId ? transactionById.get(row.parentId) : undefined
     const notes = joinNotes(rowParent?.notes ?? null, row.notes)
     const payee = payeeById.get(row.payeeId ?? rowParent?.payeeId ?? '') ?? null
-    return getRowLimitReason(notes, readActualTags(notes), payee?.transferAccountId ? null : payee?.name ?? null)
+    return getRowLimitReason(notes, readActualTags(notes), payee?.transferAccountId ? null : (payee?.name ?? null))
   }
 
   // Rows whose split was left out
@@ -106,9 +108,8 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
 
   // Actual counts a row's category only while the row's own account is on the budget, which is how
   // rows categorised before their account left the budget read
-  const countedCategory = (row: ActualTransaction, rowAccount: ActualAccount) => (
-    rowAccount.offBudget ? null : categoryById.get(row.categoryId ?? '') ?? null
-  )
+  const countedCategory = (row: ActualTransaction, rowAccount: ActualAccount) =>
+    rowAccount.offBudget ? null : (categoryById.get(row.categoryId ?? '') ?? null)
 
   for (const transaction of budget.transactions) {
     // A split's parts are imported in its place, but a parent left with none is an ordinary row
@@ -119,17 +120,22 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
 
     const payee = payeeById.get(transaction.payeeId ?? parent?.payeeId ?? '') ?? null
     const counterpartAccount = payee?.transferAccountId ? accountById.get(payee.transferAccountId) : undefined
-    const linked = counterpartAccount ? findTransferCounterpart(transaction, counterpartAccount, transactionById, payeeById, leftOut) : null
+    const linked = counterpartAccount
+      ? findTransferCounterpart(transaction, counterpartAccount, transactionById, payeeById, leftOut)
+      : null
 
     // A transfer carries one category, so two sides that each count one come in as a row apiece
-    const counterpart = linked && counterpartAccount
-      && !(countedCategory(transaction, account) && countedCategory(linked, counterpartAccount))
-      ? linked
-      : null
+    const counterpart =
+      linked &&
+      counterpartAccount &&
+      !(countedCategory(transaction, account) && countedCategory(linked, counterpartAccount))
+        ? linked
+        : null
 
     // A pair is uploaded from one side with that side's notes, so the pair stands or falls with it
     if (counterpart && !isUploadedSide(transaction, counterpart)) {
-      if (getLimitReason(counterpart)) skippedRows.push(describe(transaction, ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON, parent))
+      if (getLimitReason(counterpart))
+        skippedRows.push(describe(transaction, ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON, parent))
       continue
     }
 
@@ -141,7 +147,13 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
       continue
     }
 
-    const base = { transactionId: transaction.id, date: transaction.date, amount: Math.abs(transaction.amount), notes, tags }
+    const base = {
+      transactionId: transaction.id,
+      date: transaction.date,
+      amount: Math.abs(transaction.amount),
+      notes,
+      tags,
+    }
     if (transaction.isStartingBalance) {
       entries.push({
         ...base,
@@ -158,14 +170,16 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
 
     if (counterpartAccount) {
       if (counterpart) {
-        entries.push(buildTransferPair(
-          base,
-          account,
-          counterpartAccount,
-          countedCategory(transaction, account),
-          countedCategory(counterpart, counterpartAccount),
-          categoryUses,
-        ))
+        entries.push(
+          buildTransferPair(
+            base,
+            account,
+            counterpartAccount,
+            countedCategory(transaction, account),
+            countedCategory(counterpart, counterpartAccount),
+            categoryUses,
+          ),
+        )
         continue
       }
 
@@ -183,7 +197,11 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
     }
 
     const category = countedCategory(transaction, account)
-    const role: ActualCategoryRole = category ? 'spending' : account.offBudget ? 'offBudgetUncategorized' : 'uncategorized'
+    const role: ActualCategoryRole = category
+      ? 'spending'
+      : account.offBudget
+        ? 'offBudgetUncategorized'
+        : 'uncategorized'
 
     // A row with no category that brings money in is listed apart, so its income isn't filed with
     // the spending
@@ -248,7 +266,8 @@ function findTransferCounterpart(
   if (counterpart.accountId !== counterpartAccount.id || counterpart.accountId === transaction.accountId) return null
   const counterpartParent = counterpart.parentId ? transactionById.get(counterpart.parentId) : undefined
   const counterpartPayee = payeeById.get(counterpart.payeeId ?? counterpartParent?.payeeId ?? '')
-  if (counterpartPayee?.transferAccountId !== transaction.accountId || counterpart.date !== transaction.date) return null
+  if (counterpartPayee?.transferAccountId !== transaction.accountId || counterpart.date !== transaction.date)
+    return null
   if (counterpart.amount !== -transaction.amount || counterpart.isParent || transaction.isParent) return null
   return counterpart
 }
@@ -296,7 +315,7 @@ function getMerchantSafeName(name: string) {
 function getOneSidedAccounts(transaction: ActualTransaction, account: ActualAccount) {
   const isOutflow = transaction.amount < 0
   return {
-    type: isOutflow ? 'withdrawal' as const : 'deposit' as const,
+    type: isOutflow ? ('withdrawal' as const) : ('deposit' as const),
     sourceAccountId: isOutflow ? account.id : null,
     destinationAccountId: isOutflow ? null : account.id,
   }
@@ -313,12 +332,18 @@ function getRowLimitReason(notes: string | null, tags: string[], merchantName: s
   const longTag = tags.find((tag) => [...tag].length > IMPORT_TAG_NAME_MAX_LENGTH)
   if (longTag) return getActualTagTooLongReason(longTag)
   const merchantNameLength = [...(merchantName ?? '')].length
-  if (merchantNameLength > JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName) return getImportMerchantTooLongReason(merchantNameLength)
+  if (merchantNameLength > JOURNAL_ROW_FIELD_MAX_LENGTHS.merchantName)
+    return getImportMerchantTooLongReason(merchantNameLength)
   return null
 }
 
 function joinNotes(parentNotes: string | null, notes: string | null) {
-  return [parentNotes, notes].map((part) => part?.trim() ?? '').filter(Boolean).join('\n') || null
+  return (
+    [parentNotes, notes]
+      .map((part) => part?.trim() ?? '')
+      .filter(Boolean)
+      .join('\n') || null
+  )
 }
 
 /**
@@ -340,12 +365,17 @@ export function readActualTags(notes: string | null): string[] {
  */
 export function formatHundredths(amount: number, decimals = ACTUAL_TRANSACTION_DECIMALS) {
   const sign = amount < 0 ? '-' : ''
-  const text = formatScaledAmount(amount, ACTUAL_TRANSACTION_DECIMALS, decimals)
-    ?? formatScaledAmount(amount, ACTUAL_TRANSACTION_DECIMALS, ACTUAL_TRANSACTION_DECIMALS)
+  const text =
+    formatScaledAmount(amount, ACTUAL_TRANSACTION_DECIMALS, decimals) ??
+    formatScaledAmount(amount, ACTUAL_TRANSACTION_DECIMALS, ACTUAL_TRANSACTION_DECIMALS)
   return `${sign}${text}`
 }
 
-function buildAccountSources(accounts: ActualAccount[], entries: ActualJournalEntry[], today: string): ActualAccountSource[] {
+function buildAccountSources(
+  accounts: ActualAccount[],
+  entries: ActualJournalEntry[],
+  today: string,
+): ActualAccountSource[] {
   const balances = new Map<string, number>()
   const rowCounts = new Map<string, number>()
   const withFutureRows = new Set<string>()
@@ -368,9 +398,8 @@ function buildAccountSources(accounts: ActualAccount[], entries: ActualJournalEn
 
   // A shared name is told apart by where the account sits, and numbered when that is shared too
   const nameCounts = countBy(accounts.map((account) => account.name.toLowerCase()))
-  const describeAccount = (account: ActualAccount) => (
+  const describeAccount = (account: ActualAccount) =>
     `${account.offBudget ? 'off budget' : 'on budget'}${account.closed ? ', closed' : ''}`
-  )
   const detailCounts = countBy(accounts.map((account) => `${account.name.toLowerCase()}\n${describeAccount(account)}`))
   const detailSeen = new Map<string, number>()
   const labelAccount = (account: ActualAccount) => {
@@ -415,18 +444,33 @@ function countBy(values: string[]) {
 
 /** Collects the category sources rows use, counting rows so the steps can say how many each files */
 class CategoryUses {
-  private readonly uses = new Map<string, {
-    role: ActualCategoryRole
-    categoryId: string | null
-    accountId: string | null
-    isMoneyIn: boolean
-    count: number
-  }>()
+  private readonly uses = new Map<
+    string,
+    {
+      role: ActualCategoryRole
+      categoryId: string | null
+      accountId: string | null
+      isMoneyIn: boolean
+      count: number
+    }
+  >()
 
   /** @param isMoneyIn - Whether an uncategorized row brings money in, which files it apart */
-  add(role: ActualCategoryRole, category: ActualCategory | null, account: ActualAccount | null, count = 1, isMoneyIn = false) {
+  add(
+    role: ActualCategoryRole,
+    category: ActualCategory | null,
+    account: ActualAccount | null,
+    count = 1,
+    isMoneyIn = false,
+  ) {
     const id = getCategorySourceId(role, category?.id ?? null, account?.id ?? null, isMoneyIn)
-    const use = this.uses.get(id) ?? { role, categoryId: category?.id ?? null, accountId: account?.id ?? null, isMoneyIn, count: 0 }
+    const use = this.uses.get(id) ?? {
+      role,
+      categoryId: category?.id ?? null,
+      accountId: account?.id ?? null,
+      isMoneyIn,
+      count: 0,
+    }
     use.count += count
     this.uses.set(id, use)
     return id
@@ -445,7 +489,7 @@ class CategoryUses {
 
     const sources = [...this.uses].map(([id, use]): ActualCategorySource => {
       const category = use.categoryId ? categoryById.get(use.categoryId) : undefined
-      const accountName = use.accountId ? accountById.get(use.accountId)?.name ?? '' : ''
+      const accountName = use.accountId ? (accountById.get(use.accountId)?.name ?? '') : ''
       const name = category ? getActualCategoryName(category, categories) : ''
       const labels = getSourceLabels(use.role, name, accountName, use.isMoneyIn)
       return {
@@ -462,11 +506,12 @@ class CategoryUses {
     // Uncategorized money in follows the money out of the same role, as the other imports list it
     const roleOrder: ActualCategoryRole[] = ['spending', 'transfer', 'uncategorized', 'offBudgetUncategorized']
     const isUncategorizedMoneyIn = (source: ActualCategorySource) => !source.categoryId && source.isIncome
-    return sources.sort((a, b) => (
-      roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role)
-      || Number(isUncategorizedMoneyIn(a)) - Number(isUncategorizedMoneyIn(b))
-      || a.label.localeCompare(b.label)
-    ))
+    return sources.sort(
+      (a, b) =>
+        roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role) ||
+        Number(isUncategorizedMoneyIn(a)) - Number(isUncategorizedMoneyIn(b)) ||
+        a.label.localeCompare(b.label),
+    )
   }
 }
 
@@ -482,11 +527,18 @@ export function getActualTransferSourceId(categoryId: string | null) {
   return `${ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX}${categoryId ?? ''}`
 }
 
-function getCategorySourceId(role: ActualCategoryRole, categoryId: string | null, accountId: string | null, isMoneyIn = false) {
+function getCategorySourceId(
+  role: ActualCategoryRole,
+  categoryId: string | null,
+  accountId: string | null,
+  isMoneyIn = false,
+) {
   if (role === 'spending') return categoryId ?? JOURNAL_NO_CATEGORY_SOURCE
   if (role === 'transfer') return getActualTransferSourceId(categoryId)
   if (role === 'offBudgetUncategorized') {
-    const prefix = isMoneyIn ? ACTUAL_OFF_BUDGET_MONEY_IN_CATEGORY_SOURCE_PREFIX : ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX
+    const prefix = isMoneyIn
+      ? ACTUAL_OFF_BUDGET_MONEY_IN_CATEGORY_SOURCE_PREFIX
+      : ACTUAL_OFF_BUDGET_CATEGORY_SOURCE_PREFIX
     return `${prefix}${accountId ?? ''}`
   }
   return isMoneyIn ? JOURNAL_NO_CATEGORY_MONEY_IN_SOURCE : JOURNAL_NO_CATEGORY_SOURCE
@@ -503,10 +555,16 @@ function getSourceLabels(role: ActualCategoryRole, name: string, accountName: st
     return { label: `${name} (transfers in Actual)`, createName: `${name} Transfers` }
   }
   if (role === 'offBudgetUncategorized') {
-    return { label: `(${isMoneyIn ? 'deposit' : 'withdrawal'}, no category) · ${accountName}`, createName: isMoneyIn ? `${accountName} Income` : accountName }
+    return {
+      label: `(${isMoneyIn ? 'deposit' : 'withdrawal'}, no category) · ${accountName}`,
+      createName: isMoneyIn ? `${accountName} Income` : accountName,
+    }
   }
   if (role === 'uncategorized') {
-    return { label: `(${isMoneyIn ? 'deposit' : 'withdrawal'}, no category)`, createName: isMoneyIn ? IMPORT_OTHER_INCOME_CATEGORY_NAME : 'Miscellaneous' }
+    return {
+      label: `(${isMoneyIn ? 'deposit' : 'withdrawal'}, no category)`,
+      createName: isMoneyIn ? IMPORT_OTHER_INCOME_CATEGORY_NAME : 'Miscellaneous',
+    }
   }
   const isReserved = ACTUAL_RESERVED_PAYMENT_NAMES.includes(name.toLowerCase())
   return { label: name, createName: isReserved ? `${name} Payments` : name }

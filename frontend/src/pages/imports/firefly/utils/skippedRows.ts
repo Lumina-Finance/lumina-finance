@@ -54,10 +54,7 @@ export interface FireflyImportForecastOptions extends FireflyRowResolutionOption
 /**
  * Resolves every journal row once to predict its transaction count, skip reason and guidance
  */
-export function forecastFireflyImport(
-  rows: CsvRow[],
-  options: FireflyImportForecastOptions,
-): FireflyImportForecast {
+export function forecastFireflyImport(rows: CsvRow[], options: FireflyImportForecastOptions): FireflyImportForecast {
   const skippedRows: FireflySkippedRowDetail[] = []
   const rowWarnings: ImportRowProblem[] = []
   let rowCount = 0
@@ -74,12 +71,14 @@ export function forecastFireflyImport(
     // fix in the file
     const missingFields = getFireflyMissingRequiredFields(row)
     if (missingFields.length > 0) {
-      skippedRows.push(buildFireflySkippedRowDetail(
-        rowFileId,
-        row,
-        index,
-        `${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: ${formatValueList(missingFields)}`,
-      ))
+      skippedRows.push(
+        buildFireflySkippedRowDetail(
+          rowFileId,
+          row,
+          index,
+          `${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: ${formatValueList(missingFields)}`,
+        ),
+      )
       continue
     }
 
@@ -94,12 +93,14 @@ export function forecastFireflyImport(
     // tag named
     const overlongTag = getFireflyOverlongTag(row)
     if (overlongTag !== null) {
-      skippedRows.push(buildFireflySkippedRowDetail(
-        rowFileId,
-        row,
-        index,
-        `${FIREFLY_TAG_TOO_LONG_REASON}: ${overlongTag.slice(0, OVERLONG_TAG_PREVIEW_LENGTH)}`,
-      ))
+      skippedRows.push(
+        buildFireflySkippedRowDetail(
+          rowFileId,
+          row,
+          index,
+          `${FIREFLY_TAG_TOO_LONG_REASON}: ${overlongTag.slice(0, OVERLONG_TAG_PREVIEW_LENGTH)}`,
+        ),
+      )
       continue
     }
 
@@ -138,7 +139,12 @@ export function forecastFireflyImport(
 /**
  * Shapes one parsed export row into the skipped-row detail the table renders
  */
-function buildFireflySkippedRowDetail(fileId: string, row: CsvRow, index: number, reason: string): FireflySkippedRowDetail {
+function buildFireflySkippedRowDetail(
+  fileId: string,
+  row: CsvRow,
+  index: number,
+  reason: string,
+): FireflySkippedRowDetail {
   return {
     id: getImportRowId(fileId, index),
     journalId: row.journal_id?.trim() ?? '',
