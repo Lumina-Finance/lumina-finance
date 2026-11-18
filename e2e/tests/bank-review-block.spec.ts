@@ -700,18 +700,19 @@ test('says an account is paused for its backlog, or close to pausing', NEEDS_BAN
   await expect(block).not.toContainText('Paused')
 })
 
-for (const colorScheme of ['light', 'dark'] as const) {
-  // Only the light run places the block, so only it runs at every size
-  test(`${colorScheme === 'light' ? 'sits above the list and keeps' : 'keeps'} its text readable in the ${colorScheme} theme`, colorScheme === 'light' ? AT_EVERY_SIZE_NEEDS_BANK_SYNC : NEEDS_BANK_SYNC, async ({ page, request }) => {
-    const { everyday, visa } = await start(page, request)
-    const items = [
-      reviewItem('visa-1', 'correction', visa.id, { description: 'COUNTDOWN 123 WITH A LONGER BANK DESCRIPTION THAN MOST', amount: -2310 }),
-      reviewItem('everyday-1', 'new', everyday.id, { description: 'REFUND', amount: 4250 }),
-      reviewItem('everyday-2', 'removal', everyday.id, { description: 'UBER TRIP' }),
-      ...Array.from({ length: 3 }, (_, index) => reviewItem(`everyday-${index + 3}`, 'new', everyday.id)),
-    ]
-    await answerReviewItems(page, () => pageOf(items, { new: 4, correction: 1, removal: 1 }))
-    await answerBacklogs(page, () => [{ account_id: everyday.id, waiting_new_count: 105, paused: true, review_warning: false }])
+// Only the light run places the block, so only it runs at every size. The dark run follows it on desktop
+test('sits above the list and keeps its text readable in the light and dark themes', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+  const { everyday, visa } = await start(page, request)
+  const items = [
+    reviewItem('visa-1', 'correction', visa.id, { description: 'COUNTDOWN 123 WITH A LONGER BANK DESCRIPTION THAN MOST', amount: -2310 }),
+    reviewItem('everyday-1', 'new', everyday.id, { description: 'REFUND', amount: 4250 }),
+    reviewItem('everyday-2', 'removal', everyday.id, { description: 'UBER TRIP' }),
+    ...Array.from({ length: 3 }, (_, index) => reviewItem(`everyday-${index + 3}`, 'new', everyday.id)),
+  ]
+  await answerReviewItems(page, () => pageOf(items, { new: 4, correction: 1, removal: 1 }))
+  await answerBacklogs(page, () => [{ account_id: everyday.id, waiting_new_count: 105, paused: true, review_warning: false }])
+
+  const readInTheme = async (colorScheme: 'light' | 'dark') => {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
 
     await openPage(page, '/transactions')
@@ -767,5 +768,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
     for (const text of texts) {
       expect((await faintestText(text)).contrast, await text.textContent() ?? '').toBeGreaterThanOrEqual(4.5)
     }
-  })
-}
+  }
+
+  await test.step('sits above the list and keeps its text readable in the light theme', () => readInTheme('light'))
+  if (test.info().project.name === 'desktop') {
+    await test.step('keeps its text readable in the dark theme', () => readInTheme('dark'))
+  }
+})
