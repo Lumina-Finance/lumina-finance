@@ -203,6 +203,24 @@ async def test_prunes_abandoned_and_undo_expired_import_runs_for_every_user():
     assert await _remaining_ids(ImportRun) == {in_progress.id, still_undoable.id}
 
 
+async def test_passes_over_an_abandoned_import_run_another_request_holds():
+    """A run a commit still holds is left for that commit to settle, rather than waited on or deleted"""
+    (owner,) = await _seed_users(1)
+    held = _import_run(owner, created_at=datetime.now(UTC) - ABANDONED_RUN_AGE - timedelta(minutes=1))
+    async with TestSession() as session:
+        session.add(held)
+        await session.commit()
+
+    # Bounded so that waiting on the held run fails this test rather than hanging it
+    async with TestSession() as holder:
+        await holder.execute(text("SELECT id FROM import_runs WHERE id = :id FOR UPDATE"), {"id": held.id})
+        async with asyncio.timeout(5):
+            await prune_expired_records(ScopedSession)
+        await holder.rollback()
+
+    assert await _remaining_ids(ImportRun) == {held.id}
+
+
 async def test_prunes_bank_sync_jobs_finished_over_30_days_ago_for_every_user():
     """A finished job past its retention goes for any user, while a newer one and unfinished ones stay"""
     now = datetime.now(UTC)

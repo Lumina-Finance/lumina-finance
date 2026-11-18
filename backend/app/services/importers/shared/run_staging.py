@@ -161,8 +161,6 @@ async def open_import_run(
     Returns:
         The opened run
     """
-    # The scheduled cleanup prunes these too
-    await delete_expired_import_runs(db)
     run = ImportRun(
         owner_id=user.id,
         source=source,

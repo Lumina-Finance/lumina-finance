@@ -77,8 +77,6 @@ async def build_passkey_registration_options(db: AsyncSession, user_id: uuid.UUI
     Returns:
         The ceremony options serialized as JSON for the browser
     """
-    await delete_expired_webauthn_challenges(db)
-
     # A passkey whose acknowledgement expired can never be confirmed, so drop it here, or the browser
     # would refuse to register the same authenticator again as already enrolled
     await db.execute(
@@ -321,8 +319,6 @@ async def build_passkey_authentication_options(db: AsyncSession) -> str:
     Returns:
         The ceremony options serialized as JSON for the browser
     """
-    await delete_expired_webauthn_challenges(db)
-
     options = generate_authentication_options(
         rp_id=WEBAUTHN_RP_ID,
         user_verification=UserVerificationRequirement.REQUIRED,
@@ -403,8 +399,6 @@ async def build_passkey_second_factor_options(db: AsyncSession, user_id: uuid.UU
     Returns:
         The ceremony options serialized as JSON for the browser
     """
-    await delete_expired_webauthn_challenges(db)
-
     allow_credentials = [
         PublicKeyCredentialDescriptor(
             id=passkey.credential_id,
@@ -688,5 +682,5 @@ async def _ensure_webauthn_identity(db: AsyncSession, user_id: uuid.UUID) -> Non
 
 
 async def delete_expired_webauthn_challenges(db: AsyncSession) -> None:
-    """Prune challenges whose expiry has passed, on the schedule and at each passkey ceremony"""
+    """Prune every user's challenges whose expiry has passed, for the scheduled cleanup"""
     await db.execute(delete(WebauthnChallenge).where(WebauthnChallenge.expires_at < sa_func.now()))

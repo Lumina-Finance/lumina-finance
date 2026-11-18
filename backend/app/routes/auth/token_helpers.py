@@ -1,6 +1,5 @@
 """Auth token route helpers"""
 
-import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
@@ -42,7 +41,6 @@ from app.services.auth.mfa_challenge import consume_mfa_challenge, is_mfa_challe
 from app.services.auth.sessions import (
     create_auth_session,
     create_auth_token,
-    delete_expired_auth_sessions,
     delete_expired_auth_tokens,
     rotate_auth_session_tokens,
 )
@@ -56,9 +54,6 @@ from app.services.auth.tokens import (
 )
 from app.services.auth.two_factor import SECOND_FACTOR_PASSKEY, verify_login_second_factor
 from app.services.auth.webauthn import verify_passkey_second_factor
-from app.services.importers.shared.run_staging import delete_expired_import_runs
-
-logger = logging.getLogger(__name__)
 
 _refresh_public_key = load_pem_private_key(JWT_REFRESH_PRIVATE_KEY.encode(), password=None).public_key()
 _access_public_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=None).public_key()
@@ -574,8 +569,10 @@ async def issue_and_store_tokens(
     if refresh_in_body is None:
         refresh_in_body = request_is_native_client(request)
 
+    # Token issue clears expired tokens, as the schedule does. While a rotated refresh token's row
+    # outlives its grace, a late refresh with it signs the user out, and once the row is gone the
+    # refresh gets a conflict instead, so the newer cookie another tab holds keeps working
     await delete_expired_auth_tokens(db)
-    await delete_expired_auth_sessions(db)
 
     is_new_session = session_id is None
     if session_id is None:
@@ -598,26 +595,12 @@ async def issue_and_store_tokens(
     db.add(create_auth_token(user.id, session_id, refresh_jti, AuthTokenKind.REFRESH, refresh_exp))
     await db.commit()
 
-    # Built before the cleanup, whose rollback on failure would expire the user it reads
     auth_response = AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)
-    await _delete_expired_imports(db)
-
     if refresh_in_body:
         auth_response.refresh_token = refresh_token
     else:
         set_refresh_cookie(request, response, refresh_token)
     return auth_response
-
-
-async def _delete_expired_imports(db: AsyncSession) -> None:
-    """Delete abandoned uploads and expired imports at sign-in, as well as on the cleanup schedule"""
-    try:
-        await delete_expired_import_runs(db)
-        await db.commit()
-    except Exception:
-        # Sign-in has already succeeded by now and must not fail over a cleanup the next sign-in repeats
-        await db.rollback()
-        logger.warning("Expired import runs could not be deleted", exc_info=True)
 
 
 def _get_refresh_grace_expiry() -> datetime:

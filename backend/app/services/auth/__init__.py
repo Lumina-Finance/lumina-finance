@@ -45,7 +45,6 @@ from app.services.auth.two_factor import (
     confirm_recovery_codes,
     confirm_totp_enrollment,
     disable_two_factor,
-    prune_stale_factor_staging,
     regenerate_recovery_codes,
     remove_passkey_with_step_up,
 )
@@ -106,7 +105,6 @@ __all__ = [
     "list_oidc_identities",
     "list_passkeys",
     "login",
-    "prune_stale_factor_staging",
     "regenerate_recovery_codes",
     "register_passkey",
     "remove_passkey",

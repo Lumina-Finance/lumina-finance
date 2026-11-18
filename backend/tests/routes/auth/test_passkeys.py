@@ -622,6 +622,41 @@ async def test_authenticate_rejects_unrecognized_credential(client):
     assert response.status_code == 401
 
 
+async def test_an_expired_sign_in_challenge_is_refused_and_left_to_the_scheduled_cleanup(client, monkeypatch):
+    """Starting any passkey ceremony deletes no expired challenge, and answering one past its expiry is refused"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    credential_id = b"expired-challenge-credential"
+    expired = (await client.post("/auth/passkeys/authenticate/options")).json()
+    async with TestSession() as db:
+        expired_id = (await db.scalars(select(WebauthnChallenge.id))).one()
+        await db.execute(update(WebauthnChallenge).values(expires_at=datetime.now(UTC) - timedelta(seconds=1)))
+        await db.commit()
+    monkeypatch.setattr(webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=1))
+
+    async def is_expired_challenge_kept():
+        async with TestSession() as db:
+            return await db.get(WebauthnChallenge, expired_id) is not None
+
+    registration = await client.post(
+        "/auth/passkeys/register/options", headers=auth, json={"step_up": {"password": SIGNUP_PAYLOAD["password"]}}
+    )
+    assert registration.status_code == 200
+    assert await is_expired_challenge_kept(), "starting a registration leaves it to the scheduled cleanup"
+    await _seed_passkey(user_id, credential_id)
+    mfa_token = (await _login(client)).json()["mfa_token"]
+    assert (await client.post("/auth/passkeys/mfa/options", json={"mfa_token": mfa_token})).status_code == 200
+    assert await is_expired_challenge_kept(), "starting a second-factor step leaves it to the scheduled cleanup"
+    assert (await client.post("/auth/passkeys/authenticate/options")).status_code == 200
+    assert await is_expired_challenge_kept(), "starting a sign-in leaves it to the scheduled cleanup"
+
+    refused = await client.post(
+        "/auth/passkeys/authenticate", json={"credential": _build_assertion(expired["challenge"], credential_id, user_id)}
+    )
+    assert (refused.status_code, refused.json()["detail"]) == (400, "Passkey challenge expired")
+
+
 async def test_authenticate_rejects_malformed_response(client):
     """An assertion missing the client data is rejected as malformed"""
     response = await client.post("/auth/passkeys/authenticate", json={"credential": {"rawId": "x"}})
@@ -698,25 +733,6 @@ async def test_concurrent_passkey_confirmation_keeps_the_recovery_codes(client):
     assert len(active_passkeys.scalars().all()) == 1
     assert len(active_codes.scalars().all()) == 10
     assert pending_codes.scalars().all() == []
-
-
-async def test_login_prunes_stale_passkey_staging(client):
-    """Logging in sweeps a staged passkey and its pending recovery codes once they are stale"""
-    signup = await _create_user(client)
-    user_id = signup.json()["user"]["id"]
-    await _seed_stale_staged_passkey(user_id, b"stale-staged-key")
-
-    login = await client.post(
-        "/auth/login",
-        json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]},
-    )
-    assert login.status_code == 200
-
-    async with TestSession() as db:
-        staged = await db.scalar(select(WebauthnCredential).where(WebauthnCredential.credential_id == b"stale-staged-key"))
-        pending = await db.scalar(select(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id), RecoveryCode.pending.is_(True)))
-    assert staged is None
-    assert pending is None
 
 
 async def test_confirm_refuses_a_staged_passkey_past_its_lifetime(client):

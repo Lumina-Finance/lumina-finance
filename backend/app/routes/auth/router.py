@@ -62,7 +62,6 @@ from app.services.auth import (
     is_totp_enabled,
     issue_mfa_challenge,
     login,
-    prune_stale_factor_staging,
     regenerate_recovery_codes,
     request_password_reset,
     request_signup,
@@ -162,11 +161,6 @@ async def login_route(
         HTTPException: Credentials are invalid or the account is locked
     """
     user = await login(db, data)
-
-    # Login is the ordinary action that sweeps factor setup the user never finished, since there is
-    # no reliable signal that they abandoned it
-    await prune_stale_factor_staging(db, user.id)
-    await db.commit()
 
     # Any confirmed second factor, or a pending re-enrolment whose only key is a recovery code, holds
     # back tokens until the verify endpoint clears the challenge. A passkey is the preferred factor when

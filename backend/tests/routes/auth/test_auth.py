@@ -5,7 +5,7 @@ from uuid import uuid4
 import jwt
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.config.jwt import JWT_ACCESS_PRIVATE_KEY, JWT_ALGORITHM, JWT_ISSUER, JWT_REFRESH_PRIVATE_KEY
 from app.main import app
@@ -392,6 +392,32 @@ async def test_rotated_away_refresh_token_returns_409_without_clearing_cookie(cl
     assert "set-cookie" not in third_resp.headers
 
 
+async def test_a_late_refresh_after_its_grace_keeps_the_newer_cookie_once_tokens_are_issued(client):
+    """Token issue clears a rotated token whose grace ended, so its late refresh doesn't sign the user out"""
+    signup_resp = await _create_user(client)
+    old_cookie = signup_resp.cookies["refresh_token"]
+    client.cookies.set("refresh_token", old_cookie)
+    assert (await client.post("/auth/refresh")).status_code == 200
+    async with TestSession() as session:
+        await session.execute(
+            update(AuthToken)
+            .where(AuthToken.refresh_grace_expires_at.is_not(None))
+            .values(refresh_grace_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+        )
+        await session.commit()
+
+    # A sign-in elsewhere issues tokens for a new session, so no rotation of this one removes the row
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
+    assert login.status_code == 200
+
+    client.cookies.set("refresh_token", old_cookie)
+    late = await client.post("/auth/refresh")
+
+    assert late.status_code == 409
+    assert late.json()["detail"] == "Refresh token was already rotated"
+    assert "set-cookie" not in late.headers
+
+
 async def test_concurrent_refresh_keeps_only_current_and_previous_refresh_tokens(client):
     """Concurrent refresh attempts keep one current and one previous refresh token"""
     signup_resp = await _create_user(client)
@@ -576,6 +602,12 @@ async def test_refresh_rejects_expired_session_with_active_token_row(client):
         auth_session = result.scalar_one()
         auth_session.expires_at = datetime.now(UTC) - timedelta(minutes=1)
         await session.commit()
+
+    # Issuing tokens for a new sign-in leaves the expired session to the scheduled cleanup
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
+    assert login.status_code == 200
+    async with TestSession() as session:
+        assert await session.get(AuthSession, auth_session.id) is not None
 
     client.cookies.set("refresh_token", refresh_cookie)
     resp = await client.post("/auth/refresh")

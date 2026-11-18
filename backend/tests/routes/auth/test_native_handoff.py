@@ -11,9 +11,10 @@ from urllib.parse import parse_qs, urlsplit
 import jwt
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from app.main import app
+from app.models.auth import MfaChallenge
 from app.models.auth_session import AuthSession
 from app.services.auth import native_handoff as native_handoff_service
 from app.services.auth import tokens
@@ -185,6 +186,25 @@ async def test_code_works_for_one_minute(client, monkeypatch, age, status):
     resp = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
 
     assert resp.status_code == status
+
+
+async def test_an_expired_code_is_refused_while_a_later_handoff_leaves_its_row(client):
+    """A code past its expiry can't start a session, and handing off again doesn't delete it on the side"""
+    signup = await _create_user(client)
+    verifier, challenge = _pkce_pair()
+    code = (await _hand_off(client, signup.json()["access_token"], challenge))["code"]
+    async with TestSession() as db:
+        await db.execute(update(MfaChallenge).values(expires_at=datetime.now(UTC) - timedelta(seconds=1)))
+        await db.commit()
+
+    await _hand_off(client, signup.json()["access_token"], _pkce_pair()[1])
+    async with TestSession() as db:
+        assert len((await db.scalars(select(MfaChallenge))).all()) == 2, "the expired code is left to the scheduled cleanup"
+
+    resp = await client.post("/auth/native/exchange", json={"code": code, "code_verifier": verifier})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Invalid or expired handoff"
 
 
 async def test_exchange_after_web_sign_out_is_refused(client):

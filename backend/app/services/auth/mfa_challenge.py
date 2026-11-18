@@ -16,15 +16,12 @@ MFA_PURPOSE_PASSWORD_RESET = "password_reset"  # noqa: S105
 
 
 async def delete_expired_mfa_challenges(db: AsyncSession) -> None:
-    """Delete challenges whose expiry has passed
+    """Delete every user's challenges whose expiry has passed, for the scheduled cleanup
 
     Args:
         db: Active database session
     """
-    expired_delete_query = delete(MfaChallenge).where(MfaChallenge.expires_at < sa_func.now())
-
-    # The scheduled cleanup prunes these too
-    await db.execute(expired_delete_query)
+    await db.execute(delete(MfaChallenge).where(MfaChallenge.expires_at < sa_func.now()))
 
 
 async def issue_mfa_challenge(db: AsyncSession, user_id: uuid.UUID, purpose: str) -> str:
@@ -38,8 +35,6 @@ async def issue_mfa_challenge(db: AsyncSession, user_id: uuid.UUID, purpose: str
     Returns:
         Encoded challenge JWT for the second-factor step
     """
-    await delete_expired_mfa_challenges(db)
-
     challenge_token, jti, expires_at = create_mfa_challenge_token(user_id)
     db.add(MfaChallenge(jti=jti, user_id=user_id, purpose=purpose, expires_at=expires_at))
     await db.commit()

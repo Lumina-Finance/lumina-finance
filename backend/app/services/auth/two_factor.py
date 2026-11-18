@@ -38,16 +38,14 @@ SECOND_FACTOR_RECOVERY_CODE = "recovery_code"
 SECOND_FACTOR_PASSKEY = "passkey"
 
 
-async def prune_stale_factor_staging(db: AsyncSession, user_id: uuid.UUID | None = None) -> None:
-    """Delete expired pending authenticators, passkeys and recovery codes, for one user or everyone
+async def prune_stale_factor_staging(db: AsyncSession) -> None:
+    """Delete every user's expired pending authenticators, passkeys and recovery codes
 
     A staged factor is already refused once it expires, so deleting it only clears leftover rows.
-    Login sweeps the user's own before checking their factors, and the scheduled cleanup sweeps
-    everyone's. Confirmed factors and active recovery codes are preserved. The caller commits
+    Confirmed factors and active recovery codes are preserved. The caller commits
 
     Args:
         db: Active database session
-        user_id: User whose stale staged rows are cleared, or None for every user's
     """
     cutoff = staging_cutoff()
     for model, is_staged in (
@@ -55,10 +53,7 @@ async def prune_stale_factor_staging(db: AsyncSession, user_id: uuid.UUID | None
         (TotpCredential, TotpCredential.confirmed_at.is_(None)),
         (RecoveryCode, RecoveryCode.pending.is_(True)),
     ):
-        query = delete(model).where(is_staged, model.created_at < cutoff)
-        if user_id is not None:
-            query = query.where(model.user_id == user_id)
-        await db.execute(query)
+        await db.execute(delete(model).where(is_staged, model.created_at < cutoff))
 
 
 async def verify_login_second_factor(db: AsyncSession, user_id: uuid.UUID, code: str) -> str:
