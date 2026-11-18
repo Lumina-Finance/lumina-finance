@@ -110,13 +110,14 @@ async def test_more_keys_than_one_chunk_all_round_trip(valkey_store):
     assert found == {key: key.encode() for key in keys}
 
 
-@pytest.mark.parametrize("runtime", ["server", "lambda"])
-async def test_the_app_lifespan_publishes_the_configured_store_only_while_the_app_runs(monkeypatch, runtime):
-    """Every runtime the app starts in gets the cache, and none keeps it once the app stops
+async def test_the_app_lifespan_publishes_the_configured_store_only_while_the_app_runs(monkeypatch):
+    """The app gets the cache and runs the pruning timer while it runs, and keeps neither once it stops
 
     The startup checks and the pruning timer are replaced, since they need the app's own database
     rather than the test one
     """
+    pruning_started = asyncio.Event()
+    pruning_stopped = asyncio.Event()
 
     async def do_nothing(*_args) -> None:
         return None
@@ -126,9 +127,12 @@ async def test_the_app_lifespan_publishes_the_configured_store_only_while_the_ap
         yield None
 
     async def wait_forever() -> None:
-        await asyncio.Event().wait()
+        pruning_started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            pruning_stopped.set()
 
-    monkeypatch.setattr(main, "RUNTIME", runtime)
     monkeypatch.setattr(main, "verify_app_role_is_unprivileged", do_nothing)
     monkeypatch.setattr(main, "engine", SimpleNamespace(connect=nothing_open))
     monkeypatch.setattr(main, "verify_key_matches_data", do_nothing)
@@ -141,7 +145,12 @@ async def test_the_app_lifespan_publishes_the_configured_store_only_while_the_ap
     async with main._lifespan(main.app):
         assert isinstance(get_valkey(), ValkeyStore)
 
+        # One turn of the loop lets the timer task the lifespan created start
+        await asyncio.sleep(0)
+        assert pruning_started.is_set(), "the pruning timer starts with the app"
+
     assert get_valkey() is None
+    assert pruning_stopped.is_set(), "the pruning timer stops with the app"
 
 
 async def test_a_pool_that_cannot_be_built_logs_a_warning_and_runs_without_the_cache(monkeypatch, caplog):

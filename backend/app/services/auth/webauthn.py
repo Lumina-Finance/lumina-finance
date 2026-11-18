@@ -688,5 +688,5 @@ async def _ensure_webauthn_identity(db: AsyncSession, user_id: uuid.UUID) -> Non
 
 
 async def delete_expired_webauthn_challenges(db: AsyncSession) -> None:
-    """Prune challenges whose expiry has passed, on the schedule and at each passkey ceremony for the Lambda runtime"""
+    """Prune challenges whose expiry has passed, on the schedule and at each passkey ceremony"""
     await db.execute(delete(WebauthnChallenge).where(WebauthnChallenge.expires_at < sa_func.now()))
