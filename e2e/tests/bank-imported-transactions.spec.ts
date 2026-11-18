@@ -164,7 +164,9 @@ async function startWithImported(
   return { user, account, id }
 }
 
-test('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One unedited bank row beside a manual one serves the marker, the near miss and, last on desktop, the
+// icon's place beside the title, which puts a note and a tag on the row
+test('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked, and places its icon beside the title', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, account, id: importedId } = await startWithImported(request)
   const manualId = await createTransaction(request, user, {
     accountId: account.id,
@@ -178,67 +180,71 @@ test('marks a bank-imported row with its provider on hover, focus or a press, le
   const imported = page.getByTestId(`transaction-row-${importedId}`)
   const manual = page.getByTestId(`transaction-row-${manualId}`)
   const marker = imported.getByRole('button', { name: 'From SimpleFIN', exact: true })
-  await expect(marker).toBeVisible()
-  await expect(imported.getByTestId('bank-edited-dot').filter({ visible: true })).toHaveCount(0)
-  await expect(imported.getByText(EDITED_NOTE)).toHaveCount(0)
 
-  // A manual row in the same account looks as it always has, with the title its only control
-  await expect(getTransactionRowButton(manual)).toBeVisible()
-  await expect(manual.getByRole('button')).toHaveCount(1)
+  await test.step('marks a bank-imported row with its provider on hover, focus or a press, leaving the row closed and a manual row unmarked', async () => {
+    await expect(marker).toBeVisible()
+    await expect(imported.getByTestId('bank-edited-dot').filter({ visible: true })).toHaveCount(0)
+    await expect(imported.getByText(EDITED_NOTE)).toHaveCount(0)
 
-  // Keyboard focus opens it, and moving on closes it
-  await getTransactionRowButton(imported).focus()
-  await page.keyboard.press('Tab')
-  await expect(marker).toBeFocused()
-  await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
-  await page.keyboard.press('Tab')
-  await expectTooltipClosed(imported, 'From SimpleFIN')
+    // A manual row in the same account looks as it always has, with the title its only control
+    await expect(getTransactionRowButton(manual)).toBeVisible()
+    await expect(manual.getByRole('button')).toHaveCount(1)
 
-  // A pointer opens it on hover if there is one to hover with
-  if (!test.info().project.use.hasTouch) {
-    await marker.hover()
+    // Keyboard focus opens it, and moving on closes it
+    await getTransactionRowButton(imported).focus()
+    await page.keyboard.press('Tab')
+    await expect(marker).toBeFocused()
     await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
-    await page.mouse.move(0, 0)
+    await page.keyboard.press('Tab')
     await expectTooltipClosed(imported, 'From SimpleFIN')
+
+    // A pointer opens it on hover if there is one to hover with
+    if (!test.info().project.use.hasTouch) {
+      await marker.hover()
+      await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
+      await page.mouse.move(0, 0)
+      await expectTooltipClosed(imported, 'From SimpleFIN')
+    }
+
+    // A press opens it and keeps it open once the pointer leaves, and a press on the open panel stays
+    // with the panel rather than reaching the row beneath it
+    await pressMiddleOf(page, marker)
+    await page.mouse.move(0, 0)
+    await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
+    await pressMiddleOf(page, imported.getByText('From SimpleFIN', { exact: true }).filter({ visible: true }))
+    await page.mouse.move(0, 0)
+    await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
+
+    // A second press on the icon closes it, though the press left the icon focused, since only
+    // keyboard focus holds it open
+    await pressMiddleOf(page, marker)
+    await page.mouse.move(0, 0)
+    await expect(marker).toBeFocused()
+    await expectTooltipClosed(imported, 'From SimpleFIN')
+
+    // A press anywhere else closes it too
+    await pressMiddleOf(page, marker)
+    await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
+    await pressMiddleOf(page, page.getByRole('heading', { name: 'Transactions', level: 1 }))
+    await expectTooltipClosed(imported, 'From SimpleFIN')
+  })
+
+  await test.step('opens the tooltip from a press just off the bank icon, leaving the row closed', async () => {
+    // The row opens on a press anywhere else, so a near miss on the small icon still has to open the
+    // tooltip
+    await marker.scrollIntoViewIfNeeded()
+    const box = (await marker.boundingBox())!
+    await pressAt(page, box.x + box.width / 2, box.y + box.height + NEAR_MISS_PX)
+    await page.mouse.move(0, 0)
+    await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
+  })
+
+  // Last, since it puts a note and a tag on the row and opens the page at widths of its own
+  if (test.info().project.name === 'desktop') {
+    await test.step('puts the bank icon 4px after the title from 750px wide, centred on its capitals, and on a phone with the note and tag icons', async () => {
+      await expectIconPlacedBesideTitle(page, request, user, importedId)
+    })
   }
-
-  // A press opens it and keeps it open once the pointer leaves, and a press on the open panel stays
-  // with the panel rather than reaching the row beneath it
-  await pressMiddleOf(page, marker)
-  await page.mouse.move(0, 0)
-  await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
-  await pressMiddleOf(page, imported.getByText('From SimpleFIN', { exact: true }).filter({ visible: true }))
-  await page.mouse.move(0, 0)
-  await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
-
-  // A second press on the icon closes it, though the press left the icon focused, since only
-  // keyboard focus holds it open
-  await pressMiddleOf(page, marker)
-  await page.mouse.move(0, 0)
-  await expect(marker).toBeFocused()
-  await expectTooltipClosed(imported, 'From SimpleFIN')
-
-  // A press anywhere else closes it too
-  await pressMiddleOf(page, marker)
-  await expectTooltipOpen(page, marker, imported, ['From SimpleFIN'])
-  await pressMiddleOf(page, page.getByRole('heading', { name: 'Transactions', level: 1 }))
-  await expectTooltipClosed(imported, 'From SimpleFIN')
-})
-
-test('opens the tooltip from a press just off the bank icon, leaving the row closed', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { user, id } = await startWithImported(request)
-  await logInViaApi(page, user)
-  await openPage(page, '/transactions')
-
-  // The row opens on a press anywhere else, so a near miss on the small icon still has to open the
-  // tooltip
-  const row = page.getByTestId(`transaction-row-${id}`)
-  const marker = row.getByRole('button', { name: 'From SimpleFIN', exact: true })
-  await marker.scrollIntoViewIfNeeded()
-  const box = (await marker.boundingBox())!
-  await pressAt(page, box.x + box.width / 2, box.y + box.height + NEAR_MISS_PX)
-  await page.mouse.move(0, 0)
-  await expectTooltipOpen(page, marker, row, ['From SimpleFIN'])
 })
 
 /**
@@ -313,72 +319,69 @@ async function readSideOfIcon(row: Locator, marker: Locator): Promise<'above' | 
   return firstLine.y > markerBox.y + markerBox.height ? 'below' : 'above'
 }
 
-test('opens the tooltip below the bank icon when the icon sits just under the sticky bars', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
+// One edited bank row with older days below it serves the tooltip's side, scrolled under the sticky bars,
+// and then the dot and the edited note, read once the page opens again at its top. The first step is the
+// start of the second, so the second repeats nothing of it
+test('opens the bank icon tooltip on the side that has room, and adds a dot and the edited note to a row whose bank value the user changed', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { row, marker } = await scrollBankIconUnderBars(page, request)
 
-  // There is no room above the icon below the bars, so the panel opens under it, every line readable
-  await focusBankIconByKeyboard(page, row)
-  await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
-  expect(await readSideOfIcon(row, marker)).toBe('below')
-})
+  await test.step('opens the tooltip below the bank icon when the icon sits just under the sticky bars', async () => {
+    // There is no room above the icon below the bars, so the panel opens under it, every line readable
+    await focusBankIconByKeyboard(page, row)
+    await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
+    expect(await readSideOfIcon(row, marker)).toBe('below')
+  })
 
-test('picks the side of the bank icon tooltip afresh when a press opens it, rather than keeping where it showed', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { row, marker } = await scrollBankIconUnderBars(page, request)
-  await focusBankIconByKeyboard(page, row)
-  await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
-  expect(await readSideOfIcon(row, marker)).toBe('below')
+  await test.step('picks the side of the bank icon tooltip afresh when a press opens it, rather than keeping where it showed', async () => {
+    // Scrolled back until the icon is well down the window, where there is room above, the tooltip keeps
+    // showing on the side it was placed
+    await marker.evaluate((icon, share) => {
+      window.scrollBy({ top: icon.getBoundingClientRect().top - window.innerHeight * share, behavior: 'instant' })
+    }, ICON_DOWN_THE_WINDOW)
+    await expect(marker).toBeFocused()
+    await expect.poll(async () => (await marker.boundingBox())!.y).toBeGreaterThan(page.viewportSize()!.height / 2)
+    expect(await readSideOfIcon(row, marker)).toBe('below')
 
-  // Scrolled back until the icon is well down the window, where there is room above, the tooltip keeps
-  // showing on the side it was placed
-  await marker.evaluate((icon, share) => {
-    window.scrollBy({ top: icon.getBoundingClientRect().top - window.innerHeight * share, behavior: 'instant' })
-  }, ICON_DOWN_THE_WINDOW)
-  await expect(marker).toBeFocused()
-  await expect.poll(async () => (await marker.boundingBox())!.y).toBeGreaterThan(page.viewportSize()!.height / 2)
-  expect(await readSideOfIcon(row, marker)).toBe('below')
+    // A press on the focused icon opens it afresh, now above, the side a main tooltip would have kept
+    await page.keyboard.press('Enter')
+    await expect(marker).toHaveAttribute('aria-expanded', 'true')
+    await expect.poll(() => readSideOfIcon(row, marker)).toBe('above')
+    await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
+  })
 
-  // A press on the focused icon opens it afresh, now above, the side a main tooltip would have kept
-  await page.keyboard.press('Enter')
-  await expect(marker).toHaveAttribute('aria-expanded', 'true')
-  await expect.poll(() => readSideOfIcon(row, marker)).toBe('above')
-  await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
-})
+  await test.step('adds a dot and the edited note to a bank-imported row whose bank value the user changed', async () => {
+    // Opened again, so the page is at its top with nothing focused or open
+    await openPage(page, '/transactions')
 
-test('adds a dot and the edited note to a bank-imported row whose bank value the user changed', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { user, id } = await startWithImported(request, -4000)
-  await logInViaApi(page, user)
-  await openPage(page, '/transactions')
+    // The closed panel isn't read, so the marker's name says the value was edited
+    const dot = row.getByTestId('bank-edited-dot').filter({ visible: true })
+    await expect(marker).toBeVisible()
+    await expect(dot).toBeVisible()
 
-  // The closed panel isn't read, so the marker's name says the value was edited
-  const row = page.getByTestId(`transaction-row-${id}`)
-  const marker = row.getByRole('button', { name: 'From SimpleFIN, edited', exact: true })
-  const dot = row.getByTestId('bank-edited-dot').filter({ visible: true })
-  await expect(marker).toBeVisible()
-  await expect(dot).toBeVisible()
+    // The dot sits on the icon's corner rather than wherever the row would put it
+    const [dotBox, markerBox] = [(await dot.boundingBox())!, (await marker.boundingBox())!]
+    expect(dotBox.x < markerBox.x + markerBox.width && markerBox.x < dotBox.x + dotBox.width).toBe(true)
+    expect(dotBox.y < markerBox.y + markerBox.height && markerBox.y < dotBox.y + dotBox.height).toBe(true)
 
-  // The dot sits on the icon's corner rather than wherever the row would put it
-  const [dotBox, markerBox] = [(await dot.boundingBox())!, (await marker.boundingBox())!]
-  expect(dotBox.x < markerBox.x + markerBox.width && markerBox.x < dotBox.x + dotBox.width).toBe(true)
-  expect(dotBox.y < markerBox.y + markerBox.height && markerBox.y < dotBox.y + dotBox.height).toBe(true)
+    // The note sits on its own line under the provider, a single line as tall as the provider's
+    await getTransactionRowButton(row).focus()
+    await page.keyboard.press('Tab')
+    await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
+    const [providerLine, noteLine] = await Promise.all(['From SimpleFIN', EDITED_NOTE]
+      .map((line) => row.getByText(line, { exact: true }).filter({ visible: true }).boundingBox()))
+    expect(noteLine!.height).toBeCloseTo(providerLine!.height, 0)
+    await page.keyboard.press('Shift+Tab')
+    await expectTooltipClosed(row, 'From SimpleFIN')
 
-  // The note sits on its own line under the provider, a single line as tall as the provider's
-  await getTransactionRowButton(row).focus()
-  await page.keyboard.press('Tab')
-  await expectTooltipOpen(page, marker, row, ['From SimpleFIN', EDITED_NOTE])
-  const [providerLine, noteLine] = await Promise.all(['From SimpleFIN', EDITED_NOTE]
-    .map((line) => row.getByText(line, { exact: true }).filter({ visible: true }).boundingBox()))
-  expect(noteLine!.height).toBeCloseTo(providerLine!.height, 0)
-  await page.keyboard.press('Shift+Tab')
-  await expectTooltipClosed(row, 'From SimpleFIN')
-
-  // The icon's strokes and the dot stand out from the page in both themes, the icon looking the same
-  // whether or not the row was edited
-  await page.mouse.move(0, 0)
-  for (const colorScheme of ['light', 'dark'] as const) {
-    await switchTheme(page, colorScheme)
-    expect(await colourContrast(marker)).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
-    expect(await fillContrast(dot)).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
-  }
+    // The icon's strokes and the dot stand out from the page in both themes, the icon looking the same
+    // whether or not the row was edited
+    await page.mouse.move(0, 0)
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await switchTheme(page, colorScheme)
+      expect(await colourContrast(marker)).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
+      expect(await fillContrast(dot)).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST)
+    }
+  })
 })
 
 // The widths either side of the 750px switch between a transaction row's two layouts, and each side of it
@@ -387,8 +390,11 @@ const PHONE = { width: 390, height: 844 }
 const LAST_PHONE_WIDTH = { width: 749, height: 844 }
 const FIRST_WIDE_WIDTH = { width: 750, height: 844 }
 
-test('puts the bank icon 4px after the title from 750px wide, centred on its capitals, and on a phone with the note and tag icons', NEEDS_BANK_SYNC, async ({ page, request }) => {
-  const { user, id } = await startWithImported(request)
+/**
+ * Puts a note and a tag on the row, then checks where the bank icon sits beside the title at each side of
+ * the 750px switch between the row's layouts. It sets both widths it checks itself, so it runs on desktop
+ */
+async function expectIconPlacedBesideTitle(page: Page, request: APIRequestContext, user: TestUser, id: string): Promise<void> {
   const tag = await request.post(`${API_BASE_URL}/tags`, { headers: asUser(user), data: { name: 'Holiday' } })
   expect(tag.status()).toBe(201)
   const tagged = await request.patch(`${API_BASE_URL}/transactions/${id}`, {
@@ -396,7 +402,6 @@ test('puts the bank icon 4px after the title from 750px wide, centred on its cap
     data: { notes: 'Split with a friend', tag_ids: [((await tag.json()) as { id: string }).id] },
   })
   expect(tagged.ok()).toBe(true)
-  await logInViaApi(page, user)
   await page.setViewportSize(WIDE)
   await openPage(page, '/transactions')
 
@@ -453,7 +458,7 @@ test('puts the bank icon 4px after the title from 750px wide, centred on its cap
   const firstWide = await measureIconBesideText(marker, title)
   expect(Math.abs(firstWide.offCentre)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
   expect(Math.abs(firstWide.gap - ICON_GAP_PX)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
-})
+}
 
 test('keeps the Needs review pill within the line it shares with the bank icon at both widths', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const user = await signUpUser(request)
