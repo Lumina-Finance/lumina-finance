@@ -1,0 +1,18 @@
+# Added to docker/compose.yml for the browser tests. The app starts only once the database is healthy,
+# and the shipped checks look every 5 seconds, so a database that is ready in 2 seconds held the
+# app back for 5. Checking every second starts the app as soon as the database answers. The retries
+# give a database still setting itself up a minute, since the check below fails throughout that
+# setup where the shipped one passes. docker/compose.yml ships to users and keeps its own intervals
+services:
+  postgres:
+    healthcheck:
+      # Over the network, as the app connects. The image first runs a temporary server that listens
+      # on its socket only, which the shipped check would find ready before the app could connect
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 1s
+      retries: 60
+
+  valkey:
+    healthcheck:
+      interval: 1s
+      retries: 25

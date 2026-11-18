@@ -62,7 +62,7 @@ jobs:
       DB_USER: lumina
       DB_PASSWORD: lumina-smoke
       COMPOSE_FILES: >-
-        -f docker/compose.yml -f e2e/compose.mail.yaml
+        -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fast-health.compose.yaml
         ${{ matrix.bank == 'on'
         && '-f e2e/fake-simplefin-bridge.compose.yaml -f e2e/fake-lunchflow.compose.yaml -f e2e/fake-akahu.compose.yaml -f e2e/fake-pluggy.compose.yaml -f e2e/fake-enable-banking.compose.yaml'
         || '-f e2e/no-bank-provider.compose.yaml' }}
@@ -106,7 +106,7 @@ jobs:
         if: ${{ matrix.bank == 'on' }}
         run: |
           compose="docker compose ${{ env.COMPOSE_FILES }}"
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 150); do
             if ${compose} exec -T app python -m app.worker check-health \
               && curl -fsS -o /dev/null http://localhost:8790/docs \
               && curl -fsS -o /dev/null http://localhost:8791/docs \
@@ -117,7 +117,7 @@ jobs:
               exit 0
             fi
             echo "Attempt ${attempt}: bank sync not ready yet"
-            sleep 5
+            sleep 1
           done
           echo "Bank sync never became ready, dumping logs"
           ${compose} logs app fake-simplefin-bridge fake-lunchflow fake-akahu fake-pluggy fake-enable-banking
@@ -188,7 +188,7 @@ jobs:
       # 127.0.0.1 would not carry, and the session would never start
       APP_ORIGIN: http://localhost:8080
       API_URL: http://localhost:8081/api
-      COMPOSE_FILES: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/no-bank-provider.compose.yaml -f docker/compose.cross-origin.yml
+      COMPOSE_FILES: -f docker/compose.yml -f e2e/compose.mail.yaml -f e2e/fast-health.compose.yaml -f e2e/no-bank-provider.compose.yaml -f docker/compose.cross-origin.yml
 
     steps:
       - name: Check out repository
