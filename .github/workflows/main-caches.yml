@@ -1,0 +1,68 @@
+name: Save caches for pull requests
+
+# A pull request reads the caches saved by its own earlier runs and by main, never another pull
+# request's. Each merge saves them from main here, so the first run of every pull request starts
+# with them
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# A run saves its caches as its last steps, so a newer merge waits for the run before it
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  app-image:
+    uses: ./.github/workflows/_docker-build.yml
+    with:
+      save-cache: true
+    secrets: inherit
+
+  browser-setup:
+    name: Save the browser suite's setup (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-latest
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up the browser suite
+        uses: ./.github/actions/e2e-browser
+        with:
+          cache-dependency-paths: e2e/package-lock.json
+
+  backend-dependencies:
+    name: Save the backend's dependencies
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.2
+        with:
+          # The same uv as UV_VERSION in docker/Dockerfile
+          version: "0.13.7"
+          enable-cache: true
+
+      - name: Sync locked dependencies
+        run: uv sync --frozen
