@@ -21,7 +21,7 @@ from app.services.transactions.overview.conversion import (
     get_overview_accounts_by_id,
     prefetch_overview_rates,
 )
-from app.services.transactions.overview.outliers import convert_overview_outliers
+from app.services.transactions.overview.outliers import OVERVIEW_OUTLIER_LIMIT, convert_overview_outliers
 from app.services.transactions.overview.queries import (
     build_overview_transaction_filters,
     get_overview_cash_flow_rows,
@@ -85,7 +85,7 @@ async def get_transactions_overview(
     # Each overview panel uses the same transaction scope but needs a different aggregate shape
     cash_flow_rows = await get_overview_cash_flow_rows(db, transaction_filters)
     category_total_rows = await get_overview_category_total_rows(db, transaction_filters)
-    outlier_candidate_rows = await get_overview_outlier_candidate_rows(db, transaction_filters)
+    outlier_candidate_rows = await get_overview_outlier_candidate_rows(db, transaction_filters, limit=OVERVIEW_OUTLIER_LIMIT)
     currency_conversion_rows = [*cash_flow_rows, *category_total_rows, *outlier_candidate_rows]
     accounts_by_id = await get_overview_accounts_by_id(db, currency_conversion_rows)
     shared_converter = FxConverter(
@@ -118,8 +118,9 @@ async def get_transactions_overview(
     )
     total_inflow, total_outflow = sum_overview_net_flow(daily_cash_flow)
     outliers, outliers_fx_status = await convert_overview_outliers(
+        db=db,
+        transaction_filters=transaction_filters,
         outlier_candidate_rows=outlier_candidate_rows,
-        accounts_by_id=accounts_by_id,
         converter=shared_converter.clone(),
         base_currency=user.base_currency,
     )
