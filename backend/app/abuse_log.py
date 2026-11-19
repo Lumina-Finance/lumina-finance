@@ -27,6 +27,7 @@ SOURCE_ADDRESS_ON_FAILURE_ROUTES = frozenset(
         "/auth/passkeys/mfa/verify",
         "/auth/signup/confirm",
         "/auth/password/reset",
+        "/auth/password/reset/check",
         "/auth/password/reset/verify",
         "/auth/passkeys/reset/verify",
     }

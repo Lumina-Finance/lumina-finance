@@ -8,6 +8,8 @@ import { isNewPasswordValid } from '@/utils/passwordPolicy'
 
 type NewPasswordFormProps = {
   intro: string
+  // A second line under the intro, read as part of the same message
+  notice?: string
   error: string
   password: string
   confirmPassword: string
@@ -32,6 +34,7 @@ type NewPasswordFormProps = {
  */
 export function NewPasswordForm({
   intro,
+  notice,
   error,
   password,
   confirmPassword,
@@ -57,9 +60,10 @@ export function NewPasswordForm({
 
   return (
     <form onSubmit={onSubmit} className="mt-5" noValidate>
-      <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        {intro}
-      </p>
+      <div className="space-y-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+        <p>{intro}</p>
+        {notice && <p>{notice}</p>}
+      </div>
 
       <AuthErrorBanner error={error} />
 

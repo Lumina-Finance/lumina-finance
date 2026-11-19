@@ -9,7 +9,7 @@ import {
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
 import type { PersistedClient } from '@tanstack/react-query-persist-client'
 import { SESSION_KEY } from '@/api/auth/session'
-import { twoFactorKeys } from '@/api/cache/queryKeys'
+import { authKeys, twoFactorKeys } from '@/api/cache/queryKeys'
 import { hasUncacheableFxStatus } from '@/api/shared/fxCache'
 import { readStoredValue, removeStoredValue, writeStoredValue } from '@/utils/browserStorage'
 
@@ -38,18 +38,20 @@ const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000
 const PERSISTED_CACHE_SHAPE = '9'
 
 /**
- * Persists successful query data while leaving failed FX responses and the authenticator setup
- * response out of local storage
+ * Persists successful query data while leaving failed FX responses, the authenticator setup
+ * response and reset link checks out of local storage
  *
  * The setup response holds a new authenticator secret and its setup link, which would otherwise be
  * written out in plain text and left there by a tab closed mid-setup. Setup mints a fresh secret
- * each time it opens, so a reload loses nothing by not restoring it
+ * each time it opens, so a reload loses nothing by not restoring it. A reset link check is keyed by
+ * the emailed reset token, so saving one would store a working reset link
  */
 function shouldDehydrateQuery(query: Query) {
   return (
     defaultShouldDehydrateQuery(query) &&
     !hasUncacheableFxStatus(query.state.data) &&
-    !matchQuery({ queryKey: twoFactorKeys.setup(), exact: true }, query)
+    !matchQuery({ queryKey: twoFactorKeys.setup(), exact: true }, query) &&
+    !matchQuery({ queryKey: authKeys.resetLinks() }, query)
   )
 }
 

@@ -10,14 +10,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_BASE } from '@/api/config'
 import {
   ApiError,
+  checkResetLink,
   confirmSignup,
   getSessionRestoreFailure,
   isAnsweredByApp,
   login,
   logout,
   refresh,
+  resetPassword,
   restoreSession,
   signup,
+  verifyResetMfa,
 } from '@/api/auth'
 import type { AuthResponse } from '@/api/auth'
 import { REQUEST_TIMEOUT_MS } from '@/api/server'
@@ -340,5 +343,63 @@ describe("telling the app's own answer from a proxy's page", () => {
     ['takes another status without a detail for the app answering', new ApiError('Session expired', 401), true],
   ])('%s', (_title, error, answered) => {
     expect(isAnsweredByApp(error)).toBe(answered)
+  })
+})
+
+describe('checking a reset link before the new password', () => {
+  it('sends the token in the body and passes on the linked provider count', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ sign_in_providers_linked: 1 }) })
+
+    await expect(checkResetLink('reset-token')).resolves.toEqual({ sign_in_providers_linked: 1 })
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/auth/password/reset/check`, {
+      method: 'POST',
+      body: JSON.stringify({ token: 'reset-token' }),
+      credentials: 'include',
+      signal: expect.any(AbortSignal),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+  })
+})
+
+describe('finishing a password reset', () => {
+  const removedNotice = { sign_in_providers_removed: 2 }
+  const challenge = {
+    mfa_required: true,
+    mfa_token: 'mfa',
+    totp_enabled: true,
+    passkey_available: false,
+    recovery_only: false,
+  }
+  const payload = { token: 'reset-token', new_password: 'new password', mfa_token: 'mfa', code: '123456' }
+
+  it.each([
+    ['nothing else changed', { ok: true, status: 204 }, null],
+    [
+      'linked sign-in providers were removed',
+      { ok: true, status: 200, json: async () => removedNotice },
+      removedNotice,
+    ],
+    ['a second factor is needed first', { ok: true, status: 200, json: async () => challenge }, challenge],
+  ])('passes on what the reset answered when %s', async (_label, answer, expected) => {
+    fetchMock.mockResolvedValueOnce(answer)
+
+    await expect(resetPassword({ token: 'reset-token', new_password: 'new password' })).resolves.toEqual(expected)
+  })
+
+  it.each([
+    ['nothing else changed', { ok: true, status: 204 }, null],
+    [
+      'linked sign-in providers were removed',
+      { ok: true, status: 200, json: async () => removedNotice },
+      removedNotice,
+    ],
+    ['a recovery code started re-enrolment', { ok: true, status: 200, json: async () => authResponse }, authResponse],
+  ])('passes on what the second factor answered when %s', async (_label, answer, expected) => {
+    fetchMock.mockResolvedValueOnce(answer)
+
+    await expect(verifyResetMfa(payload)).resolves.toEqual(expected)
   })
 })

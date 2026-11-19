@@ -19,8 +19,10 @@ OIDC_DEFAULT_SCOPES = "openid email profile"
 # Whether onboarding a new account requires the provider to assert email_verified as true. Strict by
 # default so an unverified address cannot create an account. Some self-hosted providers do not verify
 # email addresses, or report them as verified without checking, so an operator using one sets this
-# false to onboard on any provider-supplied email. Existing-account takeover is prevented regardless,
-# since a provider sign-in is never auto-linked by email
+# false to onboard on any provider-supplied email. A provider sign-in is never auto-linked to an
+# existing account by email, but relaxed, someone can create an account on an address they don't own
+# before its owner signs up. A password reset by the owner removes every linked provider and ends
+# every session, though a second factor the claimant added still stands in the owner's way
 OIDC_REQUIRE_VERIFIED_EMAIL = optional_bool_env("OIDC_REQUIRE_VERIFIED_EMAIL", default=True)
 
 # A sign-in roundtrip must finish within this window, covering the user authenticating at the provider

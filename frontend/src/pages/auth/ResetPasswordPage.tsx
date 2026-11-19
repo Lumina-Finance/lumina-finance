@@ -2,14 +2,15 @@ import type { FormEvent, MouseEvent } from 'react'
 import { useRef, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, animate, motion } from 'motion/react'
-import { ApiError, resetPassword, verifyResetMfa } from '@/api/auth'
-import type { MfaRequiredResponse } from '@/api/auth'
+import { ApiError, resetPassword, useResetLinkCheck, verifyResetMfa } from '@/api/auth'
+import type { CompletedPasswordReset, MfaRequiredResponse } from '@/api/auth'
 import { usePasskeyConfig, useVerifyPasskeyReset } from '@/api/passkeys'
 import { OTP_LENGTH } from '@/components/OtpInput'
 import { MfaChallenge } from '@/components/two-factor/MfaChallenge'
 import { useAuth } from '@/hooks/useAuth'
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner'
 import { NewPasswordForm } from '@/pages/auth/components/NewPasswordForm'
+import { ResetPasswordSuccess } from '@/pages/auth/components/ResetPasswordSuccess'
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { getAuthErrorMessage } from '@/pages/auth/utils/authForm'
 import { getPasskeySignInMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
@@ -17,6 +18,7 @@ import { assessPasskeySupport } from '@/utils/passkeySupport'
 import { AUTH_LOADING_MIN_MS, withMinDelay } from '@/utils/timing'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
 import { focusWhenShown } from '@/utils/focusWhenShown'
+import { describeProviderRemoval } from '@/pages/auth/utils/providerRemoval'
 
 /**
  * Renders the password reset form reached from the emailed link, validating the new password
@@ -33,10 +35,12 @@ const ResetPasswordPage = () => {
   const containerRef = useRef<HTMLDivElement>(null)
   const passkeyConfig = usePasskeyConfig()
   const passkeyReset = useVerifyPasskeyReset()
+  const resetLink = useResetLinkCheck(token)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
+  const [signInProvidersRemoved, setSignInProvidersRemoved] = useState(0)
   const [error, setError] = useState('')
   const [challenge, setChallenge] = useState<MfaRequiredResponse | null>(null)
   const [mfaCode, setMfaCode] = useState('')
@@ -65,6 +69,14 @@ const ResetPasswordPage = () => {
   }
 
   /**
+   * Shows the success view, noting when the reset also removed the account's linked sign-in providers
+   */
+  const finishReset = (completed: CompletedPasswordReset) => {
+    setSignInProvidersRemoved(completed?.sign_in_providers_removed ?? 0)
+    setDone(true)
+  }
+
+  /**
    * Sends the token and new password, then completes, challenges for a factor, or reports failure
    */
   const handleSubmit = async (event: FormEvent) => {
@@ -76,8 +88,8 @@ const ResetPasswordPage = () => {
     try {
       // Hold the spinner for the shared minimum so a fast response does not flash it
       const result = await withMinDelay(() => resetPassword({ token, new_password: newPassword }), AUTH_LOADING_MIN_MS)
-      if (result === null) {
-        setDone(true)
+      if (result === null || !('mfa_required' in result)) {
+        finishReset(result)
       } else {
         setChallenge(result)
         setMfaUsePasskey(result.passkey_available && canUsePasskeys)
@@ -124,8 +136,8 @@ const ResetPasswordPage = () => {
           }),
         AUTH_LOADING_MIN_MS,
       )
-      if (session === null) {
-        setDone(true)
+      if (session === null || !('access_token' in session)) {
+        finishReset(session)
         return
       }
 
@@ -184,12 +196,12 @@ const ResetPasswordPage = () => {
 
     setError('')
     try {
-      await passkeyReset.mutateAsync({
+      const completed = await passkeyReset.mutateAsync({
         token,
         new_password: newPassword,
         mfa_token: challenge.mfa_token,
       })
-      setDone(true)
+      finishReset(completed)
     } catch (passkeyError) {
       if (isPasskeyCeremonyCancelled(passkeyError)) return
       if (passkeyError instanceof ApiError) {
@@ -240,17 +252,7 @@ const ResetPasswordPage = () => {
               className="mt-5 space-y-6 outline-none"
               {...AUTH_VIEW_TRANSITION}
             >
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                Your password has been reset. You can now log in with your new password.
-              </p>
-              <button
-                type="button"
-                onClick={goToLogin}
-                className="font-medium underline underline-offset-2"
-                style={{ color: 'var(--app-accent)' }}
-              >
-                Go to login
-              </button>
+              <ResetPasswordSuccess signInProvidersRemoved={signInProvidersRemoved} onGoToLogin={goToLogin} />
             </motion.div>
           ) : challenge ? (
             <motion.div
@@ -289,6 +291,7 @@ const ResetPasswordPage = () => {
             <motion.div key="reset-form" {...AUTH_VIEW_TRANSITION}>
               <NewPasswordForm
                 intro="Choose a new password for your account."
+                notice={describeProviderRemoval(resetLink.data)}
                 error={error}
                 password={newPassword}
                 confirmPassword={confirmPassword}

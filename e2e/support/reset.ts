@@ -31,6 +31,16 @@ export async function requestResetLink(page: Page, email: string): Promise<strin
  */
 export async function chooseNewPassword(page: Page, link: string, password: string): Promise<void> {
   await page.goto(link)
+  await submitNewPassword(page, password)
+}
+
+/**
+ * Submit a new password on the reset form already open.
+ *
+ * @param page - Page showing the reset form
+ * @param password - New password, typed in both fields
+ */
+export async function submitNewPassword(page: Page, password: string): Promise<void> {
   await page.getByLabel('New password', { exact: true }).fill(password)
   await page.getByLabel('Confirm new password').fill(password)
   await page.getByRole('button', { name: 'Reset password' }).click()

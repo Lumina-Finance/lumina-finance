@@ -4,9 +4,13 @@ import time
 from datetime import UTC, datetime, timedelta
 
 import pyotp
+from sqlalchemy import func, select
 
-from app.models.auth import LoginLockout, PasswordResetToken
+from app.encryption import encrypt
+from app.models.auth import AuthIdentity, LoginLockout, PasswordResetToken
+from app.models.base import AuthProvider
 from app.models.currency import Currency
+from app.models.oidc import OidcIdentity, OidcProvider
 from app.schemas.auth import SignupRequest
 from app.services.auth.login_email_hash import seal_login_email
 from app.services.auth.token_hashing import hash_token
@@ -124,6 +128,43 @@ async def _seed_reset_token(user_id, raw_token="reset-token-abc", *, expires_in_
         session.add(token)
         await session.commit()
     return raw_token
+
+
+async def _link_sign_in_providers(user_id, count: int, *, first_index: int = 0) -> None:
+    """Link the user to a subject at each of as many sign-in providers as asked, and mark the account as provider-linked
+
+    A second user's providers take a later first index, since provider slugs are unique
+    """
+    async with TestSession() as session:
+        for index in range(first_index, first_index + count):
+            provider = OidcProvider(
+                slug=f"linked-idp-{index}",
+                display_name=f"Linked IdP {index}",
+                issuer=f"https://linked-idp-{index}.test",
+                client_id="client-123",
+                client_secret_encrypted=encrypt("secret-abc"),
+                scopes="openid email profile",
+                enabled=True,
+            )
+            session.add(provider)
+
+            # Without a mapped relationship the unit of work cannot order the inserts, so the provider lands first
+            await session.flush()
+            session.add(OidcIdentity(user_id=user_id, provider_id=provider.id, subject=f"subject-{index}", email=SIGNUP_PAYLOAD["email"]))
+        session.add(AuthIdentity(user_id=user_id, auth_provider=AuthProvider.OIDC, email_verified=True))
+        await session.commit()
+
+
+async def _count_sign_in_provider_links(user_id) -> tuple[int, int]:
+    """Return how many provider identities and provider auth identities the user still has"""
+    async with TestSession() as session:
+        identities = await session.scalar(select(func.count()).select_from(OidcIdentity).where(OidcIdentity.user_id == user_id))
+        auth_identities = await session.scalar(
+            select(func.count())
+            .select_from(AuthIdentity)
+            .where(AuthIdentity.user_id == user_id, AuthIdentity.auth_provider == AuthProvider.OIDC)
+        )
+    return identities, auth_identities
 
 
 def _get_auth_header(resp):

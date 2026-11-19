@@ -3,8 +3,8 @@
  * its older copy over another tab's, a tab saves only while the session flag names its own user, a
  * load restores only the copy of the user the flag names, a save that fails must not leave an older
  * copy behind for the next load to restore as fresh, and no save may write a request held while
- * offline along with what it sends, such as both passwords of a password change, or the authenticator
- * secret and setup link of a setup in progress
+ * offline along with what it sends, such as both passwords of a password change, the authenticator
+ * secret and setup link of a setup in progress, or an emailed reset token
  */
 import { focusManager, MutationObserver, onlineManager, QueryClient } from '@tanstack/react-query'
 import { persistQueryClientRestore, persistQueryClientSubscribe } from '@tanstack/react-query-persist-client'
@@ -17,7 +17,7 @@ import {
   saveQueryCacheOnPageHide,
   setQueryCacheUser,
 } from '@/api/cache/persistence'
-import { twoFactorKeys } from '@/api/cache/queryKeys'
+import { authKeys, twoFactorKeys } from '@/api/cache/queryKeys'
 import type { TotpSetupResponse } from '@/api/two-factor'
 import { changePassword, type ChangePasswordPayload } from '@/api/user'
 
@@ -352,5 +352,20 @@ describe('saving the query cache', () => {
     expect(hiddenCopy).toContain('account-kept')
     expect(hiddenCopy).toContain('tag-kept')
     expectNoSetupStored()
+  })
+
+  it('never saves a reset link check, since its key holds a working reset token', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true })
+    const resetToken = 'emailed-reset-token-value'
+    page.client.setQueryData(['accounts'], [{ id: 'account-kept' }])
+    page.client.setQueryData(authKeys.resetLink(resetToken), { sign_in_providers_linked: 1 })
+
+    await runTimedSave()
+    const timedCopy = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY) ?? ''
+    expect(timedCopy).toContain('account-kept')
+    expect(timedCopy).not.toContain(resetToken)
+
+    page.hide()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY) ?? '').not.toContain(resetToken)
   })
 })

@@ -2,12 +2,13 @@
 
 import json
 import re
+import uuid
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _seed_currency
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _seed_currency, _seed_reset_token
 
 _CLIENT_ADDRESS = "203.0.113.9"
 _FORGED_ADDRESS = "198.51.100.7"
@@ -82,6 +83,26 @@ async def test_sign_up_and_reset_requests_log_the_address_whatever_the_outcome(a
     assert len(abuse_log_lines) == 1
     assert json.loads(abuse_log_lines[0])["ip"] == _CLIENT_ADDRESS
     assert SIGNUP_PAYLOAD["email"] not in abuse_log_lines[0]
+
+
+async def test_a_refused_reset_link_check_logs_the_address_and_a_good_one_logs_nothing(client, abuse_log_lines):
+    """Guessing at reset links counts toward a ban, while checking a working link does not, and no line holds the token"""
+    signup = await _create_user(client)
+    raw_token = await _seed_reset_token(uuid.UUID(signup.json()["user"]["id"]))
+    abuse_log_lines.clear()
+
+    async with _client_from(_CLIENT_ADDRESS) as from_address:
+        good = await from_address.post("/auth/password/reset/check", json={"token": raw_token})
+        assert good.status_code == 200
+        assert abuse_log_lines == []
+
+        refused = await from_address.post("/auth/password/reset/check", json={"token": "guessed-reset-token"})
+
+    assert refused.status_code == 400
+    assert len(abuse_log_lines) == 1
+    assert json.loads(abuse_log_lines[0])["route"] == "/auth/password/reset/check"
+    assert json.loads(abuse_log_lines[0])["ip"] == _CLIENT_ADDRESS
+    assert "guessed-reset-token" not in abuse_log_lines[0]
 
 
 async def test_other_routes_log_nothing(abuse_log_lines):

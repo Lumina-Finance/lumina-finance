@@ -5,7 +5,7 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
 } from '@simplewebauthn/browser'
 import { buildApiError } from '@/api/auth/errors'
-import type { AuthResponse } from '@/api/auth/types'
+import type { AuthResponse, CompletedPasswordReset } from '@/api/auth/types'
 import { authenticatedFetch } from '@/api/client'
 import { fetchFromServer } from '@/api/server'
 import type { Passkey, PasskeyConfig, RegisterPasskeyPayload, RegisterPasskeyResult } from '@/api/passkeys/types'
@@ -134,11 +134,14 @@ export async function fetchPasskeyResetOptions(mfaToken: string): Promise<Public
 
 /**
  * Verifies a passkey assertion as the second factor of a password reset
+ *
+ * Resolves to null once the reset is complete, or to the notice that it also removed the account's
+ * linked sign-in providers
  */
 export async function verifyPasskeyReset(
   payload: { token: string; new_password: string; mfa_token: string },
   credential: AuthenticationResponseJSON,
-): Promise<void> {
+): Promise<CompletedPasswordReset> {
   const response = await fetchFromServer('/auth/passkeys/reset/verify', {
     method: 'POST',
     credentials: 'include',
@@ -148,6 +151,9 @@ export async function verifyPasskeyReset(
   if (!response.ok) {
     throw buildApiError(response.status, await response.json().catch(() => null))
   }
+
+  // A reset with nothing to report answers 204 with no body, so response.json would throw
+  return response.status === 204 ? null : response.json()
 }
 
 /**

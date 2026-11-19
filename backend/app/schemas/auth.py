@@ -119,6 +119,18 @@ class ResetPasswordRequest(NewPasswordRequest):
     token: str
 
 
+class ResetLinkRequest(BaseModel):
+    """The emailed reset token, checked before the new password is chosen"""
+
+    token: str
+
+
+class ResetLinkResponse(BaseModel):
+    """What a reset from a still-valid link would also remove, so the form can warn first"""
+
+    sign_in_providers_linked: int = Field(ge=0)
+
+
 class ResetPasswordVerifyRequest(NewPasswordRequest):
     """Reset completion payload adding the challenge and factor code to the reset request"""
 
@@ -220,6 +232,16 @@ class MfaRequiredResponse(BaseModel):
     totp_enabled: bool = False  # an authenticator code can be used
     passkey_available: bool = False  # a passkey can be used, the preferred factor when present
     recovery_only: bool = False  # no usable factor remains, so only a recovery code works
+
+
+class PasswordResetResponse(BaseModel):
+    """A finished password reset that also removed the account's linked sign-in providers
+
+    A reset that removed none answers 204 with no body, so the count is always at least one. The
+    success screen words its notice for one provider or several from it
+    """
+
+    sign_in_providers_removed: int = Field(ge=1)
 
 
 class MfaVerifyRequest(BaseModel):

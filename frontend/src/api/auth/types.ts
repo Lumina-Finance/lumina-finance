@@ -62,8 +62,23 @@ export interface MfaRequiredResponse {
 /** Login returns tokens, or a challenge when the account has a second factor */
 export type LoginResult = AuthResponse | MfaRequiredResponse
 
-/** Reset completes immediately (null), or challenges when the account has a second factor */
-export type ResetPasswordResult = MfaRequiredResponse | null
+/** A finished reset answers with this only when it also removed the account's linked sign-in providers */
+export type PasswordResetResponse = {
+  /** How many providers it removed, at least one */
+  sign_in_providers_removed: number
+}
+
+/** What a reset from a still-valid link would also remove, read before the new password is chosen */
+export type ResetLinkStatus = {
+  /** How many sign-in providers the account has linked, zero for most accounts */
+  sign_in_providers_linked: number
+}
+
+/** A finished reset, null when the password is all that changed */
+export type CompletedPasswordReset = PasswordResetResponse | null
+
+/** Reset completes immediately, or challenges when the account has a second factor */
+export type ResetPasswordResult = MfaRequiredResponse | CompletedPasswordReset
 
 /** Whether the instance lets new accounts be created, which decides if the login page offers sign-up */
 export type RegistrationStatus = {

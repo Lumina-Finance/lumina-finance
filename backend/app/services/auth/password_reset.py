@@ -17,7 +17,9 @@ from starlette.concurrency import run_in_threadpool
 from app.config.password_reset import PASSWORD_RESET_DAILY_EMAIL_LIMIT, PASSWORD_RESET_TOKEN_EXPIRE_SECONDS
 from app.config.runtime import APP_URL
 from app.database import current_user_id_ctx
-from app.models.auth import PasswordCredential, PasswordResetToken
+from app.models.auth import AuthIdentity, PasswordCredential, PasswordResetToken
+from app.models.base import AuthProvider
+from app.models.oidc import OidcIdentity
 from app.models.user import User
 from app.services.auth.account_lockout import reset_failed_attempts
 from app.services.auth.mfa_challenge import MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
@@ -68,6 +70,13 @@ class ResetSecondFactorRequired:
     mfa_token: str
     totp_enabled: bool
     passkey_available: bool
+
+
+@dataclass(frozen=True)
+class CompletedPasswordReset:
+    """A finished reset, and how many linked sign-in providers it also removed from the account"""
+
+    sign_in_providers_removed: int
 
 
 async def delete_stale_password_reset_tokens(db: AsyncSession) -> None:
@@ -306,7 +315,31 @@ async def ensure_reset_token_active(db: AsyncSession, token: str) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_TOKEN_DETAIL)
 
 
-async def begin_password_reset(db: AsyncSession, token: str, new_password: str) -> ResetSecondFactorRequired | None:
+async def count_reset_sign_in_providers(db: AsyncSession, token: str) -> int:
+    """Count the sign-in providers a reset from this token would remove, without consuming anything
+
+    The reset form warns before the removal, and only an account with a provider linked needs the
+    warning. Holding the token already proves the email step, so the count reveals nothing new
+
+    Args:
+        db: Active database session
+        token: Raw reset token from the emailed link
+
+    Returns:
+        How many provider links the account has
+
+    Raises:
+        HTTPException: The token is unknown, already used, or expired
+    """
+    reset_token = await _find_active_reset_token(db, token)
+    if reset_token is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_TOKEN_DETAIL)
+
+    linked_query = select(sa_func.count()).select_from(OidcIdentity).where(OidcIdentity.user_id == reset_token.user_id)
+    return await db.scalar(linked_query)
+
+
+async def begin_password_reset(db: AsyncSession, token: str, new_password: str) -> ResetSecondFactorRequired | CompletedPasswordReset:
     """Reset the password from a valid token, or issue a challenge when a second factor is active
 
     Possession of the emailed token proves the email step, so accounts without a second factor
@@ -319,7 +352,7 @@ async def begin_password_reset(db: AsyncSession, token: str, new_password: str) 
         new_password: Replacement password already validated against the policy
 
     Returns:
-        The issued challenge when a second factor must verify first, otherwise None
+        The issued challenge when a second factor must verify first, otherwise the finished reset
 
     Raises:
         HTTPException: The token is unknown, already used, or expired
@@ -344,11 +377,10 @@ async def begin_password_reset(db: AsyncSession, token: str, new_password: str) 
             passkey_available=passkey_available,
         )
 
-    await _apply_password_reset(db, reset_token, new_password)
-    return None
+    return await _apply_password_reset(db, reset_token, new_password)
 
 
-async def complete_password_reset(db: AsyncSession, user_id: uuid.UUID, token: str, new_password: str) -> None:
+async def complete_password_reset(db: AsyncSession, user_id: uuid.UUID, token: str, new_password: str) -> CompletedPasswordReset:
     """Reset the password after the second factor verified for the same user
 
     Args:
@@ -356,6 +388,9 @@ async def complete_password_reset(db: AsyncSession, user_id: uuid.UUID, token: s
         user_id: User the verified challenge belongs to
         token: Raw reset token from the emailed link
         new_password: Replacement password already validated against the policy
+
+    Returns:
+        The finished reset
 
     Raises:
         HTTPException: The token is invalid or belongs to a different user than the challenge
@@ -367,16 +402,19 @@ async def complete_password_reset(db: AsyncSession, user_id: uuid.UUID, token: s
     if reset_token is None or reset_token.user_id != user_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_TOKEN_DETAIL)
 
-    await _apply_password_reset(db, reset_token, new_password)
+    return await _apply_password_reset(db, reset_token, new_password)
 
 
-async def _apply_password_reset(db: AsyncSession, reset_token: PasswordResetToken, new_password: str) -> None:
-    """Redeem the reset token, set the new password, and revoke every session
+async def _apply_password_reset(db: AsyncSession, reset_token: PasswordResetToken, new_password: str) -> CompletedPasswordReset:
+    """Redeem the reset token, set the new password, remove every linked provider, and revoke every session
 
     Args:
         db: Active database session
         reset_token: Active reset token row being redeemed
         new_password: Replacement password already validated against the policy
+
+    Returns:
+        The finished reset, saying whether a linked provider was removed
 
     Raises:
         HTTPException: The token was already redeemed
@@ -407,6 +445,13 @@ async def _apply_password_reset(db: AsyncSession, reset_token: PasswordResetToke
     email = await db.scalar(select(User.email).where(User.id == reset_token.user_id))
     await reset_failed_attempts(db, email)
 
+    # With unverified provider emails allowed, someone at the provider can claim an address before its
+    # owner signs up, and the owner's way back in is this reset. So a reset keeps no provider identity:
+    # the owner links theirs again from settings, and anyone else's stops signing in
+    removed_identities = await db.execute(delete(OidcIdentity).where(OidcIdentity.user_id == reset_token.user_id))
+    await db.execute(delete(AuthIdentity).where(AuthIdentity.user_id == reset_token.user_id, AuthIdentity.auth_provider == AuthProvider.OIDC))
+
     # A reset means the old password may be compromised, so end every session
     await delete_all_user_auth_sessions(db, reset_token.user_id)
     await db.commit()
+    return CompletedPasswordReset(sign_in_providers_removed=removed_identities.rowcount)

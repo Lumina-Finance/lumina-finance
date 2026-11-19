@@ -1,6 +1,7 @@
 import { buildApiError, getSessionRestoreFailure, isRefreshAlreadyRotatedError } from '@/api/auth/errors'
 import type {
   AuthResponse,
+  CompletedPasswordReset,
   ConfirmSignupPayload,
   ForgotPasswordPayload,
   LoginPayload,
@@ -8,6 +9,7 @@ import type {
   MfaRequiredResponse,
   MfaVerifyPayload,
   RegistrationStatus,
+  ResetLinkStatus,
   ResetPasswordPayload,
   ResetPasswordResult,
   ResetPasswordVerifyPayload,
@@ -128,7 +130,8 @@ async function requestAuth<T>(path: string, options: RequestInit): Promise<T> {
     throw buildApiError(res.status, await res.json().catch(() => null))
   }
 
-  // The sign-up, forgot and reset endpoints return 204 with no body, so res.json would throw
+  // The sign-up and forgot endpoints, and a reset with nothing to report, return 204 with no body,
+  // so res.json would throw
   if (res.status === 204) return undefined as T
 
   return res.json()
@@ -201,13 +204,27 @@ export function forgotPassword(payload: ForgotPasswordPayload): Promise<void> {
 }
 
 /**
+ * Reads how many linked sign-in providers a reset from this link would remove, spending nothing
+ *
+ * The token goes in the body, never the address, so it stays out of access logs
+ */
+export function checkResetLink(token: string, signal?: AbortSignal): Promise<ResetLinkStatus> {
+  return requestAuth('/auth/password/reset/check', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+    signal,
+  })
+}
+
+/**
  * Sets a new password using the token from the emailed reset link
  *
- * Resolves to null when the reset is complete, or to a challenge when the account has an
- * active second factor that must verify before the password changes
+ * Resolves to a challenge when the account has an active second factor that must verify before
+ * the password changes. Otherwise the reset is complete: null, or the notice that it also removed
+ * the account's linked sign-in providers
  */
 export async function resetPassword(payload: ResetPasswordPayload): Promise<ResetPasswordResult> {
-  const result = await requestAuth<MfaRequiredResponse | undefined>('/auth/password/reset', {
+  const result = await requestAuth<ResetPasswordResult | undefined>('/auth/password/reset', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -217,11 +234,14 @@ export async function resetPassword(payload: ResetPasswordPayload): Promise<Rese
 /**
  * Completes a factor-gated reset with an authenticator or recovery code
  *
- * Resolves to null after an authenticator code, or to the restricted re-enrolment session
- * after a recovery code, which wipes every factor and signs out everywhere
+ * Resolves to the restricted re-enrolment session after a recovery code. A recovery code wipes every
+ * factor and signs out everywhere. After an authenticator code it resolves to null, or to the notice that
+ * the reset also removed the account's linked sign-in providers
  */
-export async function verifyResetMfa(payload: ResetPasswordVerifyPayload): Promise<AuthResponse | null> {
-  const result = await requestAuth<AuthResponse | undefined>('/auth/password/reset/verify', {
+export async function verifyResetMfa(
+  payload: ResetPasswordVerifyPayload,
+): Promise<AuthResponse | CompletedPasswordReset> {
+  const result = await requestAuth<AuthResponse | CompletedPasswordReset | undefined>('/auth/password/reset/verify', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
