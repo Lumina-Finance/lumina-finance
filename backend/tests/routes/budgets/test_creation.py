@@ -1,4 +1,3 @@
-
 from tests.routes.budgets._helpers import (
     NONEXISTENT_ID,
     _create_base_budget,
@@ -49,18 +48,26 @@ async def test_create_budget_instance_archived_base_returns_409(client):
 
     # Control: a live base budget still materializes an instance
     control = await _create_budget_instance(
-        client, headers, base_budget_id, period_start="2026-03-01",
+        client,
+        headers,
+        base_budget_id,
+        period_start="2026-03-01",
     )
     assert control.status_code == 201
 
     # Archiving the base blocks any further instance generation
     archive_resp = await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
     assert archive_resp.status_code == 200
 
     blocked = await _create_budget_instance(
-        client, headers, base_budget_id, period_start="2026-04-01",
+        client,
+        headers,
+        base_budget_id,
+        period_start="2026-04-01",
     )
 
     assert blocked.status_code == 409
@@ -98,7 +105,9 @@ async def test_create_budget_instance_misaligned_period_start_returns_422(client
 
     # Monthly with dom=1 — starting on the 15th is misaligned
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-03-15",
     )
 
@@ -192,13 +201,17 @@ async def test_create_budget_instance_consecutive_periods_accepted(client):
     base_budget_id = base_resp.json()["id"]
 
     march = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-03-01",
     )
     assert march.status_code == 201
 
     april = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-04-01",
     )
     assert april.status_code == 201
@@ -211,12 +224,22 @@ async def test_create_budget_instance_same_period_different_base_accepted(client
     headers = _get_auth_header(signup_resp)
 
     cat_id = await _create_category(client, headers)
-    base_a = (await _create_base_budget(
-        client, headers, name="Budget A", category_ids=[cat_id],
-    )).json()["id"]
-    base_b = (await _create_base_budget(
-        client, headers, name="Budget B", category_ids=[cat_id],
-    )).json()["id"]
+    base_a = (
+        await _create_base_budget(
+            client,
+            headers,
+            name="Budget A",
+            category_ids=[cat_id],
+        )
+    ).json()["id"]
+    base_b = (
+        await _create_base_budget(
+            client,
+            headers,
+            name="Budget B",
+            category_ids=[cat_id],
+        )
+    ).json()["id"]
 
     first = await _create_budget_instance(client, headers, base_a)
     assert first.status_code == 201
@@ -259,7 +282,10 @@ async def test_create_group_budget_instance_as_admin(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
 
@@ -285,7 +311,10 @@ async def test_create_group_budget_instance_as_non_admin_without_permission_retu
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
 
@@ -304,7 +333,10 @@ async def test_create_group_budget_instance_as_non_member_returns_404(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
 
@@ -328,7 +360,10 @@ async def test_create_group_budget_instance_with_read_permission_returns_403(cli
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
 
@@ -358,7 +393,10 @@ async def test_create_group_budget_instance_with_write_permission_returns_403(cl
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
 
@@ -413,12 +451,16 @@ async def test_create_budget_instance_monthly_dom_15_returns_201(client):
     headers = _get_auth_header(signup_resp)
 
     base_resp = await _create_base_budget(
-        client, headers, recurrence_dom=15,
+        client,
+        headers,
+        recurrence_dom=15,
     )
     base_budget_id = base_resp.json()["id"]
 
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-03-15",
     )
 
@@ -433,13 +475,17 @@ async def test_create_budget_instance_monthly_dom_31_fallback_returns_201(client
     headers = _get_auth_header(signup_resp)
 
     base_resp = await _create_base_budget(
-        client, headers, recurrence_dom=31,
+        client,
+        headers,
+        recurrence_dom=31,
     )
     base_budget_id = base_resp.json()["id"]
 
     # April has 30 days, so dom=31 falls back to 30
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-04-30",
     )
 
@@ -454,7 +500,8 @@ async def test_create_budget_instance_weekly_returns_201(client):
     headers = _get_auth_header(signup_resp)
 
     base_resp = await _create_base_budget(
-        client, headers,
+        client,
+        headers,
         recurrence_freq="weekly",
         recurrence_weekday=0,
         recurrence_dom=None,
@@ -463,7 +510,9 @@ async def test_create_budget_instance_weekly_returns_201(client):
 
     # 2026-03-02 is a Monday
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-03-02",
     )
 
@@ -478,7 +527,8 @@ async def test_create_budget_instance_yearly_returns_201(client):
     headers = _get_auth_header(signup_resp)
 
     base_resp = await _create_base_budget(
-        client, headers,
+        client,
+        headers,
         recurrence_freq="yearly",
         recurrence_dom=1,
         recurrence_month=7,
@@ -487,7 +537,9 @@ async def test_create_budget_instance_yearly_returns_201(client):
     base_budget_id = base_resp.json()["id"]
 
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-07-01",
     )
 
@@ -502,12 +554,16 @@ async def test_create_budget_instance_quarterly_returns_201(client):
     headers = _get_auth_header(signup_resp)
 
     base_resp = await _create_base_budget(
-        client, headers, instance_length=3,
+        client,
+        headers,
+        instance_length=3,
     )
     base_budget_id = base_resp.json()["id"]
 
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-01-01",
     )
 
@@ -522,7 +578,8 @@ async def test_create_budget_instance_biweekly_returns_201(client):
     headers = _get_auth_header(signup_resp)
 
     base_resp = await _create_base_budget(
-        client, headers,
+        client,
+        headers,
         recurrence_freq="weekly",
         recurrence_weekday=0,
         recurrence_dom=None,
@@ -532,7 +589,9 @@ async def test_create_budget_instance_biweekly_returns_201(client):
 
     # 2026-03-02 is a Monday
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-03-02",
     )
 
@@ -547,7 +606,8 @@ async def test_create_budget_instance_weekly_misaligned_returns_422(client):
     headers = _get_auth_header(signup_resp)
 
     base_resp = await _create_base_budget(
-        client, headers,
+        client,
+        headers,
         recurrence_freq="weekly",
         recurrence_weekday=0,
         recurrence_dom=None,
@@ -556,7 +616,9 @@ async def test_create_budget_instance_weekly_misaligned_returns_422(client):
 
     # 2026-03-03 is a Tuesday — misaligned for a Monday-anchored budget
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-03-03",
     )
 
@@ -569,7 +631,8 @@ async def test_create_budget_instance_yearly_misaligned_returns_422(client):
     headers = _get_auth_header(signup_resp)
 
     base_resp = await _create_base_budget(
-        client, headers,
+        client,
+        headers,
         recurrence_freq="yearly",
         recurrence_dom=1,
         recurrence_month=7,
@@ -579,7 +642,9 @@ async def test_create_budget_instance_yearly_misaligned_returns_422(client):
 
     # March instead of July — misaligned
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-03-01",
     )
 
@@ -594,7 +659,8 @@ async def test_create_group_budget_instance_weekly_returns_201(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers,
+        client,
+        headers,
         group_id=group_id,
         category_ids=[group_cat_id],
         recurrence_freq="weekly",
@@ -604,7 +670,9 @@ async def test_create_group_budget_instance_weekly_returns_201(client):
     base_budget_id = base_resp.json()["id"]
 
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-03-02",
     )
 
@@ -622,7 +690,8 @@ async def test_create_group_budget_instance_yearly_returns_201(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers,
+        client,
+        headers,
         group_id=group_id,
         category_ids=[group_cat_id],
         recurrence_freq="yearly",
@@ -633,7 +702,9 @@ async def test_create_group_budget_instance_yearly_returns_201(client):
     base_budget_id = base_resp.json()["id"]
 
     resp = await _create_budget_instance(
-        client, headers, base_budget_id,
+        client,
+        headers,
+        base_budget_id,
         period_start="2026-07-01",
     )
 
