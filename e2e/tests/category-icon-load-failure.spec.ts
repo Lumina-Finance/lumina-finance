@@ -5,7 +5,6 @@ import { logInViaApi, openPage } from '../support/app'
 
 // Runs on desktop only: it sets every width it checks itself with page.setViewportSize
 
-const EMOJI_DATA_URL = 'https://cdn.jsdelivr.net/npm/@emoji-mart/data'
 const SIZES = [
   { width: 1280, height: 800 },
   { width: 390, height: 844 },
@@ -22,7 +21,8 @@ for (const size of SIZES) {
   test(`keeps the form readable when the emoji list cannot load at ${size.width}px`, async ({ page, request }) => {
     await page.setViewportSize(size)
     const user = await signUpUser(request)
-    await page.route(EMOJI_DATA_URL, (route) => route.abort('connectionfailed'))
+    // The emoji list is a file of the app's own build, whose name carries a hash that changes with every build
+    await page.route(/\/assets\/native-[^/]+\.json$/, (route) => route.abort('connectionfailed'))
 
     await logInViaApi(page, user)
     await openPage(page, '/settings#categories')
