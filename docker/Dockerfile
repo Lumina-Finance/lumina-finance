@@ -1,8 +1,7 @@
-# Python minor version of the dependency and runtime images
-ARG PYTHON_VERSION=3.14
+# Each base image names its tag and its digest, so a moved upstream tag can't change the published image and Dependabot updates both together
 
 # Frontend build
-FROM dhi.io/node:26.13.1-debian13-sfw-dev AS frontend-builder
+FROM dhi.io/node:26.13.1-debian13-sfw-dev@sha256:1e9593c975a18462c5af3cb7ac8aef880f6fb7a02281eb238d3b5d679d1144b9 AS frontend-builder
 
 ARG APP_VERSION
 
@@ -23,7 +22,7 @@ RUN npm run build:app
 
 
 # Backend dependencies
-FROM dhi.io/python:${PYTHON_VERSION}-debian13-sfw-dev AS backend-deps
+FROM dhi.io/python:3.14-debian13-sfw-dev@sha256:b393b117f642b0063bcde36c208c47a7359196687184af753f4ed8326a196ae3 AS backend-deps
 
 # The same uv as the setup-uv steps in the backend workflows, so a relock anywhere writes one lockfile format
 ARG UV_VERSION=0.13.7
@@ -42,11 +41,11 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 
 # Caddy binary
-FROM dhi.io/caddy:2-debian13-dev AS caddy
+FROM dhi.io/caddy:2-debian13-dev@sha256:6a74a06053fee7f242e46a5a12b46389b8cfdb234ef6e25f2da56c3b963ad606 AS caddy
 
 
 # Runtime image, with no shell, package manager or build tools. OpenSSL and the CA certificates come with it
-FROM dhi.io/python:${PYTHON_VERSION}-debian13 AS runtime
+FROM dhi.io/python:3.14-debian13@sha256:d20d953b545c83acd9e1b6b6b6d27cf14de38e6a39689334f71454c33cf41893 AS runtime
 
 ARG APP_VERSION
 
