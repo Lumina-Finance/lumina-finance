@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import make_url
 
+from app.config.database import APP_DB_USER
 from app.db import provision
 
 
@@ -74,3 +75,19 @@ async def test_ensure_roles_sends_a_password_with_reserved_characters_unchanged(
 
     quoted = "'" + password.replace("'", "''") + "'"
     assert sum(f"PASSWORD {quoted}" in statement for statement in connection.statements) == 2
+
+
+async def test_ensure_roles_limits_how_long_the_app_role_may_run_a_statement_or_hold_an_idle_transaction(monkeypatch):
+    """Every start sets both limits on the app role alone, so a role provisioned before them gains them too"""
+    connection = RecordingConnection()
+    monkeypatch.setattr(provision, "create_async_engine", lambda url, **kwargs: RecordingEngine(connection))
+    monkeypatch.setenv("MIGRATOR_DB_PASSWORD", "migrator-password")
+    monkeypatch.setenv("APP_DB_PASSWORD", "app-password")
+
+    await provision.ensure_roles()
+
+    role_settings = [statement for statement in connection.statements if " SET " in statement]
+    assert role_settings == [
+        f"ALTER ROLE \"{APP_DB_USER}\" SET statement_timeout = '60s'",
+        f"ALTER ROLE \"{APP_DB_USER}\" SET idle_in_transaction_session_timeout = '300s'",
+    ]

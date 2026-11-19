@@ -17,6 +17,18 @@ _ROLE_ATTRIBUTES = "LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS"
 # Role key passed to the password resolver paired with the role name it provisions
 _MANAGED_ROLES = (("migrator", MIGRATOR_DB_USER), ("app", APP_DB_USER))
 
+# Longest one statement of the app role may run before the database cancels it and releases its
+# locks. The slowest statement of a maximum-size import, export or account deletion takes a few
+# seconds, so this leaves room for much slower hardware. The migrator and the admin login get no
+# limit, since a migration or a backup may run far longer
+APP_STATEMENT_TIMEOUT_SECONDS = 60
+
+# Longest the app role may hold a transaction open with no statement running before the database
+# ends its connection. As long as the longest the app's own screens wait for an answer, an import,
+# so nothing a screen still waits for is cut off, such as an export the client reads slowly or a
+# bank provider answering slowly while a connection is being claimed
+APP_IDLE_IN_TRANSACTION_TIMEOUT_SECONDS = 5 * 60
+
 
 def _quote_literal(value: str) -> str:
     """Return a value as a single-quoted SQL string literal
@@ -55,6 +67,13 @@ async def ensure_roles() -> None:
             await conn.execute(text(f'GRANT CREATE, USAGE ON SCHEMA public TO "{MIGRATOR_DB_USER}"'))
             await conn.execute(text(f'GRANT CONNECT ON DATABASE "{DB_NAME}" TO "{APP_DB_USER}"'))
             await conn.execute(text(f'GRANT USAGE ON SCHEMA public TO "{APP_DB_USER}"'))
+
+            # Role settings reach every connection the role opens from now on, whatever opens it,
+            # and apply again on every start, so a changed limit replaces the old one
+            await conn.execute(text(f"ALTER ROLE \"{APP_DB_USER}\" SET statement_timeout = '{APP_STATEMENT_TIMEOUT_SECONDS}s'"))
+            await conn.execute(
+                text(f"ALTER ROLE \"{APP_DB_USER}\" SET idle_in_transaction_session_timeout = '{APP_IDLE_IN_TRANSACTION_TIMEOUT_SECONDS}s'")
+            )
     finally:
         await engine.dispose()
 

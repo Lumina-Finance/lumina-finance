@@ -4,11 +4,28 @@ import uuid
 from contextvars import ContextVar
 
 from sqlalchemy import event, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config.database import APP_DB_USER, app_database_url, migration_database_url
 
-engine = create_async_engine(app_database_url())
+# Seconds a new connection may take before a request fails, rather than the driver's minute,
+# so an unreachable database answers quickly. A reachable one connects in well under a second
+CONNECT_TIMEOUT_SECONDS = 10
+
+
+def create_serving_engine(url: str) -> AsyncEngine:
+    """Return the engine requests and the bank sync worker run on
+
+    Each pooled connection is checked before reuse, so one the database or the network dropped
+    while it sat in the pool is replaced instead of failing the request that takes it
+
+    Args:
+        url: Connection URL of the app role
+    """
+    return create_async_engine(url, pool_pre_ping=True, connect_args={"timeout": CONNECT_TIMEOUT_SECONDS})
+
+
+engine = create_serving_engine(app_database_url())
 
 # Holds the authenticated user for the current request so each transaction can
 # stamp it onto its connection for the row-level security policies to read
