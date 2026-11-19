@@ -57,7 +57,7 @@ def observe_requests(observer: RequestObserver) -> None:
     _observers.append(observer)
 
 
-def _route_template(scope) -> str:
+def route_template(scope) -> str:
     """Return the matched route's template, or the placeholder when no route matched"""
     return getattr(scope.get("route"), "path", None) or UNMATCHED_ROUTE
 
@@ -100,7 +100,7 @@ class RequestObserverMiddleware:
             record = RequestRecord(
                 scope=scope,
                 method=scope["method"] if scope["method"] in _STANDARD_METHODS else OTHER_METHOD,
-                route=_route_template(scope),
+                route=route_template(scope),
                 status=status,
                 duration_seconds=time.perf_counter() - started,
             )
