@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from app.models.bank_transaction import CorrectableBankField, EditableBankField
 from app.schemas.bank_sync import BankValues
 from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
+from app.schemas.limits import Counter
 from app.schemas.transaction import MAX_BULK_UPDATE_TRANSACTIONS, TransactionEntry
 from app.utils.date_window import WindowDate
 
@@ -81,7 +82,7 @@ class BulkReviewItemRequest(BaseModel):
     """One new item the user selected, at the version the review list showed"""
 
     id: uuid.UUID
-    version: int
+    version: Counter
 
 
 class BulkDismissReviewItemsRequest(BaseModel):

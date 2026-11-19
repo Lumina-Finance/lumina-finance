@@ -125,6 +125,25 @@ async def test_create_liability_with_credit_limit_succeeds(client):
     assert resp.json()["credit_limit"] == 500_000
 
 
+async def test_create_account_refuses_a_credit_limit_no_column_can_hold_and_creates_nothing(client):
+    """A credit limit of 10 quintillion, past the 64-bit column, is refused on its own field before any account is made"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await _create_account(
+        client,
+        headers,
+        account_kind="revolving",
+        account_type="credit_card",
+        name="Visa",
+        credit_limit=10_000_000_000_000_000_000,
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"] == ["body", "credit_limit"]
+    assert (await client.get("/accounts", headers=headers)).json() == []
+
+
 async def test_create_liability_without_credit_limit_defaults_null(client):
     """Liability accounts without credit_limit serialize the field as null."""
     signup_resp = await _create_user(client)

@@ -5,8 +5,10 @@ stands for both
 """
 
 import pytest
+from sqlalchemy import text
 
 from app.schemas.import_run import MAX_IMPORT_BATCH_ROWS, MAX_IMPORT_MAPPINGS
+from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._import_helpers import _csv_batch, _firefly_batch, _open_run, _stage_batch
 
@@ -45,7 +47,7 @@ async def test_staging_a_new_category_with_a_40_character_icon_is_refused_before
     headers = _get_auth_header(await _create_user(client))
     run_id = await _open_run(client, headers, 1, source)
     batch = _build_batch(source, 1)
-    batch["categories"] = [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense", "icon": "x" * 40}}]
+    batch["categories"] = [{"source": "Zebra Treats", "create": {"name": "Zebra Treats", "kind": "expense", "icon": "x" * 40}}]
 
     resp = await _stage_batch(client, headers, run_id, batch, source)
 
@@ -53,6 +55,10 @@ async def test_staging_a_new_category_with_a_40_character_icon_is_refused_before
     assert [(error["loc"], error["type"]) for error in resp.json()["detail"]] == [
         (["body", "categories", 0, "create", "icon"], "string_too_long")
     ]
+    async with TestSession() as session:
+        staged = (await session.execute(text("SELECT count(*) FROM import_staged_rows WHERE import_run_id = :id"), {"id": run_id})).scalar_one()
+        categories = (await session.execute(text("SELECT count(*) FROM categories WHERE name = 'Zebra Treats'"))).scalar_one()
+    assert (staged, categories) == (0, 0)
 
 
 @pytest.mark.parametrize("source", _SOURCES)

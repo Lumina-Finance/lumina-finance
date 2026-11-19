@@ -8,11 +8,13 @@ from tests.routes.support import _seed_currency
 async def _seed_currencies():
     """Insert multiple currencies for list tests."""
     async with TestSession() as session:
-        session.add_all([
-            Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
-            Currency(id="JPY", name="Japanese Yen", symbol="¥", minor_unit_exponent=0),
-        ])
+        session.add_all(
+            [
+                Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2),
+                Currency(id="JPY", name="Japanese Yen", symbol="¥", minor_unit_exponent=0),
+            ]
+        )
         await session.commit()
 
 
@@ -37,6 +39,22 @@ async def test_list_currencies_returns_all_sorted_by_id(client):
 
 
 # --- GET /currencies/{currency_id} ---
+
+
+async def test_get_currency_refuses_a_null_character_in_the_code(client):
+    """A NUL in the path is refused on that value, not passed to the database lookup"""
+    resp = await client.get("/currencies/%00")
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"] == ["path", "currency_id"]
+
+
+async def test_get_currency_refuses_a_code_that_is_not_three_characters(client):
+    """A code longer than any currency's is refused rather than looked up"""
+    resp = await client.get("/currencies/" + "A" * 3_000)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"] == ["path", "currency_id"]
 
 
 async def test_get_currency_returns_matching_currency(client):

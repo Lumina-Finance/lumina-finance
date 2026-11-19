@@ -6,6 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
+from app.schemas.limits import MAX_ENUM_TEXT_LENGTH
 from app.schemas.names import TrimmedName
 
 # Matches the width of an account's name. The unique indexes on the lower-cased name cannot hold a
@@ -35,7 +36,7 @@ class CreateCategoryRequest(BaseModel):
     """Create a new category. Personal by default, or group-scoped if group_id is provided."""
 
     name: TrimmedName = Field(min_length=1, max_length=MAX_CATEGORY_NAME_LENGTH)
-    kind: str  # CategoryKind enum value
+    kind: str = Field(max_length=MAX_ENUM_TEXT_LENGTH)  # CategoryKind enum value
     icon: str | None = Field(None, max_length=MAX_CATEGORY_ICON_LENGTH)
     group_id: uuid.UUID | None = None
 

@@ -8,8 +8,9 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validat
 
 from app.models.base import RecurrenceFreq
 from app.models.transaction import BANK_TRANSACTION_HASH_LENGTH
-from app.schemas.budget import validate_recurrence_anchor_fields
+from app.schemas.budget import MAX_BUDGET_INSTANCE_LENGTH, validate_recurrence_anchor_fields
 from app.schemas.category import MAX_CATEGORY_ICON_LENGTH, MAX_CATEGORY_NAME_LENGTH
+from app.schemas.limits import MAX_ENUM_TEXT_LENGTH
 from app.schemas.names import TrimmedName
 from app.utils.date_window import WindowDate
 
@@ -56,9 +57,6 @@ MAX_BUDGET_LIMIT_PERIODS = 1200
 # above any real export
 MAX_JOURNAL_BUDGETS = 1000
 MAX_JOURNAL_BUDGET_CATEGORIES = 1000
-
-# Longest cadence a base budget stores, the largest value its small-integer column holds
-MAX_BUDGET_INSTANCE_LENGTH = 32767
 
 # Columns and characters per header a saved CSV layout may carry, far past any bank's export. The
 # import page leaves a file past either unremembered rather than send a layout this refuses, and
@@ -123,12 +121,16 @@ def _require_unique(values: list[str]) -> list[str]:
 # importers
 ImportTagName = Annotated[str, Field(max_length=MAX_IMPORT_TAG_NAME_LENGTH)]
 
-# Text the import screen has already trimmed, and sends as null rather than blank
+# Text the import screen has already trimmed, and sends as null rather than blank. Every field using it
+# sets its own length, since a limit written into this type and one on the field do not combine
 TrimmedImportText = Annotated[str, AfterValidator(_require_trimmed)]
+
+# The name of an account or category an import refers to, no longer than the one it creates
+ImportSourceName = Annotated[str, Field(max_length=MAX_CATEGORY_NAME_LENGTH), AfterValidator(_require_trimmed)]
 UnsignedDecimalAmount = Annotated[str, Field(min_length=1, max_length=64, pattern=_UNSIGNED_DECIMAL_PATTERN)]
-CurrencyCode = Annotated[str, Field(pattern=_CURRENCY_CODE_PATTERN)]
+CurrencyCode = Annotated[str, Field(min_length=3, max_length=3, pattern=_CURRENCY_CODE_PATTERN)]
 JournalTagName = Annotated[ImportTagName, AfterValidator(_require_trimmed)]
-UniqueTrimmedImportTexts = Annotated[list[TrimmedImportText], AfterValidator(_require_unique)]
+UniqueTrimmedImportTexts = Annotated[list[ImportSourceName], AfterValidator(_require_unique)]
 
 CsvLayoutHeader = Annotated[str, Field(min_length=1, max_length=MAX_CSV_LAYOUT_HEADER_LENGTH)]
 
@@ -168,7 +170,7 @@ class CsvImportLayout(BaseModel):
 
     # Counted from 1 over the file's non-blank lines. A file read without a header row has no layout
     header_row: int = Field(ge=1, le=MAX_CSV_LAYOUT_LINE)
-    column_map: dict[CsvLayoutColumnTarget, str]
+    column_map: dict[CsvLayoutColumnTarget, CsvLayoutHeader]
     date_format: Literal["yearFirst", "dayFirst", "monthFirst", "written", "iso"]
     amount_format: CsvImportAmountFormat
 
@@ -257,7 +259,7 @@ class TransactionImportCreateAccount(BaseModel):
     """New personal account to create during a transaction import."""
 
     name: str = Field(min_length=1, max_length=256)
-    account_type: str
+    account_type: str = Field(max_length=MAX_ENUM_TEXT_LENGTH)
     currency: str = Field(min_length=3, max_length=3)
     institution_id: uuid.UUID | None = None
 
@@ -278,7 +280,7 @@ class TransactionImportCreateCategory(BaseModel):
     """New personal category to create during a transaction import."""
 
     name: str = Field(min_length=1, max_length=MAX_CATEGORY_NAME_LENGTH)
-    kind: str
+    kind: str = Field(max_length=MAX_ENUM_TEXT_LENGTH)
     icon: str | None = Field(None, max_length=MAX_CATEGORY_ICON_LENGTH)
 
 
@@ -425,7 +427,7 @@ class TransactionImportStageRequest(BaseModel):
     # Where this batch starts in the file, so a batch sent twice stages the same positions and the
     # unique constraint on them absorbs the second copy. A position already staged keeps what it
     # was first given, so a caller wanting different rows there opens a new run
-    start_row_index: int = Field(ge=0)
+    start_row_index: int = Field(ge=0, le=MAX_IMPORT_ROWS)
 
 
 class TransactionImportResponse(BaseModel):
@@ -535,7 +537,7 @@ class JournalImportStageRequest(BaseModel):
 
     # Where this batch starts in the export, so a batch sent twice stages the same positions and
     # the second copy is absorbed
-    start_row_index: int = Field(ge=0)
+    start_row_index: int = Field(ge=0, le=MAX_IMPORT_ROWS)
 
 
 class JournalBudgetLimit(BaseModel):
@@ -604,7 +606,7 @@ class ImportBudgetDraft(BaseModel):
 
     name: TrimmedImportText = Field(max_length=256)
     currency: CurrencyCode
-    category_sources: list[TrimmedImportText] = Field(min_length=1, max_length=MAX_JOURNAL_BUDGET_CATEGORIES)
+    category_sources: list[ImportSourceName] = Field(min_length=1, max_length=MAX_JOURNAL_BUDGET_CATEGORIES)
     limits: list[JournalBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_LIMIT_PERIODS)
     recurrence: JournalBudgetRecurrence | None
     is_archived: bool = False

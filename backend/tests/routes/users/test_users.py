@@ -237,6 +237,34 @@ async def test_patch_updates_profile_pic(client):
     assert resp.json()["profile_pic"] == "https://example.com/pic.jpg"
 
 
+async def test_patch_refuses_a_profile_pic_past_the_limit_and_keeps_the_stored_one(client):
+    """A profile picture of 3,000 or of 2,049 characters is refused on its own field, one of 2,048 is kept, and the address stored stays"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    stored = "https://example.com/" + "p" * (2048 - len("https://example.com/"))
+    assert len(stored) == 2048
+    assert (await client.patch("/me", json={"profile_pic": stored}, headers=headers)).status_code == 200
+
+    for too_long in (stored + "p", "https://example.com/" + "p" * 3_000):
+        resp = await client.patch("/me", json={"profile_pic": too_long}, headers=headers)
+
+        assert resp.status_code == 422
+        assert resp.json()["detail"][0]["loc"] == ["body", "profile_pic"]
+    assert (await client.get("/me", headers=headers)).json()["profile_pic"] == stored
+
+
+async def test_patch_keeps_a_last_name_of_256_characters_and_refuses_257(client):
+    """A last name as wide as its column is stored, and one character more is refused on its own field"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    assert (await client.patch("/me", json={"last_name": "n" * 256}, headers=headers)).status_code == 200
+    resp = await client.patch("/me", json={"last_name": "n" * 257}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"] == ["body", "last_name"]
+
+
 async def test_patch_without_auth_returns_401(client):
     """PATCH /me without an Authorization header returns 401."""
     resp = await client.patch("/me", json={"first_name": "Hacker"})

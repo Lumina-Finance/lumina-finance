@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -14,6 +14,8 @@ from app.routes.tax_advantaged_categories.tac_limit_deletion_helpers import dele
 from app.routes.tax_advantaged_categories.tac_limit_listing_helpers import get_tac_limits_for_owned_tax_advantaged_category
 from app.routes.tax_advantaged_categories.tac_limit_update_helpers import update_tac_limit_for_owned_tax_advantaged_category
 from app.schemas.tax_advantaged_category import (
+    MAX_TAX_YEAR,
+    MIN_TAX_YEAR,
     CreateTaxAdvantagedCategoryLimitRequest,
     TaxAdvantagedCategoryLimitResponse,
     UpdateTaxAdvantagedCategoryLimitRequest,
@@ -73,7 +75,7 @@ async def create_tax_advantaged_category_limit(
 @router.patch("/{year}", response_model=TaxAdvantagedCategoryLimitResponse)
 async def update_tax_advantaged_category_limit(
     tax_advantaged_category_id: uuid.UUID,
-    year: int,
+    year: Annotated[int, Path(ge=MIN_TAX_YEAR, le=MAX_TAX_YEAR)],
     data: UpdateTaxAdvantagedCategoryLimitRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -100,7 +102,7 @@ async def update_tax_advantaged_category_limit(
 @router.delete("/{year}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tax_advantaged_category_limit(
     tax_advantaged_category_id: uuid.UUID,
-    year: int,
+    year: Annotated[int, Path(ge=MIN_TAX_YEAR, le=MAX_TAX_YEAR)],
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):

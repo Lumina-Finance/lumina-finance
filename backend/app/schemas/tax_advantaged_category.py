@@ -5,6 +5,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.schemas.limits import MAX_ENUM_TEXT_LENGTH, NonNegativeMinorUnits
+
+# The years a yearly limit can be recorded for. The path that names one is held to the same range
+MIN_TAX_YEAR = 1900
+MAX_TAX_YEAR = 2100
+
 
 class TaxAdvantagedCategoryLimitResponse(BaseModel):
     """Represent per-year limits for a tax-advantaged category"""
@@ -22,20 +28,20 @@ class TaxAdvantagedCategoryLimitResponse(BaseModel):
 class CreateTaxAdvantagedCategoryLimitRequest(BaseModel):
     """Validate per-year limit creation for a tax-advantaged category"""
 
-    year: int = Field(ge=1900, le=2100)
-    contribution_limit: int = Field(ge=0)
-    withdrawal_limit: int | None = Field(default=None, ge=0)
-    accrued_contributions: int = Field(default=0, ge=0)
-    accrued_withdrawals: int = Field(default=0, ge=0)
+    year: int = Field(ge=MIN_TAX_YEAR, le=MAX_TAX_YEAR)
+    contribution_limit: NonNegativeMinorUnits
+    withdrawal_limit: NonNegativeMinorUnits | None = None
+    accrued_contributions: NonNegativeMinorUnits = 0
+    accrued_withdrawals: NonNegativeMinorUnits = 0
 
 
 class UpdateTaxAdvantagedCategoryLimitRequest(BaseModel):
     """Validate partial yearly TAC limit updates"""
 
-    contribution_limit: int | None = Field(default=None, ge=0)
-    withdrawal_limit: int | None = Field(default=None, ge=0)
-    accrued_contributions: int = Field(default=0, ge=0)
-    accrued_withdrawals: int = Field(default=0, ge=0)
+    contribution_limit: NonNegativeMinorUnits | None = None
+    withdrawal_limit: NonNegativeMinorUnits | None = None
+    accrued_contributions: NonNegativeMinorUnits = 0
+    accrued_withdrawals: NonNegativeMinorUnits = 0
 
 
 class TaxAdvantagedCategoryResponse(BaseModel):
@@ -68,10 +74,10 @@ class CreateTaxAdvantagedCategoryRequest(BaseModel):
     """Validate tax-advantaged category creation"""
 
     name: str = Field(min_length=1, max_length=256)
-    tax_treatment: str
+    tax_treatment: str = Field(max_length=MAX_ENUM_TEXT_LENGTH)
     currency: str = Field(min_length=3, max_length=3)
-    lifetime_contribution_limit: int | None = Field(default=None, ge=0)
-    accrued_contributions: int = Field(default=0, ge=0)
+    lifetime_contribution_limit: NonNegativeMinorUnits | None = None
+    accrued_contributions: NonNegativeMinorUnits = 0
     counts_internal_transfers: bool = False
     group_id: uuid.UUID | None = None
 
@@ -80,8 +86,8 @@ class UpdateTaxAdvantagedCategoryRequest(BaseModel):
     """Validate partial tax-advantaged category updates"""
 
     name: str | None = Field(default=None, min_length=1, max_length=256)
-    tax_treatment: str | None = None
-    lifetime_contribution_limit: int | None = Field(default=None, ge=0)
-    accrued_contributions: int = Field(default=0, ge=0)
+    tax_treatment: str | None = Field(default=None, max_length=MAX_ENUM_TEXT_LENGTH)
+    lifetime_contribution_limit: NonNegativeMinorUnits | None = None
+    accrued_contributions: NonNegativeMinorUnits = 0
     counts_internal_transfers: bool = False
     group_id: uuid.UUID | None = None

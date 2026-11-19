@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.schemas.limits import MAX_PROFILE_PICTURE_LENGTH
+
 
 class GroupResponse(BaseModel):
     """Group returned by list and detail endpoints."""
@@ -23,14 +25,14 @@ class CreateGroupRequest(BaseModel):
     """Create a new group. The creator becomes the owner and is auto-added as admin."""
 
     name: str = Field(min_length=1, max_length=128)
-    profile_pic: str | None = None
+    profile_pic: str | None = Field(None, max_length=MAX_PROFILE_PICTURE_LENGTH)
 
 
 class UpdateGroupRequest(BaseModel):
     """Partial update for a group. Only provided fields are changed."""
 
     name: str | None = Field(None, min_length=1, max_length=128)
-    profile_pic: str | None = None
+    profile_pic: str | None = Field(None, max_length=MAX_PROFILE_PICTURE_LENGTH)
     is_archived: bool | None = None
 
 

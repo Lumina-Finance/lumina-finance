@@ -10,6 +10,7 @@ from app.models.base import TransferCounterpartyScope
 from app.schemas.bank_sync import TransactionBankSource
 from app.schemas.fx import FxStatus
 from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
+from app.schemas.limits import MAX_FX_RATE, EnteredAmount
 from app.utils.date_window import WindowDate
 
 # Transactions one bulk edit or bulk delete may carry, matching the import mapping cap, since each
@@ -124,7 +125,7 @@ class TransactionEntry(BaseModel):
 
     dt: WindowDate
     category_id: uuid.UUID
-    amount: int
+    amount: EnteredAmount
 
     # Required, unlike the stored column, which stays nullable for the transactions written before
     # this rule and for the ones an import brings in without a merchant
@@ -143,7 +144,7 @@ class CreateTransactionRequest(TransactionEntry):
 
     account_id: uuid.UUID
     currency: str = Field(min_length=3, max_length=3)
-    fx_rate: float | None = Field(None, gt=0)
+    fx_rate: float | None = Field(None, gt=0, le=MAX_FX_RATE)
 
 
 class UpdateTransactionRequest(BaseModel):
@@ -153,8 +154,8 @@ class UpdateTransactionRequest(BaseModel):
     dt: WindowDate | None = None
     merchant_id: uuid.UUID | None = None
     category_id: uuid.UUID | None = None
-    amount: int | None = None
-    fx_rate: float | None = Field(None, gt=0)
+    amount: EnteredAmount | None = None
+    fx_rate: float | None = Field(None, gt=0, le=MAX_FX_RATE)
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
     tag_ids: list[uuid.UUID] | None = None
     counterparty_account_id: uuid.UUID | None = None

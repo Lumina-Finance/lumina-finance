@@ -8,15 +8,26 @@ from zoneinfo import available_timezones
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.schemas.limits import (
+    MAX_EMAIL_LENGTH,
+    MAX_OIDC_SLUG_LENGTH,
+    MAX_PERSON_NAME_LENGTH,
+    MAX_PKCE_VERIFIER_LENGTH,
+    MAX_SECOND_FACTOR_CODE_LENGTH,
+    MAX_TIMEZONE_LENGTH,
+    PasswordText,
+    SecondFactorCode,
+    Token,
+)
+from app.schemas.names import TrimmedName
 from app.schemas.profile_preferences import ProfilePreferences
 
 _VALID_TIMEZONES = available_timezones()
 
 _MIN_PASSWORD_LENGTH = 12
-_MAX_PASSWORD_LENGTH = 128
 
 # Matches the name column width on webauthn_credentials so the label always persists
-_MAX_PASSKEY_NAME_LENGTH = 100
+MAX_PASSKEY_NAME_LENGTH = 100
 _UPPERCASE_PATTERN = re.compile(r"[A-Z]")
 _DIGIT_PATTERN = re.compile(r"\d")
 _SPECIAL_CHARACTER_PATTERN = re.compile(r"[^A-Za-z0-9]")
@@ -39,9 +50,6 @@ def validate_password_strength(value: str) -> str:
     if len(value) < _MIN_PASSWORD_LENGTH:
         msg = f"Password must be at least {_MIN_PASSWORD_LENGTH} characters"
         raise ValueError(msg)
-    if len(value) > _MAX_PASSWORD_LENGTH:
-        msg = f"Password must be at most {_MAX_PASSWORD_LENGTH} characters"
-        raise ValueError(msg)
     if not _UPPERCASE_PATTERN.search(value):
         msg = "Password must contain at least one uppercase letter"
         raise ValueError(msg)
@@ -57,7 +65,7 @@ def validate_password_strength(value: str) -> str:
 class NewPasswordRequest(BaseModel):
     """Base for every payload that sets a replacement password under the shared policy"""
 
-    new_password: str
+    new_password: PasswordText
 
     @field_validator("new_password")
     @classmethod
@@ -69,13 +77,13 @@ class NewPasswordRequest(BaseModel):
 class SignupRequest(BaseModel):
     """Signup request payload"""
 
-    email: EmailStr
+    email: EmailStr = Field(max_length=MAX_EMAIL_LENGTH)
 
     # The names travel inside the emailed link, so their length is bounded at the columns' width
-    first_name: str = Field(max_length=256)
-    last_name: str | None = Field(default=None, max_length=256)
-    tz: str  # IANA timezone (e.g., "America/Toronto")
-    base_currency: str  # ISO 4217 code (e.g., "CAD")
+    first_name: str = Field(max_length=MAX_PERSON_NAME_LENGTH)
+    last_name: str | None = Field(default=None, max_length=MAX_PERSON_NAME_LENGTH)
+    tz: str = Field(max_length=MAX_TIMEZONE_LENGTH)  # IANA timezone (e.g., "America/Toronto")
+    base_currency: str = Field(max_length=3)  # ISO 4217 code (e.g., "CAD")
 
     @field_validator("tz")
     @classmethod
@@ -87,42 +95,42 @@ class SignupRequest(BaseModel):
 class ConfirmSignupRequest(NewPasswordRequest):
     """Sign-up confirmation payload pairing the emailed token with the password the person chooses"""
 
-    token: str
+    token: Token
 
 
 class LoginRequest(BaseModel):
     """Login request payload"""
 
-    email: EmailStr
-    password: str
+    email: EmailStr = Field(max_length=MAX_EMAIL_LENGTH)
+    password: PasswordText
 
 
 class ChangePasswordRequest(NewPasswordRequest):
     """Change-password payload for an authenticated user"""
 
-    current_password: str
+    current_password: PasswordText
     # A current second factor, required when one is active, a passkey assertion or a TOTP code, never a
     # recovery code
-    code: str | None = None
+    code: str | None = Field(None, max_length=MAX_SECOND_FACTOR_CODE_LENGTH)
     passkey: dict[str, Any] | None = None
 
 
 class ForgotPasswordRequest(BaseModel):
     """Forgot-password request payload"""
 
-    email: EmailStr
+    email: EmailStr = Field(max_length=MAX_EMAIL_LENGTH)
 
 
 class ResetPasswordRequest(NewPasswordRequest):
     """Password reset payload pairing the emailed token with the new password"""
 
-    token: str
+    token: Token
 
 
 class ResetLinkRequest(BaseModel):
     """The emailed reset token, checked before the new password is chosen"""
 
-    token: str
+    token: Token
 
 
 class ResetLinkResponse(BaseModel):
@@ -134,9 +142,9 @@ class ResetLinkResponse(BaseModel):
 class ResetPasswordVerifyRequest(NewPasswordRequest):
     """Reset completion payload adding the challenge and factor code to the reset request"""
 
-    token: str
-    mfa_token: str
-    code: str
+    token: Token
+    mfa_token: Token
+    code: SecondFactorCode
 
 
 class UserInfo(ProfilePreferences):
@@ -172,7 +180,7 @@ class AuthResponse(BaseModel):
 class NativeRefreshTokenRequest(BaseModel):
     """A native app's refresh token, presented in the body since it has no cookie to carry it"""
 
-    refresh_token: str
+    refresh_token: Token
 
 
 class RegistrationStatusResponse(BaseModel):
@@ -184,8 +192,8 @@ class RegistrationStatusResponse(BaseModel):
 class NativeExchangeRequest(BaseModel):
     """The code a web sign-in handed to the app, with the PKCE verifier only the app holds"""
 
-    code: str
-    code_verifier: str
+    code: Token
+    code_verifier: str = Field(max_length=MAX_PKCE_VERIFIER_LENGTH)
 
 
 class TotpSetupResponse(BaseModel):
@@ -202,8 +210,8 @@ class StepUpRequest(BaseModel):
     break-glass that routes through the destructive recovery sign-in instead
     """
 
-    password: str
-    code: str | None = None  # a current TOTP code
+    password: PasswordText
+    code: str | None = Field(None, max_length=MAX_SECOND_FACTOR_CODE_LENGTH)  # a current TOTP code
     passkey: dict[str, Any] | None = None  # a passkey assertion, taking priority over a code
 
 
@@ -221,7 +229,7 @@ class TotpSetupRequest(BaseModel):
 class TotpConfirmRequest(BaseModel):
     """Authenticator code that confirms a pending TOTP enrolment"""
 
-    code: str
+    code: SecondFactorCode
 
 
 class RecoveryCodesResponse(BaseModel):
@@ -253,26 +261,14 @@ class PasswordResetResponse(BaseModel):
 class MfaVerifyRequest(BaseModel):
     """Second-factor verification pairing the challenge token with a code"""
 
-    mfa_token: str
-    code: str
+    mfa_token: Token
+    code: SecondFactorCode
 
 
 class TotpStatusResponse(BaseModel):
     """Whether the current user has confirmed two-factor authentication"""
 
     totp_enabled: bool
-
-
-def validate_passkey_name(value: str) -> str:
-    """Trim a passkey label and reject one that is empty or too long for the column"""
-    trimmed = value.strip()
-    if not trimmed:
-        msg = "Passkey name cannot be empty"
-        raise ValueError(msg)
-    if len(trimmed) > _MAX_PASSKEY_NAME_LENGTH:
-        msg = f"Passkey name must be at most {_MAX_PASSKEY_NAME_LENGTH} characters"
-        raise ValueError(msg)
-    return trimmed
 
 
 class PasskeyConfigResponse(BaseModel):
@@ -295,16 +291,10 @@ class PasskeyRegistrationOptionsRequest(BaseModel):
 class PasskeyRegisterRequest(BaseModel):
     """A finished registration ceremony paired with the label to store it under"""
 
-    name: str
+    name: TrimmedName = Field(min_length=1, max_length=MAX_PASSKEY_NAME_LENGTH)
 
     # The authenticator's attestation response, passed straight to the WebAuthn library to verify
     credential: dict[str, Any]
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Normalize the label at the API boundary"""
-        return validate_passkey_name(v)
 
 
 class PasskeyAuthenticationRequest(BaseModel):
@@ -317,34 +307,28 @@ class PasskeyAuthenticationRequest(BaseModel):
 class PasskeyMfaOptionsRequest(BaseModel):
     """The login challenge token whose user a passkey second-factor ceremony is scoped to"""
 
-    mfa_token: str
+    mfa_token: Token
 
 
 class PasskeyMfaVerifyRequest(BaseModel):
     """A passkey assertion answering the second-factor step of a password login"""
 
-    mfa_token: str
+    mfa_token: Token
     credential: dict[str, Any]
 
 
 class PasskeyResetVerifyRequest(NewPasswordRequest):
     """A passkey assertion answering the second-factor step of a password reset"""
 
-    token: str
-    mfa_token: str
+    token: Token
+    mfa_token: Token
     credential: dict[str, Any]
 
 
 class PasskeyRenameRequest(BaseModel):
     """A new label for an existing passkey"""
 
-    name: str
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Normalize the label at the API boundary"""
-        return validate_passkey_name(v)
+    name: TrimmedName = Field(min_length=1, max_length=MAX_PASSKEY_NAME_LENGTH)
 
 
 class PasskeySummary(BaseModel):
@@ -382,8 +366,8 @@ class OidcAuthorizeResponse(BaseModel):
 class OidcCallbackRequest(BaseModel):
     """The code and state the provider sent back to the callback page"""
 
-    code: str
-    state: str
+    code: Token
+    state: Token
 
 
 class OidcOnboardingResponse(BaseModel):
@@ -403,7 +387,7 @@ class OidcOnboardingResponse(BaseModel):
 class OidcReauthRequest(BaseModel):
     """The provider slug a passwordless account re-authenticates through to set a password"""
 
-    slug: str
+    slug: str = Field(max_length=MAX_OIDC_SLUG_LENGTH)
 
 
 class SetPasswordRequest(NewPasswordRequest):
@@ -413,11 +397,11 @@ class SetPasswordRequest(NewPasswordRequest):
 class OidcSignupRequest(BaseModel):
     """Signup completion payload pairing the onboarding token with the collected profile fields"""
 
-    onboarding_token: str
-    first_name: str
-    last_name: str | None = None
-    tz: str  # IANA timezone (e.g., "America/Toronto")
-    base_currency: str  # ISO 4217 code (e.g., "CAD")
+    onboarding_token: Token
+    first_name: str = Field(max_length=MAX_PERSON_NAME_LENGTH)
+    last_name: str | None = Field(None, max_length=MAX_PERSON_NAME_LENGTH)
+    tz: str = Field(max_length=MAX_TIMEZONE_LENGTH)  # IANA timezone (e.g., "America/Toronto")
+    base_currency: str = Field(max_length=3)  # ISO 4217 code (e.g., "CAD")
 
     @field_validator("tz")
     @classmethod

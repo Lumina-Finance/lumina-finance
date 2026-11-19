@@ -80,6 +80,19 @@ async def test_new_address_gets_a_confirmation_link_and_no_account(client):
     assert login.status_code == 401
 
 
+@pytest.mark.parametrize("base_currency", ["US\u0000D", "US\u0000"])
+async def test_signup_refuses_a_base_currency_with_a_null_character_and_sends_nothing(client, base_currency):
+    """A NUL in the base currency is refused on that field before any mail goes out, whatever the length"""
+    await _seed_currency()
+
+    resp = await client.post("/auth/signup", json={**_PROFILE, "base_currency": base_currency})
+
+    assert resp.status_code == 422
+    assert resp.json() == {"detail": [{"type": "value_error", "loc": ["body", "base_currency"], "msg": "Must not contain a null character"}]}
+    assert mailbox.sent == []
+    assert await _users() == []
+
+
 async def test_registered_address_gets_the_same_response_and_no_email(client):
     """A registered address answers exactly as a new one does, and nothing is sent to it"""
     await _seed_currency()
