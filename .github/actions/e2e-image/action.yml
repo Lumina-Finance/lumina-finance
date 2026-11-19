@@ -20,7 +20,7 @@ runs:
 
   steps:
     - name: Download the native image
-      uses: actions/download-artifact@v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
       with:
         name: e2e-image-${{ inputs.platform }}
         path: ${{ runner.temp }}
@@ -30,7 +30,7 @@ runs:
       run: docker load --input "${RUNNER_TEMP}/lumina-image.tar"
 
     - name: Log in to Docker Hub
-      uses: docker/login-action@v4
+      uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
       with:
         username: ${{ inputs.registry-username }}
         password: ${{ inputs.registry-token }}

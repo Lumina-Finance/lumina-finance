@@ -72,9 +72,7 @@ updates:
   - package-ecosystem: github-actions
     directories:
       - /
-      - /.github/actions/docker-build-setup
-      - /.github/actions/e2e-image
-      - /.github/actions/e2e-browser
+      - /.github/actions/*
     cooldown:
       default-days: 14
     schedule:

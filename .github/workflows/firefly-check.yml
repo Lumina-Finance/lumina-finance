@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker build
         uses: ./.github/actions/docker-build-setup
@@ -41,7 +41,7 @@ jobs:
 
       # One architecture is enough here: the check is about Firefly III's export, not the image
       - name: Build image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         env:
           # Only the image file is needed by the import job
           DOCKER_BUILD_RECORD_UPLOAD: false
@@ -57,7 +57,7 @@ jobs:
 
       # The E2E image action loads the image by this name
       - name: Share the built image with the import job
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-image-amd64
           path: ${{ runner.temp }}/lumina-image.tar
@@ -72,12 +72,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Signed in before the version is chosen, so looking up Firefly III's images counts against
       # the account's pull limit rather than the runner's shared anonymous one
       - name: Log in to Docker Hub
-        uses: docker/login-action@v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -129,7 +129,7 @@ jobs:
       # when the seed fails, since whatever it wrote shows how far it got
       - name: Share the exports with the import job
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: firefly-check-exports
           path: e2e/firefly-check/output
@@ -170,7 +170,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Prepare the image and env file
         uses: ./.github/actions/e2e-image
@@ -184,13 +184,13 @@ jobs:
         run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml up -d
 
       - name: Download the Firefly III exports
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: firefly-check-exports
           path: e2e/firefly-check/output
 
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26.13.1"
           cache: npm
@@ -259,7 +259,7 @@ jobs:
 
       - name: Keep the exports and results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: firefly-check
           path: |
