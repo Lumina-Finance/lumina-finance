@@ -1,10 +1,9 @@
+import emojiMartDataUrl from '@emoji-mart/data/sets/15/native.json?url'
 import { explainRequestFailure } from '@/api/server'
 
 export interface EmojiMartData {
   emojis?: Record<string, unknown>
 }
-
-const EMOJI_MART_DATA_URL = 'https://cdn.jsdelivr.net/npm/@emoji-mart/data'
 
 let emojiMartDataPromise: Promise<EmojiMartData> | null = null
 let cachedEmojiMartData: EmojiMartData | null = null
@@ -18,17 +17,24 @@ export function getCachedEmojiMartData(): EmojiMartData | null {
 
 /**
  * Loads the large emoji dataset once because multiple icon selectors can open during settings edits
- * A failed load is forgotten, so a later call fetches again
+ *
+ * The dataset is a file of the app's own build, downloaded from the app's own server when a picker
+ * first opens. It is fetched rather than imported as a module, since a browser keeps a failed module
+ * import until the page reloads, while a failed fetch is forgotten, so a later call fetches again
  */
 export function loadEmojiMartData(): Promise<EmojiMartData> {
   if (!emojiMartDataPromise) {
-    emojiMartDataPromise = fetch(EMOJI_MART_DATA_URL)
+    emojiMartDataPromise = fetch(emojiMartDataUrl)
       .catch((error: unknown) => {
         throw explainRequestFailure(error)
       })
       .then(async (response) => {
         if (!response.ok) throw new Error('Failed to load emoji data.')
-        const data = (await response.json()) as EmojiMartData
+        // A tab left open across an upgrade asks for a file name that no longer exists. The server answers
+        // with the app's page, so the body is not JSON and the browser's parser message must stay hidden
+        const data = (await response.json().catch(() => {
+          throw new Error('Failed to load emoji data.')
+        })) as EmojiMartData
         cachedEmojiMartData = data
         return data
       })

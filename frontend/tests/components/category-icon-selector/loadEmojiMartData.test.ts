@@ -53,6 +53,31 @@ describe('loadEmojiMartData', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it("downloads the list from the app's own server, never another site", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ emojis: {} }) })
+    vi.stubGlobal('fetch', fetchMock)
+    const { loadEmojiMartData } = await freshLoader()
+
+    await loadEmojiMartData()
+
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/^\/(?!\/)/)
+  })
+
+  it('says the list failed to load when the server answers with a page that is not the list', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => {
+          throw new SyntaxError("Unexpected token '<'")
+        },
+      }),
+    )
+    const { loadEmojiMartData } = await freshLoader()
+
+    await expect(loadEmojiMartData()).rejects.toMatchObject({ message: 'Failed to load emoji data.' })
+  })
+
   it('shares one download between calls made while it is in flight', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ emojis: {} }) })
     vi.stubGlobal('fetch', fetchMock)
