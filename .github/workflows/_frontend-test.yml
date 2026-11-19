@@ -2,6 +2,11 @@ name: Frontend tests
 
 on:
   workflow_call:
+    inputs:
+      tests:
+        description: Test files to run alone, relative to frontend and separated by spaces. Empty runs the whole suite
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -29,4 +34,8 @@ jobs:
         run: npm ci
 
       - name: Run vitest suite
-        run: npm run test
+        env:
+          TESTS: ${{ inputs.tests }}
+        run: |
+          read -ra tests <<<"${TESTS}"
+          npm run test -- "${tests[@]}"

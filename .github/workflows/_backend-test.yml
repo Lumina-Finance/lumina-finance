@@ -2,6 +2,11 @@ name: Backend tests
 
 on:
   workflow_call:
+    inputs:
+      tests:
+        description: Test files to run alone on one runner, relative to backend and separated by spaces. Empty runs the whole suite in eight groups
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -10,7 +15,7 @@ jobs:
   # The groups start at once, with no job ahead of them filling the uv cache. The cache is saved from
   # main for every pull request, and a group finding none installs the dependencies itself
   test:
-    name: Test backend ${{ matrix.group }} of 8
+    name: ${{ inputs.tests == '' && format('Test backend {0} of 8', matrix.group) || 'Test backend changed tests' }}
     runs-on: ubuntu-latest
 
     # Eight groups leave room for the browser tests within the free plan's 20 jobs at once.
@@ -19,7 +24,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        group: [1, 2, 3, 4, 5, 6, 7, 8]
+        group: ${{ fromJSON(inputs.tests == '' && '[1, 2, 3, 4, 5, 6, 7, 8]' || '[1]') }}
 
     defaults:
       run:
@@ -106,11 +111,21 @@ jobs:
       # never starve the databases behind each test. Each group then writes the times of its own tests
       # alone to its copy of the durations file, so the copies of all eight combine into a complete file.
       # Splitting by least duration spreads the many short tests over every group, since each test also
-      # costs a little time its recorded duration misses
+      # costs a little time its recorded duration misses. A run of the changed test files alone keeps
+      # no durations, since they would cover only those files
       - name: Run tests
-        run: uv run pytest -n "$(( $(nproc) - 1 ))" tests --splits 8 --group ${{ matrix.group }} --splitting-algorithm least_duration --store-durations --clean-durations
+        env:
+          TESTS: ${{ inputs.tests }}
+        run: |
+          if [ -n "${TESTS}" ]; then
+            read -ra tests <<<"${TESTS}"
+            uv run pytest -n "$(( $(nproc) - 1 ))" "${tests[@]}"
+          else
+            uv run pytest -n "$(( $(nproc) - 1 ))" tests --splits 8 --group ${{ matrix.group }} --splitting-algorithm least_duration --store-durations --clean-durations
+          fi
 
       - name: Keep this group's test durations
+        if: ${{ inputs.tests == '' }}
         uses: actions/upload-artifact@v7
         with:
           name: backend-test-durations-${{ matrix.group }}
