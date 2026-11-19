@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
 from app.database import current_session_id_ctx
-from app.models.cache_state import GroupCacheState, UserCacheState
+from app.models.cache_state import GroupCacheState, SharedCacheState, UserCacheState
 from app.models.group import GroupMember
 
 
@@ -69,6 +69,19 @@ async def get_visible_cache_status(db: AsyncSession, user_id: uuid.UUID) -> Visi
     changed_values = [value for value in values if value is not None]
     changed_at = max(changed_values) if changed_values else None
     return VisibleCacheStatus(changed_at=changed_at, personal=personal, groups=groups)
+
+
+async def get_shared_cache_changed_at(db: AsyncSession) -> datetime | None:
+    """Return when data every user sees last changed
+
+    Args:
+        db: Active database session
+
+    Returns:
+        UTC timestamp of the last shared change, or None when none was recorded
+    """
+    changed_at = await db.scalar(sa.select(SharedCacheState.changed_at))
+    return None if changed_at is None else _as_utc(changed_at)
 
 
 def select_user_group_ids(user_id: uuid.UUID) -> Select[tuple[uuid.UUID]]:

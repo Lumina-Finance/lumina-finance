@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, func, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -39,3 +39,19 @@ class GroupCacheState(Base):
     )
     changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     last_changed_session_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+
+
+class SharedCacheState(Base):
+    """Latest change to data every user sees, such as an institution
+
+    Holds one row. A request can write only the caller's own marker under row-level security,
+    so a change every user must see needs a row every signed-in user may write
+    """
+
+    __tablename__ = "shared_cache_state"
+
+    # Always true, and the key, so a second row can't exist
+    id: Mapped[bool] = mapped_column(Boolean, primary_key=True, default=True, server_default=true())
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (CheckConstraint("id", name="ck_shared_cache_state_single_row"),)

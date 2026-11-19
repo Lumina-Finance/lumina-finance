@@ -18,7 +18,7 @@ from app.schemas.institution import (
     InstitutionResponse,
     UpdateInstitutionRequest,
 )
-from app.services.cache_state import mark_user_cache_changed
+from app.services.cache_state import mark_shared_cache_changed, mark_user_cache_changed
 
 # Auth is required on every endpoint, since institution data is internal to signed-in users
 router = APIRouter(prefix="/institutions", tags=["institutions"])
@@ -86,7 +86,7 @@ async def create_institution(
 
     Args:
         data: Institution details (name, country_code, website)
-        user: Authenticated user (enforces auth gate)
+        user: Authenticated user, whose own cache marker moves with the shared one
         db: Async database session
 
     Returns:
@@ -99,6 +99,8 @@ async def create_institution(
 
     # Before the row is added, since a query issued afterwards would flush it early and the
     # unique violation would escape the commit guard
+    await mark_shared_cache_changed(db)
+    # Until the browser reads the shared marker it compares only the personal one, so the editor's other tabs need this
     await mark_user_cache_changed(db, user.id)
 
     # Explicitly set PENDING, since client input for status is never trusted
@@ -131,7 +133,7 @@ async def update_institution(
     Args:
         institution_id: UUID of the institution being corrected
         data: Fields to change, all optional
-        user: Authenticated user (enforces auth gate)
+        user: Authenticated user, whose own cache marker moves with the shared one
         db: Async database session
 
     Returns:
@@ -162,6 +164,8 @@ async def update_institution(
 
     # Before the row is mutated, since a query issued afterwards would flush the change early
     # and the unique violation would escape the commit guard
+    await mark_shared_cache_changed(db)
+    # Until the browser reads the shared marker it compares only the personal one, so the editor's other tabs need this
     await mark_user_cache_changed(db, user.id)
 
     for field, value in changes.items():

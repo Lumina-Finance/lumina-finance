@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.runtime import APP_VERSION
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import TaxAdvantagedCategory
@@ -20,7 +21,7 @@ from app.schemas.user import (
     UpdateProfileRequest,
     UserProfile,
 )
-from app.services.cache_state import get_visible_cache_status, mark_user_cache_changed, select_user_group_ids
+from app.services.cache_state import get_shared_cache_changed_at, get_visible_cache_status, mark_user_cache_changed, select_user_group_ids
 from app.services.tax_advantaged_categories import get_category_owner_timezones
 from app.utils.dates import resolve_timezone
 
@@ -60,6 +61,8 @@ async def get_cache_status(
             )
             for group_id, group_status in status.groups.items()
         },
+        shared_changed_at=await get_shared_cache_changed_at(db),
+        server_version=APP_VERSION,
     )
     return cache_status
 

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import current_session_id_ctx
 from app.db.rls.functions import BUMP_GROUP_MEMBER_CACHE
-from app.models.cache_state import GroupCacheState, UserCacheState
+from app.models.cache_state import GroupCacheState, SharedCacheState, UserCacheState
 
 
 async def mark_user_cache_changed(db: AsyncSession, user_id: uuid.UUID) -> None:
@@ -41,6 +41,23 @@ async def mark_user_status_changed(db: AsyncSession, user_id: uuid.UUID) -> None
     changed_at = sa.func.clock_timestamp()
     stmt = insert(UserCacheState).values(user_id=user_id, status_changed_at=changed_at)
     await db.execute(stmt.on_conflict_do_update(index_elements=[UserCacheState.user_id], set_={"status_changed_at": changed_at}))
+
+
+async def mark_shared_cache_changed(db: AsyncSession) -> None:
+    """Record a change to data every user sees, such as an institution
+
+    Every signed-in user's check returns this marker, so the change reaches all of them, which
+    the writer's own personal marker could not do
+
+    Args:
+        db: Active database session
+
+    Returns:
+        None
+    """
+    changed_at = sa.func.clock_timestamp()
+    stmt = insert(SharedCacheState).values(changed_at=changed_at)
+    await db.execute(stmt.on_conflict_do_update(index_elements=[SharedCacheState.id], set_={"changed_at": changed_at}))
 
 
 async def mark_group_member_cache_changed(

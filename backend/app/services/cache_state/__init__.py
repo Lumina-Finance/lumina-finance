@@ -3,6 +3,7 @@
 from app.services.cache_state.status import (
     ScopeCacheStatus,
     VisibleCacheStatus,
+    get_shared_cache_changed_at,
     get_visible_cache_changed_at,
     get_visible_cache_status,
     select_user_group_ids,
@@ -11,6 +12,7 @@ from app.services.cache_state.updates import (
     mark_cache_changed_for_scope,
     mark_group_cache_changed,
     mark_group_member_cache_changed,
+    mark_shared_cache_changed,
     mark_user_cache_changed,
     mark_user_status_changed,
 )
@@ -18,11 +20,13 @@ from app.services.cache_state.updates import (
 __all__ = [
     "ScopeCacheStatus",
     "VisibleCacheStatus",
+    "get_shared_cache_changed_at",
     "get_visible_cache_changed_at",
     "get_visible_cache_status",
     "mark_cache_changed_for_scope",
     "mark_group_cache_changed",
     "mark_group_member_cache_changed",
+    "mark_shared_cache_changed",
     "mark_user_cache_changed",
     "mark_user_status_changed",
     "select_user_group_ids",

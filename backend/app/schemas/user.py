@@ -49,6 +49,8 @@ class CacheStatus(BaseModel):
     next_calculation_boundary_at: datetime
     personal: CacheScopeStatus
     groups: dict[uuid.UUID, CacheScopeStatus] = Field(default_factory=dict)
+    shared_changed_at: datetime | None
+    server_version: str
 
 
 class UpdateProfileRequest(BaseModel):
