@@ -5,6 +5,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+    # Behind a reverse proxy, name its address or network range with TRUSTED_PROXIES in .env, such as
+    # TRUSTED_PROXIES=172.18.0.0/16, or the app ignores the client address and protocol it forwards
     ports:
       - "8080:80"
     env_file:

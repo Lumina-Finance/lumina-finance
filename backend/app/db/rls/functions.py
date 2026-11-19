@@ -554,11 +554,32 @@ _HELPERS: tuple[_Helper, ...] = (
 )
 
 
+# The set helpers the read rules test membership in, administered_group_ids first since the others call it
+_SET_HELPER_SIGNATURES = (
+    f"{ADMINISTERED_GROUP_IDS}()",
+    f"{ACCESSIBLE_GROUP_IDS}()",
+    f"{ACCESSIBLE_ACCOUNT_IDS}()",
+    f"{ACCESSIBLE_BASE_BUDGET_IDS}()",
+)
+
+
 def create_helper_functions(connection: Connection) -> None:
     """Create every SECURITY DEFINER helper the policies and the app rely on"""
     _drop_obsolete_helper_functions(connection)
     for helper in _HELPERS:
         connection.execute(text(helper.create_sql))
+
+
+def create_set_helpers(connection: Connection) -> None:
+    """Create the set helpers the read rules name, from the same definitions as every other helper
+
+    A migration that secures a table builds its rule from the app's source. That rule can name a set
+    helper a database from before the helpers' own revision doesn't have yet. Their bodies read only
+    tables every database with row-level security already has
+    """
+    helpers = {helper.drop_signature: helper for helper in _HELPERS}
+    for signature in _SET_HELPER_SIGNATURES:
+        connection.execute(text(helpers[signature].create_sql))
 
 
 def drop_helper_functions(connection: Connection) -> None:

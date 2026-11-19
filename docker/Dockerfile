@@ -45,8 +45,8 @@ RUN uv sync --frozen --no-dev --no-install-project
 FROM dhi.io/caddy:2-debian13-dev AS caddy
 
 
-# Runtime image
-FROM dhi.io/python:${PYTHON_VERSION}-debian13-dev AS runtime
+# Runtime image, with no shell, package manager or build tools. OpenSSL and the CA certificates come with it
+FROM dhi.io/python:${PYTHON_VERSION}-debian13 AS runtime
 
 ARG APP_VERSION
 
@@ -58,10 +58,13 @@ ENV UPDATE_CHECKS_ENABLED=true
 
 WORKDIR /app/backend
 
-# OS packages
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash ca-certificates openssl \
-    && rm -rf /var/lib/apt/lists/*
+# Starts as root only to hand the data volume to the base image's unprivileged user. The
+# entrypoint then becomes that user. A volume an earlier image wrote as root keeps working after an upgrade. Named
+# by number, since the base image lists no root user
+USER 0:0
+
+# The base image's own pip, the one package manager it ships, removed without a shell
+RUN ["/usr/bin/python3", "-m", "pip", "uninstall", "--yes", "--break-system-packages", "pip"]
 
 # Built frontend and dependencies
 COPY --from=caddy /usr/local/bin/caddy /usr/local/bin/caddy
@@ -76,14 +79,12 @@ COPY backend/scripts ./scripts
 
 # Runtime configuration
 COPY docker/Caddyfile /etc/caddy/Caddyfile
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY docker/entrypoint.py /usr/local/bin/entrypoint.py
 
 EXPOSE 80
 VOLUME ["/data"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import json, urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1/api/health', timeout=10)).get('status') == 'ok'"
+    CMD ["python", "-c", "import json, urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1/api/health', timeout=10)).get('status') == 'ok'"]
 
-ENTRYPOINT ["entrypoint.sh"]
+ENTRYPOINT ["python", "/usr/local/bin/entrypoint.py"]
