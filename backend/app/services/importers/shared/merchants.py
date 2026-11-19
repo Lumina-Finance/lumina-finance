@@ -192,8 +192,8 @@ async def create_missing_import_merchants(
     A value the user answered is taken as answered: pointed at a merchant they chose, created under
     a name they wrote, or left with none. Every other value keeps what the importer does unasked,
     matching an existing merchant by name and creating one where nothing matches. Whatever the file
-    introduces is written in one insert, so a file carrying a hundred thousand new merchants costs one
-    round trip rather than one for each
+    introduces is written in batches rather than one statement for each merchant, so a file carrying a
+    hundred thousand new merchants stays under the driver's limit on arguments
 
     Args:
         db: Active database session

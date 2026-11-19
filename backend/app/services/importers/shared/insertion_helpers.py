@@ -7,6 +7,11 @@ from sqlalchemy import ColumnElement
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Records sent to the database per statement. The driver refuses a statement binding more than 32,767
+# arguments. A merchant binds six and a category seven, so a statement of either holds at most 4,681
+# records, and a round figure well under that leaves room for a record gaining columns
+INSERT_BATCH_SIZE = 1_000
+
 
 async def insert_import_records_if_absent(
     db: AsyncSession,
@@ -22,6 +27,9 @@ async def insert_import_records_if_absent(
     already there avoids the failure rather than recovering from it, which is what lets two imports
     both needing a new category of one name write it once and reuse it for the other
 
+    The records go out in batches of INSERT_BATCH_SIZE, all inside the caller's transaction with no
+    commit, flush or savepoint between them, so a failure in any batch still undoes the whole import
+
     Args:
         db: Active database session
         model: Model being inserted
@@ -32,10 +40,13 @@ async def insert_import_records_if_absent(
     Returns:
         The records this insert wrote, leaving out every one that was already there
     """
-    result = await db.execute(
-        insert(model)
-        .values(values)
-        .on_conflict_do_nothing(index_elements=index_elements, index_where=index_where)
-        .returning(model),
-    )
-    return result.scalars().all()
+    written: list[Any] = []
+    for start in range(0, len(values), INSERT_BATCH_SIZE):
+        result = await db.execute(
+            insert(model)
+            .values(values[start : start + INSERT_BATCH_SIZE])
+            .on_conflict_do_nothing(index_elements=index_elements, index_where=index_where)
+            .returning(model),
+        )
+        written.extend(result.scalars().all())
+    return written
