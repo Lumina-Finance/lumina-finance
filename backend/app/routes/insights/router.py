@@ -40,6 +40,7 @@ from app.services.insights import (
     get_period_at_a_glance,
     get_savings_rate_trend,
 )
+from app.utils.date_window import require_report_range
 from app.utils.dates import resolve_timezone
 
 router = APIRouter(prefix="/insights", tags=["insights"])
@@ -56,13 +57,10 @@ def _validate_date_range(
         to_date: Inclusive end date from the request query
 
     Raises:
-        HTTPException: Raised with 422 when ``from_date`` is after ``to_date``
+        HTTPException: Raised with 422 when either date is outside the window, ``from_date`` is
+            after ``to_date`` or the range covers over 20 years
     """
-    if from_date > to_date:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Start date must be before end date",
-        )
+    require_report_range(from_date, to_date)
 
 
 def _get_viewer_local_now(user: User) -> DateTime:

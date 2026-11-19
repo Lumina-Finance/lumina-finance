@@ -16,7 +16,8 @@ import TransactionsTopBand from '@/pages/transactions/components/TopBand'
 import { toTransactionListAccount } from '@/components/transactions/types/transactionList'
 import { useTransactionNavigationFilters } from '@/pages/transactions/hooks/useTransactionNavigationFilters'
 import { getCurrentMonthOverviewRange } from '@/pages/transactions/utils/date'
-import { formatDateRangeLabel } from '@/utils/date'
+import { formatDateRangeLabel, getTodayYmd } from '@/utils/date'
+import { getOverviewRangeSpanError } from '@/utils/dateWindow'
 
 // Fade out the failed summary before revealing the recovered summary without chart entrances
 const RETRY_FADE_SECONDS = 0.2
@@ -108,11 +109,18 @@ export default function TransactionsPage() {
   // The overview supports a single account and the date range, so it scopes to the chosen account
   // only when exactly one is selected and otherwise spans every account
   const overviewAccountId = filters.account_id?.length === 1 ? filters.account_id[0] : undefined
-  const overviewQuery = useTransactionsOverview({
-    account_id: overviewAccountId,
-    from_date: overviewFromDate,
-    to_date: overviewToDate,
-  })
+  // A filter restored from the address or saved state can still hold dates the summary can't cover, and
+  // asking would only come back refused, so nothing is asked and the band says why
+  const overviewRangeTooLong =
+    getOverviewRangeSpanError(filters.from_date, filters.to_date, getTodayYmd(user!.tz)) !== null
+  const overviewQuery = useTransactionsOverview(
+    {
+      account_id: overviewAccountId,
+      from_date: overviewFromDate,
+      to_date: overviewToDate,
+    },
+    { enabled: !overviewRangeTooLong },
+  )
   const {
     data: overview,
     isFetching: isOverviewFetching,
@@ -199,10 +207,11 @@ export default function TransactionsPage() {
         <div className="space-y-3">
           <motion.div animate={summaryAnimation} initial={false}>
             <TransactionsTopBand
-              overview={overview}
+              overview={overviewRangeTooLong ? undefined : overview}
               displayCurrency={displayCurrency}
               loading={filterListLoading || isLoadingFirstAnswer(overviewQuery)}
               failed={isOverviewError}
+              rangeTooLong={overviewRangeTooLong}
               retrying={retrying}
               skipEntrance={recoveredKey === chartAnimationKey}
               rangeLabel={rangeLabel}

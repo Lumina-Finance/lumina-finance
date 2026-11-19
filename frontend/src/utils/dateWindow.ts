@@ -71,3 +71,21 @@ export function getRangeSpanError(from: string, to: string): string | null {
 
   return to >= limit ? RANGE_TOO_LONG_MESSAGE : null
 }
+
+/**
+ * Says when the summary range a filter leads to covers more than 20 years, or returns null
+ *
+ * The summary always asks for both dates, so an end left out is today and a start left out is the first of
+ * the month
+ *
+ * @param from - The filter's first day, "" or undefined when it has none
+ * @param to - The filter's last day, "" or undefined when it has none
+ * @param todayYmd - Today in the user's timezone as "YYYY-MM-DD"
+ */
+export function getOverviewRangeSpanError(
+  from: string | undefined,
+  to: string | undefined,
+  todayYmd: string,
+): string | null {
+  return getRangeSpanError(from || `${todayYmd.slice(0, 7)}-01`, to || todayYmd)
+}

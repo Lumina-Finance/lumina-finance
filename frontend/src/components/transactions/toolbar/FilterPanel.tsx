@@ -18,6 +18,8 @@ type TransactionFilterPanelProps = {
   setFilter: TransactionFilterSetter
   // False on an account's own transaction list, where the account facet is disabled
   showAccountFilter: boolean
+  // True where a summary sits above the list, so a range over 20 years is refused
+  checksSummarySpan?: boolean
   // The account's currency on its own transaction list, which pins the amount currency
   lockedCurrency?: string
   // The open width, for a place whose row the panel must cover edge to edge, instead of the usual width
@@ -38,6 +40,7 @@ export function TransactionFilterPanel({
   filters,
   setFilter,
   showAccountFilter,
+  checksSummarySpan,
   lockedCurrency,
   openWidth = OPEN_WIDTH,
   constrainTo,
@@ -50,6 +53,7 @@ export function TransactionFilterPanel({
     accountOptions,
     categoryOptions,
     showAccountFilter,
+    checksSummarySpan,
     lockedCurrency,
     onClose: () => setOpen(false),
   })

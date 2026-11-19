@@ -2,6 +2,7 @@ import { useId, useState, type ChangeEvent } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import { joinClassNames } from '@/utils/classNames'
+import { getRelativeRangeError } from '@/pages/insights/utils/range'
 import type { SavedInsightsRangeQualifier, SavedInsightsRangeUnit } from '@/api/insights'
 
 const RELATIVE_UNITS: SavedInsightsRangeUnit[] = ['day', 'week', 'month', 'quarter', 'year']
@@ -57,6 +58,8 @@ export function RelativeRangeBuilder({
   const [trackedAmount, setTrackedAmount] = useState(amount)
   // Scopes the sliding-thumb layout animation to this builder instance
   const groupId = useId()
+  const amountErrorId = `${groupId}-amount-error`
+  const amountError = getRelativeRangeError(amount, unit, qualifier)
   const shouldReduceMotion = useReducedMotion()
   const thumbTransition = shouldReduceMotion ? { duration: 0 } : qualifierSpring
 
@@ -140,8 +143,13 @@ export function RelativeRangeBuilder({
             value={amountText}
             onChange={handleAmountChange}
             onBlur={handleAmountBlur}
-            className="app-input app-input-no-spinner w-16 text-center tabular-nums"
+            className={joinClassNames(
+              'app-input app-input-no-spinner w-16 text-center tabular-nums',
+              amountError !== null && 'app-input-error',
+            )}
             aria-label="Relative range amount"
+            aria-invalid={amountError !== null}
+            aria-describedby={amountError ? amountErrorId : undefined}
           />
         )}
         <button
@@ -160,6 +168,12 @@ export function RelativeRangeBuilder({
           />
         </button>
       </div>
+
+      {amountError && (
+        <p id={amountErrorId} className="mt-1 text-xs" style={{ color: 'var(--app-negative)' }}>
+          {amountError}
+        </p>
+      )}
 
       <div className={joinClassNames('app-range-unit-menu', unitMenuOpen && 'app-range-unit-menu-open')}>
         <div className="app-range-unit-menu-body">

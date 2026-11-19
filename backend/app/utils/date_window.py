@@ -58,6 +58,28 @@ def _require_in_window(value: date) -> date:
 WindowDate = Annotated[date, AfterValidator(_require_in_window)]
 
 
+def require_optional_report_range(from_date: date | None, to_date: date | None) -> None:
+    """Refuse a report range with ends that are set and outside the window
+
+    A range with one end open is held to the window only, and one with both ends set to everything
+    ``require_report_range`` checks
+
+    Args:
+        from_date: Inclusive first date of the range, or None for no lower end
+        to_date: Inclusive last date of the range, or None for no upper end
+
+    Raises:
+        HTTPException: 422 with a message naming the field at fault
+    """
+    if from_date is not None and to_date is not None:
+        require_report_range(from_date, to_date)
+        return
+    for label, value in (("Start date", from_date), ("End date", to_date)):
+        error = get_window_error(value) if value is not None else None
+        if error is not None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"{label} {error}")
+
+
 def require_report_range(from_date: date, to_date: date) -> None:
     """Refuse a report range whose ends sit outside the window, are reversed or cover over 20 years
 

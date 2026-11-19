@@ -90,12 +90,12 @@ export function useInfiniteTransactions(filters: Omit<TransactionFilters, 'limit
 /**
  * Reads transaction overview metrics for the top-band cards
  */
-export function useTransactionsOverview(filters: OverviewFilters = {}) {
+export function useTransactionsOverview(filters: OverviewFilters = {}, { enabled = true } = {}) {
   const { accessToken } = useAuth()
   return useQuery({
     queryKey: transactionOverviewKeys.detail(filters as Record<string, unknown>),
     queryFn: ({ signal }) => fetchTransactionsOverview(filters, signal),
-    enabled: !!accessToken,
+    enabled: !!accessToken && enabled,
     staleTime: getFxAwareStaleTime(TRANSACTION_OVERVIEW_FX_STALE_TIME_MS),
   })
 }

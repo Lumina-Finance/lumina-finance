@@ -5,7 +5,10 @@
 import { describe, expect, it } from 'vitest'
 import type { TransactionsOverview } from '@/api/transactions'
 import type { FxStatus } from '@/api/shared/fx'
-import { selectTransactionOverviewState } from '@/pages/transactions/utils/overviewState'
+import {
+  OVERVIEW_RANGE_TOO_LONG_MESSAGE,
+  selectTransactionOverviewState,
+} from '@/pages/transactions/utils/overviewState'
 
 const COMPLETE_FX: FxStatus = { state: 'complete', missing_pairs: [] }
 
@@ -152,5 +155,22 @@ describe('overview button retry presentation', () => {
     expect(selectTransactionOverviewState({ ...input, retrying: true })).toEqual({ kind: 'failed' })
     expect(selectTransactionOverviewState({ ...input, retrying: false })).toEqual({ kind: 'content' })
     expect(selectTransactionOverviewState({ ...input, failed: true, retrying: false })).toEqual({ kind: 'failed' })
+  })
+})
+
+describe('overview band for dates that cover more than 20 years', () => {
+  it('says why instead of showing a failure Try again cannot clear, while nothing loads', () => {
+    for (const loading of [false, true]) {
+      expect(
+        selectTransactionOverviewState({
+          overview: undefined,
+          loading,
+          failed: true,
+          retrying: false,
+          rangeLabel: RANGE_LABEL,
+          rangeTooLong: true,
+        }),
+      ).toStrictEqual({ kind: 'empty', message: OVERVIEW_RANGE_TOO_LONG_MESSAGE })
+    }
   })
 })

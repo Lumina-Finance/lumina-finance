@@ -6,7 +6,12 @@ import type {
   SavedInsightsRangeUnit,
 } from '@/api/insights'
 import type { InsightsRangeInputDates, InsightsRangePreset } from '@/pages/insights/types/range'
-import { getRangeComparisonPeriod, getRangeInputDates, getRelativeRangeInputDates } from '@/pages/insights/utils/range'
+import {
+  getRangeComparisonPeriod,
+  getRangeInputDates,
+  getRelativeRangeError,
+  getRelativeRangeInputDates,
+} from '@/pages/insights/utils/range'
 import { useAuth } from '@/hooks/useAuth'
 
 // The relative builder opens on a familiar three-month rolling window when Custom is first picked
@@ -78,7 +83,10 @@ export function useInsightsRange(): InsightsRangeState {
     comparisonPeriod: getRangeComparisonPeriod('THIS_MONTH'),
   })
 
-  const draftInputDates = getRelativeRangeInputDates(draftAmount, draftUnit, draftQualifier, timeZone)
+  // A window past the limit has no dates to show, so none are worked out from its amount
+  const draftInputDates = getRelativeRangeError(draftAmount, draftUnit, draftQualifier)
+    ? { from: '', to: '' }
+    : getRelativeRangeInputDates(draftAmount, draftUnit, draftQualifier, timeZone)
   const cardTransitionKey = `${committed.inputDates.from}:${committed.inputDates.to}:${committed.comparisonPeriod}`
   const cardQueriesEnabled = committed.inputDates.from !== '' && committed.inputDates.to !== ''
 

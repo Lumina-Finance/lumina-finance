@@ -20,7 +20,7 @@ import {
 } from '@/components/transactions/utils/amountRange'
 import { isFilterPatchApplied } from '@/components/transactions/utils/filterDraft'
 import { getTodayYmd, isDateRangeCrossed } from '@/utils/date'
-import { getDateWindowError } from '@/utils/dateWindow'
+import { getDateRangeErrors } from '@/components/transactions/utils/dateRangeErrors'
 import { useRestoreAmountRange } from '@/components/transactions/toolbar/hooks/useRestoreAmountRange'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/components/transactions/toolbar/types'
@@ -73,6 +73,10 @@ type UseTransactionFilterDraftArgs = {
   // False on an account's own transaction list, where the account scope is fixed, so the account
   // facet is not seeded and reads as an applied filter
   showAccountFilter: boolean
+  // True when a summary sits above the list. The summary always asks for both ends, so a range leading
+  // the summary to cover over 20 years is refused. Off for an account's own list and the refund search,
+  // since neither has a summary
+  checksSummarySpan?: boolean
   // The account's currency on its own transaction list, which pins the amount currency without
   // counting as an applied currency filter
   lockedCurrency?: string
@@ -92,6 +96,7 @@ export function useTransactionFilterDraft({
   accountOptions,
   categoryOptions,
   showAccountFilter,
+  checksSummarySpan = false,
   lockedCurrency,
   onClose,
 }: UseTransactionFilterDraftArgs) {
@@ -155,10 +160,7 @@ export function useTransactionFilterDraft({
   // A typed date outside the window every date must sit in is refused on its own field, and nothing
   // is filtered by it
   const todayYmd = getTodayYmd(user?.tz)
-  const dateWindowErrors = {
-    from: getDateWindowError(dateRange.from, todayYmd),
-    to: getDateWindowError(dateRange.to, todayYmd),
-  }
+  const dateWindowErrors = getDateRangeErrors(dateRange, todayYmd, checksSummarySpan)
   const dateWindowError = dateWindowErrors.from ?? dateWindowErrors.to
 
   // Either range excluding itself blocks the whole commit, since no transaction can satisfy it and

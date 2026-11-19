@@ -73,6 +73,7 @@ export default function TransactionListToolbar({
   categories,
   accounts,
   showAccountFilter,
+  checksSummarySpan,
   lockedCurrency,
   onCreateTransaction,
   createDisabled = false,
@@ -427,6 +428,7 @@ export default function TransactionListToolbar({
                   filters={filters}
                   setFilter={setFilter}
                   showAccountFilter={showAccountFilter}
+                  checksSummarySpan={checksSummarySpan}
                   lockedCurrency={lockedCurrency}
                 />
               </div>
@@ -449,6 +451,7 @@ export default function TransactionListToolbar({
           filters={filters}
           setFilter={setFilter}
           showAccountFilter={showAccountFilter}
+          checksSummarySpan={checksSummarySpan}
           lockedCurrency={lockedCurrency}
         />
       )}

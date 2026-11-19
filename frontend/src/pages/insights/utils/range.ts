@@ -5,6 +5,7 @@ import type {
   InsightsRangePreset,
 } from '@/pages/insights/types/range'
 import { DATE_FORMATS, addDays, formatDateRange, formatYmd, getStartOfWeek, getTodayDate, parseYmd } from '@/utils/date'
+import { RANGE_TOO_LONG_MESSAGE } from '@/utils/dateWindow'
 
 // How many months each calendar unit spans, which doubles as the alignment granularity used to
 // roll a window start back to the first day of a whole month, quarter, or year
@@ -128,6 +129,71 @@ export function getRelativeRangeInputDates(
     return getCompleteRangeInputDates(amount, unit, today)
   }
   return getTrailingRangeInputDates(amount, unit, today)
+}
+
+// The most of each unit a relative window holds. That is as many as fit in the 20 years a report
+// covers. The server holds a saved range to the same table. Counting units, not dates, keeps an
+// absurd amount from ever being turned into a date
+export const RELATIVE_RANGE_MAX_AMOUNT: Record<SavedInsightsRangeUnit, number> = {
+  day: 7305,
+  week: 1043,
+  month: 240,
+  quarter: 80,
+  year: 20,
+}
+
+/**
+ * Says why a relative window cannot be applied, or returns null for one that can
+ *
+ * @param amount - How many periods the window spans
+ * @param unit - The calendar period being counted
+ * @param qualifier - Which of the three window shapes the window takes. The 'this' qualifier always spans one period
+ */
+export function getRelativeRangeError(
+  amount: number,
+  unit: SavedInsightsRangeUnit,
+  qualifier: SavedInsightsRangeQualifier,
+): string | null {
+  if (qualifier === 'this') return null
+  return amount > RELATIVE_RANGE_MAX_AMOUNT[unit] ? RANGE_TOO_LONG_MESSAGE : null
+}
+
+/** Why Save is unavailable while the builder's amount covers more than 20 years */
+export const SAVE_RANGE_TOO_LONG_REASON = 'Please shorten the range first: it can cover at most 20 years'
+
+/**
+ * Says why Save is unavailable, or returns null while it can run
+ *
+ * @param isSaving - Whether a save is already on its way. That holds Save off without a reason
+ * @param draftRangeTooLong - Whether the builder's draft covers more than 20 years
+ * @param name - The name typed for the range, trimmed
+ */
+export function getSaveRangeBlockedReason({
+  isSaving,
+  draftRangeTooLong,
+  name,
+}: {
+  isSaving: boolean
+  draftRangeTooLong: boolean
+  name: string
+}): string | null {
+  if (isSaving) return null
+  if (draftRangeTooLong) return SAVE_RANGE_TOO_LONG_REASON
+  return name === '' ? 'Name the range first' : null
+}
+
+/**
+ * Says why a saved range cannot be applied, or returns null for one that can, as a range saved before
+ * ranges were held to 20 years may be longer than that
+ */
+export function getSavedRangeApplyReason(range: {
+  amount: number
+  unit: SavedInsightsRangeUnit
+  qualifier: SavedInsightsRangeQualifier
+}): string | null {
+  return getRelativeRangeError(range.amount, range.unit, range.qualifier)
+    ? "Can't be applied: it covers over 20 years"
+    : null
 }
 
 /**

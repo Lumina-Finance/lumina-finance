@@ -9,9 +9,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   formatResolvedRangeLabel,
   getRangeInputDates,
+  getRelativeRangeError,
   getRelativeRangeInputDates,
   getRelativeRangeLabel,
+  getSavedRangeApplyReason,
+  getSaveRangeBlockedReason,
+  RELATIVE_RANGE_MAX_AMOUNT,
 } from '@/pages/insights/utils/range'
+import { getRangeSpanError } from '@/utils/dateWindow'
 
 // Late evening in Toronto on 30 June, already 1 July in UTC, so a zone mix-up shows up as a
 // different day and a different month
@@ -121,5 +126,55 @@ describe('formatResolvedRangeLabel', () => {
 
   it('adds the year on each end when the range crosses years', () => {
     expect(formatResolvedRangeLabel('2025-01-01', '2026-06-19')).toBe('Jan 1, 2025 – Jun 19, 2026')
+  })
+})
+
+describe('getRelativeRangeError', () => {
+  const units = ['day', 'week', 'month', 'quarter', 'year'] as const
+
+  it.each(units)('takes the most %s a window holds and refuses one more', (unit) => {
+    const most = RELATIVE_RANGE_MAX_AMOUNT[unit]
+
+    expect(getRelativeRangeError(most, unit, 'past')).toBeNull()
+    expect(getRelativeRangeError(most + 1, unit, 'past')).toBe('Can cover at most 20 years')
+  })
+
+  it('never refuses This, as it spans one period whatever the amount says', () => {
+    expect(getRelativeRangeError(1_000_000, 'year', 'this')).toBeNull()
+  })
+
+  it.each(units.flatMap((unit) => (['past', 'last'] as const).map((qualifier) => [unit, qualifier] as const)))(
+    'keeps the most %s windows under the 20 years the server allows for a %s window',
+    (unit, qualifier) => {
+      const { from, to } = getRelativeRangeInputDates(RELATIVE_RANGE_MAX_AMOUNT[unit], unit, qualifier)
+
+      expect(getRangeSpanError(from, to)).toBeNull()
+    },
+  )
+})
+
+describe('getSavedRangeApplyReason', () => {
+  it('gives no reason for a saved range within 20 years, and one for a range saved before the limit', () => {
+    expect(getSavedRangeApplyReason({ amount: 240, unit: 'month', qualifier: 'past' })).toBeNull()
+    expect(getSavedRangeApplyReason({ amount: 30, unit: 'year', qualifier: 'this' })).toBeNull()
+    expect(getSavedRangeApplyReason({ amount: 30, unit: 'year', qualifier: 'past' })).toBe(
+      "Can't be applied: it covers over 20 years",
+    )
+  })
+})
+
+describe('getSaveRangeBlockedReason', () => {
+  it('names the draft being too long before the missing name, and nothing while a save runs or all is well', () => {
+    expect(getSaveRangeBlockedReason({ isSaving: false, draftRangeTooLong: true, name: 'Long' })).toBe(
+      'Please shorten the range first: it can cover at most 20 years',
+    )
+    expect(getSaveRangeBlockedReason({ isSaving: false, draftRangeTooLong: true, name: '' })).toBe(
+      'Please shorten the range first: it can cover at most 20 years',
+    )
+    expect(getSaveRangeBlockedReason({ isSaving: false, draftRangeTooLong: false, name: '' })).toBe(
+      'Name the range first',
+    )
+    expect(getSaveRangeBlockedReason({ isSaving: true, draftRangeTooLong: true, name: 'Long' })).toBeNull()
+    expect(getSaveRangeBlockedReason({ isSaving: false, draftRangeTooLong: false, name: 'Long' })).toBeNull()
   })
 })

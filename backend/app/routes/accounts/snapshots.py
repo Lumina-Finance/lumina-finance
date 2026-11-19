@@ -17,6 +17,7 @@ from app.models.user import User
 from app.permissions import check_account_access
 from app.routes.users.date_helpers import get_current_user_date
 from app.schemas.account import AccountBalanceSnapshotResponse
+from app.utils.date_window import WindowDate
 
 router = APIRouter()
 
@@ -28,8 +29,8 @@ async def list_account_balance_snapshots(
     account_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    from_date: Annotated[date | None, Query()] = None,
-    to_date: Annotated[date | None, Query()] = None,
+    from_date: Annotated[WindowDate | None, Query()] = None,
+    to_date: Annotated[WindowDate | None, Query()] = None,
     granularity: Annotated[SnapshotGranularity, Query()] = "day",
     include_anchor: Annotated[bool, Query()] = False,
 ):
