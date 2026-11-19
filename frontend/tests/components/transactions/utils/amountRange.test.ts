@@ -3,6 +3,7 @@
  * applied and coming back as an empty list with no reason given, and the rules that keep the bounds
  * off screen, and leave the applied ones alone, until the decimal places they are counted in are known
  */
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
 import {
@@ -12,6 +13,7 @@ import {
   isAmountRangeLocked,
   isAppliedRangeWaitingOnCurrency,
 } from '@/components/transactions/utils/amountRange'
+import { currencyExponents, typedAmounts, typedSpellings } from '@tests/utils/generators'
 
 const CENTS = 2
 const WHOLE_UNITS = 0
@@ -24,21 +26,40 @@ const currencies: Currency[] = [
 // What the currency query holds until it resolves
 const NO_CURRENCIES: Currency[] = []
 
+/**
+ * Draws two typed bounds in a currency, sometimes for the same amount or for amounts one minor unit
+ * apart, so the edge between in order and crossed is met as often as ranges far from it
+ */
+const typedBounds = currencyExponents.chain((exponent) => {
+  const amounts = typedAmounts(exponent)
+  const respell = (minorUnits: number) => typedSpellings(minorUnits, exponent).map((text) => ({ minorUnits, text }))
+  const pairs = fc.oneof(
+    fc.tuple(amounts, amounts),
+    amounts.chain((min) => fc.tuple(fc.constant(min), respell(min.minorUnits))),
+    amounts.chain((min) => fc.tuple(fc.constant(min), respell(Math.max(min.minorUnits - 1, 0)))),
+  )
+
+  return pairs.map(([min, max]) => ({ exponent, min, max }))
+})
+
+// Text holding a digit can still name no amount when it carries a mark a money field doesn't take
+const unreadableBounds = fc.oneof(
+  fc.string().filter((text) => !/\d/.test(text)),
+  typedAmounts(CENTS).map(({ text }) => `1,${text}`),
+  typedAmounts(CENTS).map(({ text }) => `${text}.5.`),
+)
+
 describe('bounds that exclude each other', () => {
-  it('reports a minimum above the maximum', () => {
-    expect(isAmountRangeCrossed({ min: '500', max: '5' }, CENTS)).toBe(true)
-    expect(isAmountRangeCrossed({ min: '10.01', max: '10.00' }, CENTS)).toBe(true)
-    expect(isAmountRangeCrossed({ min: '23000', max: '2300' }, WHOLE_UNITS)).toBe(true)
+  it('reports a range crossed exactly when the minimum is a larger amount than the maximum, however each is typed', () => {
+    fc.assert(
+      fc.property(typedBounds, ({ exponent, min, max }) => {
+        expect(isAmountRangeCrossed({ min: min.text, max: max.text }, exponent)).toBe(min.minorUnits > max.minorUnits)
+      }),
+    )
   })
 
-  it('allows a range in order, including bounds naming the same amount', () => {
-    expect(isAmountRangeCrossed({ min: '5', max: '500' }, CENTS)).toBe(false)
+  it('allows bounds naming the same amount', () => {
     expect(isAmountRangeCrossed({ min: '10.00', max: '10.00' }, CENTS)).toBe(false)
-  })
-
-  it('compares the stored amount rather than the typed text', () => {
-    expect(isAmountRangeCrossed({ min: '9', max: '10' }, CENTS)).toBe(false)
-    expect(isAmountRangeCrossed({ min: '1.5', max: '1.50' }, CENTS)).toBe(false)
   })
 
   it('rounds each bound the way applying it would', () => {
@@ -46,10 +67,31 @@ describe('bounds that exclude each other', () => {
     expect(isAmountRangeCrossed({ min: '10.006', max: '10.004' }, CENTS)).toBe(true)
   })
 
-  it('leaves a bound alone that names no amount to compare', () => {
-    expect(isAmountRangeCrossed({ min: '500', max: '' }, CENTS)).toBe(false)
-    expect(isAmountRangeCrossed({ min: '', max: '5' }, CENTS)).toBe(false)
-    expect(isAmountRangeCrossed({ min: '500', max: '.' }, CENTS)).toBe(false)
+  it('never reports a range crossed while either bound names no amount', () => {
+    // The other bound is usually a real amount, since only then would reading the empty one as zero cross
+    const ranges = currencyExponents.chain((exponent) =>
+      fc.record({
+        exponent: fc.constant(exponent),
+        unreadable: unreadableBounds,
+        other: fc.oneof(
+          { weight: 4, arbitrary: typedAmounts(exponent).map(({ text }) => text) },
+          { weight: 1, arbitrary: fc.string() },
+        ),
+        isMinUnreadable: fc.boolean(),
+      }),
+    )
+
+    fc.assert(
+      fc.property(ranges, ({ exponent, unreadable, other, isMinUnreadable }) => {
+        const amount = isMinUnreadable ? { min: unreadable, max: other } : { min: other, max: unreadable }
+
+        expect(isAmountRangeCrossed(amount, exponent)).toBe(false)
+      }),
+    )
+  })
+
+  it('leaves a range of 10 to blank uncrossed', () => {
+    expect(isAmountRangeCrossed({ min: '10', max: '' }, CENTS)).toBe(false)
   })
 })
 
