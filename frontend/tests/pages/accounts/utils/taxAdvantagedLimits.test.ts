@@ -91,27 +91,43 @@ describe('tax-advantaged limit helpers', () => {
   })
 
   it('shows lifetime available boundary only when accrued room is between used and the lifetime cap', () => {
-    expect(getLifetimeAvailableBoundary(createTaxAdvantagedCategory({
-      lifetime_contribution_limit: 10_000,
-      accrued_lifetime_contribution_limit: 7_000,
-      lifetime_contributions: 5_000,
-    }))).toBe(7_000)
+    expect(
+      getLifetimeAvailableBoundary(
+        createTaxAdvantagedCategory({
+          lifetime_contribution_limit: 10_000,
+          accrued_lifetime_contribution_limit: 7_000,
+          lifetime_contributions: 5_000,
+        }),
+      ),
+    ).toBe(7_000)
 
-    expect(getLifetimeAvailableBoundary(createTaxAdvantagedCategory({
-      lifetime_contribution_limit: 10_000,
-      accrued_lifetime_contribution_limit: 4_000,
-      lifetime_contributions: 5_000,
-    }))).toBeNull()
+    expect(
+      getLifetimeAvailableBoundary(
+        createTaxAdvantagedCategory({
+          lifetime_contribution_limit: 10_000,
+          accrued_lifetime_contribution_limit: 4_000,
+          lifetime_contributions: 5_000,
+        }),
+      ),
+    ).toBeNull()
   })
 
   it('detects categories with limit settings or recorded activity', () => {
     expect(hasTaxAdvantagedLimitTracking(createTaxAdvantagedCategory({}))).toBe(false)
-    expect(hasTaxAdvantagedLimitTracking(createTaxAdvantagedCategory({
-      current_year_withdrawal_limit: 0,
-    }))).toBe(true)
-    expect(hasTaxAdvantagedLimitTracking(createTaxAdvantagedCategory({
-      ytd_contributions: 100,
-    }))).toBe(true)
+    expect(
+      hasTaxAdvantagedLimitTracking(
+        createTaxAdvantagedCategory({
+          current_year_withdrawal_limit: 0,
+        }),
+      ),
+    ).toBe(true)
+    expect(
+      hasTaxAdvantagedLimitTracking(
+        createTaxAdvantagedCategory({
+          ytd_contributions: 100,
+        }),
+      ),
+    ).toBe(true)
   })
 
   it('keeps limit summaries independent from account filters', () => {
