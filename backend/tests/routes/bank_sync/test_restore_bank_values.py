@@ -221,7 +221,8 @@ async def test_restoring_a_field_the_user_left_alone_changes_nothing(client):
         client, ledger_amount=_BANK_AMOUNT, observed_amount=-4510, open_kind=OpenReviewKind.CORRECTION, previous_values={"amount": _BANK_AMOUNT}
     )
 
-    restored = await _restore(client, imported, "amount")
+    with client.expecting_no_change():
+        restored = await _restore(client, imported, "amount")
 
     assert restored.status_code == 200, restored.text
     assert (restored.json()["amount"], restored.json()["bank_source"]["review_item_id"]) == (_BANK_AMOUNT, str(imported.record_id))

@@ -395,7 +395,8 @@ async def test_patch_category_empty_body_returns_unchanged(client):
     category_id = create_resp.json()["id"]
 
     before = await client.get(f"/categories/{category_id}", headers=headers)
-    resp = await client.patch(f"/categories/{category_id}", json={}, headers=headers)
+    with client.expecting_no_change():
+        resp = await client.patch(f"/categories/{category_id}", json={}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json() == before.json()

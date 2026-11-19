@@ -128,7 +128,7 @@ async def test_dismissing_a_reminder_no_longer_showing_changes_nothing(client, l
     headers, account_id, _ = await _linked_everyday(client, **link_values)
     before = await _changed_at(client, headers)
 
-    with _recorded_statements() as statements:
+    with client.expecting_no_change(), _recorded_statements() as statements:
         dismissed = await client.post(f"/accounts/{account_id}/bank-link/{route}/dismiss", json=sent, headers=headers)
 
     assert dismissed.status_code == 200, dismissed.text
@@ -152,7 +152,8 @@ async def test_a_dismissal_queued_behind_a_sync_raising_a_newer_reminder_leaves_
         async with asyncio.timeout(10), TestSession() as holder:
             await holder.execute(select(BankAccountLink.id).where(BankAccountLink.id == link.id).with_for_update())
             holder_pid = await holder.scalar(select(func.pg_backend_pid()))
-            with _recorded_statements() as statements:
+            # Held until the queued request has run, since it starts only when the test next waits
+            with client.expecting_no_change(), _recorded_statements() as statements:
                 requests.append(asyncio.create_task(_dismiss_history(client, headers, account_id, _SHOWN)))
                 await _wait_until_waiting_on(holder_pid, requests[0])
                 await holder.execute(

@@ -194,7 +194,8 @@ async def test_a_repeated_commit_answers_without_remembering_again(client):
         await session.execute(text("UPDATE account_import_sources SET source = 'generic'"))
         await session.commit()
 
-    repeated = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+    with client.expecting_no_change():
+        repeated = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
 
     assert repeated.status_code == 201, repeated.text
     assert await _list_sources(client, headers) == [{"account_id": account_id, "source": "generic"}]

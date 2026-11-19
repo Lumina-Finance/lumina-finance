@@ -148,7 +148,8 @@ async def test_record_starting_balance_of_zero_writes_no_transaction_and_leaves_
     headers = _get_auth_header(await _create_user(client))
     account_id = (await _create_account(client, headers)).json()["id"]
 
-    zero = await _record_starting_balance(client, headers, account_id, 0)
+    with client.expecting_no_change():
+        zero = await _record_starting_balance(client, headers, account_id, 0)
     real = await _record_starting_balance(client, headers, account_id, 40_00)
 
     assert zero.status_code == 200

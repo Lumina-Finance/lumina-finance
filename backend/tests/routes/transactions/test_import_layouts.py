@@ -160,7 +160,8 @@ async def test_a_repeated_commit_answers_without_saving_again(client):
         await session.execute(text("UPDATE account_import_layouts SET date_format = 'iso'"))
         await session.commit()
 
-    repeated = await _commit_run(client, headers, run_id)
+    with client.expecting_no_change():
+        repeated = await _commit_run(client, headers, run_id)
 
     assert repeated.status_code == 201, repeated.text
     assert [layout["date_format"] for layout in await _list_layouts(client, headers)] == ["iso"]

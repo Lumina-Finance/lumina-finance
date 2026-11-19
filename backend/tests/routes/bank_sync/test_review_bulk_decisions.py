@@ -237,7 +237,8 @@ async def test_a_bulk_decision_skips_items_that_arent_the_users_own_and_leaves_t
     group_id = await _commit_review_item(await _new_group_account(client, ledger.headers), "TRN-2002", owner_id=ledger.user_id)
 
     added = await _bulk_add(client, ledger, merchant_id, _sent(tesco_id, their_id))
-    dismissed = await _bulk_dismiss(client, ledger.headers, _sent(their_id, group_id))
+    with client.expecting_no_change():
+        dismissed = await _bulk_dismiss(client, ledger.headers, _sent(their_id, group_id))
 
     assert added.status_code == 200, added.text
     assert added.json() == {"decided_ids": [str(tesco_id)], "skipped_ids": [str(their_id)]}
@@ -278,7 +279,8 @@ async def test_dismissing_skips_an_item_added_since_and_one_that_changed(client)
         changed.observed_amount = -500
         await session.commit()
 
-    dismissed = await _bulk_dismiss(client, ledger.headers, _sent(tesco_id, coffee_id))
+    with client.expecting_no_change():
+        dismissed = await _bulk_dismiss(client, ledger.headers, _sent(tesco_id, coffee_id))
 
     assert dismissed.status_code == 200, dismissed.text
     assert dismissed.json() == {"decided_ids": [], "skipped_ids": [str(tesco_id), str(coffee_id)]}
@@ -295,7 +297,8 @@ async def test_a_bulk_decision_of_more_than_1000_items_is_refused(client, path):
     items = [{"id": str(uuid.uuid4()), "version": 1} for _ in range(1001)]
 
     too_many = await client.post(f"/bank-review/items/{path}", json={"items": items, **payload}, headers=ledger.headers)
-    most = await client.post(f"/bank-review/items/{path}", json={"items": items[:1000], **payload}, headers=ledger.headers)
+    with client.expecting_no_change():
+        most = await client.post(f"/bank-review/items/{path}", json={"items": items[:1000], **payload}, headers=ledger.headers)
 
     assert too_many.status_code == 422, too_many.text
     assert [error["loc"] for error in too_many.json()["detail"]] == [["body", "items"]]

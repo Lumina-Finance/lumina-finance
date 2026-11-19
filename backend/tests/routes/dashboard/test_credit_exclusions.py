@@ -12,6 +12,7 @@ from app.models.user import User, UserCreditExcludedAccount
 from tests.conftest import TestSession
 from tests.routes.dashboard._helpers import _owner_local_creation_day
 from tests.routes.support import _create_account, _create_user, _get_auth_header, sign_up_confirmed
+from tests.routes.support.lock_helpers import _wait_until_waiting_on
 
 
 async def _create_card(client, headers, name, limit, used):
@@ -272,7 +273,7 @@ async def test_saving_the_choice_waits_for_the_user_row_before_replacing_it(clie
         await holder.execute(select(User.id).where(User.id == user_id).with_for_update(key_share=True))
         holder_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
         try:
-            async with asyncio.timeout(10), TestSession() as observer:
+            async with asyncio.timeout(10):
                 request = asyncio.create_task(
                     client.put(
                         "/dashboard/credit-utilization/excluded-accounts",
@@ -280,12 +281,7 @@ async def test_saving_the_choice_waits_for_the_user_row_before_replacing_it(clie
                         headers=headers,
                     )
                 )
-                while not request.done() and not await observer.scalar(
-                    text("SELECT count(*) FROM pg_stat_activity WHERE :holder_pid = ANY(pg_blocking_pids(pid))"),
-                    {"holder_pid": holder_pid},
-                ):
-                    await asyncio.sleep(0.01)
-                assert not request.done()
+                await _wait_until_waiting_on(holder_pid, request)
                 await holder.rollback()
                 resp = await request
         finally:

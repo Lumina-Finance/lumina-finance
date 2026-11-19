@@ -466,18 +466,21 @@ async def test_update_institution_with_unchanged_values_changes_nothing(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.patch(
-        f"/institutions/{inst.id}",
-        json={
-            "name": "Test Bank",
-            "country_code": "CA",
-            "website": "https://testbank.example.com",
-        },
-        headers=headers,
-    )
+    with client.expecting_no_change():
+        resp = await client.patch(
+            f"/institutions/{inst.id}",
+            json={
+                "name": "Test Bank",
+                "country_code": "CA",
+                "website": "https://testbank.example.com",
+            },
+            headers=headers,
+        )
 
     assert resp.status_code == 200
     assert resp.json()["status"] == "canonical"
+    status = await client.get("/me/cache-status", headers=headers)
+    assert status.json()["shared_changed_at"] is None, "a save that changes no value moves no marker"
 
 
 async def test_update_institution_losing_a_name_race_returns_409(client, monkeypatch):
@@ -531,7 +534,8 @@ async def test_update_institution_with_no_fields_changes_nothing(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.patch(f"/institutions/{inst.id}", json={}, headers=headers)
+    with client.expecting_no_change():
+        resp = await client.patch(f"/institutions/{inst.id}", json={}, headers=headers)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -621,10 +625,6 @@ async def test_institution_changes_move_the_shared_marker_other_users_check(clie
     assert corrected.status_code == 200, corrected.text
     after_edit = await shared_marker()
     assert after_edit != after_create, "correcting an institution moves the shared marker"
-
-    unchanged = await client.patch(f"/institutions/{inst.id}", json={"website": "https://newbank.example.com"}, headers=writer_headers)
-    assert unchanged.status_code == 200, unchanged.text
-    assert await shared_marker() == after_edit, "a save that changes no value leaves the marker alone"
 
 
 async def test_institution_changes_move_the_editors_own_marker_too(client):

@@ -76,7 +76,8 @@ async def test_commit_reference_reads_are_bounded_with_exact_financial_rows_and_
     assert summary["transactions_created"] == count
     assert summary["accounts_created"] == (count if mode == "create_accounts" else 0)
     assert summary["categories_created"] == ((count + 1) // 2 if mode == "new_category_names" else 0)
-    replay, replay_counts = await _commit_with_reference_count(client, headers, run_id)
+    with client.expecting_no_change():
+        replay, replay_counts = await _commit_with_reference_count(client, headers, run_id)
     assert replay.status_code == 201, replay.text
     assert replay.json() == summary
     async with TestSession() as session:

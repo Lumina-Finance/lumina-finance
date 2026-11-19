@@ -448,11 +448,12 @@ async def test_update_base_budget_empty_body_returns_200(client):
     )
     original = create_resp.json()
 
-    resp = await client.patch(
-        f"/base-budgets/{original['id']}",
-        json={},
-        headers=headers,
-    )
+    with client.expecting_no_change():
+        resp = await client.patch(
+            f"/base-budgets/{original['id']}",
+            json={},
+            headers=headers,
+        )
 
     assert resp.status_code == 200
     assert resp.json() == original

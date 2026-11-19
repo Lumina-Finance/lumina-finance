@@ -4,7 +4,6 @@ from typing import Annotated
 
 import pytest
 from fastapi import Depends
-from httpx import ASGITransport, AsyncClient
 
 from app.database import current_user_id_ctx, get_db, get_session_factory
 from app.dependencies import get_current_user
@@ -14,6 +13,7 @@ from app.services.email import contract as email_contract
 from tests.conftest import ScopedSession
 from tests.routes.support.clock_helpers import _FixedClock
 from tests.routes.support.mailbox import mailbox
+from tests.routes.support.marker_guard import MarkerGuardClient
 
 
 async def _override_get_db():
@@ -88,8 +88,8 @@ async def client():
     """Provide an async HTTP client wired to the FastAPI app with the test database
 
     Yields:
-        An httpx AsyncClient bound to the FastAPI app via ASGITransport
+        An httpx AsyncClient bound to the FastAPI app, which also checks that every
+        successful signed-in write moved a change marker
     """
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    async with MarkerGuardClient() as c:
         yield c

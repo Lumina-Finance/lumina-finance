@@ -41,11 +41,12 @@ async def test_update_budget_empty_body_returns_200(client):
     instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
     original = instance_resp.json()
 
-    resp = await client.patch(
-        f"/budgets/{original['id']}",
-        json={},
-        headers=headers,
-    )
+    with client.expecting_no_change():
+        resp = await client.patch(
+            f"/budgets/{original['id']}",
+            json={},
+            headers=headers,
+        )
 
     assert resp.status_code == 200
     assert resp.json() == original
