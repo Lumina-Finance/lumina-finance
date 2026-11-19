@@ -164,6 +164,140 @@ async def test_discovery_rejects_issuer_mismatch(fake_provider):
     assert excinfo.value.status_code == 502
 
 
+def _serve_discovery(fake_provider, issuer: str = ISSUER, omit: tuple[str, ...] = (), **endpoint_overrides):
+    """Publish a discovery document with every endpoint on the issuer, apart from those replaced or left out"""
+    endpoints = {key: value.replace(ISSUER, issuer.rstrip("/")) for key, value in _metadata().items() if key != "issuer"}
+    document = {"issuer": issuer, **endpoints, **endpoint_overrides}
+    for key in omit:
+        del document[key]
+    fake_provider.responses["/.well-known/openid-configuration"] = lambda: httpx.Response(200, json=document)
+
+
+async def test_discovery_refuses_a_plain_http_token_endpoint_and_logs_why(fake_provider, caplog):
+    """A token endpoint on plain http would receive the client secret in the clear, so the provider is refused"""
+    _serve_discovery(fake_provider, token_endpoint="http://10.0.0.5/token")
+
+    with pytest.raises(HTTPException) as excinfo:
+        await get_provider_metadata(ISSUER)
+
+    assert excinfo.value.status_code == 502
+    assert excinfo.value.detail == "Identity provider unavailable"
+    assert "token_endpoint 'http://10.0.0.5/token' uses plain http" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("allowed_hosts", "is_accepted"),
+    [(frozenset(), False), (frozenset({"cdn.other.example"}), True)],
+)
+async def test_discovery_accepts_a_keys_endpoint_on_another_host_only_when_allowed(
+    fake_provider, monkeypatch, caplog, allowed_hosts, is_accepted
+):
+    """Keys published on another host are used only when the configuration lists that host"""
+    monkeypatch.setattr(oidc_client, "OIDC_ENDPOINT_HOSTS_BY_ISSUER", {ISSUER: allowed_hosts})
+    _serve_discovery(fake_provider, jwks_uri="https://cdn.other.example/jwks")
+
+    if is_accepted:
+        metadata = await get_provider_metadata(ISSUER)
+        assert metadata["jwks_uri"] == "https://cdn.other.example/jwks"
+    else:
+        with pytest.raises(HTTPException):
+            await get_provider_metadata(ISSUER)
+        assert (
+            "jwks_uri 'https://cdn.other.example/jwks' is on a host that is neither the issuer's nor listed in OIDC_GENERIC_ENDPOINT_HOSTS"
+            in caplog.text
+        )
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "value", "reason"),
+    [
+        ("authorization_endpoint", "https://evil.test/authorize", "is on a host"),
+        ("userinfo_endpoint", "https://evil.test/userinfo", "is on a host"),
+        ("token_endpoint", "https://idp.test@evil.test/token", "carries a user name or password"),
+        ("token_endpoint", "https://user@idp.test/token", "carries a user name or password"),
+        ("token_endpoint", "https://:secret@idp.test/token", "carries a user name or password"),
+        ("token_endpoint", "https://evil.test\\@idp.test/token", "contains a backslash"),
+        ("token_endpoint", "https://idp.test/to ken", "contains a backslash, whitespace"),
+        ("token_endpoint", "https://idp.test/to\x00ken", "or a control character"),
+        ("token_endpoint", "https://idp.test/to\x7fken", "or a control character"),
+        ("token_endpoint", "http://idp.test/token", "uses plain http"),
+        ("authorization_endpoint", "javascript:alert(1)//idp.test", "is not an https address"),
+        ("token_endpoint", "https:///token", "names no host"),
+        ("token_endpoint", "https://idp.test./token", "is on a host"),
+        ("jwks_uri", ["https://idp.test/jwks"], "is not text"),
+    ],
+)
+async def test_discovery_refuses_an_endpoint_it_cannot_trust(fake_provider, caplog, endpoint, value, reason):
+    """Each endpoint the client calls or sends the browser to is checked, and the log says which and why"""
+    _serve_discovery(fake_provider, **{endpoint: value})
+
+    with pytest.raises(HTTPException):
+        await get_provider_metadata(ISSUER)
+
+    assert f"its {endpoint} " in caplog.text
+    assert reason in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("issuer", "token_endpoint"),
+    [
+        (ISSUER, "https://IDP.test:8443/token"),
+        ("http://localhost:9000", "http://localhost:9000/token"),
+    ],
+)
+async def test_discovery_accepts_endpoints_on_the_issuer_host(fake_provider, issuer, token_endpoint):
+    """The issuer's host matches in any letter case and on any port, and a loopback http issuer keeps plain http"""
+    _serve_discovery(fake_provider, issuer=issuer, token_endpoint=token_endpoint)
+
+    metadata = await get_provider_metadata(issuer)
+
+    assert metadata["token_endpoint"] == token_endpoint
+
+
+async def test_discovery_refuses_plain_http_off_a_loopback_issuer_host(fake_provider, monkeypatch, caplog):
+    """A loopback http issuer allows plain http only on its own host, even one the configuration lists"""
+    monkeypatch.setattr(oidc_client, "OIDC_ENDPOINT_HOSTS_BY_ISSUER", {"http://localhost:9000": frozenset({"127.0.0.1"})})
+    _serve_discovery(fake_provider, issuer="http://localhost:9000", token_endpoint="http://127.0.0.1:9000/token")
+
+    with pytest.raises(HTTPException):
+        await get_provider_metadata("http://localhost:9000")
+
+    assert "token_endpoint 'http://127.0.0.1:9000/token' uses plain http" in caplog.text
+
+
+async def test_discovery_accepts_a_provider_that_publishes_no_user_info_endpoint(fake_provider):
+    """User info is optional, so a document without it is accepted"""
+    _serve_discovery(fake_provider, omit=("userinfo_endpoint",))
+
+    metadata = await get_provider_metadata(ISSUER)
+
+    assert "userinfo_endpoint" not in metadata
+
+
+async def test_discovery_refuses_a_document_missing_its_token_endpoint(fake_provider, caplog):
+    """Sign-in can't finish without the token endpoint, so a document without one is refused"""
+    _serve_discovery(fake_provider, omit=("token_endpoint",))
+
+    with pytest.raises(HTTPException) as excinfo:
+        await get_provider_metadata(ISSUER)
+
+    assert excinfo.value.status_code == 502
+    assert "its token_endpoint is missing" in caplog.text
+
+
+async def test_discovery_does_not_cache_a_refused_document(fake_provider):
+    """A provider that fixes its document is accepted on the next sign-in without a restart"""
+    _serve_discovery(fake_provider, token_endpoint="http://10.0.0.5/token")
+    with pytest.raises(HTTPException):
+        await get_provider_metadata(ISSUER)
+
+    _serve_discovery(fake_provider)
+    metadata = await get_provider_metadata(ISSUER)
+
+    assert metadata["token_endpoint"] == f"{ISSUER}/token"
+    assert fake_provider.request_counts["/.well-known/openid-configuration"] == 2
+
+
 # --- Code exchange ---
 
 

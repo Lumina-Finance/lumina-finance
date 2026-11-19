@@ -2,18 +2,33 @@
 
 import base64
 import hashlib
+import logging
+import re
 import secrets
 import time
 from typing import Any
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlparse
 
 import httpx
 import jwt
 from fastapi import HTTPException, status
 
+from app.config.oidc import OIDC_ENDPOINT_HOSTS_BY_ISSUER, OIDC_ENDPOINT_HOSTS_VARIABLE
 from app.http_client import build_http_client
 
+logger = logging.getLogger(__name__)
+
 _DISCOVERY_PATH = "/.well-known/openid-configuration"
+
+# Every discovered endpoint the client calls or sends the browser to. User info is the one a
+# provider may leave out
+_CHECKED_ENDPOINTS = ("authorization_endpoint", "token_endpoint", "jwks_uri", "userinfo_endpoint")
+_OPTIONAL_ENDPOINT = "userinfo_endpoint"
+
+_UNSAFE_URL_CHARACTERS = re.compile(r"[\\\s\x00-\x1f\x7f]")
+
+# A refused endpoint is quoted in the log this far, enough to recognise without a provider filling the log
+_LOGGED_VALUE_MAX_CHARS = 200
 _HTTP_TIMEOUT_SECONDS = 10.0
 
 # Discovery and key documents change rarely, so they are cached per issuer for this long
@@ -81,12 +96,67 @@ async def get_provider_metadata(issuer: str) -> dict[str, Any]:
     if metadata.get("issuer") != issuer:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable")
 
-    for endpoint in ("authorization_endpoint", "token_endpoint", "jwks_uri"):
-        if not metadata.get(endpoint):
+    # The token endpoint receives the client secret, the code and the PKCE verifier, the user info
+    # endpoint the access token, and the browser is sent to the authorization endpoint, so each must
+    # be where the configured issuer is, or where the configuration says it may be. A refused
+    # document is not cached, so a fixed provider is picked up on the next sign-in
+    allowed_hosts = OIDC_ENDPOINT_HOSTS_BY_ISSUER.get(issuer, frozenset())
+    for endpoint in _CHECKED_ENDPOINTS:
+        value = metadata.get(endpoint)
+        if not value:
+            if endpoint == _OPTIONAL_ENDPOINT:
+                continue
+            logger.warning("Identity provider %r refused because its %s is missing", issuer, endpoint)
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable")
+        problem = _find_endpoint_problem(issuer, value, allowed_hosts)
+        if problem is not None:
+            shown_value = repr(value)[:_LOGGED_VALUE_MAX_CHARS]
+            logger.warning("Identity provider %r refused because its %s %s %s", issuer, endpoint, shown_value, problem)
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable")
 
     _metadata_cache[issuer] = (time.monotonic() + _HTTP_CACHE_TTL_SECONDS, metadata)
     return metadata
+
+
+def _find_endpoint_problem(issuer: str, value: Any, allowed_hosts: frozenset[str]) -> str | None:
+    """Return why a discovered endpoint can't be used, or None when it can
+
+    Args:
+        issuer: Issuer URL the provider was configured with
+        value: Endpoint address from the discovery document
+        allowed_hosts: Hosts besides the issuer's that the configuration allows
+
+    Returns:
+        The reason, worded to follow the endpoint's name and value in a log line
+    """
+    if not isinstance(value, str):
+        return "is not text"
+
+    # Browsers and urlparse read a backslash, whitespace or a control character differently, so
+    # the host checked here could differ from the one a request or redirect reaches
+    if _UNSAFE_URL_CHARACTERS.search(value):
+        return "contains a backslash, whitespace or a control character"
+
+    # Any user info part gives a user name, an empty one when the part holds only a password
+    parsed = urlparse(value)
+    if parsed.username is not None:
+        return "carries a user name or password"
+
+    # Configuration allows an http issuer only on loopback, for a local development provider, so
+    # plain http is only accepted on that same host
+    parsed_issuer = urlparse(issuer)
+    if parsed.scheme == "http":
+        if parsed_issuer.scheme != "http" or parsed.hostname != parsed_issuer.hostname:
+            return "uses plain http"
+    elif parsed.scheme != "https":
+        return "is not an https address"
+
+    host = parsed.hostname
+    if not host:
+        return "names no host"
+    if host != parsed_issuer.hostname and host not in allowed_hosts:
+        return f"is on a host that is neither the issuer's nor listed in {OIDC_ENDPOINT_HOSTS_VARIABLE}"
+    return None
 
 
 def generate_pkce_pair() -> tuple[str, str]:

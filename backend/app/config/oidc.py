@@ -1,6 +1,7 @@
 """OIDC provider declarations read from the environment"""
 
 import os
+import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -38,6 +39,9 @@ OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS = int(os.getenv("OIDC_REAUTH_STEPUP_TOKE
 # first password. The window is verified against the ID token auth_time rather than trusting prompt=login
 OIDC_REAUTH_MAX_AGE_SECONDS = 300
 
+# A host name or IPv4 address, lowercased, as dot-separated labels of letters, digits and inner hyphens
+_BARE_HOST_PATTERN = re.compile(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*")
+
 
 @dataclass(frozen=True)
 class OidcProviderConfig:
@@ -49,6 +53,7 @@ class OidcProviderConfig:
     client_id: str
     client_secret: str
     scopes: str
+    endpoint_hosts: frozenset[str]
 
 
 def _oidc_env_key(slug: str, field: str) -> str:
@@ -79,6 +84,35 @@ def _validate_oidc_issuer(slug: str, issuer: str) -> str:
     if parsed_issuer.scheme != "https" and not is_loopback_http:
         raise RuntimeError(f"OIDC provider {slug!r} issuer must use https: {issuer!r}")
     return issuer
+
+
+def _parse_oidc_endpoint_hosts(slug: str, value: str) -> frozenset[str]:
+    """Return the extra hosts a provider's discovered endpoints may use, lowercased
+
+    The discovery document's endpoints must sit on the issuer's host or one of these, so a
+    provider publishing its keys or user info elsewhere names that host here. Only bare host
+    names are accepted, since a scheme, port or path would suggest a narrower check than the
+    host comparison actually made
+
+    Args:
+        slug: Provider the list belongs to, named in the failure message
+        value: Comma-separated host names as configured
+
+    Returns:
+        The allowed host names
+
+    Raises:
+        RuntimeError: An entry is not a bare host name
+    """
+    hosts = set()
+    for entry in value.split(","):
+        host = entry.strip().lower()
+        if not host:
+            continue
+        if not _BARE_HOST_PATTERN.fullmatch(host):
+            raise RuntimeError(f"{_oidc_env_key(slug, 'ENDPOINT_HOSTS')} must list bare host names such as auth.example.com: {entry.strip()!r}")
+        hosts.add(host)
+    return frozenset(hosts)
 
 
 def load_oidc_provider_configs() -> list[OidcProviderConfig]:
@@ -129,8 +163,15 @@ def load_oidc_provider_configs() -> list[OidcProviderConfig]:
             client_id=client_id,
             client_secret=client_secret,
             scopes=scopes,
+            endpoint_hosts=_parse_oidc_endpoint_hosts(slug, os.getenv(_oidc_env_key(slug, "ENDPOINT_HOSTS"), "")),
         )
     ]
 
 
 OIDC_PROVIDER_CONFIGS = load_oidc_provider_configs()
+
+OIDC_ENDPOINT_HOSTS_VARIABLE = _oidc_env_key(OIDC_GENERIC_SLUG, "ENDPOINT_HOSTS")
+
+# The provider rows are seeded from these declarations, so a row's issuer finds the hosts its
+# discovered endpoints may use besides the issuer's own
+OIDC_ENDPOINT_HOSTS_BY_ISSUER = {config.issuer: config.endpoint_hosts for config in OIDC_PROVIDER_CONFIGS}

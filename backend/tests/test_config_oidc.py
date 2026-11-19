@@ -108,6 +108,33 @@ def test_non_https_issuer_is_rejected(monkeypatch):
         load_oidc_provider_configs()
 
 
+def test_endpoint_hosts_are_read_as_lowercase_names(monkeypatch):
+    """Allowed endpoint hosts are compared lowercased, and empty entries add nothing"""
+    _declare_generic(monkeypatch, OIDC_GENERIC_ENDPOINT_HOSTS=" CDN.Example.com, ,keys.example.org ")
+
+    configs = load_oidc_provider_configs()
+
+    assert configs[0].endpoint_hosts == frozenset({"cdn.example.com", "keys.example.org"})
+
+
+@pytest.mark.parametrize(
+    "entry", ["https://cdn.example.com", "cdn.example.com:8443", "cdn.example.com/keys", "user@cdn.example.com", "cdn.example.com."]
+)
+def test_endpoint_host_that_is_not_a_bare_name_stops_startup(monkeypatch, entry):
+    """A scheme, port, path, user name or trailing dot would suggest a check the host comparison doesn't make"""
+    _declare_generic(monkeypatch, OIDC_GENERIC_ENDPOINT_HOSTS=entry)
+
+    with pytest.raises(RuntimeError, match="OIDC_GENERIC_ENDPOINT_HOSTS must list bare host names"):
+        load_oidc_provider_configs()
+
+
+def test_endpoint_hosts_are_not_read_without_a_provider(monkeypatch):
+    """A leftover host list cannot stop an install with single sign-on off from starting"""
+    _declare_generic(monkeypatch, OIDC_GENERIC_CLIENT_ID=None, OIDC_GENERIC_ENDPOINT_HOSTS="https://cdn.example.com")
+
+    assert load_oidc_provider_configs() == []
+
+
 def test_scopes_must_include_openid(monkeypatch):
     """A scope override without openid cannot produce an ID token and is refused"""
     _declare_generic(monkeypatch, OIDC_GENERIC_SCOPES="email profile")
