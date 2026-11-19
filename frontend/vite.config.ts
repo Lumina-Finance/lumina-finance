@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
@@ -23,5 +23,8 @@ export default defineConfig({
       // Lets tests in different folders share a helper, since a relative import can't leave its folder
       '@tests': path.resolve(__dirname, 'tests'),
     },
+  },
+  test: {
+    setupFiles: ['./tests/setup.ts'],
   },
 })
