@@ -53,6 +53,13 @@ class CacheStatus(BaseModel):
     server_version: str
 
 
+class RatesStatus(BaseModel):
+    """Digest of the recent exchange rates behind the converted figures the user has seen"""
+
+    # None when the rates can't be read now, and the browser then treats them as changed
+    digest: str | None
+
+
 class UpdateProfileRequest(BaseModel):
     """Partial update for user profile. Only provided fields are changed."""
 

@@ -134,6 +134,54 @@ class ValkeyStore:
         except Exception as error:
             self._start_cooldown(error)
 
+    async def add_to_scored_set(self, key: str, member: str, score: float, ttl: timedelta) -> None:
+        """Add a member to a scored set, or move it to a new score, and restart the set's lifetime
+
+        A failure is logged and skipped, as for a write of values
+
+        Args:
+            key: Key of the set, without the namespace
+            member: Text to add
+            score: Where the member sorts, such as the time it was last used
+            ttl: How long the set lives from now, whatever its members were added
+        """
+        if self._is_cooling_down():
+            return
+
+        try:
+            async with self.client.pipeline(transaction=False) as pipeline:
+                pipeline.zadd(self.namespace + key, {member: score})
+                pipeline.pexpire(self.namespace + key, ttl // timedelta(milliseconds=1))
+                await pipeline.execute()
+        # Best effort, for the same reason as any write: the caller can do without the record
+        except Exception as error:
+            self._start_cooldown(error)
+
+    async def get_scored_set(self, key: str, *, min_score: float) -> list[str] | None:
+        """Return the members of a scored set that score at least a minimum, and delete the rest
+
+        Args:
+            key: Key of the set, without the namespace
+            min_score: Lowest score kept, the members below it are removed from the set
+
+        Returns:
+            The members from the lowest score up, empty when the set is missing, or None when
+            ValKey fails or is cooling down, so a caller can tell an empty set from an unknown one
+        """
+        if self._is_cooling_down():
+            return None
+
+        try:
+            async with self.client.pipeline(transaction=False) as pipeline:
+                pipeline.zremrangebyscore(self.namespace + key, "-inf", f"({min_score}")
+                pipeline.zrange(self.namespace + key, 0, -1)
+                _, members = await pipeline.execute()
+        # Best effort, for the same reason as any read, though unlike a miss the caller learns it failed
+        except Exception as error:
+            self._start_cooldown(error)
+            return None
+        return [member.decode() for member in members]
+
     async def aclose(self) -> None:
         """Close the client and its pool"""
         await self.client.aclose(close_connection_pool=True)

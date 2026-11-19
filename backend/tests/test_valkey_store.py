@@ -92,6 +92,21 @@ async def test_keep_existing_leaves_a_stored_value_and_a_plain_set_replaces_it(v
     assert await valkey_store.get_many(["rate"]) == {"rate": b"1.5"}
 
 
+async def test_a_scored_set_keeps_the_latest_score_trims_on_read_and_expires_as_a_whole(valkey_store):
+    """A member added again moves to its new score, a read drops the members below the minimum for good, and a missing set is empty"""
+    await valkey_store.add_to_scored_set("pairs", "USD/CAD", 100, timedelta(seconds=100))
+    await valkey_store.add_to_scored_set("pairs", "EUR/CAD", 200, _ONE_HOUR)
+    await valkey_store.add_to_scored_set("pairs", "GBP/CAD", 300, _ONE_HOUR)
+    await valkey_store.add_to_scored_set("pairs", "USD/CAD", 400, _ONE_HOUR)
+
+    assert await valkey_store.get_scored_set("pairs", min_score=0) == ["EUR/CAD", "GBP/CAD", "USD/CAD"]
+    assert await valkey_store.get_scored_set("pairs", min_score=300) == ["GBP/CAD", "USD/CAD"]
+    assert await valkey_store.get_scored_set("pairs", min_score=0) == ["GBP/CAD", "USD/CAD"], "a read removes what it trimmed"
+    assert await valkey_store.get_scored_set("other", min_score=0) == []
+    left_ms = await valkey_store.client.pttl(valkey_store.namespace + "pairs")
+    assert timedelta(minutes=59) < timedelta(milliseconds=left_ms) <= _ONE_HOUR
+
+
 async def test_namespaces_keep_one_store_from_reading_anothers_keys(valkey_store):
     """Two stores on one ValKey with different namespaces do not see each other's entries"""
     other = ValkeyStore(valkey_store.client, namespace=valkey_store.namespace + "other:")
@@ -280,6 +295,18 @@ async def test_an_error_that_is_not_the_clients_own_is_still_a_miss_and_a_skippe
         def set(self, *args, **kwargs):
             pass
 
+        def zadd(self, *args, **kwargs):
+            pass
+
+        def pexpire(self, *args, **kwargs):
+            pass
+
+        def zremrangebyscore(self, *args, **kwargs):
+            pass
+
+        def zrange(self, *args, **kwargs):
+            pass
+
         async def execute(self):
             calls.append("execute")
             raise RuntimeError("not a ValKey error")
@@ -302,6 +329,20 @@ async def test_an_error_that_is_not_the_clients_own_is_still_a_miss_and_a_skippe
     await writing.set_many([ValkeyEntry("a", b"1.25", _ONE_HOUR)])
     await writing.set_many([ValkeyEntry("a", b"1.25", _ONE_HOUR)])
     assert calls == ["execute"]
+
+    calls.clear()
+    recording = ValkeyStore(BrokenClient(), namespace="t:")
+    await recording.add_to_scored_set("pairs", "USD/CAD", 100, _ONE_HOUR)
+    await recording.add_to_scored_set("pairs", "USD/CAD", 100, _ONE_HOUR)
+    assert await recording.get_scored_set("pairs", min_score=0) is None
+    assert calls == ["execute"], "the first failure starts the cooldown, so the later write and the read never reach ValKey"
+
+    calls.clear()
+    listing = ValkeyStore(BrokenClient(), namespace="t:")
+    assert await listing.get_scored_set("pairs", min_score=0) is None, "a failed read is unknown, never an empty set"
+    assert await listing.get_scored_set("pairs", min_score=0) is None
+    await listing.add_to_scored_set("pairs", "USD/CAD", 100, _ONE_HOUR)
+    assert calls == ["execute"], "a failed read starts the cooldown too, so the later read and write never reach ValKey"
 
 
 async def test_a_server_that_is_not_there_is_a_miss_and_a_skipped_write():
