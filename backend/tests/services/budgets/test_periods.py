@@ -1,25 +1,30 @@
-"""Unit tests for the budget period alignment and computation service
+"""Budget period tests: which starts each cadence accepts and where each period ends
 
-Pure functions — no DB, no fixtures, just stdlib date math
+Pure functions, no database. The properties hold the next start the backend computes, the day after
+a period ends, to the start check a submitted start must pass, so a series never skips or repeats a
+period nor steps onto a start the backend itself would refuse. The examples pin the anchor days a
+short month or leap year clamps, since the properties' own calendar arithmetic could get those wrong too
 """
 
 import calendar
 from datetime import date, timedelta
 
-import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
 from app.models.base import RecurrenceFreq
 from app.services.budgets.periods import compute_period_end, validate_period_start
+from tests.routes.support.generators import EARLIEST_DAY, LATEST_DAY, calendar_days
 
-_PERIOD_YEARS = st.integers(min_value=2001, max_value=2090)
-_MONTHS = st.integers(min_value=1, max_value=12)
-_DAYS_OF_MONTH = st.integers(min_value=1, max_value=31)
+_PERIOD_YEARS = st.integers(min_value=EARLIEST_DAY.year, max_value=LATEST_DAY.year)
+# Any month, with February, the month a leap year changes, drawn half the time
+_MONTHS = st.one_of(st.integers(min_value=1, max_value=12), st.just(2))
+# Any anchor day, with the days a short month clamps drawn half the time
+_DAYS_OF_MONTH = st.one_of(st.integers(min_value=1, max_value=31), st.integers(min_value=28, max_value=31))
+_WEEKDAYS = st.integers(min_value=0, max_value=6)
 _WEEKLY_LENGTHS = st.integers(min_value=1, max_value=52)
 _MONTHLY_LENGTHS = st.integers(min_value=1, max_value=36)
 _YEARLY_LENGTHS = st.integers(min_value=1, max_value=10)
-_PERIOD_START_DATES = st.dates(min_value=date(2001, 1, 1), max_value=date(2090, 12, 31))
 
 
 def _get_anchor_date(year, month, dom):
@@ -36,27 +41,8 @@ def _add_months(year, month, months):
     return next_year, next_month
 
 
-# --- validate_period_start: weekly ---
-
-
 class TestValidateWeekly:
     """Weekly alignment: period_start.weekday() must match the base's weekday."""
-
-    @pytest.mark.parametrize(
-        "weekday,start",
-        [
-            (0, date(2026, 3, 2)),  # Monday
-            (1, date(2026, 3, 3)),  # Tuesday
-            (2, date(2026, 3, 4)),  # Wednesday
-            (3, date(2026, 3, 5)),  # Thursday
-            (4, date(2026, 3, 6)),  # Friday
-            (5, date(2026, 3, 7)),  # Saturday
-            (6, date(2026, 3, 8)),  # Sunday
-        ],
-    )
-    def test_valid_weekday(self, weekday, start):
-        """Each weekday 0-6 is accepted when period_start lands on that day."""
-        assert validate_period_start(start, RecurrenceFreq.WEEKLY, weekday=weekday) is None
 
     def test_wrong_weekday_returns_error(self):
         """Monday start rejected when base expects Tuesday."""
@@ -65,19 +51,8 @@ class TestValidateWeekly:
         assert "Tuesday" in result
 
 
-# --- validate_period_start: monthly ---
-
-
 class TestValidateMonthly:
     """Monthly alignment: period_start.day must match dom (or last day of month if dom > month length)."""
-
-    def test_dom_15_mid_month(self):
-        """Day 15 anchor accepts the 15th."""
-        assert validate_period_start(date(2026, 3, 15), RecurrenceFreq.MONTHLY, dom=15) is None
-
-    def test_dom_28_february_non_leap(self):
-        """Day 28 anchor on a non-leap February is valid."""
-        assert validate_period_start(date(2025, 2, 28), RecurrenceFreq.MONTHLY, dom=28) is None
 
     def test_dom_29_february_leap(self):
         """Day 29 anchor on a leap February (Feb 29 exists) is valid."""
@@ -112,15 +87,8 @@ class TestValidateMonthly:
         assert "day 15" in result
 
 
-# --- validate_period_start: yearly ---
-
-
 class TestValidateYearly:
     """Yearly alignment: period_start must land on (month, dom) with last-day fallback."""
-
-    def test_jul_1_fiscal_year(self):
-        """Fiscal-year budget: Jul 1 is valid."""
-        assert validate_period_start(date(2026, 7, 1), RecurrenceFreq.YEARLY, dom=1, month=7) is None
 
     def test_feb_29_leap_year(self):
         """Feb 29 anchor in a leap year is valid."""
@@ -141,65 +109,28 @@ class TestValidateYearly:
         assert result is not None
 
 
-# --- compute_period_end: weekly ---
-
-
 class TestComputeWeekly:
     """Weekly period_end: period_start + 7 * instance_length - 1 day."""
 
-    def test_one_week(self):
-        """Single-week instance: Mon Mar 2 → Sun Mar 8."""
-        result = compute_period_end(date(2026, 3, 2), RecurrenceFreq.WEEKLY, 1)
-        assert result == date(2026, 3, 8)
-
-    def test_two_weeks(self):
-        """Two-week instance: Mon Mar 2 → Sun Mar 15."""
-        result = compute_period_end(date(2026, 3, 2), RecurrenceFreq.WEEKLY, 2)
-        assert result == date(2026, 3, 15)
-
-    def test_four_weeks(self):
-        """Four-week instance: Mon Mar 2 → Sun Mar 29."""
-        result = compute_period_end(date(2026, 3, 2), RecurrenceFreq.WEEKLY, 4)
-        assert result == date(2026, 3, 29)
-
-    def test_crosses_month_boundary(self):
-        """Week that spans a month boundary: Mon Mar 30 → Sun Apr 5."""
-        result = compute_period_end(date(2026, 3, 30), RecurrenceFreq.WEEKLY, 1)
-        assert result == date(2026, 4, 5)
-
     @given(
-        period_start=_PERIOD_START_DATES,
+        day=calendar_days(),
+        weekday=_WEEKDAYS,
         instance_length=_WEEKLY_LENGTHS,
     )
-    def test_generated_weekly_period_end_lands_before_next_anchor(self, period_start, instance_length):
-        """Generated weekly period ends land before the next weekly anchor"""
+    def test_weekly_period_ends_the_day_before_a_next_start_the_check_accepts(self, day, weekday, instance_length):
+        """A weekly period on any anchor weekday ends the day before a next start the start check accepts"""
+        period_start = day + timedelta(days=(weekday - day.weekday()) % 7)
+
         period_end = compute_period_end(period_start, RecurrenceFreq.WEEKLY, instance_length)
-        next_period_start = period_start + timedelta(days=7 * instance_length)
+        next_period_start = period_end + timedelta(days=1)
 
-        assert period_end == next_period_start - timedelta(days=1)
-        assert period_end >= period_start
-
-
-# --- compute_period_end: monthly ---
+        assert validate_period_start(period_start, RecurrenceFreq.WEEKLY, weekday=weekday) is None
+        assert next_period_start == period_start + timedelta(weeks=instance_length)
+        assert validate_period_start(next_period_start, RecurrenceFreq.WEEKLY, weekday=weekday) is None
 
 
 class TestComputeMonthly:
     """Monthly period_end: next_anchor - 1 day, with last-day fallback on anchor."""
-
-    def test_dom_1_single_month(self):
-        """Dom=1, 1 month: Mar 1 → Mar 31."""
-        result = compute_period_end(date(2026, 3, 1), RecurrenceFreq.MONTHLY, 1, dom=1)
-        assert result == date(2026, 3, 31)
-
-    def test_dom_1_quarterly(self):
-        """Dom=1, 3 months (quarterly): Jan 1 → Mar 31."""
-        result = compute_period_end(date(2026, 1, 1), RecurrenceFreq.MONTHLY, 3, dom=1)
-        assert result == date(2026, 3, 31)
-
-    def test_dom_15_single_month(self):
-        """Dom=15: Mar 15 → Apr 14."""
-        result = compute_period_end(date(2026, 3, 15), RecurrenceFreq.MONTHLY, 1, dom=15)
-        assert result == date(2026, 4, 14)
 
     def test_dom_31_january(self):
         """Dom=31: Jan 31 → Feb 27 (non-leap, next anchor = Feb 28)."""
@@ -226,50 +157,27 @@ class TestComputeMonthly:
         result = compute_period_end(date(2026, 12, 1), RecurrenceFreq.MONTHLY, 1, dom=1)
         assert result == date(2026, 12, 31)
 
-    def test_dom_1_two_months(self):
-        """Dom=1, 2 months: Mar 1 → Apr 30."""
-        result = compute_period_end(date(2026, 3, 1), RecurrenceFreq.MONTHLY, 2, dom=1)
-        assert result == date(2026, 4, 30)
-
     @given(
         year=_PERIOD_YEARS,
         month=_MONTHS,
         dom=_DAYS_OF_MONTH,
         instance_length=_MONTHLY_LENGTHS,
     )
-    def test_generated_monthly_period_end_lands_before_next_anchor(self, year, month, dom, instance_length):
-        """Generated monthly period ends land before the next monthly anchor"""
+    def test_monthly_period_ends_the_day_before_a_next_start_the_check_accepts(self, year, month, dom, instance_length):
+        """A monthly period on any anchor day ends the day before a next anchor the start check accepts"""
         period_start = _get_anchor_date(year, month, dom)
         next_year, next_month = _add_months(year, month, instance_length)
-        next_period_start = _get_anchor_date(next_year, next_month, dom)
 
         period_end = compute_period_end(period_start, RecurrenceFreq.MONTHLY, instance_length, dom=dom)
+        next_period_start = period_end + timedelta(days=1)
 
         assert validate_period_start(period_start, RecurrenceFreq.MONTHLY, dom=dom) is None
-        assert period_end == next_period_start - timedelta(days=1)
-        assert period_end >= period_start
-
-
-# --- compute_period_end: yearly ---
+        assert next_period_start == _get_anchor_date(next_year, next_month, dom)
+        assert validate_period_start(next_period_start, RecurrenceFreq.MONTHLY, dom=dom) is None
 
 
 class TestComputeYearly:
     """Yearly period_end: next yearly anchor - 1 day."""
-
-    def test_calendar_year(self):
-        """Calendar year: Jan 1 → Dec 31."""
-        result = compute_period_end(date(2026, 1, 1), RecurrenceFreq.YEARLY, 1, dom=1, month=1)
-        assert result == date(2026, 12, 31)
-
-    def test_fiscal_year_jul(self):
-        """Fiscal year Jul 1 → Jun 30 of next year."""
-        result = compute_period_end(date(2026, 7, 1), RecurrenceFreq.YEARLY, 1, dom=1, month=7)
-        assert result == date(2027, 6, 30)
-
-    def test_two_year_instance(self):
-        """Two-year instance: Jan 1, 2026 → Dec 31, 2027."""
-        result = compute_period_end(date(2026, 1, 1), RecurrenceFreq.YEARLY, 2, dom=1, month=1)
-        assert result == date(2027, 12, 31)
 
     def test_feb_29_leap_to_non_leap(self):
         """Feb 29 in 2024 (leap) → Feb 27, 2025 (next anchor = Feb 28)."""
@@ -287,13 +195,13 @@ class TestComputeYearly:
         dom=_DAYS_OF_MONTH,
         instance_length=_YEARLY_LENGTHS,
     )
-    def test_generated_yearly_period_end_lands_before_next_anchor(self, year, month, dom, instance_length):
-        """Generated yearly period ends land before the next yearly anchor"""
+    def test_yearly_period_ends_the_day_before_a_next_start_the_check_accepts(self, year, month, dom, instance_length):
+        """A yearly period on any anchor day ends the day before a next anchor the start check accepts"""
         period_start = _get_anchor_date(year, month, dom)
-        next_period_start = _get_anchor_date(year + instance_length, month, dom)
 
         period_end = compute_period_end(period_start, RecurrenceFreq.YEARLY, instance_length, dom=dom, month=month)
+        next_period_start = period_end + timedelta(days=1)
 
         assert validate_period_start(period_start, RecurrenceFreq.YEARLY, dom=dom, month=month) is None
-        assert period_end == next_period_start - timedelta(days=1)
-        assert period_end >= period_start
+        assert next_period_start == _get_anchor_date(year + instance_length, month, dom)
+        assert validate_period_start(next_period_start, RecurrenceFreq.YEARLY, dom=dom, month=month) is None
