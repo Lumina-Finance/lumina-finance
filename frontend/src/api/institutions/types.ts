@@ -1,16 +1,16 @@
 export interface Institution {
-  id: string;
-  status: string;
-  name: string;
-  country_code: string;
-  website: string;
-  logo_url: string | null;
+  id: string
+  status: string
+  name: string
+  country_code: string
+  website: string
+  logo_url: string | null
 }
 
 export interface CreateInstitutionPayload {
-  name: string;
-  country_code: string;
-  website: string;
+  name: string
+  country_code: string
+  website: string
 }
 
 /**
@@ -18,13 +18,13 @@ export interface CreateInstitutionPayload {
  * null on logo_url clears the stored logo
  */
 export interface UpdateInstitutionPayload {
-  name?: string;
-  country_code?: string;
-  website?: string;
-  logo_url?: string | null;
+  name?: string
+  country_code?: string
+  website?: string
+  logo_url?: string | null
 }
 
 export interface UpdateInstitutionRequest {
-  institutionId: string;
-  payload: UpdateInstitutionPayload;
+  institutionId: string
+  payload: UpdateInstitutionPayload
 }
