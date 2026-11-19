@@ -42,6 +42,7 @@ RECORD_BANK_SYNC_SCAN = "public.record_bank_sync_scan"
 PRUNE_FINISHED_BANK_SYNC_JOBS = "public.prune_finished_bank_sync_jobs"
 PRUNE_EXPIRED_BANK_AUTHORIZATIONS = "public.prune_expired_bank_authorizations"
 MIGRATION_REVISIONS = "public.migration_revisions"
+ROTATE_SAVED_COPY_KEY = "public.rotate_saved_copy_key"
 
 # The worker functions see across users. Only the worker, connecting with no request
 # identity, may do that. Refusing a call made under an identity keeps a request from reaching them
@@ -532,6 +533,30 @@ _HELPERS: tuple[_Helper, ...] = (
     $$
     """,
         f"{PRUNE_EXPIRED_BANK_AUTHORIZATIONS}()",
+    ),
+    # Raise a user's saved copy key number, so every copy a browser saved under an earlier
+    # number becomes unreadable. The users policy lets a request write only its own row, but the lockout that
+    # ends a user's sessions runs before any identity is set, so the write goes through here. A call
+    # under another user's identity is refused, so a signed-in request can rotate only its own key. With
+    # no identity the function accepts any user id and only its callers limit it, the lockout and the
+    # reset, and each names the account it has just locked or reset. The worst a stray call does is
+    # make that user's browser fetch its data again. Written in plpgsql so creating it does not check
+    # the column exists, since migrations that predate it create every current helper
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {ROTATE_SAVED_COPY_KEY}(p_user_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+    BEGIN
+        IF {CURRENT_USER_ID}() IS NOT NULL AND {CURRENT_USER_ID}() <> p_user_id THEN
+            RAISE EXCEPTION 'Not authorized to rotate the saved copy key of this user'
+                USING ERRCODE = 'insufficient_privilege';
+        END IF;
+
+        UPDATE public.users SET saved_copy_key_version = saved_copy_key_version + 1 WHERE id = p_user_id;
+    END
+    $$
+    """,
+        f"{ROTATE_SAVED_COPY_KEY}(uuid)",
     ),
     # The revisions the database is migrated to. The worker compares them with the head it
     # ships before it starts. The app role can't read the migration history itself, and the

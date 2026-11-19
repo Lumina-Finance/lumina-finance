@@ -38,6 +38,7 @@ from app.services.auth.account_lockout import (
     reset_failed_attempts,
 )
 from app.services.auth.mfa_challenge import consume_mfa_challenge, is_mfa_challenge_active
+from app.services.auth.saved_copy_key import derive_saved_copy_key
 from app.services.auth.sessions import (
     create_auth_session,
     create_auth_token,
@@ -564,7 +565,8 @@ async def issue_and_store_tokens(
             unset, a native app gets it in the body and a browser in the cookie
 
     Returns:
-        Auth response with user info and access token, plus the refresh token for a native app
+        Auth response with user info and access token, plus the refresh token for a native app and
+        the saved copy key for a browser
     """
     if refresh_in_body is None:
         refresh_in_body = request_is_native_client(request)
@@ -607,6 +609,8 @@ async def issue_and_store_tokens(
         auth_response.refresh_token = refresh_token
     else:
         set_refresh_cookie(request, response, refresh_token)
+        auth_response.saved_copy_key = derive_saved_copy_key(user.id, user.saved_copy_key_version)
+        auth_response.saved_copy_key_version = user.saved_copy_key_version
     return auth_response
 
 

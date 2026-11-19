@@ -180,6 +180,12 @@ def _get_auth_header(resp):
     return {"Authorization": f"Bearer {token}"}
 
 
+def _saved_copy_key(resp) -> tuple[str, int]:
+    """Return the saved copy key and key number a browser sign-in or renewal response carries"""
+    body = resp.json()
+    return body["saved_copy_key"], body["saved_copy_key_version"]
+
+
 async def _enroll(client):
     """Sign up a user and complete TOTP enrolment, returning the auth header, secret, and codes
 

@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import VARCHAR, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Text, func, text
+from sqlalchemy import VARCHAR, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -43,6 +43,11 @@ class User(Base):
 
     # Set when a recovery-code login wipes every factor, forcing re-enrolment before the account unlocks
     second_factor_reenrollment_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
+    # Number of the key a browser encrypts its saved copy of this user's data with. Raised by
+    # rotate_saved_copy_key whenever the server ends the user's other sessions, so every copy saved
+    # under an earlier number becomes unreadable. The key itself is derived from the number, never stored
+    saved_copy_key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
 class UserCreditExcludedAccount(Base):

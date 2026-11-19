@@ -102,15 +102,25 @@ def resolve_encryption_key(*, generate: bool) -> str:
 
 
 @functools.cache
-def _fernet() -> Fernet:
-    """Return the Fernet built from the resolved key
+def _app_key() -> str:
+    """Return the resolved key every use of it shares
 
     The key is stable for the life of the process, so it is cached. That cache is also why
     a key rotation runs with the app stopped: a serving process would keep writing new
     secrets under the key it resolved at startup, onto rows the rotation has already
     rewritten, and nothing could read them afterwards
     """
-    return Fernet(resolve_encryption_key(generate=False).encode())
+    return resolve_encryption_key(generate=False)
+
+
+def app_key_material() -> bytes:
+    """Return the app's encryption key as input for deriving other keys from it"""
+    return _app_key().encode()
+
+
+def _fernet() -> Fernet:
+    """Return the Fernet built from the resolved key"""
+    return Fernet(_app_key().encode())
 
 
 def encrypt(plaintext: str) -> str:
