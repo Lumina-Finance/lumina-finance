@@ -4,7 +4,7 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import date
 
-from sqlalchemy import ColumnElement, select
+from sqlalchemy import ColumnElement, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -85,9 +85,13 @@ async def list_refund_link_candidates(
         if category.kind != CategoryKind.EXPENSE:
             return []
 
-        # Money that came in, which no expense has claimed as its own
-        refunds = select(TransactionLink.refund_transaction_id).where(TransactionLink.refund_transaction_id.not_in(unlinked_ids))
-        conditions += [Transaction.amount > 0, Category.kind != CategoryKind.TRANSFER, Transaction.id.not_in(refunds)]
+        # Money that came in and no expense has claimed as its own. The link is looked up by each
+        # candidate's own id, so the links' read rule is checked only for the user's transactions
+        claimed = exists().where(
+            TransactionLink.refund_transaction_id == Transaction.id,
+            TransactionLink.refund_transaction_id.not_in(unlinked_ids),
+        )
+        conditions += [Transaction.amount > 0, Category.kind != CategoryKind.TRANSFER, ~claimed]
     elif anchor.amount > 0:
         own_link = (await db.execute(select(TransactionLink).where(TransactionLink.refund_transaction_id == anchor.id))).scalar_one_or_none()
         if own_link is not None and anchor.id not in unlinked_ids:

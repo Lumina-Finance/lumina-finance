@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import delete, func, insert, select, text
+from sqlalchemy import delete, insert, select, text
 from sqlalchemy.exc import ProgrammingError
 
 from app.models.account import Account, AccountPermission
@@ -34,7 +34,6 @@ from app.models.base import AccountKind, AccountType, CategoryKind, PermissionLe
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.cache_state import UserCacheState
 from app.models.category import Category
-from app.models.currency import Currency
 from app.models.group import Group, GroupMember
 from app.models.transaction import Transaction
 from app.models.user import User, UserCreditExcludedAccount
@@ -47,12 +46,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_ledger_transaction,
     _build_pending_transaction,
 )
-from tests.routes.support.identity_helpers import _act_as
-
-
-def _build_user(email: str) -> User:
-    """Return an unsaved user with the shared fields every test user needs"""
-    return User(email=email, first_name="Test", tz="America/Toronto", base_currency="CAD")
+from tests.routes.support.identity_helpers import _act_as, _count_visible, _seed_users
 
 
 def _build_account(owner_id, name: str) -> Account:
@@ -69,12 +63,7 @@ def _build_account(owner_id, name: str) -> Account:
 @pytest.fixture
 async def users():
     """Seed two unrelated users and the currency their accounts reference"""
-    user_a = _build_user("a@example.com")
-    user_b = _build_user("b@example.com")
-    async with TestSession() as session:
-        session.add(Currency(id="CAD", name="Canadian Dollar", symbol="$", minor_unit_exponent=2))
-        session.add_all([user_a, user_b])
-        await session.commit()
+    user_a, user_b = await _seed_users("a@example.com", "b@example.com")
     return user_a, user_b
 
 
@@ -517,11 +506,6 @@ def _build_bank_authorization(owner_id, state_hash: str, **values) -> BankAuthor
         expires_at=datetime(2030, 1, 1, tzinfo=UTC),
         **values,
     )
-
-
-async def _count_visible(session, model) -> int:
-    """Return how many rows of a model the session's user can see"""
-    return await session.scalar(select(func.count()).select_from(model))
 
 
 async def _create_bank_records(session, owner_id) -> tuple[Account, BankConnection]:

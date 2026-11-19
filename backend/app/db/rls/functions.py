@@ -26,6 +26,10 @@ IS_GROUP_ADMIN = "public.is_group_admin"
 CAN_ACCESS_ACCOUNT = "public.can_access_account"
 CAN_ACCESS_GROUP = "public.can_access_group"
 CAN_ACCESS_BASE_BUDGET = "public.can_access_base_budget"
+ADMINISTERED_GROUP_IDS = "public.administered_group_ids"
+ACCESSIBLE_GROUP_IDS = "public.accessible_group_ids"
+ACCESSIBLE_ACCOUNT_IDS = "public.accessible_account_ids"
+ACCESSIBLE_BASE_BUDGET_IDS = "public.accessible_base_budget_ids"
 FIND_LOGIN_USER = "public.find_login_user"
 FIND_LOGIN_ACCOUNT = "public.find_login_account"
 USER_TZ = "public.user_tz"
@@ -98,8 +102,8 @@ _HELPERS: tuple[_Helper, ...] = (
     """,
         f"{CURRENT_USER_ID}()",
     ),
-    # Whether the current user is an admin of a group, used both by the access
-    # helpers and directly in policies so a creator passes on its own group id
+    # Whether the current user is an admin of a group, used by the access helpers. Policies test
+    # administered_group_ids instead, so a creator passes on its own group id
     _Helper(
         f"""
     CREATE OR REPLACE FUNCTION {IS_GROUP_ADMIN}(p_group_id uuid) RETURNS boolean
@@ -169,6 +173,71 @@ _HELPERS: tuple[_Helper, ...] = (
     $$
     """,
         f"{CAN_ACCESS_BASE_BUDGET}(uuid)",
+    ),
+    # The sets the access helpers above answer row by row, worked out once for the current user.
+    # A read rule calling a helper per row has no key to narrow by, so it checks every user's rows.
+    # One testing membership in a set can use an index and reads only the caller's. Each set is a
+    # union of indexed lookups and grants exactly what its row helper grants. The account set also
+    # matches accessible_account_ids_subquery in the transaction services
+    #
+    # The groups the current user administers
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {ADMINISTERED_GROUP_IDS}() RETURNS uuid[]
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+        SELECT coalesce(array_agg(gm.group_id), '{{}}') FROM public.group_members gm
+        WHERE gm.user_id = {CURRENT_USER_ID}() AND gm.is_admin
+    $$
+    """,
+        f"{ADMINISTERED_GROUP_IDS}()",
+    ),
+    # The groups the current user owns or belongs to, as can_access_group
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {ACCESSIBLE_GROUP_IDS}() RETURNS uuid[]
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+        SELECT coalesce(array_agg(visible.id), '{{}}') FROM (
+            SELECT g.id FROM public.groups g WHERE g.owner_id = {CURRENT_USER_ID}()
+            UNION
+            SELECT gm.group_id FROM public.group_members gm WHERE gm.user_id = {CURRENT_USER_ID}()
+        ) visible
+    $$
+    """,
+        f"{ACCESSIBLE_GROUP_IDS}()",
+    ),
+    # The accounts the current user owns, administers through a group, or holds a permission on, as
+    # can_access_account
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {ACCESSIBLE_ACCOUNT_IDS}() RETURNS uuid[]
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+        SELECT coalesce(array_agg(visible.id), '{{}}') FROM (
+            SELECT a.id FROM public.accounts a WHERE a.owner_id = {CURRENT_USER_ID}()
+            UNION
+            SELECT a.id FROM public.accounts a WHERE a.group_id = ANY({ADMINISTERED_GROUP_IDS}())
+            UNION
+            SELECT ap.account_id FROM public.account_permissions ap WHERE ap.user_id = {CURRENT_USER_ID}()
+        ) visible
+    $$
+    """,
+        f"{ACCESSIBLE_ACCOUNT_IDS}()",
+    ),
+    # The base budgets the current user owns, administers through a group, or holds a permission on,
+    # as can_access_base_budget
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {ACCESSIBLE_BASE_BUDGET_IDS}() RETURNS uuid[]
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+        SELECT coalesce(array_agg(visible.id), '{{}}') FROM (
+            SELECT b.id FROM public.base_budgets b WHERE b.owner_id = {CURRENT_USER_ID}()
+            UNION
+            SELECT b.id FROM public.base_budgets b WHERE b.group_id = ANY({ADMINISTERED_GROUP_IDS}())
+            UNION
+            SELECT bp.base_budget_id FROM public.budget_permissions bp WHERE bp.user_id = {CURRENT_USER_ID}()
+        ) visible
+    $$
+    """,
+        f"{ACCESSIBLE_BASE_BUDGET_IDS}()",
     ),
     # Resolve a user id by email for the pre-identity login and signup flows, which run
     # before a request identity exists. Returns only the id so the definer never exposes
@@ -246,6 +315,18 @@ _HELPERS: tuple[_Helper, ...] = (
     # callers, and returns category totals over accounts the reader cannot see row by
     # row, the privacy-respecting design of utilization, without ever exposing the
     # individual transactions to the app role
+    #
+    # The read starts from the owner's accounts, the personal owner's or the owning group's, and
+    # reaches their transactions through the account and date index. A built-in category such as
+    # Groceries is shared by every user, so a read starting from the tracked category would visit
+    # every user's transactions in it. Each budget has an owner or a group, never both, so at most
+    # one half of the union returns accounts.
+    #
+    # The planner judges an owner's share of the accounts from the number of owners, so on an
+    # instance with few users it expects thousands per owner and would rather sort every
+    # transaction. OFFSET 0 keeps the transactions subquery its own step, read once per account,
+    # whatever that guess. The same guess prices the call high enough to compile it. Compiling
+    # costs far more than reading one owner's month, so the function turns it off
     _Helper(
         f"""
     CREATE OR REPLACE FUNCTION {BUDGET_SPEND_ROWS}(p_budget_ids uuid[], p_now timestamptz)
@@ -258,7 +339,7 @@ _HELPERS: tuple[_Helper, ...] = (
         budget_currency varchar,
         amount_sum numeric
     )
-    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' SET jit = off AS $$
         SELECT b.id, t.category_id, t.account_id, t.dt, a.currency, bb.currency, sum(t.amount)
         FROM public.budgets b
         JOIN public.base_budgets bb ON b.base_budget_id = bb.id
@@ -268,17 +349,23 @@ _HELPERS: tuple[_Helper, ...] = (
             ON btc.base_budget_id = bb.id
             AND btc.added_at <= b.period_end
             AND (btc.removed_at IS NULL OR btc.removed_at > b.period_end)
-        JOIN public.transactions t ON t.category_id = btc.category_id
-        JOIN public.accounts a ON t.account_id = a.id
+        CROSS JOIN LATERAL (
+            SELECT pa.id, pa.currency FROM public.accounts pa WHERE pa.owner_id = bb.owner_id
+            UNION ALL
+            SELECT ga.id, ga.currency FROM public.accounts ga WHERE ga.group_id = bb.group_id
+        ) a
+        CROSS JOIN LATERAL (
+            SELECT spent.category_id, spent.account_id, spent.dt, spent.amount
+            FROM public.transactions spent
+            WHERE spent.account_id = a.id
+                AND spent.category_id = btc.category_id
+                AND spent.dt >= b.period_start
+                AND spent.dt <= b.period_end
+                AND spent.dt <= (p_now AT TIME ZONE budget_owner.tz)::date
+            OFFSET 0
+        ) t
         WHERE b.id = ANY(p_budget_ids)
             AND {CAN_ACCESS_BASE_BUDGET}(bb.id)
-            AND t.dt >= b.period_start
-            AND t.dt <= b.period_end
-            AND t.dt <= (p_now AT TIME ZONE budget_owner.tz)::date
-            AND (
-                (bb.group_id IS NOT NULL AND a.group_id = bb.group_id)
-                OR (bb.group_id IS NULL AND a.owner_id = bb.owner_id)
-            )
         GROUP BY b.id, t.category_id, t.account_id, t.dt, a.currency, bb.currency
     $$
     """,

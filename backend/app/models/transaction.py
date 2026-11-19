@@ -52,7 +52,9 @@ class Transaction(Base):
     # The create and edit routes require one, so this is null only on a transaction recorded before
     # that rule or brought in by an import whose file named no merchant
     merchant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("merchants.id"))
-    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False)
+
+    # Indexed so deleting a category checks for the transactions in it without reading every user's
+    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False, index=True)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)  # In currency base units
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
     fx_rate: Mapped[float | None] = mapped_column(Numeric)  # Exchange rate to account currency

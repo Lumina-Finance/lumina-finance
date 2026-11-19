@@ -25,6 +25,7 @@ from app.models.bank_connection import (
     BankConnection,
     BankExternalAccount,
     BankImportKind,
+    BankLinkState,
     BankProviderRequest,
     ProviderRequestPurpose,
 )
@@ -227,6 +228,11 @@ def _build_bank_link(
         checkpoint=date(2026, 8, 31),
         **values,
     )
+
+
+def _build_unlinked_link(account: Account) -> BankAccountLink:
+    """Return an unsaved link unlinked from a connection since deleted, so it needs no connection"""
+    return _build_bank_link(account, None, state=BankLinkState.UNLINKED, unlinked_at=datetime(2026, 10, 2, tzinfo=UTC))
 
 
 def _build_category(owner_id: uuid.UUID) -> Category:

@@ -35,29 +35,42 @@ class Merchant(Base):
         # the way in instead, so the stored name is already what these compare
         # Personal merchants: unique per user (only when not group-scoped)
         Index(
-            "uq_merchant_owner_name", "owner_id", text("lower(name)"),
-            unique=True, postgresql_where=text("group_id IS NULL"),
+            "uq_merchant_owner_name",
+            "owner_id",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("group_id IS NULL"),
         ),
         # Group merchants: unique per group, as an index rather than a unique constraint, which
         # cannot be written against an expression
         Index(
-            "uq_merchant_group_name", "group_id", text("lower(name)"),
-            unique=True, postgresql_where=text("group_id IS NOT NULL"),
+            "uq_merchant_group_name",
+            "group_id",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("group_id IS NOT NULL"),
         ),
         # One merchant per name across the whole app, so a second Myself cannot be seeded
         Index(
-            "uq_merchant_system_name", text("lower(name)"),
-            unique=True, postgresql_where=text("is_system = true"),
+            "uq_merchant_system_name",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("is_system = true"),
         ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))  # Null on system merchants
+
+    # Null on system merchants. Indexed so the read rule finds a user's merchants without reading everyone's
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
 
     # Ships with the app and belongs to everyone, so it cannot be renamed, deleted, or given a
     # default category, which lives on the merchant and would otherwise be shared by every user
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
-    default_category_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categories.id"))  # Auto-categorization hint
+
+    # Auto-categorization hint. Indexed so deleting a category checks for the merchants naming it
+    # without reading every user's
+    default_category_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categories.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

@@ -41,14 +41,10 @@ async def test_list_transactions_default_sort_uses_created_at_within_day(client)
 
     async with TestSession() as session:
         await session.execute(
-            update(Transaction)
-            .where(Transaction.id == uuid.UUID(older.json()["id"]))
-            .values(created_at=datetime(2026, 1, 1, 10, tzinfo=UTC)),
+            update(Transaction).where(Transaction.id == uuid.UUID(older.json()["id"])).values(created_at=datetime(2026, 1, 1, 10, tzinfo=UTC)),
         )
         await session.execute(
-            update(Transaction)
-            .where(Transaction.id == uuid.UUID(newer.json()["id"]))
-            .values(created_at=datetime(2026, 1, 1, 11, tzinfo=UTC)),
+            update(Transaction).where(Transaction.id == uuid.UUID(newer.json()["id"])).values(created_at=datetime(2026, 1, 1, 11, tzinfo=UTC)),
         )
         await session.execute(
             update(Transaction)
@@ -75,28 +71,64 @@ async def test_list_transactions_default_sort_breaks_import_timestamp_ties(clien
     zed_tag = (await _create_tag(client, headers, name="zed-tag")).json()["id"]
 
     tag_zed = await _create_transaction(
-        client, headers, account_id, beta_category,
-        amount=-5000, merchant_id=zed_merchant, notes="z", tag_ids=[zed_tag],
+        client,
+        headers,
+        account_id,
+        beta_category,
+        amount=-5000,
+        merchant_id=zed_merchant,
+        notes="z",
+        tag_ids=[zed_tag],
     )
     tag_alpha = await _create_transaction(
-        client, headers, account_id, beta_category,
-        amount=-5000, merchant_id=zed_merchant, notes="z", tag_ids=[alpha_tag],
+        client,
+        headers,
+        account_id,
+        beta_category,
+        amount=-5000,
+        merchant_id=zed_merchant,
+        notes="z",
+        tag_ids=[alpha_tag],
     )
     notes_first = await _create_transaction(
-        client, headers, account_id, beta_category,
-        amount=-5000, merchant_id=zed_merchant, notes="a", tag_ids=[zed_tag],
+        client,
+        headers,
+        account_id,
+        beta_category,
+        amount=-5000,
+        merchant_id=zed_merchant,
+        notes="a",
+        tag_ids=[zed_tag],
     )
     merchant_first = await _create_transaction(
-        client, headers, account_id, beta_category,
-        amount=-5000, merchant_id=alpha_merchant, notes="z", tag_ids=[zed_tag],
+        client,
+        headers,
+        account_id,
+        beta_category,
+        amount=-5000,
+        merchant_id=alpha_merchant,
+        notes="z",
+        tag_ids=[zed_tag],
     )
     category_first = await _create_transaction(
-        client, headers, account_id, alpha_category,
-        amount=-5000, merchant_id=zed_merchant, notes="z", tag_ids=[zed_tag],
+        client,
+        headers,
+        account_id,
+        alpha_category,
+        amount=-5000,
+        merchant_id=zed_merchant,
+        notes="z",
+        tag_ids=[zed_tag],
     )
     amount_first = await _create_transaction(
-        client, headers, account_id, zeta_category,
-        amount=-7000, merchant_id=zed_merchant, notes="z", tag_ids=[zed_tag],
+        client,
+        headers,
+        account_id,
+        zeta_category,
+        amount=-7000,
+        merchant_id=zed_merchant,
+        notes="z",
+        tag_ids=[zed_tag],
     )
     transaction_ids = [
         tag_zed.json()["id"],
@@ -126,6 +158,40 @@ async def test_list_transactions_default_sort_breaks_import_timestamp_ties(clien
         tag_alpha.json()["id"],
         tag_zed.json()["id"],
     ]
+
+
+async def test_list_transactions_default_sort_breaks_ties_on_all_tag_names_in_order(client):
+    """Tied rows sort untagged first, then by every tag name in name order, not as created or attached"""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    names = ["zed", "yak", "mid", "beta", "alpha"]
+    tags = {name: (await _create_tag(client, headers, name=name)).json()["id"] for name in names}
+
+    # Joined in any order but by name, "alpha,mid,yak,zed" would sort after "beta"
+    beta = await _create_transaction(client, headers, account_id, category_id, amount=-5000, notes="tie", tag_ids=[tags["beta"]])
+    zed_alpha = await _create_transaction(
+        client,
+        headers,
+        account_id,
+        category_id,
+        amount=-5000,
+        notes="tie",
+        tag_ids=[tags["zed"], tags["yak"], tags["mid"], tags["alpha"]],
+    )
+    untagged = await _create_transaction(client, headers, account_id, category_id, amount=-5000, notes="tie", tag_ids=[])
+    transaction_ids = [beta.json()["id"], zed_alpha.json()["id"], untagged.json()["id"]]
+
+    async with TestSession() as session:
+        await session.execute(
+            update(Transaction)
+            .where(Transaction.id.in_([uuid.UUID(transaction_id) for transaction_id in transaction_ids]))
+            .values(created_at=datetime(2026, 1, 1, 10, tzinfo=UTC)),
+        )
+        await session.commit()
+
+    resp = await client.get("/transactions", headers=headers)
+
+    ids = [t["id"] for t in resp.json() if t["id"] in transaction_ids]
+    assert ids == [untagged.json()["id"], zed_alpha.json()["id"], beta.json()["id"]]
 
 
 async def test_list_transactions_sort_by_amount_asc(client):

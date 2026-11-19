@@ -38,22 +38,32 @@ class Category(Base):
         # refuse: Groceries beside GROCERIES in one scope. Surrounding spaces are trimmed on the
         # way in instead, so the stored name is already what these compare
         Index(
-            "uq_category_system_name", text("lower(name)"),
-            unique=True, postgresql_where=text("is_system = true"),
+            "uq_category_system_name",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("is_system = true"),
         ),
         Index(
-            "uq_category_owner_name", "owner_id", text("lower(name)"),
-            unique=True, postgresql_where=text("owner_id IS NOT NULL AND group_id IS NULL"),
+            "uq_category_owner_name",
+            "owner_id",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("owner_id IS NOT NULL AND group_id IS NULL"),
         ),
         Index(
-            "uq_category_group_name", "group_id", text("lower(name)"),
-            unique=True, postgresql_where=text("group_id IS NOT NULL"),
+            "uq_category_group_name",
+            "group_id",
+            text("lower(name)"),
+            unique=True,
+            postgresql_where=text("group_id IS NOT NULL"),
         ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+
+    # Indexed so the read rule finds a user's categories without reading everyone's
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     kind: Mapped[CategoryKind] = mapped_column(nullable=False)
     icon: Mapped[str | None] = mapped_column(Text)  # Emoji glyph rendered by the client

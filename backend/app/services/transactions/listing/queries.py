@@ -110,7 +110,7 @@ def build_transaction_listing_query(
             transaction_query = transaction_query.where(_FILTER_FIELDS[field_name].in_(field_values))
 
     if tag_ids:
-        transaction_query = transaction_query.where(Transaction.id.in_(_transaction_ids_with_tags(tag_ids, tag_match)))
+        transaction_query = transaction_query.where(_has_tags(tag_ids, tag_match))
 
     # Amounts are stored in each transaction's own currency minor units and are not comparable across
     # currencies, so the range is matched as a magnitude within the single requested currency
@@ -126,15 +126,11 @@ def build_transaction_listing_query(
     if to_date is not None:
         transaction_query = transaction_query.where(Transaction.dt <= to_date)
 
-    # Date sorting includes related names as tie-breakers, so it needs the category, merchant, and tag joins
-    tag_sort_subquery = None
+    # Date sorting includes related names as tie-breakers, so it needs the category and merchant joins
     merchant_is_joined = False
     if sort_by == "dt":
-        tag_sort_subquery = _transaction_tag_sort_subquery()
-        transaction_query = (
-            transaction_query.join(Category, Category.id == Transaction.category_id)
-            .outerjoin(Merchant, Transaction.merchant_id == Merchant.id)
-            .outerjoin(tag_sort_subquery, tag_sort_subquery.c.transaction_id == Transaction.id)
+        transaction_query = transaction_query.join(Category, Category.id == Transaction.category_id).outerjoin(
+            Merchant, Transaction.merchant_id == Merchant.id
         )
         merchant_is_joined = True
 
@@ -147,7 +143,7 @@ def build_transaction_listing_query(
     if sort_by == "dt":
         transaction_query = transaction_query.order_by(
             *_nearest_amount_order(nearest_amount),
-            *_date_sort_order(sort_order, tag_sort_subquery.c.tag_names),
+            *_date_sort_order(sort_order, _tag_names()),
         )
     else:
         sort_column = _SORT_FIELDS[sort_by]
@@ -161,22 +157,24 @@ def build_transaction_listing_query(
     return transaction_query
 
 
-def _transaction_ids_with_tags(tag_ids: list[uuid.UUID], tag_match: str):
-    """Build a subquery of transaction ids satisfying the tag filter
+def _has_tags(tag_ids: list[uuid.UUID], tag_match: str) -> ColumnElement[bool]:
+    """Build the condition a transaction meets when it carries the selected tags
+
+    The tag links are looked up by each transaction's own id, so their read rule is checked only for
+    the user's transactions, never every user's links to the selected tags
 
     Args:
         tag_ids: Selected tag identifiers to match against
         tag_match: ``all`` to require every selected tag, ``any`` to require at least one
 
     Returns:
-        A SQLAlchemy select of transaction ids that match the requested tags
+        A SQLAlchemy condition on the transaction
     """
-    tag_id_query = select(TransactionTag.transaction_id).where(TransactionTag.tag_id.in_(tag_ids)).group_by(TransactionTag.transaction_id)
-
-    # Requiring every tag means the row must join to each distinct selected tag exactly once
+    own_selected_links = (TransactionTag.transaction_id == Transaction.id) & TransactionTag.tag_id.in_(tag_ids)
     if tag_match == "all":
-        tag_id_query = tag_id_query.having(sa.func.count(sa.distinct(TransactionTag.tag_id)) == len(tag_ids))
-    return tag_id_query
+        # Requiring every tag means the row must link to as many distinct selected tags as were selected
+        return select(sa.func.count(sa.distinct(TransactionTag.tag_id))).where(own_selected_links).scalar_subquery() == len(tag_ids)
+    return sa.exists().where(own_selected_links)
 
 
 def _escape_like(value: str) -> str:
@@ -191,25 +189,22 @@ def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def _transaction_tag_sort_subquery():
-    """Build the transaction tag-name sort subquery
+def _tag_names():
+    """Build a transaction's tag names, folded and in order, as a stable date-sort tie breaker
+
+    Worked out for each transaction from its own links, so the links' read rule is checked only for
+    the user's transactions, never every user's links
 
     Returns:
-        A SQLAlchemy subquery with one row per transaction and a normalized tag
-        name string used as a stable date-sort tie breaker
+        A SQLAlchemy scalar subquery of the names joined by commas, or null for an untagged transaction
     """
     tag_name = sa.func.lower(Tag.name)
     return (
-        select(
-            TransactionTag.transaction_id,
-            sa.func.string_agg(
-                tag_name,
-                aggregate_order_by(",", tag_name),
-            ).label("tag_names"),
-        )
+        select(sa.func.string_agg(tag_name, aggregate_order_by(",", tag_name)))
+        .select_from(TransactionTag)
         .join(Tag, Tag.id == TransactionTag.tag_id)
-        .group_by(TransactionTag.transaction_id)
-        .subquery()
+        .where(TransactionTag.transaction_id == Transaction.id)
+        .scalar_subquery()
     )
 
 

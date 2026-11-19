@@ -15,7 +15,8 @@ class Group(Base):
     __tablename__ = "groups"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # Indexed so the group helpers find the groups a user owns without reading everyone's
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     name: Mapped[str | None] = mapped_column(Text)
     profile_pic: Mapped[str | None] = mapped_column(Text)  # Path/URL to group picture
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
@@ -28,5 +29,7 @@ class GroupMember(Base):
     __tablename__ = "group_members"
 
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), primary_key=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    # Indexed so the group helpers find a user's memberships without reading everyone's, since the
+    # primary key leads on the group
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True, index=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
