@@ -12,7 +12,7 @@ import httpx
 
 from app.config.fx import FRANKFURTER_URL
 from app.http_client import build_http_client
-from app.services.fx.errors import FxProviderUnavailableError
+from app.services.fx.errors import FxProviderUnavailableError, FxRateResponseError
 from app.services.fx.frankfurter_request_helpers import request_frankfurter_rates_response
 from app.services.fx.lookup_budget import get_current_lookup_budget
 from app.services.fx.rate_parser_helpers import parse_rates
@@ -126,6 +126,9 @@ class FrankfurterProvider:
             except TimeoutError as exc:
                 last_error = FxProviderUnavailableError("FX provider request timed out")
                 last_error.__cause__ = exc
+            except FxRateResponseError:
+                # A reply that is malformed is the provider's answer, and asking again gets the same
+                raise
             except FxProviderUnavailableError as exc:
                 last_error = exc
             finally:
@@ -166,5 +169,10 @@ class FrankfurterProvider:
             Rates keyed by calendar date
         """
         response = await request_frankfurter_rates_response(client, self.url, base, quote, start_date, end_date, timeout)
-        rates = parse_rates(response.json(), expected_base=base, expected_quote=quote)
+        try:
+            payload = response.json()
+        except ValueError, RecursionError:
+            # A body that is not JSON, or nests too deep to read, would read the same on another try
+            raise FxRateResponseError("FX provider returned an unreadable reply") from None
+        rates = parse_rates(payload, expected_base=base, expected_quote=quote)
         return rates
