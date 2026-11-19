@@ -1,10 +1,11 @@
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
 
 from app.models.transaction import Transaction
+from app.utils import date_window
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.transactions._helpers import (
@@ -423,3 +424,29 @@ async def test_create_transaction_without_auth_returns_401(client):
     """POST /transactions without an Authorization header returns 401."""
     resp = await client.post("/transactions", json={})
     assert resp.status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("dt", "expected_status", "message"),
+    [
+        ("2026-03-15", 201, None),
+        ("1850-01-01", 422, "Date must be on or after 1 January 1900"),
+        ("2040-01-01", 422, "Date must be within ten years of today"),
+    ],
+)
+async def test_create_transaction_takes_only_a_date_inside_the_window(client, freeze_now, dt, expected_status, message):
+    """A date from 1 January 1900 to ten years after today is saved, and any other is refused on the date field"""
+    freeze_now(date_window, datetime(2026, 6, 10, 12, 0, tzinfo=UTC))
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+
+    resp = await _create_transaction(client, headers, account_id, category_id, dt=dt)
+
+    assert resp.status_code == expected_status
+    if message is None:
+        assert resp.json()["dt"] == dt
+    else:
+        [error] = resp.json()["detail"]
+        assert error["loc"] == ["body", "dt"]
+        assert error["msg"] == message
+    listing = await client.get("/transactions", headers=headers)
+    assert len(listing.json()) == (1 if message is None else 0)

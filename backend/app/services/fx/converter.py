@@ -9,6 +9,7 @@ from app.services.fx.errors import FxProviderUnavailableError, FxRateNotFoundErr
 from app.services.fx.frankfurter_provider import FrankfurterProvider
 from app.services.fx.provider import FxRateProvider
 from app.services.fx.rate_cache import CachedFxRateProvider
+from app.utils.date_window import EARLIEST_ALLOWED_DATE, get_latest_calendar_today
 from app.utils.dates import get_dates_in_range
 from app.utils.money import convert_minor_units_between_currencies as convert_minor_units
 
@@ -16,6 +17,15 @@ from app.utils.money import convert_minor_units_between_currencies as convert_mi
 # afternoon in Europe, so a conversion uses the latest rate published on or before its date, if that
 # is within this long before it
 RATE_LOOKBACK = timedelta(days=7)
+
+
+def _get_latest_rate_date() -> date:
+    """Return the last date a rate can exist for, since none is published after today and a date takes the one before it
+
+    Dates outside this and the earliest allowed date answer as rate not found without asking the
+    provider. That also keeps one prefetch to a bounded number of dates whatever the account holds
+    """
+    return get_latest_calendar_today() + RATE_LOOKBACK
 
 
 @dataclass(frozen=True)
@@ -124,6 +134,8 @@ class FxConverter:
         """
         normalized_base = base.upper()
         normalized_quote = quote.upper()
+        start_date = max(start_date, EARLIEST_ALLOWED_DATE)
+        end_date = min(end_date, _get_latest_rate_date())
         if normalized_base == normalized_quote or start_date > end_date:
             return
 
@@ -179,6 +191,8 @@ class FxConverter:
             FxProviderUnavailableError: The provider couldn't be reached
         """
         if key not in self.rates:
+            if not EARLIEST_ALLOWED_DATE <= key.date <= _get_latest_rate_date():
+                raise FxRateNotFoundError(f"No FX rate found for {key.base}/{key.quote} on {key.date.isoformat()}")
             rates = await self._fetch_latest_rates(key.base, key.quote, key.date, key.date)
             if key.date not in rates:
                 raise FxRateNotFoundError(f"No FX rate found for {key.base}/{key.quote} on {key.date.isoformat()}")

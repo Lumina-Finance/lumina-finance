@@ -6,11 +6,13 @@ import {
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
+  ROW_DATE_OUTSIDE_WINDOW_REASON,
   getImportMerchantTooLongReason,
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
 } from '@/pages/imports/constants'
 import type { AccountType } from '@/api/accounts'
+import { getDateWindowError } from '@/utils/dateWindow'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME } from '@/utils/transfers'
 import {
   ACTUAL_ACCOUNT_TYPES,
@@ -91,6 +93,7 @@ export function normaliseActualBudget(budget: ActualBudgetFile, today: string): 
     const rowParent = row.parentId ? transactionById.get(row.parentId) : undefined
     const notes = joinNotes(rowParent?.notes ?? null, row.notes)
     const payee = payeeById.get(row.payeeId ?? rowParent?.payeeId ?? '') ?? null
+    if (getDateWindowError(row.date, today)) return ROW_DATE_OUTSIDE_WINDOW_REASON
     return getRowLimitReason(notes, readActualTags(notes), payee?.transferAccountId ? null : (payee?.name ?? null))
   }
 

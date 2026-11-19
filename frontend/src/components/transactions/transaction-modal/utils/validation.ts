@@ -1,5 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import { doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
+import { getDateWindowError } from '@/utils/dateWindow'
 import { amountInputToMinorUnits } from '@/components/transactions/transaction-modal/utils/money'
 import type {
   TransactionFormFieldErrors,
@@ -18,6 +19,12 @@ interface ValidateTransactionFormOptions {
   isBalanceAdjustmentCategory?: boolean
 
   /**
+   * Today in the user's own zone. The date's window is counted from it. Left out, the date is checked for being
+   * present only
+   */
+  today?: string
+
+  /**
    * What is left to refund of the expense a new refund is for, so one that passes it is refused here,
    * as the server would refuse it
    */
@@ -31,7 +38,7 @@ export function validateTransactionForm(
   form: TransactionFormValues,
   options: ValidateTransactionFormOptions = {},
 ): TransactionFormFieldErrors {
-  const { isAmountLocked = false, isBalanceAdjustmentCategory = false, refundLimit } = options
+  const { isAmountLocked = false, isBalanceAdjustmentCategory = false, refundLimit, today } = options
   const errors: TransactionFormFieldErrors = {}
   if (!form.account_id) errors.account_id = 'Select an account'
   if (!form.category_id) errors.category_id = 'Select a category'
@@ -52,6 +59,10 @@ export function validateTransactionForm(
   }
   if (!form.currency) errors.currency = 'Select a currency'
   if (!form.date) errors.date = 'Select a date'
+  else if (today) {
+    const windowError = getDateWindowError(form.date, today)
+    if (windowError) errors.date = windowError
+  }
 
   // The recorded account doubles as the receiving one when the checkbox is ticked, so there is a
   // single account field either way and nothing to keep in agreement

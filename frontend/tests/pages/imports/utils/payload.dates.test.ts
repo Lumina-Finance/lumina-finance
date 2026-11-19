@@ -2,10 +2,15 @@
  * Tests how the import commit payload reads its date column, covering the row values it sends and
  * the refusal to build anything at all until a date format has been settled
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import { EMPTY_COLUMN_MAP, ROW_DATE_BLANK_REASON, ROW_DATE_UNREADABLE_REASON } from '@/pages/imports/constants'
+import {
+  EMPTY_COLUMN_MAP,
+  ROW_DATE_BLANK_REASON,
+  ROW_DATE_OUTSIDE_WINDOW_REASON,
+  ROW_DATE_UNREADABLE_REASON,
+} from '@/pages/imports/constants'
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
 import { buildTransactionImportPayload, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
 import type { ImportDateFormat, ImportDateSeparator } from '@/pages/imports/utils/valueParsers'
@@ -148,6 +153,23 @@ describe('import payload dates', () => {
   it('tells a blank cell apart from one the chosen format cannot read', () => {
     expect(build(['15/03/2024', ''], 'dayFirst').rowProblems.map((problem) => problem.reason)).toEqual([
       ROW_DATE_BLANK_REASON,
+    ])
+  })
+})
+
+describe('import rows dated outside the window every date must sit in', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('lists a row before 1 January 1900 or past ten years from today with its reason and imports the rest', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-10T12:00:00Z'))
+
+    const result = build(['1900-01-01', '1899-12-31', '2036-06-10', '9999-12-31'], 'yearFirst')
+
+    expect(result.payload?.rows.map((row) => row.dt)).toEqual(['1900-01-01', '2036-06-10'])
+    expect(result.rowProblems.map((problem) => [problem.rowNumber, problem.reason])).toEqual([
+      [2, ROW_DATE_OUTSIDE_WINDOW_REASON],
+      [4, ROW_DATE_OUTSIDE_WINDOW_REASON],
     ])
   })
 })

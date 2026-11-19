@@ -107,6 +107,12 @@ export function FilterPanelBody({
   // editor, which renders outside the block holding them
   const amountRangeMessageId = useId()
   const dateRangeMessageId = useId()
+
+  // What is wrong with the dates, said under the panel while another facet is open
+  const hiddenDateProblem =
+    draft.dateWindowErrors.from ??
+    draft.dateWindowErrors.to ??
+    (draft.hasCrossedDateRange ? CROSSED_DATE_RANGE_MESSAGE : null)
   const shouldReduceMotion = useReducedMotion()
   const transition = shouldReduceMotion ? { duration: 0 } : FILTER_GLASS_SPRING
   const activeFacet = FILTER_FACETS.find((facet) => facet.id === activeFacetId) ?? FILTER_FACETS[0]
@@ -218,6 +224,7 @@ export function FilterPanelBody({
               hasCrossedAmountBounds={draft.hasCrossedAmountBounds}
               amountRangeMessageId={amountRangeMessageId}
               hasCrossedDateRange={draft.hasCrossedDateRange}
+              dateWindowErrors={draft.dateWindowErrors}
               dateRangeMessageId={dateRangeMessageId}
               currencyOptions={draft.getFacetOptions('currency')}
               currencyValue={draft.currencyLocked ? draft.amountCurrency : (draft.selections.currency[0] ?? '')}
@@ -254,16 +261,16 @@ export function FilterPanelBody({
         {/* The crossed amount range takes this line rather than sitting in its own editor. A crossed date
             range is said on the From field's label row, as the importer says it, and takes this line only
             while another facet is open, so every reason Apply is unavailable stays on screen */}
-        {draft.hasCrossedAmountBounds || (draft.hasCrossedDateRange && activeFacet.kind !== 'date') ? (
+        {draft.hasCrossedAmountBounds || (hiddenDateProblem && activeFacet.kind !== 'date') ? (
           <>
             {draft.hasCrossedAmountBounds && (
               <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
                 {CROSSED_AMOUNT_RANGE_MESSAGE}
               </p>
             )}
-            {draft.hasCrossedDateRange && activeFacet.kind !== 'date' && (
+            {hiddenDateProblem && activeFacet.kind !== 'date' && (
               <p className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
-                {CROSSED_DATE_RANGE_MESSAGE}
+                {hiddenDateProblem}
               </p>
             )}
           </>
@@ -358,7 +365,10 @@ type SectionEditorProps = {
   amountRangeMessageId: string
   // True while the from date sits after the to date, leaving a range no transaction can satisfy
   hasCrossedDateRange: boolean
-  // Names the message explaining the crossed range, which the From field says on its label row
+  // Why each typed date is outside the window every date must sit in, said on that date's label row
+  dateWindowErrors: { from: string | null; to: string | null }
+  // Names the message explaining the crossed range. The From field shows that message on its label row. The
+  // To field's own message takes this name with "-to" after it
   dateRangeMessageId: string
   // The currency the amount range matches, chosen inside the amount section
   currencyOptions: OptionItem[]
@@ -399,6 +409,7 @@ function SectionEditor({
   hasCrossedAmountBounds,
   amountRangeMessageId,
   hasCrossedDateRange,
+  dateWindowErrors,
   dateRangeMessageId,
   currencyOptions,
   currencyValue,
@@ -557,7 +568,7 @@ function SectionEditor({
         <DateFacetInput
           label="From"
           value={dateRange.from}
-          message={hasCrossedDateRange ? CROSSED_DATE_RANGE_MESSAGE : undefined}
+          message={dateWindowErrors.from ?? (hasCrossedDateRange ? CROSSED_DATE_RANGE_MESSAGE : undefined)}
           messageId={dateRangeMessageId}
           onValueChange={(value) => onDateRangeChange({ ...dateRange, from: value })}
         />
@@ -571,6 +582,8 @@ function SectionEditor({
         <DateFacetInput
           label="To"
           value={dateRange.to}
+          message={dateWindowErrors.to ?? undefined}
+          messageId={`${dateRangeMessageId}-to`}
           onValueChange={(value) => onDateRangeChange({ ...dateRange, to: value })}
         />
       </div>

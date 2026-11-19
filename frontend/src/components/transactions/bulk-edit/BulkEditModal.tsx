@@ -51,7 +51,10 @@ import type { BulkDirectionChange } from '@/api/transactions'
 import type { TransactionListAccount } from '@/components/transactions/types/transactionList'
 import { useDebouncedReferenceSearch } from '@/components/transactions/transaction-modal/hooks/useDebouncedReferenceSearch'
 import { buildCategoryOptions } from '@/components/transactions/transaction-modal/utils/categories'
+import { useAuth } from '@/hooks/useAuth'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
+import { getTodayYmd } from '@/utils/date'
+import { getDateWindowError } from '@/utils/dateWindow'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { formatValueList } from '@/utils/formatList'
 
@@ -61,8 +64,14 @@ const REMOVE_ALL_TAGS_LABEL = 'Remove all tags'
 
 // What the edit changes is where Apply is refused, since every control starts as leave as is, apart
 // from Merchant and Category while items waiting for review are ticked, since each item needs both
-const BULK_EDIT_FIELDS = ['merchant', 'category', 'changes'] as const
-const BULK_EDIT_FIELD_IDS = { merchant: 'bulk-merchant', category: 'bulk-category', changes: 'bulk-changes' } as const
+const BULK_EDIT_FIELDS = ['date', 'merchant', 'category', 'changes'] as const
+const BULK_EDIT_FIELD_IDS = {
+  date: 'bulk-date',
+  merchant: 'bulk-merchant',
+  category: 'bulk-category',
+  changes: 'bulk-changes',
+} as const
+const DATE_ERROR_ID = 'bulk-date-error'
 const MERCHANT_ERROR_ID = 'bulk-merchant-error'
 const CATEGORY_ERROR_ID = 'bulk-category-error'
 const CHANGES_ERROR_ID = 'bulk-changes-error'
@@ -140,6 +149,7 @@ export function BulkEditModal({
   reviewCount = 0,
   onApply,
 }: BulkEditModalProps) {
+  const { user } = useAuth()
   const addsReviewItems = reviewCount > 0
   const addsReviewItemsOnly = addsReviewItems && rows.length === 0
   const titleId = useId()
@@ -399,6 +409,7 @@ export function BulkEditModal({
   const lacksWhatAnItemNeeds = addsReviewItems && (!merchantId || !categoryId)
   const refusal = useRefusedSubmit(
     {
+      date: getDateWindowError(date, getTodayYmd(user?.tz)) ?? undefined,
       merchant: addsReviewItems && !merchantId ? MERCHANT_NEEDED : undefined,
       category: addsReviewItems && !categoryId ? CATEGORY_NEEDED : undefined,
       changes: lacksWhatAnItemNeeds ? undefined : getBulkEditChangeProblem(choice, blockers),
@@ -589,8 +600,21 @@ export function BulkEditModal({
         <CreateModalSectionFrame step={steps.details} title="Details">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <CreateModalFieldLabelRow htmlFor="bulk-date" label="Date" />
-              <DateField id="bulk-date" ariaLabel="Date" value={date} onChange={setDate} />
+              <CreateModalFieldLabelRow
+                htmlFor={BULK_EDIT_FIELD_IDS.date}
+                label="Date"
+                error={refusal.errors.date}
+                errorId={DATE_ERROR_ID}
+              />
+              <DateField
+                id={BULK_EDIT_FIELD_IDS.date}
+                ariaLabel="Date"
+                value={date}
+                onChange={setDate}
+                onBlur={() => refusal.touch('date')}
+                error={Boolean(refusal.errors.date)}
+                describedById={DATE_ERROR_ID}
+              />
             </div>
 
             <div>

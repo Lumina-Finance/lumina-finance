@@ -23,11 +23,13 @@ import {
   ROW_COUNTERPARTY_IS_OWN_ACCOUNT_REASON,
   ROW_COUNTERPARTY_NOT_A_TRANSFER_REASON,
   ROW_DATE_BLANK_REASON,
+  ROW_DATE_OUTSIDE_WINDOW_REASON,
   ROW_DATE_UNREADABLE_REASON,
   ROW_DIRECTION_BLANK_REASON,
   ROW_DIRECTION_SIGN_DISAGREES_REASON,
 } from '@/pages/imports/constants'
 import type { ColumnMap, CsvRow, ImportAmountDirection, ImportAmountProblem } from '@/pages/imports/types'
+import { getDateWindowError } from '@/utils/dateWindow'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { splitImportedValues } from './categoryMatching'
 import { getImportRowCategorySource, getMappedValue, resolveImportAmount } from './columnMapping'
@@ -119,6 +121,9 @@ export interface ImportRowJudgement {
   currencies: Currency[]
   accountMappings: Record<string, string>
   recordsCounterpartyBySource: Record<string, boolean>
+
+  /** Today in the user's own zone. The window a row's date must sit in counts from it */
+  todayYmd: string
 }
 
 /**
@@ -199,6 +204,7 @@ export function getImportRowProblem(row: ResolvedImportRow, judgement: ImportRow
   // jobs, and both parsers answer the same way for an empty string, so the raw cell is asked first
   if (!row.importedDate) return ROW_DATE_BLANK_REASON
   if (!row.dt) return ROW_DATE_UNREADABLE_REASON
+  if (getDateWindowError(row.dt, judgement.todayYmd)) return ROW_DATE_OUTSIDE_WINDOW_REASON
 
   // Asked ahead of the blank check, since a row breaking its arrangement's rules has no amount either
   // and would otherwise be sent to fill in a cell that is not the problem

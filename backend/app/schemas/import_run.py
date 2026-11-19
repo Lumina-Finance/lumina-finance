@@ -10,6 +10,7 @@ from app.models.base import RecurrenceFreq
 from app.models.transaction import BANK_TRANSACTION_HASH_LENGTH
 from app.schemas.budget import validate_recurrence_anchor_fields
 from app.schemas.names import TrimmedName
+from app.utils.date_window import WindowDate
 
 # Rows one import may carry, matching the cap the file reader applies before a file is staged. A
 # run is refused past it here as well, since the reader runs in the browser
@@ -349,7 +350,7 @@ class _ImportRowFields(BaseModel):
 
     account_source: str = Field(min_length=1, max_length=256)
     category_source: str = Field(min_length=1, max_length=256)
-    dt: date
+    dt: WindowDate
     amount: str = Field(min_length=1, max_length=64)
     merchant_name: str | None = Field(None, max_length=MAX_IMPORT_MERCHANT_NAME_LENGTH)
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
@@ -472,7 +473,7 @@ class JournalTransactionRow(BaseModel):
 
     journal_id: TrimmedImportText = Field(max_length=64)
     type: JournalRowType
-    dt: date
+    dt: WindowDate
     amount: UnsignedDecimalAmount
     currency_code: CurrencyCode
     foreign_amount: UnsignedDecimalAmount | None = None

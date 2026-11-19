@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import httpx
@@ -19,6 +19,7 @@ from app.services.fx import (
 from app.services.fx.converter import RATE_LOOKBACK
 from app.services.fx.frankfurter_provider import DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS
 from app.services.fx.lookup_budget import FxLookupBudget, use_lookup_budget
+from app.utils import date_window
 from tests.services.fx.fakes import FakeProvider
 
 
@@ -228,6 +229,42 @@ async def test_converter_clone_starts_with_its_own_status():
 
     assert shared.get_status().state == "incomplete"
     assert clone.get_status() == FxStatus(state="none")
+
+
+async def test_prefetch_for_transactions_at_both_window_edges_builds_under_50000_keys(freeze_now):
+    """An account holding the earliest and the latest allowed dates cannot make a prefetch build millions of keys"""
+    freeze_now(date_window, datetime(2026, 6, 9, 23, 30, tzinfo=UTC))
+    provider = FakeProvider()
+    converter = _converter(provider)
+
+    await converter.prefetch_rates(base="USD", quote="CAD", start_date=date(1900, 1, 1), end_date=date(2036, 6, 10))
+
+    assert len(converter.rates) + len(converter.failed_rates) < 50_000
+    assert provider.calls == [("USD", "CAD", date(1900, 1, 1) - RATE_LOOKBACK, date(2026, 6, 10) + RATE_LOOKBACK)]
+
+
+async def test_prefetch_for_a_year_1_and_a_year_9999_row_stays_inside_the_dates_a_rate_can_exist_for(freeze_now):
+    """A row stored before the window existed cannot make the prefetch walk the centuries between"""
+    freeze_now(date_window, datetime(2026, 6, 9, 23, 30, tzinfo=UTC))
+    converter = _converter(FakeProvider())
+
+    await converter.prefetch_rates(base="USD", quote="CAD", start_date=date(1, 1, 3), end_date=date(9999, 12, 31))
+
+    assert len(converter.rates) + len(converter.failed_rates) < 50_000
+
+
+@pytest.mark.parametrize("rate_date", [date(1, 1, 3), date(1899, 12, 31), date(2026, 6, 18), date(9999, 12, 31)])
+async def test_converter_answers_a_date_no_rate_can_exist_for_as_unavailable_without_asking_the_provider(freeze_now, rate_date):
+    """A stored date before the window or past the last rate converts to rate unavailable, never a server error"""
+    freeze_now(date_window, datetime(2026, 6, 9, 23, 30, tzinfo=UTC))
+    provider = FakeProvider({("USD", "CAD"): {date(2026, 6, 10): Decimal("1.375")}})
+    converter = _converter(provider)
+
+    converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date)
+
+    assert converted is None
+    assert provider.calls == []
+    assert converter.get_status() == FxStatus(state="incomplete", missing_pairs=[FxRateIssue(base="USD", quote="CAD")])
 
 
 def test_convert_minor_units_handles_currency_exponents_and_rounding():

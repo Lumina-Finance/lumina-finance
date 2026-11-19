@@ -1,9 +1,13 @@
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import { FIREFLY_MISSING_REQUIRED_VALUES_REASON, FIREFLY_TAG_TOO_LONG_REASON } from '@/pages/imports/firefly/constants'
+import { ROW_DATE_OUTSIDE_WINDOW_REASON } from '@/pages/imports/constants'
 import { getImportRowId } from '@/pages/imports/utils/common'
 import { getDebtPaymentImportNote } from '@/pages/imports/utils/categoryMatching'
+import { getTodayYmd } from '@/utils/date'
+import { getDateWindowError } from '@/utils/dateWindow'
 import {
   getFireflyMissingRequiredFields,
+  getFireflyRowDate,
   getFireflyOverlongTag,
   getFireflyRowOverLimitReason,
   getFireflyRowShapeSkipReason,
@@ -49,6 +53,9 @@ export interface FireflyImportForecast {
 /** Resolution options paired with the staged file that gives source rows their identity */
 export interface FireflyImportForecastOptions extends FireflyRowResolutionOptions {
   fileId: string | null
+
+  /** The user's timezone that today is read in. Left out, today is read in the browser's */
+  timeZone?: string
 }
 
 /**
@@ -60,6 +67,7 @@ export function forecastFireflyImport(rows: CsvRow[], options: FireflyImportFore
   let rowCount = 0
   let transactionEstimate = 0
   const groupSizes = getFireflySplitGroupSizes(rows)
+  const todayYmd = getTodayYmd(options.timeZone)
 
   // The id only has to tell the skipped rows apart, which the row index does before a file is staged too
   const rowFileId = options.fileId ?? ''
@@ -79,6 +87,12 @@ export function forecastFireflyImport(rows: CsvRow[], options: FireflyImportFore
           `${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: ${formatValueList(missingFields)}`,
         ),
       )
+      continue
+    }
+
+    // The server refuses the whole import for a date outside the window every date must sit in
+    if (getDateWindowError(getFireflyRowDate(row.date ?? ''), todayYmd)) {
+      skippedRows.push(buildFireflySkippedRowDetail(rowFileId, row, index, ROW_DATE_OUTSIDE_WINDOW_REASON))
       continue
     }
 

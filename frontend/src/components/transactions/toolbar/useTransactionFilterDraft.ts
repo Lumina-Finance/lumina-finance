@@ -19,7 +19,8 @@ import {
   type AmountDraft,
 } from '@/components/transactions/utils/amountRange'
 import { isFilterPatchApplied } from '@/components/transactions/utils/filterDraft'
-import { isDateRangeCrossed } from '@/utils/date'
+import { getTodayYmd, isDateRangeCrossed } from '@/utils/date'
+import { getDateWindowError } from '@/utils/dateWindow'
 import { useRestoreAmountRange } from '@/components/transactions/toolbar/hooks/useRestoreAmountRange'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/components/transactions/toolbar/types'
@@ -151,17 +152,24 @@ export function useTransactionFilterDraft({
       : `Amounts are matched in ${amountCurrency}, your base currency`
   const hasCrossedDateRange = isDateRangeCrossed(dateRange)
 
+  // A typed date outside the window every date must sit in is refused on its own field, and nothing
+  // is filtered by it
+  const todayYmd = getTodayYmd(user?.tz)
+  const dateWindowErrors = {
+    from: getDateWindowError(dateRange.from, todayYmd),
+    to: getDateWindowError(dateRange.to, todayYmd),
+  }
+  const dateWindowError = dateWindowErrors.from ?? dateWindowErrors.to
+
   // Either range excluding itself blocks the whole commit, since no transaction can satisfy it and
   // applying it would close the panel on an empty list
-  const isApplyBlocked = hasCrossedAmountBounds || hasCrossedDateRange
+  const isApplyBlocked = hasCrossedAmountBounds || hasCrossedDateRange || dateWindowError !== null
 
-  // The first reason, when both ranges cross. The amount message sits in the panel's own line and the
-  // date message on the From field's label, so each shows where it applies
+  // The first reason, when several hold. The amount message sits in the panel's own line and the
+  // date messages on the date fields' labels, so each shows where it applies
   const applyBlockedReason = hasCrossedAmountBounds
     ? CROSSED_AMOUNT_RANGE_MESSAGE
-    : hasCrossedDateRange
-      ? CROSSED_DATE_RANGE_MESSAGE
-      : undefined
+    : (dateWindowError ?? (hasCrossedDateRange ? CROSSED_DATE_RANGE_MESSAGE : undefined))
 
   /**
    * Counts the live selections on a facet so its tab can show a badge and the pill can show a total
@@ -313,6 +321,7 @@ export function useTransactionFilterDraft({
     currencyListState,
     hasCrossedAmountBounds,
     hasCrossedDateRange,
+    dateWindowErrors,
     isApplyBlocked,
     applyBlockedReason,
     isDraftApplied,

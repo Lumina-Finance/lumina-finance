@@ -14,6 +14,7 @@ import {
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
+  ROW_DATE_OUTSIDE_WINDOW_REASON,
   getImportMerchantTooLongReason,
   getRowNotesTooLongReason,
   getRowTooManyTagsReason,
@@ -341,7 +342,7 @@ describe('pairing Actual Budget transfers', () => {
           payeeId: 'to-checking',
           transferredId: 'short-out',
         },
-        // The other side sits in a split that doesn't add up, which is left out
+        // The other side sits in a split that doesn't add up, so the other side is left out
         { id: 'split', accountId: 'savings', date: '2026-09-05', amount: 10000, isParent: true },
         {
           id: 'split-transfer',
@@ -773,5 +774,23 @@ describe('Actual Budget categories counted the way Actual counts them', () => {
 
     expect(shape(journal)).toEqual([['emptied', 'withdrawal', 'car', null]])
     expect(journal.skippedRows).toEqual([])
+  })
+})
+
+describe('Actual Budget rows dated outside the window every date must sit in', () => {
+  it('lists a row before 1 January 1900 or past ten years from today with its reason and imports the rest', () => {
+    const budget = buildActualBudget([
+      { id: 'edge-early', accountId: 'checking', date: '1900-01-01', amount: -100, payeeId: 'shop' },
+      { id: 'too-early', accountId: 'checking', date: '1899-12-31', amount: -200, payeeId: 'shop' },
+      { id: 'edge-late', accountId: 'checking', date: '2036-09-26', amount: -300, payeeId: 'shop' },
+      { id: 'too-late', accountId: 'checking', date: '9999-12-31', amount: -400, payeeId: 'shop' },
+    ])
+    const journal = normaliseActualBudget(budget, '2026-09-26')
+
+    expect(journal.entries.map((entry) => entry.transactionId)).toEqual(['edge-early', 'edge-late'])
+    expect(journal.skippedRows.map((row) => [row.transactionId, row.reason])).toEqual([
+      ['too-early', ROW_DATE_OUTSIDE_WINDOW_REASON],
+      ['too-late', ROW_DATE_OUTSIDE_WINDOW_REASON],
+    ])
   })
 })

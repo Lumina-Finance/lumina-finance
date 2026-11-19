@@ -10,6 +10,7 @@ from app.models.base import TransferCounterpartyScope
 from app.schemas.bank_sync import TransactionBankSource
 from app.schemas.fx import FxStatus
 from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
+from app.utils.date_window import WindowDate
 
 # Transactions one bulk edit or bulk delete may carry, matching the import mapping cap, since each
 # bounds an id list a single request checks row by row against the database. The list loads 15 rows
@@ -121,7 +122,7 @@ class LinkRefundRequest(BaseModel):
 class TransactionEntry(BaseModel):
     """The values a user enters for a new transaction, apart from its account, currency and FX rate"""
 
-    dt: date
+    dt: WindowDate
     category_id: uuid.UUID
     amount: int
 
@@ -149,7 +150,7 @@ class UpdateTransactionRequest(BaseModel):
     """Partial update for a transaction."""
 
     account_id: uuid.UUID | None = None
-    dt: date | None = None
+    dt: WindowDate | None = None
     merchant_id: uuid.UUID | None = None
     category_id: uuid.UUID | None = None
     amount: int | None = None
@@ -223,7 +224,7 @@ class BulkUpdateTransactionsRequest(BaseModel):
 
     transaction_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_BULK_UPDATE_TRANSACTIONS)
     account_id: uuid.UUID | None = None
-    dt: date | None = None
+    dt: WindowDate | None = None
     category_id: uuid.UUID | None = None
     merchant_id: uuid.UUID | None = None
 

@@ -1,7 +1,7 @@
 /**
  * Tests Firefly III outcome prediction for skipped rows and non-blocking row guidance
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
@@ -14,6 +14,7 @@ import {
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
   IMPORT_SAMPLE_PREVIEW_LIMIT,
+  ROW_DATE_OUTSIDE_WINDOW_REASON,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import { getSkippedRowsDisplay } from '@/pages/imports/utils'
@@ -924,5 +925,43 @@ describe('Firefly rows past what the import endpoint takes', () => {
     const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
 
     expect(skipped).toEqual([expect.objectContaining({ reason: 'Missing required values: currency' })])
+  })
+})
+
+describe('Firefly III rows dated outside the window every date must sit in', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('lists a row before 1 January 1900 or past ten years from today with its reason, and keeps the rest', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-10T12:00:00Z'))
+
+    const { skippedRows: skipped, transactionEstimate } = forecastFireflyImport(
+      [
+        createFireflyRow({ journal_id: '1', date: '1900-01-01 00:00:00' }),
+        createFireflyRow({ journal_id: '2', date: '1899-12-31 00:00:00' }),
+        createFireflyRow({ journal_id: '3', date: '2036-06-10 00:00:00' }),
+        createFireflyRow({ journal_id: '4', date: '9999-12-31 00:00:00' }),
+      ],
+      createOptions(),
+    )
+
+    expect(skipped.map((row) => [row.journalId, row.reason])).toEqual([
+      ['2', ROW_DATE_OUTSIDE_WINDOW_REASON],
+      ['4', ROW_DATE_OUTSIDE_WINDOW_REASON],
+    ])
+    expect(transactionEstimate).toBe(2)
+  })
+
+  it('counts today in the profile timezone, not the browser one', () => {
+    // 30 June in Toronto, already 1 July in UTC, so the last day inside the window differs by a day
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-01T02:00:00Z'))
+    const rows = [createFireflyRow({ journal_id: '1', date: '2036-07-01 00:00:00' })]
+
+    const inToronto = forecastFireflyImport(rows, { ...createOptions(), timeZone: 'America/Toronto' })
+    const inUtc = forecastFireflyImport(rows, { ...createOptions(), timeZone: 'UTC' })
+
+    expect(inToronto.skippedRows.map((row) => row.reason)).toEqual([ROW_DATE_OUTSIDE_WINDOW_REASON])
+    expect(inUtc.skippedRows).toEqual([])
   })
 })

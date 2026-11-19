@@ -11,6 +11,7 @@ import {
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
   MAX_IMPORT_NOTES_LENGTH,
   ROW_AMOUNT_TOO_LARGE_REASON,
+  ROW_DATE_OUTSIDE_WINDOW_REASON,
 } from '@/pages/imports/constants'
 import {
   getOfxAlreadyInAccountReason,
@@ -32,6 +33,8 @@ import {
   getPreviewDateLabel,
   toImportMinorUnits,
 } from '@/pages/imports/utils'
+import { getTodayYmd } from '@/utils/date'
+import { getDateWindowError } from '@/utils/dateWindow'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 
 /** Every answer the user gives that decides where the statements go */
@@ -52,6 +55,9 @@ export interface OfxImportAnswers {
    * like a repeat within the import. Undefined where nothing is known to be held
    */
   heldRowIds?: ReadonlySet<string>
+
+  /** The user's timezone that today is read in. Left out, today is read in the browser's */
+  timeZone?: string
 }
 
 export interface OfxImportBuild {
@@ -154,7 +160,8 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
     const exponent = isWritable ? findCurrencyExponent(answers.currencies, currency) : null
     return { statement, source, built, isWritable, exponent, currency }
   })
-  const firstCopies = findFirstOfxCopies(prepared)
+  const todayYmd = getTodayYmd(answers.timeZone)
+  const firstCopies = findFirstOfxCopies(prepared, todayYmd)
 
   for (const { statement, source, built, isWritable, exponent, currency } of prepared) {
     let hasRows = false
@@ -171,7 +178,7 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
           reason,
         })
 
-      const problem = getOfxTransactionProblem(transaction, exponent, currency)
+      const problem = getOfxTransactionProblem(transaction, exponent, currency, todayYmd)
       if (problem) {
         skip(problem)
         continue
@@ -241,6 +248,7 @@ function getOfxRepeatKey(statement: OfxStatement, transaction: OfxTransaction) {
  */
 function findFirstOfxCopies(
   prepared: Array<{ statement: OfxStatement; isWritable: boolean; exponent: number | null; currency: string }>,
+  todayYmd: string,
 ) {
   const firstCopies = new Map<string, OfxTransaction>()
   for (const { statement, isWritable, exponent, currency } of prepared) {
@@ -248,7 +256,7 @@ function findFirstOfxCopies(
 
     for (const transaction of statement.transactions) {
       const key = getOfxRepeatKey(statement, transaction)
-      if (key === null || getOfxTransactionProblem(transaction, exponent, currency) !== null) continue
+      if (key === null || getOfxTransactionProblem(transaction, exponent, currency, todayYmd) !== null) continue
 
       const first = firstCopies.get(key)
       if (first === undefined || transaction.fileOrder < first.fileOrder) firstCopies.set(key, transaction)
@@ -268,10 +276,16 @@ export function getOfxCategorySource(transaction: Pick<OfxTransaction, 'amount'>
  * @param exponent - Decimal places of the account's currency, null while it is not known, which
  *   leaves the amount's precision unjudged
  */
-export function getOfxTransactionProblem(transaction: OfxTransaction, exponent: number | null, currency: string) {
+export function getOfxTransactionProblem(
+  transaction: OfxTransaction,
+  exponent: number | null,
+  currency: string,
+  todayYmd: string,
+) {
   if (transaction.otherCurrency !== null) return getOfxOtherCurrencyReason(transaction.otherCurrency, currency)
   if (transaction.readProblem) return transaction.readProblem
   if (transaction.date === null) return OFX_DATE_UNREADABLE_REASON
+  if (getDateWindowError(transaction.date, todayYmd)) return ROW_DATE_OUTSIDE_WINDOW_REASON
   if (transaction.amount === null) return OFX_AMOUNT_UNREADABLE_REASON
 
   if (exponent !== null) {

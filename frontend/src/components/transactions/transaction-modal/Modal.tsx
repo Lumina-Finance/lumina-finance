@@ -325,6 +325,7 @@ export default function CreateTransactionModal({
     editing,
     refundLimit,
     isAmountLocked,
+    today: getTodayYmd(user?.tz),
     isBalanceAdjustmentCategory: categoryField.isBalanceAdjustmentCategory,
     selectedAccount,
     selectedCounterpartyAccount,

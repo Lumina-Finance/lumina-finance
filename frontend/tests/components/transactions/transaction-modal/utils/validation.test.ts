@@ -69,6 +69,31 @@ describe('transaction form validation', () => {
     })
   })
 
+  it('refuses a typed date outside the window every date must sit in, on the date field', () => {
+    const form = {
+      kind: 'expense' as const,
+      direction: 'debit' as const,
+      account_id: 'checking',
+      category_id: 'groceries',
+      merchant_id: 'store',
+      amount: '12.00',
+      currency: 'CAD',
+      notes: '',
+      date: '2026-03-15',
+      tag_ids: [],
+      symmetric_transfer: false,
+      counterparty_account_id: '',
+    }
+    const today = '2026-06-10'
+    const dateError = (date: string) => validateTransactionForm({ ...form, date }, { today }).date
+
+    expect(dateError('2026-03-15')).toBeUndefined()
+    expect(dateError('1900-01-01')).toBeUndefined()
+    expect(dateError('2036-06-10')).toBeUndefined()
+    expect(dateError('1850-01-01')).toBe('Must be on or after Jan 1, 1900')
+    expect(dateError('2040-01-01')).toBe('Must be within ten years of today')
+  })
+
   it('requires a counterparty-account answer on every transfer that is not Balance Adjustment', () => {
     const transferForm = {
       kind: 'transfer' as const,
