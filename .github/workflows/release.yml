@@ -18,5 +18,6 @@ jobs:
         type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name }}
         type=semver,pattern={{major}},value=${{ github.event.release.tag_name }}
       flavor: latest=auto
-    secrets:
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      environment: release
+    # The release environment holds the push token and needs a reviewer's approval. GitHub's documentation doesn't say a called workflow reads an environment's secrets unless its caller passes secrets, so the caller inherits them
+    secrets: inherit

@@ -15,9 +15,10 @@ on:
         description: Docker metadata flavor, which decides whether latest is added
         required: true
         type: string
-    secrets:
-      DOCKERHUB_TOKEN:
+      environment:
+        description: Deployment environment that holds the Docker Hub push token and decides who may run the jobs
         required: true
+        type: string
 
 permissions:
   contents: read
@@ -29,6 +30,9 @@ jobs:
   build:
     name: Build Docker image (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
+
+    # The push token is a secret of this environment, so only jobs that name it can read the token
+    environment: ${{ inputs.environment }}
 
     # Build natively and publish tags only after both architectures succeed
     strategy:
@@ -48,7 +52,7 @@ jobs:
         uses: ./.github/actions/docker-build-setup
         with:
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry-token: ${{ secrets.DOCKERHUB_PUSH_TOKEN }}
 
       # Apply labels to each image and tags to the combined manifest
       - name: Extract Docker metadata
@@ -88,6 +92,7 @@ jobs:
     name: Publish the multi-architecture image
     needs: build
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
 
     steps:
       - name: Check out repository
@@ -104,7 +109,7 @@ jobs:
         uses: ./.github/actions/docker-build-setup
         with:
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry-token: ${{ secrets.DOCKERHUB_PUSH_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
