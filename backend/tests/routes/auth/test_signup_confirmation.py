@@ -2,19 +2,22 @@
 
 import asyncio
 import logging
+import traceback
 from datetime import UTC, datetime, timedelta
 
+import aiosmtplib
 import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from sqlalchemy import func as sa_func
 from sqlalchemy import select
 
 from app.config.jwt import JWT_ACCESS_PRIVATE_KEY, JWT_ALGORITHM, JWT_ISSUER
 from app.config.registration import SIGNUP_DAILY_EMAIL_LIMIT
 from app.models.auth import AuthIdentity, PasswordCredential, SignupEmailSend
 from app.models.user import User
-from app.services.auth import registration, signup
+from app.services.auth import registration, send_backoff, signup
 from app.services.auth.signup_email_hash import seal_signup_email
 from app.services.auth.tokens import SIGNUP_CONFIRMATION_TOKEN_USE
 from tests.conftest import TestSession
@@ -225,8 +228,14 @@ async def test_the_cap_is_per_address(client):
     assert len(mailbox.sent_to("other@example.com")) == 1
 
 
-async def test_a_failed_send_is_logged_not_shown_and_does_not_use_up_the_cap(client, caplog, monkeypatch):
-    """A broken mail server cannot tell addresses apart, and mail never sent does not count against the address"""
+async def _send_record_count() -> int:
+    """Return how many sign-up sends count against any address"""
+    async with TestSession() as session:
+        return await session.scalar(select(sa_func.count()).select_from(SignupEmailSend))
+
+
+async def test_a_failed_send_makes_the_address_wait_and_is_logged_not_shown(client, caplog, monkeypatch, reset_clock):
+    """A broken mail server cannot tell addresses apart, and sign-ups during the wait start no send and use no cap"""
     await _seed_currency()
     attempts = []
 
@@ -236,19 +245,25 @@ async def test_a_failed_send_is_logged_not_shown_and_does_not_use_up_the_cap(cli
 
     with monkeypatch.context() as broken:
         broken.setattr(mailbox, "send", refuse)
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             responses = [await client.post("/auth/signup", json=_PROFILE) for _ in range(SIGNUP_DAILY_EMAIL_LIMIT + 2)]
 
     assert {response.status_code for response in responses} == {204}
     assert "Sign-up email failed to send" in caplog.text
-    assert len(attempts) == SIGNUP_DAILY_EMAIL_LIMIT + 2
+    assert _PROFILE["email"] not in caplog.text
+    assert len(attempts) == 1, "only the first request starts a send"
+    assert await _send_record_count() == 0, "neither the failed send nor the skipped ones use up the cap"
 
-    # Once the server recovers the address still gets its email
+    # The wait ends and the recovered server sends the email
+    reset_clock(send_backoff.FIRST_FAILURE_WAIT_SECONDS - 1)
+    await client.post("/auth/signup", json=_PROFILE)
+    assert mailbox.sent_to(_PROFILE["email"]) == []
+    reset_clock(1)
     await client.post("/auth/signup", json=_PROFILE)
     assert len(mailbox.sent_to(_PROFILE["email"])) == 1
 
 
-async def test_an_email_that_cannot_be_rendered_is_logged_and_does_not_use_up_the_cap(client, caplog, monkeypatch):
+async def test_an_email_that_cannot_be_rendered_makes_the_address_wait_like_a_failed_send(client, caplog, monkeypatch, reset_clock):
     """Rendering runs after the response, so a failure there is handled like a failed send"""
     await _seed_currency()
 
@@ -258,14 +273,141 @@ async def test_an_email_that_cannot_be_rendered_is_logged_and_does_not_use_up_th
     with monkeypatch.context() as broken:
         broken.setattr("app.services.auth.signup.render_signup_confirmation_email", cannot_render)
         with caplog.at_level(logging.WARNING):
-            responses = [await client.post("/auth/signup", json=_PROFILE) for _ in range(SIGNUP_DAILY_EMAIL_LIMIT + 2)]
+            response = await client.post("/auth/signup", json=_PROFILE)
 
-    assert {response.status_code for response in responses} == {204}
+    assert response.status_code == 204
     assert "Sign-up email failed to send" in caplog.text
+    assert await _send_record_count() == 0
+
+    # Rendering works again, but the address still waits
+    await client.post("/auth/signup", json=_PROFILE)
     assert mailbox.sent_to(_PROFILE["email"]) == []
 
+    reset_clock(send_backoff.FIRST_FAILURE_WAIT_SECONDS)
     await client.post("/auth/signup", json=_PROFILE)
     assert len(mailbox.sent_to(_PROFILE["email"])) == 1
+
+
+async def test_a_delivered_email_clears_the_wait(client, monkeypatch, reset_clock):
+    """After mail works again the next failure waits a minute, not the doubled wait the earlier failures built up"""
+    await _seed_currency()
+    outcomes = iter([False, False, True, False])
+    attempts = []
+
+    async def send(recipient, message):
+        attempts.append(recipient)
+        if not next(outcomes):
+            raise ConnectionError("mail server unreachable")
+
+    monkeypatch.setattr(mailbox, "send", send)
+    first_wait = send_backoff.FIRST_FAILURE_WAIT_SECONDS
+
+    await client.post("/auth/signup", json=_PROFILE)
+    reset_clock(first_wait)
+    await client.post("/auth/signup", json=_PROFILE)
+    assert len(attempts) == 2
+
+    # The second failure doubled the wait, so the delivery comes after two minutes
+    reset_clock(2 * first_wait)
+    await client.post("/auth/signup", json=_PROFILE)
+    assert len(attempts) == 3
+
+    await client.post("/auth/signup", json=_PROFILE)
+    assert len(attempts) == 4, "a delivered email leaves no wait"
+    reset_clock(first_wait - 1)
+    await client.post("/auth/signup", json=_PROFILE)
+    assert len(attempts) == 4
+    reset_clock(1)
+    await client.post("/auth/signup", json=_PROFILE)
+    assert len(attempts) == 5, "the failure after a delivery waits one minute"
+
+
+async def test_a_failed_send_makes_only_its_own_address_wait(client, monkeypatch):
+    """Mail failing for one address leaves every other address able to sign up"""
+    await _seed_currency()
+    attempts = []
+
+    async def refuse_one(recipient, message):
+        attempts.append(recipient)
+        if recipient == "failing@example.com":
+            raise ConnectionError("mailbox unreachable")
+
+    monkeypatch.setattr(mailbox, "send", refuse_one)
+
+    await client.post("/auth/signup", json={**_PROFILE, "email": "failing@example.com"})
+
+    # Mail to either spelling reaches one inbox, so changing the capitals does not skip the wait
+    await client.post("/auth/signup", json={**_PROFILE, "email": "Failing@Example.com"})
+    await client.post("/auth/signup", json={**_PROFILE, "email": "other@example.com"})
+
+    assert attempts == ["failing@example.com", "other@example.com"]
+
+
+async def test_overlapping_sign_ups_for_one_address_start_one_send(client, monkeypatch):
+    """A send can take tens of seconds, so requests arriving meanwhile start no second one, and the place frees afterwards"""
+    await _seed_currency()
+    started = asyncio.Event()
+    release = asyncio.Event()
+    attempts = []
+
+    async def slow_first_send(recipient, message):
+        attempts.append(recipient)
+        if len(attempts) == 1:
+            started.set()
+            await release.wait()
+
+    monkeypatch.setattr(mailbox, "send", slow_first_send)
+
+    first = asyncio.create_task(client.post("/auth/signup", json=_PROFILE))
+    await started.wait()
+    overlapping = [await client.post("/auth/signup", json=_PROFILE) for _ in range(3)]
+    release.set()
+    first_response = await first
+
+    assert {response.status_code for response in [first_response, *overlapping]} == {204}
+    assert len(attempts) == 1
+    assert await _send_record_count() == 1, "the skipped requests release their cap records"
+
+    await client.post("/auth/signup", json=_PROFILE)
+    assert len(attempts) == 2, "the finished send no longer blocks the address"
+
+
+async def test_a_refused_recipient_is_logged_by_error_class_and_never_by_address(client, caplog, monkeypatch):
+    """The mail library's error text quotes the address, so the warning names only the class"""
+    await _seed_currency()
+    address = "refused-address@example.com"
+    error = aiosmtplib.SMTPRecipientsRefused([aiosmtplib.SMTPRecipientRefused(550, "Mailbox unavailable", address)])
+    assert address in str(error), "the error carries the address, so only the log decides whether it leaks"
+
+    async def refuse(recipient, message):
+        raise error
+
+    monkeypatch.setattr(mailbox, "send", refuse)
+    with caplog.at_level(logging.INFO):
+        await client.post("/auth/signup", json={**_PROFILE, "email": address})
+
+    assert "SMTPRecipientsRefused" in caplog.text
+    assert address not in caplog.text
+
+
+async def test_a_refused_recipient_stays_out_of_the_traceback_when_releasing_its_cap_also_fails(client, caplog, monkeypatch):
+    """The server logs an error escaping a background task with its whole chain, so the mail error must not ride along"""
+    await _seed_currency()
+    address = "refused-address@example.com"
+
+    async def refuse(recipient, message):
+        raise aiosmtplib.SMTPRecipientsRefused([aiosmtplib.SMTPRecipientRefused(550, "Mailbox unavailable", address)])
+
+    async def broken_delete(_send_id, _session_factory):
+        raise RuntimeError("database is down")
+
+    monkeypatch.setattr(mailbox, "send", refuse)
+    monkeypatch.setattr(signup, "_delete_send_record", broken_delete)
+    with caplog.at_level(logging.INFO), pytest.raises(RuntimeError, match="database is down") as raised:
+        await client.post("/auth/signup", json={**_PROFILE, "email": address})
+
+    assert address not in "".join(traceback.format_exception(raised.value))
+    assert "SMTPRecipientsRefused" in caplog.text, "the warning is logged before the release fails"
 
 
 async def test_a_send_record_older_than_a_day_no_longer_counts(client):

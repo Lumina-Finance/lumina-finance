@@ -23,6 +23,7 @@ from app.models.user import User
 from app.schemas.auth import SignupRequest
 from app.services.auth.password_helpers import hash_password
 from app.services.auth.registration import reject_closed_registration
+from app.services.auth.send_backoff import SendBackoff
 from app.services.auth.signup_email_hash import seal_signup_email
 from app.services.auth.tokens import (
     SignupConfirmationClaims,
@@ -46,6 +47,14 @@ _SEND_LOG_RETENTION = timedelta(hours=24)
 # Namespaces the advisory lock that serializes sends to one address
 _SEND_LOCK_NAMESPACE = b"lumina:signup-email-send:"
 
+# Both are keyed by the keyed hash of the address, so no address is kept. They live in this process
+# because the server runs as a single one, and a restart only forgets them
+_signup_backoff = SendBackoff()
+
+# Addresses whose confirmation email is being rendered or sent. A send can take tens of seconds, so
+# without this every request in that time would start another one
+_sends_under_way: set[str] = set()
+
 
 async def delete_stale_signup_email_sends(db: AsyncSession) -> None:
     """Delete sign-up email records older than the rolling day the send cap counts over
@@ -68,16 +77,17 @@ async def request_signup(
     registered. A registered address has nothing to act on, so no email goes to it. Both paths do the
     same work before answering, the cap record included, and the rendering and the send wait until
     after the answer, since the time they take would otherwise tell a registered address apart. The
-    profile rides inside the link's signed token and no password is chosen yet, so a link sent to
-    someone else's address only ever lets its opener choose their own password. At most the
-    configured number of emails go out per address per rolling day, so an unauthenticated requester
-    cannot drain the operator's mail quota
+    wait after a failed send and the one-send-at-a-time claim are checked after the answer too, and a
+    skipped send releases its cap record. The profile rides inside the link's signed token and no
+    password is chosen yet, so a link sent to someone else's address only ever lets its opener choose
+    their own password. At most the configured number of emails go out per address per rolling day, so
+    an unauthenticated requester cannot drain the operator's mail quota
 
     Args:
         db: Active database session
         data: Sign-up payload with the email and profile
         background_tasks: Runs the send once the response is out
-        session_factory: Opens the session that releases the cap after a failed send
+        session_factory: Opens the session that releases the cap record of a send that is skipped or fails
 
     Raises:
         HTTPException: Registration is closed or the base currency is invalid
@@ -128,21 +138,49 @@ async def _send_confirmation_email(
     send_id: uuid.UUID,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Email the confirmation link after the response, releasing its cap record when the send fails
+    """Email the confirmation link after the response, unless the address is waiting or already being sent to
 
-    A send the server could not make does not count against the address, so a retry still goes out
+    An email that is skipped or fails to send releases its cap record, so mail never sent does not
+    count against the address. A failure makes the address wait before the next send starts
     """
+    digest = seal_signup_email(recipient)
+
+    # Checked here, after the response, so a waiting address answers as fast as any other
+    if digest in _sends_under_way or _signup_backoff.is_waiting(digest):
+        await _delete_send_record(send_id, session_factory)
+        logger.info("A sign-up email was not started because the address is waiting after a failed send or a send is under way")
+        return
+
+    _sends_under_way.add(digest)
+    is_failed = False
     try:
         message = render_signup_confirmation_email(
             f"{APP_URL}{_CONFIRM_PATH}?token={token}",
             SIGNUP_CONFIRMATION_TOKEN_EXPIRE_SECONDS // 3600,
         )
         await get_email_sender().send(recipient, message)
-    except Exception:
-        async with session_factory() as db:
-            await db.execute(delete(SignupEmailSend).where(SignupEmailSend.id == send_id))
-            await db.commit()
-        logger.warning("Sign-up email failed to send", exc_info=True)
+    except Exception as error:
+        # Only the class is logged, since the mail library's error text can quote the address
+        _signup_backoff.record_failed(digest)
+        logger.warning("Sign-up email failed to send: %s", type(error).__name__)
+        is_failed = True
+    else:
+        _signup_backoff.record_succeeded(digest)
+    finally:
+        _sends_under_way.discard(digest)
+
+    # Released outside the handler, so an error from the release does not carry the mail error, and the
+    # address its text can quote, into the server's traceback. The failure is already recorded, so a
+    # release that fails cannot lose it
+    if is_failed:
+        await _delete_send_record(send_id, session_factory)
+
+
+async def _delete_send_record(send_id: uuid.UUID, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    """Delete a cap record in a session of its own, since the request's session has closed"""
+    async with session_factory() as db:
+        await db.execute(delete(SignupEmailSend).where(SignupEmailSend.id == send_id))
+        await db.commit()
 
 
 async def confirm_signup(db: AsyncSession, confirmation_token: str, password: str) -> User:

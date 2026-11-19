@@ -1,17 +1,20 @@
 """Limits on password reset sends while the mail server fails or hangs"""
 
 import asyncio
+import logging
+import traceback
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import aiosmtplib
 import pytest
 from fastapi import BackgroundTasks
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import PasswordResetToken
-from app.services.auth import password_reset, reset_send_limit
+from app.services.auth import password_reset, reset_send_limit, send_backoff
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, sign_up_confirmed
 
@@ -98,7 +101,7 @@ async def test_requests_refused_while_an_account_waits_do_not_use_up_its_daily_a
         await client.post(_FORGOT, json={"email": emails[0]})
     assert len(attempts) == 1
 
-    reset_clock(reset_send_limit.FIRST_FAILURE_WAIT_SECONDS)
+    reset_clock(send_backoff.FIRST_FAILURE_WAIT_SECONDS)
     await client.post(_FORGOT, json={"email": emails[0]})
     assert len(attempts) == 2
 
@@ -111,7 +114,7 @@ def test_the_wait_after_failures_stops_growing_at_the_ceiling(reset_clock, failu
     """The wait doubles from a minute and never passes the ceiling"""
     user_id = uuid.uuid4()
     for _ in range(failures):
-        reset_send_limit.record_send_failed(user_id)
+        reset_send_limit.reset_backoff.record_failed(user_id)
 
     reset_clock(wait - 1)
     assert reset_send_limit.try_start_send(user_id) is None
@@ -123,13 +126,12 @@ def test_the_failures_of_a_quiet_account_are_forgotten(reset_clock):
     """After a stretch as long as the longest wait with no failure, the next failure waits a minute again"""
     user_id = uuid.uuid4()
     for _ in range(3):
-        reset_send_limit.record_send_failed(user_id)
-    reset_clock(4 * reset_send_limit.FIRST_FAILURE_WAIT_SECONDS + reset_send_limit.MAX_FAILURE_WAIT_SECONDS)
-    reset_send_limit.end_send(reset_send_limit.try_start_send(user_id))
+        reset_send_limit.reset_backoff.record_failed(user_id)
+    reset_clock(4 * send_backoff.FIRST_FAILURE_WAIT_SECONDS + send_backoff.MAX_FAILURE_WAIT_SECONDS)
 
-    reset_send_limit.record_send_failed(user_id)
+    reset_send_limit.reset_backoff.record_failed(user_id)
 
-    reset_clock(reset_send_limit.FIRST_FAILURE_WAIT_SECONDS)
+    reset_clock(send_backoff.FIRST_FAILURE_WAIT_SECONDS)
     assert reset_send_limit.try_start_send(user_id) is not None
 
 
@@ -178,7 +180,7 @@ async def test_a_failure_is_recorded_before_its_token_is_dropped(client, monkeyp
         await client.post(_FORGOT, json={"email": emails[0]})
 
     # The link is still stored, so only the recorded wait holds the account back
-    reset_clock(reset_send_limit.FIRST_FAILURE_WAIT_SECONDS - 1)
+    reset_clock(send_backoff.FIRST_FAILURE_WAIT_SECONDS - 1)
     assert reset_send_limit.try_start_send(user_ids[0]) is None
     reset_clock(1)
     assert reset_send_limit.try_start_send(user_ids[0]) is not None
@@ -353,7 +355,7 @@ async def test_an_email_that_cannot_be_rendered_is_answered_and_leaves_no_link(c
     assert response.status_code == 204
     assert sent == []
     assert await _token_count(user_ids[0]) == 0
-    assert user_ids[0] in reset_send_limit._backoffs
+    assert reset_send_limit.reset_backoff.is_waiting(user_ids[0])
 
 
 async def test_a_send_that_waited_past_its_links_life_is_dropped_without_a_failure(client, monkeypatch):
@@ -572,3 +574,39 @@ async def test_a_request_cut_off_after_its_link_commits_leaves_no_live_link(clie
 
     assert await _token_count(user_ids[0]) == 0
     assert reset_send_limit.try_start_send(user_ids[0]) is not None
+
+
+async def test_a_refused_recipient_is_logged_by_error_class_and_never_by_address(client, caplog, monkeypatch):
+    """The mail library's error text quotes the address, so the warning names only the class"""
+    emails, _user_ids = await _create_users(client, 1)
+    error = aiosmtplib.SMTPRecipientsRefused([aiosmtplib.SMTPRecipientRefused(550, "Mailbox unavailable", emails[0])])
+    assert emails[0] in str(error), "the error carries the address, so only the log decides whether it leaks"
+
+    async def refuse(*_args):
+        raise error
+
+    _use_mailer(monkeypatch, refuse)
+    with caplog.at_level(logging.INFO):
+        await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert "SMTPRecipientsRefused" in caplog.text
+    assert emails[0] not in caplog.text
+
+
+async def test_a_refused_recipient_stays_out_of_the_traceback_when_dropping_its_token_also_fails(client, caplog, monkeypatch):
+    """The server logs an error escaping a background task with its whole chain, so the mail error must not ride along"""
+    emails, _user_ids = await _create_users(client, 1)
+
+    async def refuse(*_args):
+        raise aiosmtplib.SMTPRecipientsRefused([aiosmtplib.SMTPRecipientRefused(550, "Mailbox unavailable", emails[0])])
+
+    async def broken_drop(_token_id, _session_factory):
+        raise RuntimeError("database is down")
+
+    _use_mailer(monkeypatch, refuse)
+    monkeypatch.setattr(password_reset, "_drop_token_by_id", broken_drop)
+    with caplog.at_level(logging.INFO), pytest.raises(RuntimeError, match="database is down") as raised:
+        await client.post(_FORGOT, json={"email": emails[0]})
+
+    assert emails[0] not in "".join(traceback.format_exception(raised.value))
+    assert "SMTPRecipientsRefused" in caplog.text, "the warning is logged before the drop fails"
