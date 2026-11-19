@@ -1,8 +1,90 @@
+/**
+ * Tests reading an imported amount under the format the user picked, where a cell read under the
+ * wrong rules brings a different figure into the ledger
+ *
+ * The examples pin the odd cells banks write, such as currency text, debit markers and lookalike
+ * minus signs. The properties add every supported format with and without grouping, each space
+ * character and each sign, over amounts of any length, and check each amount reads back as its own
+ * digits
+ */
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { isBareImportAmount, readImportAmount, type ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
+import {
+  IMPORT_AMOUNT_FORMATS,
+  isBareImportAmount,
+  readImportAmount,
+  type ImportAmountFormat,
+} from '@/pages/imports/utils/amountFormats'
 
 const DECIMAL_COMMA: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: '.' }
 const DECIMAL_POINT: ImportAmountFormat = { decimalSeparator: '.', groupingSeparator: ',' }
+
+// The ordinary, non-breaking and narrow non-breaking spaces a space-grouped amount may use
+const SPACE_GROUPING_CHARACTERS = [' ', ' ', ' ']
+
+// Each sign an amount may open with, and the sign and classification its reading keeps
+const SIGNS = [
+  { written: '', read: '', sign: 'unsigned' },
+  { written: '-', read: '-', sign: 'negative' },
+  { written: '+', read: '+', sign: 'positive' },
+  { written: '−', read: '-', sign: 'negative' },
+] as const
+
+/**
+ * Splits whole digits into groups of three from the right, joined by the separator
+ */
+function groupDigits(digits: string, separator: string): string {
+  const groups: string[] = []
+  for (let end = digits.length; end > 0; end -= 3) groups.unshift(digits.slice(Math.max(0, end - 3), end))
+
+  return groups.join(separator)
+}
+
+/**
+ * Writes an amount the way a file under one supported format would, with the reading it should give
+ */
+const writtenAmounts = fc
+  .record({
+    format: fc.constantFrom(...IMPORT_AMOUNT_FORMATS),
+    whole: fc.stringMatching(/^\d{1,20}$/),
+    fraction: fc.option(fc.stringMatching(/^\d{1,4}$/), { nil: undefined }),
+    isGrouped: fc.boolean(),
+    space: fc.constantFrom(...SPACE_GROUPING_CHARACTERS),
+    sign: fc.constantFrom(...SIGNS),
+  })
+  .map(({ format, whole, fraction, isGrouped, space, sign }) => {
+    const separator = format.groupingSeparator === 'space' ? space : format.groupingSeparator
+    const writtenWhole = isGrouped && format.groupingSeparator !== 'none' ? groupDigits(whole, separator) : whole
+    const writtenFraction = fraction === undefined ? '' : `${format.decimalSeparator}${fraction}`
+
+    return {
+      format,
+      written: `${sign.written}${writtenWhole}${writtenFraction}`,
+      reading: {
+        normalized: `${sign.read}${whole}${fraction === undefined ? '' : `.${fraction}`}`,
+        sign: sign.sign,
+        isZero: /^0+$/.test(`${whole}${fraction ?? ''}`),
+      },
+    }
+  })
+
+describe('reading any amount written in a supported format', () => {
+  it('reads it back as its own digits, sign and zero', () => {
+    fc.assert(
+      fc.property(writtenAmounts, ({ format, written, reading }) => {
+        expect(readImportAmount(written, format)).toEqual(reading)
+      }),
+    )
+  })
+
+  it('counts it as a bare amount before any format is chosen', () => {
+    fc.assert(
+      fc.property(writtenAmounts, ({ written }) => {
+        expect(isBareImportAmount(written)).toBe(true)
+      }),
+    )
+  })
+})
 
 describe('reading an amount in a selected format', () => {
   it('discards surrounding text without consulting a currency list', () => {
