@@ -1,4 +1,5 @@
 """Account snapshot route handlers"""
+
 import uuid
 from datetime import date, timedelta
 from typing import Annotated, Literal

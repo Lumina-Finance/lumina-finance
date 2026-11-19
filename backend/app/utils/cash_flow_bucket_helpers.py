@@ -1,4 +1,5 @@
 """Cash-flow bucket helpers"""
+
 from collections.abc import Mapping
 from datetime import date, timedelta
 from typing import Literal
