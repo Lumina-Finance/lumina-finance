@@ -1,9 +1,15 @@
-"""Stored timezone resolution tests"""
+"""Date helper tests: stored timezone resolution, and the law the recent month starts keep"""
+
+from datetime import datetime
+from itertools import pairwise
 
 import pytest
 from fastapi import HTTPException, status
+from hypothesis import given
+from hypothesis import strategies as st
 
-from app.utils.dates import ACCOUNT_OWNER_PROFILE, resolve_timezone
+from app.services.accounts.cash_flow import _get_recent_month_start_dates
+from app.utils.dates import ACCOUNT_OWNER_PROFILE, get_recent_month_start_dates, resolve_timezone
 
 # An identifier no release of the IANA database carries, standing in for one that stopped
 # resolving after the zone database moved underneath a row already written
@@ -50,3 +56,29 @@ def test_a_path_shaped_identifier_is_refused(identifier):
         resolve_timezone(identifier)
 
     assert raised.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+# The shared helper and the copy the cash flow service keeps of it answer to the same law
+_RECENT_MONTH_STARTS_IMPLEMENTATIONS = [
+    pytest.param(get_recent_month_start_dates, id="shared"),
+    pytest.param(_get_recent_month_start_dates, id="cash-flow-copy"),
+]
+
+
+@pytest.mark.parametrize("recent_month_starts", _RECENT_MONTH_STARTS_IMPLEMENTATIONS)
+@given(
+    reference=st.datetimes(min_value=datetime(1900, 1, 1), max_value=datetime(2100, 12, 31, 23, 59)),
+    count=st.integers(min_value=-2, max_value=60),
+)
+def test_recent_month_starts_count_months_oldest_first_and_end_in_the_reference_month(recent_month_starts, reference, count):
+    """The requested number of first-of-month dates comes back, oldest first, the last in the reference month
+
+    Each is the month after the one before it, so a run crosses year ends without a gap
+    """
+    month_starts = recent_month_starts(reference, count)
+
+    assert len(month_starts) == max(count, 0)
+    assert all(month_start.day == 1 for month_start in month_starts)
+    assert all((later.year * 12 + later.month) - (earlier.year * 12 + earlier.month) == 1 for earlier, later in pairwise(month_starts))
+    if month_starts:
+        assert (month_starts[-1].year, month_starts[-1].month) == (reference.year, reference.month)
