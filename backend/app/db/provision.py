@@ -38,17 +38,17 @@ async def ensure_roles() -> None:
         async with engine.connect() as conn:
             for role_key, role_name in _MANAGED_ROLES:
                 password = resolve_role_password(role_key, generate=True)
-                await conn.execute(text(
-                    f"DO $$ BEGIN "
-                    f"IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{role_name}') THEN "
-                    f'CREATE ROLE "{role_name}" WITH {_ROLE_ATTRIBUTES}; '
-                    f"END IF; END $$"
-                ))
+                await conn.execute(
+                    text(
+                        f"DO $$ BEGIN "
+                        f"IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{role_name}') THEN "
+                        f'CREATE ROLE "{role_name}" WITH {_ROLE_ATTRIBUTES}; '
+                        f"END IF; END $$"
+                    )
+                )
                 # Sent to the driver untouched, since text() would read a colon in the password
                 # as a bind parameter
-                await conn.exec_driver_sql(
-                    f'ALTER ROLE "{role_name}" WITH {_ROLE_ATTRIBUTES} PASSWORD {_quote_literal(password)}'
-                )
+                await conn.exec_driver_sql(f'ALTER ROLE "{role_name}" WITH {_ROLE_ATTRIBUTES} PASSWORD {_quote_literal(password)}')
 
             # The migrator owns and builds the schema, the app role only connects
             # and reads it, its table privileges arrive later with the RLS policies
@@ -70,35 +70,41 @@ async def transfer_schema_ownership() -> None:
     try:
         async with engine.connect() as conn:
             # Only the fixed migrator role name is interpolated, so this is safe
-            await conn.execute(text(
-                "DO $$ DECLARE object_name text; BEGIN "  # noqa: S608
-                "FOR object_name IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP "
-                f"EXECUTE format('ALTER TABLE public.%I OWNER TO %I', object_name, '{MIGRATOR_DB_USER}'); "
-                "END LOOP; "
-                "FOR object_name IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' LOOP "
-                f"EXECUTE format('ALTER SEQUENCE public.%I OWNER TO %I', object_name, '{MIGRATOR_DB_USER}'); "
-                "END LOOP; END $$"
-            ))
+            await conn.execute(
+                text(
+                    "DO $$ DECLARE object_name text; BEGIN "  # noqa: S608
+                    "FOR object_name IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP "
+                    f"EXECUTE format('ALTER TABLE public.%I OWNER TO %I', object_name, '{MIGRATOR_DB_USER}'); "
+                    "END LOOP; "
+                    "FOR object_name IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' LOOP "
+                    f"EXECUTE format('ALTER SEQUENCE public.%I OWNER TO %I', object_name, '{MIGRATOR_DB_USER}'); "
+                    "END LOOP; END $$"
+                )
+            )
 
             # Functions are reassigned by full signature so overloaded names stay distinct
-            await conn.execute(text(
-                "DO $$ DECLARE function_signature text; BEGIN "  # noqa: S608
-                "FOR function_signature IN "
-                "SELECT p.oid::regprocedure::text FROM pg_proc p "
-                "JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' LOOP "
-                f"EXECUTE format('ALTER FUNCTION %s OWNER TO %I', function_signature, '{MIGRATOR_DB_USER}'); "
-                "END LOOP; END $$"
-            ))
+            await conn.execute(
+                text(
+                    "DO $$ DECLARE function_signature text; BEGIN "  # noqa: S608
+                    "FOR function_signature IN "
+                    "SELECT p.oid::regprocedure::text FROM pg_proc p "
+                    "JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' LOOP "
+                    f"EXECUTE format('ALTER FUNCTION %s OWNER TO %I', function_signature, '{MIGRATOR_DB_USER}'); "
+                    "END LOOP; END $$"
+                )
+            )
 
             # Enum types are reassigned so the migrator can alter them, such as adding an enum value
-            await conn.execute(text(
-                "DO $$ DECLARE type_name text; BEGIN "  # noqa: S608
-                "FOR type_name IN SELECT t.typname FROM pg_type t "
-                "JOIN pg_namespace n ON n.oid = t.typnamespace "
-                "WHERE n.nspname = 'public' AND t.typtype = 'e' LOOP "
-                f"EXECUTE format('ALTER TYPE public.%I OWNER TO %I', type_name, '{MIGRATOR_DB_USER}'); "
-                "END LOOP; END $$"
-            ))
+            await conn.execute(
+                text(
+                    "DO $$ DECLARE type_name text; BEGIN "  # noqa: S608
+                    "FOR type_name IN SELECT t.typname FROM pg_type t "
+                    "JOIN pg_namespace n ON n.oid = t.typnamespace "
+                    "WHERE n.nspname = 'public' AND t.typtype = 'e' LOOP "
+                    f"EXECUTE format('ALTER TYPE public.%I OWNER TO %I', type_name, '{MIGRATOR_DB_USER}'); "
+                    "END LOOP; END $$"
+                )
+            )
     finally:
         await engine.dispose()
 
