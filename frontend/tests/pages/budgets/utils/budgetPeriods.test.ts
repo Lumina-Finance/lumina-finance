@@ -1,8 +1,9 @@
 /**
  * Tests budget period helpers so recurrence anchors, card previews, and automatic backfill stay aligned with backend period rules
  */
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import type { BaseBudget, Budget } from '@/api/budgets'
+import type { BaseBudget, Budget, RecurrenceFreq } from '@/api/budgets'
 import type { BudgetFormState } from '@/pages/budgets/types'
 import {
   budgetCadenceLabel,
@@ -13,6 +14,16 @@ import {
   oneOffPeriodEnd,
   recurrenceAnchorsFromStart,
 } from '@/pages/budgets/utils/budgetPeriods'
+import { formatYmd } from '@/utils/date'
+import {
+  calendarDays,
+  getDaysInUtcMonth,
+  lateMonthDays,
+  leapDays,
+  shiftCalendarDays,
+  toYmd,
+  type CalendarDay,
+} from '@tests/utils/generators'
 
 /**
  * Creates a recurring monthly base budget fixture
@@ -70,6 +81,82 @@ function createForm(overrides: Partial<BudgetFormState> = {}): BudgetFormState {
   }
 }
 
+/**
+ * Returns a series' start in a month: its anchor day, or the month's last day when the month is
+ * shorter. A month past December falls in a later year
+ */
+function getAnchorDay(year: number, month: number, dom: number): CalendarDay {
+  const monthCount = year * 12 + month - 1
+  const anchorYear = Math.floor(monthCount / 12)
+  const anchorMonth = (monthCount % 12) + 1
+
+  return { year: anchorYear, month: anchorMonth, day: Math.min(dom, getDaysInUtcMonth(anchorYear, anchorMonth)) }
+}
+
+/**
+ * Returns how a series steps from one start to the next, written out as the backend's period end and
+ * start check have it, so a start this gives is one the backend accepts
+ */
+function getNextStartRule(freq: RecurrenceFreq, length: number, dom: number, month: number) {
+  return (start: CalendarDay): CalendarDay => {
+    if (freq === 'weekly') return shiftCalendarDays(start, 7 * length)
+    if (freq === 'monthly') return getAnchorDay(start.year, start.month + length, dom)
+    return getAnchorDay(start.year + length, month, dom)
+  }
+}
+
+// Days a month-stepping rule treats differently: any day, the last days of a month and 29 February
+const startDays = fc.oneof(calendarDays, lateMonthDays, leapDays)
+
+/**
+ * Draws a recurring base budget with its latest start, landed on its anchor
+ */
+const recurringSeries = fc
+  .record({
+    freq: fc.constantFrom<RecurrenceFreq>('weekly', 'monthly', 'yearly'),
+    firstDay: startDays,
+    // Any anchor day, with the days a short month clamps drawn half the time
+    dom: fc.oneof(fc.integer({ min: 1, max: 31 }), fc.integer({ min: 28, max: 31 })),
+    length: fc.integer({ min: 1, max: 36 }),
+  })
+  .map(({ freq, firstDay, dom, length }) => {
+    const isWeekly = freq === 'weekly'
+    const latestStart = isWeekly ? firstDay : getAnchorDay(firstDay.year, firstDay.month, dom)
+    const baseBudget = createBaseBudget({
+      recurrence_freq: freq,
+      instance_length: length,
+      // Monday counts as 0, as the backend stores it
+      recurrence_weekday: isWeekly
+        ? (new Date(Date.UTC(firstDay.year, firstDay.month - 1, firstDay.day)).getUTCDay() + 6) % 7
+        : null,
+      recurrence_dom: isWeekly ? null : dom,
+      recurrence_month: freq === 'yearly' ? firstDay.month : null,
+    })
+
+    return { baseBudget, latestStart, nextStart: getNextStartRule(freq, length, dom, firstDay.month) }
+  })
+
+/**
+ * Draws a series with the day the backfill runs: any day from a month before its latest start to
+ * past several periods, or the day a start falls due, or the day before or after it, since the
+ * backfill's cut-off turns on a start due today
+ */
+const seriesWithToday = recurringSeries.chain((series) => {
+  const anyDay = fc
+    .integer({ min: -31, max: 4000 })
+    .map((offsetDays) => shiftCalendarDays(series.latestStart, offsetDays))
+  const nearDueStart = fc
+    .tuple(fc.integer({ min: 1, max: 6 }), fc.integer({ min: -1, max: 1 }))
+    .map(([periods, nudgeDays]) => {
+      let start = series.latestStart
+      for (let index = 0; index < periods; index += 1) start = series.nextStart(start)
+
+      return shiftCalendarDays(start, nudgeDays)
+    })
+
+  return fc.oneof(anyDay, nearDueStart).map((today) => ({ ...series, today: toYmd(today) }))
+})
+
 describe('budget period helpers', () => {
   it('converts period starts into backend recurrence anchors', () => {
     expect(recurrenceAnchorsFromStart('weekly', '2026-06-15')).toEqual({
@@ -98,7 +185,6 @@ describe('budget period helpers', () => {
   })
 
   it('summarizes one-off and recurring form cadence', () => {
-    expect(oneOffPeriodEnd(createForm({ recurs: false, recurrenceFreq: 'monthly' }))).toEqual(new Date(2026, 5, 30))
     expect(cadenceSummary(createForm({ name: '  ', recurs: false }))).toBe(
       '"Untitled" is one-off starting Jun 1, 2026 and ending Jun 30, 2026',
     )
@@ -122,11 +208,48 @@ describe('budget period helpers', () => {
     expect(nextBudgetPeriods(baseBudget, latestPeriod)).toEqual([])
   })
 
-  it('lists every elapsed recurring period start that needs backfill', () => {
-    const baseBudget = createBaseBudget()
-    const latestPeriod = createBudget(baseBudget)
+  it('lists a monthly series anchored on the 31st through February and stops before a start after today', () => {
+    const baseBudget = createBaseBudget({ recurrence_dom: 31 })
+    const latestPeriod = createBudget(baseBudget, { period_start: '2025-12-31' })
 
-    expect(missingRecurringPeriodStarts(baseBudget, latestPeriod, '2026-08-15')).toEqual(['2026-07-01', '2026-08-01'])
+    expect(missingRecurringPeriodStarts(baseBudget, latestPeriod, '2026-03-30')).toEqual(['2026-01-31', '2026-02-28'])
+  })
+
+  it('lists missing starts one cadence apart in strictly increasing order, none after today and none left out', () => {
+    fc.assert(
+      fc.property(seriesWithToday, (series) => {
+        const { today } = series
+        const latestPeriod = createBudget(series.baseBudget, { period_start: toYmd(series.latestStart) })
+
+        const starts = missingRecurringPeriodStarts(series.baseBudget, latestPeriod, today)
+
+        let previous = toYmd(series.latestStart)
+        let expected = series.nextStart(series.latestStart)
+        for (const start of starts) {
+          expect(start > previous, `${start} follows ${previous}`).toBe(true)
+          expect(start <= today, `${start} is not after ${today}`).toBe(true)
+          expect(start).toBe(toYmd(expected))
+          expect(nextRecurringPeriodStart(series.baseBudget, previous)).toBe(start)
+          previous = start
+          expected = series.nextStart(expected)
+        }
+        expect(toYmd(expected) > today, `the next start ${toYmd(expected)} is after ${today}`).toBe(true)
+      }),
+    )
+  })
+
+  it('ends a one-off period the day before the start one cadence later, as the backend does', () => {
+    fc.assert(
+      fc.property(startDays, fc.constantFrom<RecurrenceFreq>('weekly', 'monthly', 'yearly'), (start, freq) => {
+        const form = createForm({ recurs: false, recurrenceFreq: freq, periodStart: toYmd(start) })
+        // A one-off period is sent with anchors taken from its own start
+        const nextStart = getNextStartRule(freq, 1, start.day, start.month)(start)
+
+        const end = oneOffPeriodEnd(form)
+
+        expect(end && formatYmd(end)).toBe(toYmd(shiftCalendarDays(nextStart, -1)))
+      }),
+    )
   })
 
   it('backfills nothing from a stored start the calendar does not have', () => {
@@ -152,13 +275,6 @@ describe('budget period helpers', () => {
       '"Groceries" will repeat monthly starting 2026-02-31',
     )
     expect(oneOffPeriodEnd(createForm({ recurs: false, periodStart: '2026-02-31' }))).toBeNull()
-  })
-
-  it('advances a monthly period start by exactly one recurrence cycle', () => {
-    const baseBudget = createBaseBudget()
-
-    expect(nextRecurringPeriodStart(baseBudget, '2026-01-01')).toBe('2026-02-01')
-    expect(nextRecurringPeriodStart(createBaseBudget({ instance_length: 2 }), '2026-01-01')).toBe('2026-03-01')
   })
 
   it('re-anchors to recurrence_dom across short months for a dom-31 monthly budget', () => {
