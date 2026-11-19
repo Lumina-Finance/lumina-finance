@@ -93,8 +93,8 @@ async def write_imported_transactions(
     first_import_date_by_account_id: dict[uuid.UUID, date] = {}
     stamped_merchants = get_stamped_merchants(import_lookups.merchants)
 
-    # Everything the import introduces is created before the rows are walked, so each of them costs
-    # one insert for the whole import rather than one per row that first mentions it. A failure
+    # Everything the import introduces is created before the rows are walked, a batch of new merchants
+    # or tags to an insert rather than one insert per row that first mentions it. A failure
     # further down takes the whole commit with it, so nothing survives having been created here
     await create_missing_import_merchants(
         db,

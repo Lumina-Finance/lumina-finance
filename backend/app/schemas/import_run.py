@@ -16,8 +16,8 @@ from app.utils.date_window import WindowDate
 # run is refused past it here as well, since the reader runs in the browser
 MAX_IMPORT_ROWS = 100_000
 
-# One batch becomes a single insert carrying five bind parameters per row, and a statement may
-# carry 65535 of them, so a batch past about 13000 rows fails inside the driver rather than being
+# One batch becomes a single insert carrying five bind parameters per row, and the driver refuses a
+# statement past 32,767 of them, so a batch past 6,553 rows fails inside the driver rather than being
 # refused. The browser closes a batch on its byte budget long before this, at roughly 4000 rows.
 # The journal import reuses the figure, where a row carries more fields and a batch of them
 # reaches roughly 2000 rows against the same byte budget
