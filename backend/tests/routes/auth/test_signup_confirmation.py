@@ -414,15 +414,20 @@ async def test_a_send_record_older_than_a_day_no_longer_counts(client):
     """The cap is per rolling day, so an address that used it up yesterday can be emailed again"""
     await _seed_currency()
     old = datetime.now(UTC) - timedelta(hours=25)
+    other_hash = seal_signup_email("other-address@example.com")
     async with TestSession() as session:
         session.add_all(
             SignupEmailSend(email_hash=seal_signup_email(_PROFILE["email"]), created_at=old) for _ in range(SIGNUP_DAILY_EMAIL_LIMIT)
         )
+        session.add(SignupEmailSend(email_hash=other_hash, created_at=old))
         await session.commit()
 
     await client.post("/auth/signup", json=_PROFILE)
 
+    async with TestSession() as session:
+        stale = list(await session.scalars(select(SignupEmailSend.email_hash).where(SignupEmailSend.created_at == old)))
     assert len(mailbox.sent_to(_PROFILE["email"])) == 1
+    assert stale == [other_hash], "the address's old records are pruned, and another address's is left for the schedule"
 
 
 async def test_the_cap_stores_only_a_keyed_hash_of_the_address(client):

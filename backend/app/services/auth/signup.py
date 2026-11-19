@@ -65,6 +65,24 @@ async def delete_stale_signup_email_sends(db: AsyncSession) -> None:
     await db.execute(delete(SignupEmailSend).where(SignupEmailSend.created_at < datetime.now(UTC) - _SEND_LOG_RETENTION))
 
 
+async def delete_address_stale_signup_email_sends(db: AsyncSession, email_hash: str) -> None:
+    """Delete one address's sign-up email records older than the rolling day the send cap counts over
+
+    A sign-up prunes only its own address's records, since those are the ones its cap counts, so no
+    request reads another address's records. The scheduled cleanup prunes the rest
+
+    Args:
+        db: Active database session
+        email_hash: Keyed hash of the address the cap counts
+    """
+    await db.execute(
+        delete(SignupEmailSend).where(
+            SignupEmailSend.email_hash == email_hash,
+            SignupEmailSend.created_at < datetime.now(UTC) - _SEND_LOG_RETENTION,
+        )
+    )
+
+
 async def request_signup(
     db: AsyncSession,
     data: SignupRequest,
@@ -115,7 +133,7 @@ async def _reserve_send(db: AsyncSession, email: str) -> uuid.UUID | None:
         The record's id, or None when the cap is reached and nothing is due
     """
     digest = seal_signup_email(email)
-    await delete_stale_signup_email_sends(db)
+    await delete_address_stale_signup_email_sends(db, digest)
 
     # Hold this address's allowance until the new record commits, including when none exist yet
     lock_digest = hashlib.blake2b(_SEND_LOCK_NAMESPACE + digest.encode(), digest_size=8).digest()
