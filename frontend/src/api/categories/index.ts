@@ -5,7 +5,7 @@ export type {
   MergeCategoryRequest,
   UpdateCategoryPayload,
   UpdateCategoryRequest,
-} from '@/api/categories/types';
+} from '@/api/categories/types'
 
 export {
   createCategory,
@@ -13,7 +13,7 @@ export {
   fetchCategories,
   mergeCategory,
   updateCategory,
-} from '@/api/categories/requests';
+} from '@/api/categories/requests'
 
 export {
   useCategories,
@@ -22,4 +22,4 @@ export {
   useForgetCategory,
   useMergeCategory,
   useUpdateCategory,
-} from '@/api/categories/hooks';
+} from '@/api/categories/hooks'
