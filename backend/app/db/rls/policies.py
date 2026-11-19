@@ -17,6 +17,7 @@ from app.db.rls.functions import (
     CAN_ACCESS_BASE_BUDGET,
     CAN_ACCESS_GROUP,
     CURRENT_USER_ID,
+    create_set_helpers,
 )
 
 # Table privileges the app role holds on the data it serves
@@ -228,10 +229,13 @@ def secure_registered_table(connection: Connection, table: str) -> None:
     """Enable row-level security on one already-created table using its registered policy
 
     Incremental migrations that add a secured table call this so the single SECURED_TABLES
-    definition stays the only source of the table's access rule
+    definition stays the only source of the table's access rule. That rule is today's, so it can
+    name a helper newer than the migration. The set helpers are created first for that reason, and a
+    rule naming any other new helper needs it created here too, or upgrading an older database fails
     """
     for name, using_expr, check_expr in SECURED_TABLES:
         if name == table:
+            create_set_helpers(connection)
             _secure_table(connection, name, using_expr, check_expr)
             return
     raise KeyError(f"No registered row-level security policy for table {table!r}")
