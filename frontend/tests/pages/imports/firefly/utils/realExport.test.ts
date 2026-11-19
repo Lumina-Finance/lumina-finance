@@ -194,6 +194,7 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
       currencies: CURRENCIES,
       categoryMappings: options.categoryMappings,
       categoryById: new Map(),
+      todayYmd: '2026-09-26',
     }).filter((draft) => draft.disabledReason === null)
     const runBudgets = buildFireflyRunBudgets(drafts, payload.categories)
     expect(runBudgets.budgets).toEqual(capturedUpload.budgets?.budgets)
@@ -215,6 +216,7 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
       currencies: CURRENCIES,
       categoryMappings: options.categoryMappings,
       categoryById: new Map(),
+      todayYmd: '2026-09-26',
     })
 
     // Limits are compared as numbers, since the export writes twelve decimal places

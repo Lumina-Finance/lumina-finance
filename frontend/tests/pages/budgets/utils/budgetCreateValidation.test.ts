@@ -8,6 +8,9 @@ import type { Currency } from '@/api/currency'
 import type { BudgetFormState } from '@/pages/budgets/types'
 import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
 
+// A fixed today, since the far edge of the window moves with it
+const TODAY = '2026-06-10'
+
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
   { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },
@@ -45,7 +48,7 @@ function createForm(overrides: Partial<BudgetFormState> = {}): BudgetFormState {
 
 describe('create budget validation', () => {
   it('validates create-budget fields before building an API payload', () => {
-    expect(validateBudgetCreateForm(createForm(), currencies, categories)).toEqual({})
+    expect(validateBudgetCreateForm(createForm(), currencies, categories, TODAY)).toEqual({})
     expect(
       validateBudgetCreateForm(
         createForm({
@@ -58,6 +61,7 @@ describe('create budget validation', () => {
         }),
         currencies,
         categories,
+        TODAY,
       ),
     ).toEqual({
       name: 'Name is required',
@@ -67,5 +71,16 @@ describe('create budget validation', () => {
       instanceLength: 'Enter at least 1',
       categoryIds: 'Select at least one category',
     })
+  })
+
+  it('refuses a start outside the window every date must sit in, on the start field', () => {
+    const startError = (periodStart: string) =>
+      validateBudgetCreateForm(createForm({ periodStart }), currencies, categories, TODAY).periodStart
+
+    expect(startError('2024-01-01')).toBeUndefined()
+    expect(startError('1900-01-01')).toBeUndefined()
+    expect(startError('2036-06-10')).toBeUndefined()
+    expect(startError('1850-01-01')).toBe('Must be on or after Jan 1, 1900')
+    expect(startError('2040-01-01')).toBe('Must be within ten years of today')
   })
 })

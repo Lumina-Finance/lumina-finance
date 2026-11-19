@@ -2,6 +2,7 @@ import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { toMinorUnits } from '@/pages/budgets/utils/money'
+import { getDateWindowError } from '@/utils/dateWindow'
 
 /** Shown in Tracked categories whenever no expense category is chosen */
 export const NO_CATEGORY_ERROR = 'Select at least one category'
@@ -13,6 +14,7 @@ export function validateBudgetCreateForm(
   form: BudgetFormState,
   currencies: Currency[],
   expenseCategories: Category[],
+  todayYmd: string,
 ): BudgetFormFieldErrors {
   const errors: BudgetFormFieldErrors = {}
   const instanceLength = Number(form.instanceLength)
@@ -28,6 +30,11 @@ export function validateBudgetCreateForm(
     errors.limit = 'Limit must be greater than zero'
   }
   if (!form.periodStart) errors.periodStart = 'Choose a period start'
+  else {
+    // A start far in the past would make a period for every cadence step since, so it is held to the window every date must sit in
+    const windowError = getDateWindowError(form.periodStart, todayYmd)
+    if (windowError) errors.periodStart = windowError
+  }
   if (form.recurs && (!Number.isInteger(instanceLength) || instanceLength < 1)) {
     errors.instanceLength = 'Enter at least 1'
   }

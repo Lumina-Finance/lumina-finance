@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import sqlalchemy as sa
 
 from app.models.budget import BudgetTrackedCategory
+from app.utils import date_window
 from tests.conftest import TestSession
 from tests.routes.budgets._utilization_helpers import (
     _create_base_budget,
@@ -18,6 +19,7 @@ from tests.routes.budgets._utilization_helpers import (
     _set_tracked_category_timestamps,
 )
 from tests.routes.support import _create_account, _create_user, _get_auth_header
+from tests.routes.support.clock_helpers import PROFILE_LATE_EVENING, freeze_profile_clock
 
 # --- GET /base-budgets/{id}/utilizations — period_end cutoff semantics ---
 
@@ -304,8 +306,11 @@ async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
     assert groceries_entries[0]["spent"] == 5000
 
 
-async def test_get_budget_utilization_future_period_has_no_spend(client):
+async def test_get_budget_utilization_future_period_has_no_spend(client, freeze_now):
     """Transactions in a wholly future budget period do not contribute spend."""
+    # January 2035 is ahead of the frozen day, and inside the ten years ahead dates may be set
+    freeze_profile_clock(freeze_now)
+    freeze_now(date_window, PROFILE_LATE_EVENING)
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
@@ -317,7 +322,7 @@ async def test_get_budget_utilization_future_period_has_no_spend(client):
         client,
         headers,
         category_ids=[groceries, transit],
-        instance_overrides={"period_start": "2099-01-01"},
+        instance_overrides={"period_start": "2035-01-01"},
     )
 
     await _create_transaction(
@@ -325,7 +330,7 @@ async def test_get_budget_utilization_future_period_has_no_spend(client):
         headers,
         account_id,
         groceries,
-        dt="2099-01-10",
+        dt="2035-01-10",
         amount=-4000,
     )
     await _create_transaction(
@@ -333,7 +338,7 @@ async def test_get_budget_utilization_future_period_has_no_spend(client):
         headers,
         account_id,
         transit,
-        dt="2099-01-20",
+        dt="2035-01-20",
         amount=-1500,
     )
 

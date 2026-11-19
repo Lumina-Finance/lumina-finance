@@ -14,6 +14,7 @@ import {
   FIREFLY_BUDGET_NO_TRANSACTIONS_REASON,
   FIREFLY_BUDGET_OVERLAPPING_PERIODS_REASON,
   FIREFLY_BUDGET_PERIOD_ENDS_BEFORE_START_REASON,
+  FIREFLY_BUDGET_DATES_OUTSIDE_WINDOW_REASON,
   FIREFLY_BUDGET_UNREADABLE_DATES_REASON,
   FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
   FIREFLY_TYPE_WITHDRAWAL,
@@ -25,6 +26,7 @@ import {
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 import { parseYmd } from '@/utils/date'
+import { getDateWindowError } from '@/utils/dateWindow'
 import { formatList } from '@/utils/formatList'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
@@ -92,6 +94,11 @@ interface FireflyBudgetDraftContext {
    */
   categoryMappings: Record<string, string>
   categoryById: Map<string, Category>
+
+  /**
+   * Today in the user's own timezone, as YYYY-MM-DD. The last day a limit period may reach is counted from it
+   */
+  todayYmd: string
 }
 
 /**
@@ -346,11 +353,15 @@ interface FireflyLimitEntry {
  * the one the drafts table displays, and ordering the rows a second time to
  * find it would order rows this pass has already refused
  */
-function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
+function buildLimitSchedule(
+  limitRows: FireflyLimitRow[],
+  todayYmd: string,
+): {
   limits: ImportBudgetLimit[]
   currencyCodes: string[]
   latestCurrencyCode: string
   hasUnreadableDates: boolean
+  hasDatesOutsideWindow: boolean
   hasEndBeforeStart: boolean
   hasOverlap: boolean
 } {
@@ -358,6 +369,7 @@ function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
   const entries: FireflyLimitEntry[] = []
   const currencyCodes = new Set<string>()
   let hasUnreadableDates = false
+  let hasDatesOutsideWindow = false
 
   // The currency is recorded before deduplication and is part of the
   // duplicate key, because Firefly III can hold one limit per currency over
@@ -374,6 +386,12 @@ function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
     if (!start || !end) {
       hasUnreadableDates = true
       continue
+    }
+
+    // The server refuses the whole import over a period outside the dates it takes, so the budget is
+    // left out here with its own reason
+    if (getDateWindowError(row.start, todayYmd) || getDateWindowError(row.end, todayYmd)) {
+      hasDatesOutsideWindow = true
     }
 
     currencyCodes.add(row.currencyCode)
@@ -399,6 +417,7 @@ function buildLimitSchedule(limitRows: FireflyLimitRow[]): {
     currencyCodes: [...currencyCodes].sort(),
     latestCurrencyCode: entries[entries.length - 1]?.currencyCode ?? '',
     hasUnreadableDates,
+    hasDatesOutsideWindow,
     hasEndBeforeStart: entries.some((entry) => entry.endTime < entry.startTime),
     hasOverlap,
   }
@@ -415,7 +434,7 @@ function buildBudgetDraft(
   context: FireflyBudgetDraftContext,
 ): FireflyBudgetDraft {
   const categoryNames = [...(usage?.categoryNames ?? [])].sort((a, b) => a.localeCompare(b))
-  const schedule = buildLimitSchedule(budget.limitRows)
+  const schedule = buildLimitSchedule(budget.limitRows, context.todayYmd)
   const { limits, currencyCodes, latestCurrencyCode } = schedule
 
   // The most recent period decides the amount, currency and cadence the drafts table displays,
@@ -428,12 +447,14 @@ function buildBudgetDraft(
     ? FIREFLY_BUDGET_NO_TRANSACTIONS_REASON
     : schedule.hasUnreadableDates
       ? FIREFLY_BUDGET_UNREADABLE_DATES_REASON
-      : !latest
-        ? FIREFLY_BUDGET_NO_LIMITS_REASON
-        : categoryNames.length === 0
-          ? FIREFLY_BUDGET_NO_CATEGORIES_REASON
-          : (getRefusalReason(name, categoryNames, schedule, context) ??
-            (repeatsUnsupported ? FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON : null))
+      : schedule.hasDatesOutsideWindow
+        ? FIREFLY_BUDGET_DATES_OUTSIDE_WINDOW_REASON
+        : !latest
+          ? FIREFLY_BUDGET_NO_LIMITS_REASON
+          : categoryNames.length === 0
+            ? FIREFLY_BUDGET_NO_CATEGORIES_REASON
+            : (getRefusalReason(name, categoryNames, schedule, context) ??
+              (repeatsUnsupported ? FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON : null))
 
   return {
     name,

@@ -18,6 +18,7 @@ import {
   FIREFLY_BUDGET_NO_TRANSACTIONS_REASON,
   FIREFLY_BUDGET_OVERLAPPING_PERIODS_REASON,
   FIREFLY_BUDGET_PERIOD_ENDS_BEFORE_START_REASON,
+  FIREFLY_BUDGET_DATES_OUTSIDE_WINDOW_REASON,
   FIREFLY_BUDGET_UNREADABLE_DATES_REASON,
   FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON,
   getFireflyBudgetGroupCategoryReason,
@@ -38,6 +39,9 @@ const CURRENCIES = [
   { id: 'JPY', minor_unit_exponent: 0 },
 ] as Currency[]
 
+// The day the window is counted from, so no test depends on the day the suite runs
+const TODAY = '2026-09-26'
+
 const MONTHLY_ON_THE_FIRST: ImportBudgetRecurrence = {
   freq: 'monthly',
   instance_length: 1,
@@ -54,7 +58,13 @@ function buildDrafts(
   input: Pick<Parameters<typeof buildFireflyBudgetDrafts>[0], 'budgetsFile' | 'transactionRows'> &
     Partial<Parameters<typeof buildFireflyBudgetDrafts>[0]>,
 ) {
-  return buildFireflyBudgetDrafts({ currencies: CURRENCIES, categoryMappings: {}, categoryById: new Map(), ...input })
+  return buildFireflyBudgetDrafts({
+    currencies: CURRENCIES,
+    categoryMappings: {},
+    categoryById: new Map(),
+    todayYmd: TODAY,
+    ...input,
+  })
 }
 
 /**
@@ -354,6 +364,30 @@ describe('buildFireflyBudgetDrafts', () => {
     })
 
     expect(draft.disabledReason).toBe(FIREFLY_BUDGET_UNREADABLE_DATES_REASON)
+  })
+
+  // The server refuses the whole import over one period outside the dates it takes
+  it.each([
+    ['starts before 1900', { start_date: '1899-12-01', end_date: '1899-12-31' }],
+    ['ends past the last day ten years after today', { start_date: '2036-08-01', end_date: '2036-10-01' }],
+    ['sits in year 9999', { start_date: '9999-01-01', end_date: '9999-01-31' }],
+  ])('disables a budget with a limit period that %s', (_label, dates) => {
+    const budgetsFile = createBudgetsFile([createLimitRow(), createLimitRow(dates)])
+
+    const [draft] = buildDrafts({ budgetsFile, transactionRows: [createTransactionRow()] })
+
+    expect(draft.disabledReason).toBe(FIREFLY_BUDGET_DATES_OUTSIDE_WINDOW_REASON)
+  })
+
+  it('keeps a budget whose limit periods sit on the edges of the window', () => {
+    const budgetsFile = createBudgetsFile([
+      createLimitRow({ start_date: '1900-01-01', end_date: '1900-01-31' }),
+      createLimitRow({ start_date: '2036-08-01', end_date: '2036-09-26' }),
+    ])
+
+    const [draft] = buildDrafts({ budgetsFile, transactionRows: [createTransactionRow()] })
+
+    expect(draft.disabledReason).toBeNull()
   })
 
   // The displayed currency comes off the schedule the export rows were cleaned into, so a row the

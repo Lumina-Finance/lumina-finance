@@ -1,7 +1,7 @@
 """Import run request and response schemas and the caps they enforce, for the CSV, Firefly III and Actual Budget imports"""
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
@@ -548,8 +548,8 @@ class JournalBudgetLimit(BaseModel):
     currency
     """
 
-    start: date
-    end: date
+    start: WindowDate
+    end: WindowDate
     amount: UnsignedDecimalAmount
 
 

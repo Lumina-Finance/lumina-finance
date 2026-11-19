@@ -68,6 +68,13 @@ export const FIREFLY_BUDGET_NO_LIMITS_REASON = 'The export has no limit periods 
 export const FIREFLY_BUDGET_UNREADABLE_DATES_REASON = 'A limit period date in the export is not a real calendar date'
 
 /**
+ * Why a budget with a limit period before 1900 or over ten years ahead is never
+ * imported, since the server refuses the whole import over a date outside them
+ */
+export const FIREFLY_BUDGET_DATES_OUTSIDE_WINDOW_REASON =
+  'A limit period date in the export is before 1900 or more than ten years ahead'
+
+/**
  * Why a budget whose limit history spans currencies is never imported, since a
  * Lumina Finance budget holds exactly one currency
  */

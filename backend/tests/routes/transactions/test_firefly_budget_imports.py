@@ -1190,11 +1190,6 @@ async def test_firefly_budget_import_stores_the_cadence_the_browser_reads(client
             MONTHLY_ON_THE_FIRST,
             id="monthly then May 1 to 20 sent as monthly",
         ),
-        pytest.param(
-            [{"start": "9999-12-01", "end": "9999-12-31", "amount": "100.000000000000"}],
-            MONTHLY_ON_THE_FIRST,
-            id="next period past the last representable date",
-        ),
     ],
 )
 async def test_firefly_budget_import_refuses_a_cadence_the_latest_period_does_not_fit(client, limits, recurrence):
@@ -1313,6 +1308,42 @@ async def test_firefly_budget_import_rejects_period_end_before_start(client):
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "The Groceries budget has a limit period that ends before it starts"
+
+
+@pytest.mark.parametrize(
+    ("field", "limit"),
+    [
+        ("start", {"start": "9999-12-01", "end": "9999-12-31"}),
+        ("start", {"start": "1899-12-01", "end": "1899-12-31"}),
+        ("end", {"start": "2026-01-01", "end": "9999-12-31"}),
+    ],
+)
+async def test_firefly_budget_import_refuses_a_limit_period_outside_the_date_window(client, field, limit):
+    """A limit date before 1900 or far ahead is refused as a 422 whose error names that date"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    groceries_id = await _get_system_category_id(client, headers, "Groceries")
+
+    resp = await _import_budgets(
+        client,
+        headers,
+        {
+            "budgets": [
+                {
+                    "name": "Groceries",
+                    "currency": "CAD",
+                    "category_ids": [groceries_id],
+                    "recurrence": None,
+                    "limits": [{**limit, "amount": "600.000000000000"}],
+                }
+            ],
+        },
+    )
+
+    assert resp.status_code == 422
+    errors = resp.json()["detail"]
+    assert field in {error["loc"][-1] for error in errors}
+    assert all(error["msg"].startswith("Date must be ") for error in errors)
 
 
 @pytest.mark.parametrize("invalid_amount", ["12.345", "92233720368547758.08"])

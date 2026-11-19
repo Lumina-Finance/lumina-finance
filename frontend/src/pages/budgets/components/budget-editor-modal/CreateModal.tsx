@@ -85,7 +85,7 @@ export default function BudgetCreateModal({
   const [form, setForm] = useState<BudgetFormState>(initialForm)
   const [createInProgress, setCreateInProgress] = useState(false)
   const refusal = useRefusedSubmit(
-    validateBudgetCreateForm(form, currencies, expenseCategories),
+    validateBudgetCreateForm(form, currencies, expenseCategories, getTodayYmd(timeZone)),
     BUDGET_FORM_FIELD_ORDER,
     getBudgetControlIds(CREATE_FIELD_IDS),
   )

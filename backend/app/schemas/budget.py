@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.models.base import RecurrenceFreq
 from app.schemas.fx import FxStatus
+from app.utils.date_window import WindowDate
 
 
 def validate_recurrence_anchor_fields(
@@ -62,7 +63,7 @@ class CreateBaseBudgetRequest(BaseModel):
     recurrence_month: int | None = Field(None, ge=1, le=12)
     recurs: bool = False
     category_ids: list[uuid.UUID] = Field(min_length=1)
-    period_start: date | None = None
+    period_start: WindowDate | None = None
     overall_limit: int | None = Field(None, gt=0)
 
     @model_validator(mode="after")
@@ -117,7 +118,7 @@ class CreateBudgetRequest(BaseModel):
     computed from the parent base's cadence settings
     """
 
-    period_start: date
+    period_start: WindowDate
     overall_limit: int = Field(..., gt=0)
 
 

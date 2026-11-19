@@ -39,6 +39,9 @@ export default function BudgetEditorModalCadenceSection({
 }: BudgetEditorModalCadenceSectionProps) {
   const { form } = state
   const { setField, onBlur, onRecursChange } = handlers
+  // A start date the field refuses is left out of the summary, so it never describes a budget that
+  // can't be saved
+  const summaryForm = showError('periodStart') ? { ...form, periodStart: '' } : form
 
   return (
     <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
@@ -168,7 +171,7 @@ export default function BudgetEditorModalCadenceSection({
         </div>
 
         <p className="text-center text-sm leading-tight italic" style={{ color: 'var(--app-text-muted)' }}>
-          {cadenceSummaryText ?? cadenceSummary(form)}
+          {cadenceSummaryText ?? cadenceSummary(summaryForm)}
         </p>
       </div>
     </div>

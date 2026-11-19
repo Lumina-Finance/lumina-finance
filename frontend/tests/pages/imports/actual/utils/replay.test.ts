@@ -45,18 +45,26 @@ interface Replay {
 
 async function buildReplay(): Promise<Replay> {
   const { budget, journal: readJournal, manifest } = await normaliseActualFixture('envelope')
-  const revolvingAccountIds = new Set(readJournal.accounts.filter((account) => ACCOUNT_KIND_BY_TYPE[account.proposedType] === 'revolving').map((account) => account.id))
+  const revolvingAccountIds = new Set(
+    readJournal.accounts
+      .filter((account) => ACCOUNT_KIND_BY_TYPE[account.proposedType] === 'revolving')
+      .map((account) => account.id),
+  )
   const journal = fileActualPaymentsInCategory(applyActualCreditPayments(readJournal, revolvingAccountIds))
-  const drafts = buildActualBudgetDrafts(budget, manifest.asOf.slice(0, 7)).filter((draft) => !draft.disabledReason)
+  const drafts = buildActualBudgetDrafts(budget, manifest.asOf).filter((draft) => !draft.disabledReason)
   const build = buildActualImportPayload(journal, {
     accountMappings: Object.fromEntries(journal.accounts.map((account) => [account.id, CREATE_ACCOUNT_VALUE])),
-    accountCreateDetails: Object.fromEntries(journal.accounts.map((account) => [
-      account.id,
-      { accountType: account.proposedType, currency: 'CAD', institutionId: '' },
-    ])),
+    accountCreateDetails: Object.fromEntries(
+      journal.accounts.map((account) => [
+        account.id,
+        { accountType: account.proposedType, currency: 'CAD', institutionId: '' },
+      ]),
+    ),
     accountById: new Map(),
     categoryMappings: Object.fromEntries(journal.categories.map((source) => [source.id, CREATE_CATEGORY_VALUE])),
-    categoryCreateKinds: Object.fromEntries(journal.categories.map((source) => [source.id, getActualCategoryKind(source)])),
+    categoryCreateKinds: Object.fromEntries(
+      journal.categories.map((source) => [source.id, getActualCategoryKind(source)]),
+    ),
     categoryRenames: {},
     categoryById: new Map(),
     currencies: CURRENCIES,
@@ -71,11 +79,16 @@ async function buildReplay(): Promise<Replay> {
     const category = liveCategories.find((candidate) => candidate.name === categoryName)
     return journal.categories.filter((source) => source.categoryId === category?.id).map((source) => source.id)
   }
-  const expectedMonths = manifest.categoryMonths.filter((month) => month.category && month.category !== 'Starting Balances')
+  const expectedMonths = manifest.categoryMonths.filter(
+    (month) => month.category && month.category !== 'Starting Balances',
+  )
   const budgetMonths = new Map<string, { month: string; budgeted: string }[]>()
   for (const figure of manifest.budgets) {
     if (figure.isIncome || Number(figure.budgeted) <= 0) continue
-    budgetMonths.set(figure.category, [...(budgetMonths.get(figure.category) ?? []), { month: figure.month, budgeted: figure.budgeted }])
+    budgetMonths.set(figure.category, [
+      ...(budgetMonths.get(figure.category) ?? []),
+      { month: figure.month, budgeted: figure.budgeted },
+    ])
   }
 
   return {
@@ -85,8 +98,17 @@ async function buildReplay(): Promise<Replay> {
     expected: {
       asOf: manifest.asOf,
       accounts: manifest.accounts.map(({ name, offBudget, closed, balance }) => ({ name, offBudget, closed, balance })),
-      afterAsOf: manifest.afterAsOf.map((row) => ({ account: row.account, date: row.date, amount: row.amount, sources: getSources(row.category) })),
-      categoryMonths: expectedMonths.map((month) => ({ sources: getSources(month.category), month: month.month, total: month.total })),
+      afterAsOf: manifest.afterAsOf.map((row) => ({
+        account: row.account,
+        date: row.date,
+        amount: row.amount,
+        sources: getSources(row.category),
+      })),
+      categoryMonths: expectedMonths.map((month) => ({
+        sources: getSources(month.category),
+        month: month.month,
+        total: month.total,
+      })),
       budgets: [...budgetMonths].map(([name, months]) => ({
         name,
         hidden: liveCategories.find((category) => category.name === name)?.hidden ?? false,

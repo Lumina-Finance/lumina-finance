@@ -134,6 +134,10 @@ export function getActualCategoryNameTooLongError(label: string) {
 
 export const ACTUAL_BUDGET_NAME_TOO_LONG_REASON = `Its name is over ${IMPORT_BUDGET_NAME_MAX_LENGTH} characters, longer than a budget name can be`
 
+/** Why a category budgeted in a month before 1900, or over ten years ahead, is never imported */
+export const ACTUAL_BUDGET_MONTH_OUTSIDE_WINDOW_REASON =
+  'It is budgeted in a month before 1900 or more than ten years ahead'
+
 export function getActualAmountPrecisionReason(amount: string, currencyCode: string) {
   return `The amount ${amount} has more decimal places than ${currencyCode} holds`
 }

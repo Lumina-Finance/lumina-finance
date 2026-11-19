@@ -7,7 +7,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.bank_review import BulkAddReviewItemsRequest
-from app.schemas.import_run import JournalTransactionRow, TransactionImportStageRow
+from app.schemas.budget import CreateBaseBudgetRequest, CreateBudgetRequest
+from app.schemas.import_run import JournalBudgetLimit, JournalTransactionRow, TransactionImportStageRow
 from app.schemas.transaction import BulkUpdateTransactionsRequest, TransactionEntry, UpdateTransactionRequest
 from app.utils import date_window
 
@@ -67,4 +68,51 @@ def test_date_field_refuses_a_day_outside_the_window_with_the_reason_on_the_fiel
 
     [error] = refusal.value.errors()
     assert error["loc"] == ("dt",)
+    assert error["msg"] == message
+
+
+BUDGET_DATE_FIELDS = [
+    pytest.param(
+        CreateBaseBudgetRequest,
+        {
+            "name": "Groceries",
+            "currency": "CAD",
+            "recurrence_freq": "monthly",
+            "recurrence_dom": 1,
+            "category_ids": [uuid.uuid4()],
+            "overall_limit": 5000,
+        },
+        "period_start",
+        id="create-base-budget",
+    ),
+    pytest.param(CreateBudgetRequest, {"overall_limit": 5000}, "period_start", id="create-budget-period"),
+    pytest.param(JournalBudgetLimit, {"amount": "10.00", "end": date(2026, 1, 31)}, "start", id="journal-limit-start"),
+    pytest.param(JournalBudgetLimit, {"amount": "10.00", "start": date(2026, 1, 1)}, "end", id="journal-limit-end"),
+]
+
+
+@pytest.mark.parametrize(("model", "fields", "field"), BUDGET_DATE_FIELDS)
+@pytest.mark.parametrize("accepted", [date(1900, 1, 1), date(2024, 1, 1), LATEST_ALLOWED])
+def test_budget_date_field_accepts_the_window_and_both_of_its_edges(model, fields, field, accepted):
+    """A budget date from 1 January 1900 to ten years after today is taken as sent"""
+    assert getattr(model(**fields, **{field: accepted}), field) == accepted
+
+
+@pytest.mark.parametrize(("model", "fields", "field"), BUDGET_DATE_FIELDS)
+@pytest.mark.parametrize(
+    ("refused", "message"),
+    [
+        (date(1899, 12, 31), "Date must be on or after 1 January 1900"),
+        (date(1850, 1, 1), "Date must be on or after 1 January 1900"),
+        (date(2036, 6, 11), "Date must be within ten years of today"),
+        (date(2040, 1, 1), "Date must be within ten years of today"),
+    ],
+)
+def test_budget_date_field_refuses_a_day_outside_the_window_with_the_reason_on_the_field(model, fields, field, refused, message):
+    """A budget date past either edge is refused, and the error's location is that date field"""
+    with pytest.raises(ValidationError) as refusal:
+        model(**fields, **{field: refused})
+
+    [error] = refusal.value.errors()
+    assert error["loc"] == (field,)
     assert error["msg"] == message
