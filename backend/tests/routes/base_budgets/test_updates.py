@@ -135,9 +135,11 @@ async def test_create_base_budget_sets_tracked_category_added_at_from_user_timez
     assert resp.status_code == 201
 
     async with TestSession() as session:
-        tracked = (await session.execute(
-            sa.select(BudgetTrackedCategory).where(BudgetTrackedCategory.category_id == cat_id),
-        )).scalar_one()
+        tracked = (
+            await session.execute(
+                sa.select(BudgetTrackedCategory).where(BudgetTrackedCategory.category_id == cat_id),
+            )
+        ).scalar_one()
         assert tracked.added_at.isoformat() == "2025-12-31"
 
 
@@ -149,7 +151,9 @@ async def test_update_base_budget_remove_categories(client):
     cat_keep = await _create_category(client, headers, name="Test Groceries")
     cat_remove = await _create_category(client, headers, name="Test Takeout")
     create_resp = await _create_base_budget(
-        client, headers, category_ids=[cat_keep, cat_remove],
+        client,
+        headers,
+        category_ids=[cat_keep, cat_remove],
     )
     base_budget_id = create_resp.json()["id"]
 
@@ -179,9 +183,13 @@ async def test_update_base_budget_sets_removed_at_from_user_timezone(client, mon
     headers = _get_auth_header(signup_resp)
     cat_keep = await _create_category(client, headers, name="Test Groceries")
     cat_remove = await _create_category(client, headers, name="Test Takeout")
-    base_budget_id = (await _create_base_budget(
-        client, headers, category_ids=[cat_keep, cat_remove],
-    )).json()["id"]
+    base_budget_id = (
+        await _create_base_budget(
+            client,
+            headers,
+            category_ids=[cat_keep, cat_remove],
+        )
+    ).json()["id"]
 
     resp = await client.patch(
         f"/base-budgets/{base_budget_id}",
@@ -191,9 +199,11 @@ async def test_update_base_budget_sets_removed_at_from_user_timezone(client, mon
     assert resp.status_code == 200
 
     async with TestSession() as session:
-        tracked = (await session.execute(
-            sa.select(BudgetTrackedCategory).where(BudgetTrackedCategory.category_id == cat_remove),
-        )).scalar_one()
+        tracked = (
+            await session.execute(
+                sa.select(BudgetTrackedCategory).where(BudgetTrackedCategory.category_id == cat_remove),
+            )
+        ).scalar_one()
         assert tracked.removed_at.isoformat() == "2025-12-31"
 
 
@@ -353,7 +363,10 @@ async def test_update_group_base_budget_with_personal_category_returns_422(clien
     personal_cat_id = await _create_category(client, headers, name="Personal Groceries")
 
     create_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = create_resp.json()["id"]
 
@@ -429,7 +442,8 @@ async def test_update_base_budget_empty_body_returns_200(client):
 
     cat_id = await _create_category(client, headers)
     create_resp = await _create_base_budget(
-        client, headers,
+        client,
+        headers,
         category_ids=[cat_id],
     )
     original = create_resp.json()
@@ -486,7 +500,10 @@ async def test_update_group_base_budget_as_admin(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     create_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = create_resp.json()["id"]
 
@@ -514,7 +531,10 @@ async def test_update_group_base_budget_as_non_admin_without_permission_returns_
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     create_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = create_resp.json()["id"]
 
@@ -542,7 +562,10 @@ async def test_update_group_base_budget_with_write_permission_returns_403(client
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     create_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = create_resp.json()["id"]
 
@@ -576,7 +599,10 @@ async def test_update_group_base_budget_with_read_permission_returns_403(client)
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     create_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = create_resp.json()["id"]
 
@@ -631,34 +657,47 @@ async def test_unarchive_base_budget_resumes_current_period_only(client, monkeyp
 
     # Two prior instances with distinct caps so the carried limit proves resume took the newest
     await _create_budget_instance(
-        client, headers, base_budget_id, period_start="2026-02-01", overall_limit=80000,
+        client,
+        headers,
+        base_budget_id,
+        period_start="2026-02-01",
+        overall_limit=80000,
     )
     await _create_budget_instance(
-        client, headers, base_budget_id, period_start="2026-03-01", overall_limit=100000,
+        client,
+        headers,
+        base_budget_id,
+        period_start="2026-03-01",
+        overall_limit=100000,
     )
 
     await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
     resume_resp = await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": False}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": False},
+        headers=headers,
     )
 
     assert resume_resp.status_code == 200
     assert resume_resp.json()["is_archived"] is False
 
     async with TestSession() as session:
-        instances = (await session.execute(
-            sa.select(Budget)
-            .where(Budget.base_budget_id == uuid.UUID(base_budget_id))
-            .order_by(Budget.period_start),
-        )).scalars().all()
+        instances = (
+            (
+                await session.execute(
+                    sa.select(Budget).where(Budget.base_budget_id == uuid.UUID(base_budget_id)).order_by(Budget.period_start),
+                )
+            )
+            .scalars()
+            .all()
+        )
 
     # The May current period is added at the newest cap while the archived April gap stays unfilled
-    assert [
-        (budget.period_start.isoformat(), budget.period_end.isoformat(), budget.overall_limit)
-        for budget in instances
-    ] == [
+    assert [(budget.period_start.isoformat(), budget.period_end.isoformat(), budget.overall_limit) for budget in instances] == [
         ("2026-02-01", "2026-02-28", 80000),
         ("2026-03-01", "2026-03-31", 100000),
         ("2026-05-01", "2026-05-31", 100000),
@@ -684,23 +723,37 @@ async def test_unarchive_base_budget_with_existing_current_period_is_idempotent(
 
     # The sole instance already covers the current (May) period that resume would target
     instance_resp = await _create_budget_instance(
-        client, headers, base_budget_id, period_start="2026-05-01", overall_limit=100000,
+        client,
+        headers,
+        base_budget_id,
+        period_start="2026-05-01",
+        overall_limit=100000,
     )
     current_period_instance_id = instance_resp.json()["id"]
 
     await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
     resume_resp = await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": False}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": False},
+        headers=headers,
     )
 
     assert resume_resp.status_code == 200
 
     async with TestSession() as session:
-        instances = (await session.execute(
-            sa.select(Budget).where(Budget.base_budget_id == uuid.UUID(base_budget_id)),
-        )).scalars().all()
+        instances = (
+            (
+                await session.execute(
+                    sa.select(Budget).where(Budget.base_budget_id == uuid.UUID(base_budget_id)),
+                )
+            )
+            .scalars()
+            .all()
+        )
 
     assert len(instances) == 1
     assert str(instances[0].id) == current_period_instance_id
@@ -715,19 +768,29 @@ async def test_unarchive_base_budget_without_prior_instances_creates_nothing(cli
     base_budget_id = create_resp.json()["id"]
 
     await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
     resume_resp = await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": False}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": False},
+        headers=headers,
     )
 
     assert resume_resp.status_code == 200
     assert resume_resp.json()["is_archived"] is False
 
     async with TestSession() as session:
-        instances = (await session.execute(
-            sa.select(Budget).where(Budget.base_budget_id == uuid.UUID(base_budget_id)),
-        )).scalars().all()
+        instances = (
+            (
+                await session.execute(
+                    sa.select(Budget).where(Budget.base_budget_id == uuid.UUID(base_budget_id)),
+                )
+            )
+            .scalars()
+            .all()
+        )
 
     assert instances == []
 
@@ -757,33 +820,46 @@ async def test_unarchive_multi_unit_base_budget_resumes_phase_aligned_period(cli
 
     # Two contiguous quarters with distinct caps so the carried cap proves it took the newest
     await _create_budget_instance(
-        client, headers, base_budget_id, period_start="2026-01-01", overall_limit=80000,
+        client,
+        headers,
+        base_budget_id,
+        period_start="2026-01-01",
+        overall_limit=80000,
     )
     await _create_budget_instance(
-        client, headers, base_budget_id, period_start="2026-04-01", overall_limit=120000,
+        client,
+        headers,
+        base_budget_id,
+        period_start="2026-04-01",
+        overall_limit=120000,
     )
 
     await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
     resume_resp = await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": False}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": False},
+        headers=headers,
     )
 
     assert resume_resp.status_code == 200
 
     async with TestSession() as session:
-        instances = (await session.execute(
-            sa.select(Budget)
-            .where(Budget.base_budget_id == uuid.UUID(base_budget_id))
-            .order_by(Budget.period_start),
-        )).scalars().all()
+        instances = (
+            (
+                await session.execute(
+                    sa.select(Budget).where(Budget.base_budget_id == uuid.UUID(base_budget_id)).order_by(Budget.period_start),
+                )
+            )
+            .scalars()
+            .all()
+        )
 
     # Exactly one Q4 instance is added at the newest cap while the intermediate Q3 gap stays unfilled
-    assert [
-        (budget.period_start.isoformat(), budget.period_end.isoformat(), budget.overall_limit)
-        for budget in instances
-    ] == [
+    assert [(budget.period_start.isoformat(), budget.period_end.isoformat(), budget.overall_limit) for budget in instances] == [
         ("2026-01-01", "2026-03-31", 80000),
         ("2026-04-01", "2026-06-30", 120000),
         ("2026-10-01", "2026-12-31", 120000),
@@ -792,10 +868,7 @@ async def test_unarchive_multi_unit_base_budget_resumes_phase_aligned_period(cli
     # The resumed start advances the newest phase origin by a whole multiple of the three-month cadence
     newest_period_start = date(2026, 4, 1)
     resumed = instances[-1]
-    months_advanced = (
-        (resumed.period_start.year - newest_period_start.year) * 12
-        + resumed.period_start.month - newest_period_start.month
-    )
+    months_advanced = (resumed.period_start.year - newest_period_start.year) * 12 + resumed.period_start.month - newest_period_start.month
     assert months_advanced % 3 == 0
     assert resumed.period_start.day == newest_period_start.day
     assert resumed.period_start <= date(2026, 12, 15) <= resumed.period_end
@@ -812,7 +885,9 @@ async def test_update_archived_base_budget_name_returns_409(client):
     base_budget_id = create_resp.json()["id"]
 
     await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
     resp = await client.patch(
         f"/base-budgets/{base_budget_id}",
@@ -834,7 +909,9 @@ async def test_update_archived_base_budget_category_ids_returns_409(client):
     other_cat_id = await _create_category(client, headers, name="Test Takeout")
 
     await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
     resp = await client.patch(
         f"/base-budgets/{base_budget_id}",
@@ -858,7 +935,9 @@ async def test_update_archived_base_budget_combined_unarchive_and_edit_returns_4
     base_budget_id = create_resp.json()["id"]
 
     await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
     resp = await client.patch(
         f"/base-budgets/{base_budget_id}",
@@ -878,7 +957,9 @@ async def test_update_archived_base_budget_unarchive_only_returns_200(client):
     base_budget_id = create_resp.json()["id"]
 
     await client.patch(
-        f"/base-budgets/{base_budget_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{base_budget_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
     resp = await client.patch(
         f"/base-budgets/{base_budget_id}",

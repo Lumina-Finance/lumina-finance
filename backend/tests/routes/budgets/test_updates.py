@@ -1,4 +1,3 @@
-
 from tests.routes.budgets._helpers import (
     NONEXISTENT_ID,
     _create_base_budget,
@@ -161,7 +160,10 @@ async def test_update_group_budget_as_admin(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
     instance_id = instance_resp.json()["id"]
@@ -190,7 +192,10 @@ async def test_update_group_budget_as_non_admin_without_permission_returns_404(c
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
     instance_id = instance_resp.json()["id"]
@@ -214,7 +219,10 @@ async def test_update_group_budget_as_non_member_returns_404(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
     instance_id = instance_resp.json()["id"]
@@ -243,7 +251,10 @@ async def test_update_group_budget_with_read_permission_returns_403(client):
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
     instance_resp = await _create_budget_instance(client, headers, base_budget_id)
@@ -279,7 +290,10 @@ async def test_update_group_budget_with_write_permission_returns_403(client):
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
     instance_resp = await _create_budget_instance(client, headers, base_budget_id)
@@ -376,19 +390,32 @@ async def test_update_budget_overall_limit_returns_409_for_archived_base_budget(
 
     archived_base_resp = await _create_base_budget(client, headers, category_ids=[cat_id])
     archived_base_id = archived_base_resp.json()["id"]
-    archived_instance_id = (await _create_budget_instance(
-        client, headers, archived_base_id,
-    )).json()["id"]
+    archived_instance_id = (
+        await _create_budget_instance(
+            client,
+            headers,
+            archived_base_id,
+        )
+    ).json()["id"]
     await client.patch(
-        f"/base-budgets/{archived_base_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{archived_base_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
 
     active_base_resp = await _create_base_budget(
-        client, headers, name="Active Budget", category_ids=[cat_id],
+        client,
+        headers,
+        name="Active Budget",
+        category_ids=[cat_id],
     )
-    active_instance_id = (await _create_budget_instance(
-        client, headers, active_base_resp.json()["id"],
-    )).json()["id"]
+    active_instance_id = (
+        await _create_budget_instance(
+            client,
+            headers,
+            active_base_resp.json()["id"],
+        )
+    ).json()["id"]
 
     archived_resp = await client.patch(
         f"/budgets/{archived_instance_id}",
