@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import DBAPIError
 
 from app.abuse_log import log_source_address
 from app.config.email import EMAIL_BACKEND, EMAIL_BACKEND_LOGGING
@@ -47,6 +48,7 @@ from app.services.bank_sync.providers.registry import run_startup_checks
 from app.services.email import build_email_sender, set_email_sender
 from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
 from app.services.maintenance.expired_records import prune_expired_records_on_schedule
+from app.statement_timeout import handle_statement_timeout
 from app.valkey_store import use_valkey
 
 configure_logging(LOG_LEVEL)
@@ -117,6 +119,7 @@ if EMAIL_BACKEND == EMAIL_BACKEND_LOGGING:
     logger.warning(_LOGGING_BACKEND_WARNING)
 
 app.add_exception_handler(RequestValidationError, handle_request_validation_error)
+app.add_exception_handler(DBAPIError, handle_statement_timeout)
 
 
 # Added before CORS so CORS ends up the outer layer, since middleware wraps in reverse order
