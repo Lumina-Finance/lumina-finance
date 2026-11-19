@@ -3,7 +3,7 @@
 Row-level security already keeps another user's rows out of every result. These tests guard the
 cost side: a read rule, list query or check that visits every user's rows slows every page of
 every user as one account's data grows, so each case counts the rows its statements touched in a
-table and holds that below what the other user keeps there
+table and allows only a few beyond those it returns
 
 Tables this small make a full scan the cheapest plan, so most cases turn sequential scans off for
 their transaction. Postgres still scans in full when no other plan exists, which is what a rule or
@@ -22,24 +22,32 @@ import pytest
 from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account, TaxAdvantagedCategory
-from app.models.base import AccountKind, AccountType, CategoryKind, RecurrenceFreq, TaxTreatment
-from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
+from app.models.account import Account, AccountPermission, TaxAdvantagedCategory
+from app.models.bank_connection import BankAccountLink
+from app.models.base import AccountKind, AccountType, CategoryKind, PermissionLevel, RecurrenceFreq, TaxTreatment
+from app.models.budget import BaseBudget, Budget, BudgetPermission, BudgetTrackedCategory
 from app.models.category import Category
 from app.models.currency import Currency
+from app.models.group import Group, GroupMember
 from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.models.transaction_link import TransactionLink
-from app.models.user import User
 from app.services.transactions.link_candidates import list_refund_link_candidates
 from app.services.transactions.listing import list_transaction_responses
 from tests.conftest import TestSession
+from tests.routes.support.bank_sync_helpers import _build_account, _build_unlinked_link, _build_user
 from tests.routes.support.identity_helpers import _act_as
 
-# How many rows the other user keeps in each table. Every case's own reads stay well below it,
-# so reaching it means the statement visited the other user's rows
+# How many rows the other user keeps in each table
 OTHER_ROWS = 60
+
+# How many rows a case may read beyond those it returns or looks up. Reading through more than a
+# handful of the other user's rows fails the case
+SLACK = 5
+
+# When budget spending runs, a fixed time long after the seeded month, so no date cutoff applies
+NOW = datetime(2026, 11, 18, 12, tzinfo=UTC)
 
 # How many more users, and transactions between them, the cases that need real volume add
 CROWD = 200
@@ -88,16 +96,6 @@ async def _avoid_full_scans(session: AsyncSession) -> None:
     await session.execute(text("SET LOCAL enable_seqscan = off"))
 
 
-def _build_user(email: str) -> User:
-    """Return an unsaved user"""
-    return User(email=email, first_name="Test", tz="America/Toronto", base_currency="CAD")
-
-
-def _build_account(owner_id: uuid.UUID, name: str) -> Account:
-    """Return an unsaved personal chequing account"""
-    return Account(owner_id=owner_id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name=name, currency="CAD")
-
-
 def _build_transaction(user_id: uuid.UUID, account_id: uuid.UUID, category_id: uuid.UUID, amount: int, day: int) -> Transaction:
     """Return an unsaved transaction in the seeded month"""
     return Transaction(
@@ -108,6 +106,11 @@ def _build_transaction(user_id: uuid.UUID, account_id: uuid.UUID, category_id: u
         amount=amount,
         currency="CAD",
     )
+
+
+def _build_group_account(group_id: uuid.UUID) -> Account:
+    """Return an unsaved chequing account held by a group"""
+    return Account(group_id=group_id, account_kind=AccountKind.ASSET, account_type=AccountType.CHECKING, name="Joint", currency="CAD")
 
 
 @pytest.fixture
@@ -144,25 +147,37 @@ async def ledgers():
         other_tags = [Tag(owner_id=other.id, name=f"Other {index}") for index in range(OTHER_ROWS)]
         session.add_all([trip, work, *other_tags])
         session.add_all([Category(owner_id=other.id, name=f"Other {index}", kind=CategoryKind.EXPENSE) for index in range(OTHER_ROWS)])
-        session.add_all([Merchant(owner_id=other.id, name=f"Other {index}") for index in range(OTHER_ROWS)])
+        session.add_all([Merchant(owner_id=other.id, name=f"Other {index}", default_category_id=groceries_id) for index in range(OTHER_ROWS)])
+        merchant = Merchant(owner_id=user.id, name="Corner Store")
+        session.add(merchant)
+        tax_category = TaxAdvantagedCategory(
+            category_owner_user_id=user.id, name="Savings", tax_treatment=TaxTreatment.TAX_FREE, currency="CAD"
+        )
+        session.add(tax_category)
         session.add_all(
             [
                 TaxAdvantagedCategory(
-                    category_owner_user_id=owner.id, name=f"Savings {index}", tax_treatment=TaxTreatment.TAX_FREE, currency="CAD"
+                    category_owner_user_id=other.id, name=f"Savings {index}", tax_treatment=TaxTreatment.TAX_FREE, currency="CAD"
                 )
-                for owner, index in [(user, 0), *((other, index) for index in range(OTHER_ROWS))]
-            ]
-        )
-        session.add_all(
-            [
-                BaseBudget(owner_id=other.id, name=f"Other {index}", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY)
                 for index in range(OTHER_ROWS)
             ]
         )
+        other_base_budgets = [
+            BaseBudget(owner_id=other.id, name=f"Other {index}", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY)
+            for index in range(OTHER_ROWS)
+        ]
         base_budget = BaseBudget(owner_id=user.id, name="Food", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY)
-        session.add(base_budget)
+        session.add_all([*other_base_budgets, base_budget])
         await session.flush()
 
+        session.add_all(
+            [
+                BudgetTrackedCategory(base_budget_id=other_base_budget.id, category_id=groceries_id, added_at=date(2026, 1, 1))
+                for other_base_budget in other_base_budgets
+            ]
+        )
+        bank_link = _build_unlinked_link(account)
+        session.add_all([bank_link, *(_build_unlinked_link(other_account) for other_account in other_accounts)])
         session.add_all(
             [
                 TransactionTag(transaction_id=expense.id, tag_id=trip.id),
@@ -179,7 +194,8 @@ async def ledgers():
         )
         budget = Budget(base_budget_id=base_budget.id, period_start=PERIOD_START, period_end=PERIOD_END, overall_limit=100000)
         session.add(budget)
-        session.add(BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=groceries_id, added_at=date(2026, 1, 1)))
+        tracked_category = BudgetTrackedCategory(base_budget_id=base_budget.id, category_id=groceries_id, added_at=date(2026, 1, 1))
+        session.add(tracked_category)
         unused_category = Category(owner_id=user.id, name="Unused", kind=CategoryKind.EXPENSE)
         unused_tag = Tag(owner_id=user.id, name="Unused")
         session.add_all([unused_category, unused_tag])
@@ -203,6 +219,18 @@ async def ledgers():
         "budget": budget,
         "unused_category": unused_category,
         "unused_tag": unused_tag,
+        # The user's own rows in each table the read rule cases list
+        "own": {
+            "accounts": {account.id},
+            "transactions": {expense.id, refund.id},
+            "tags": {trip.id, work.id, unused_tag.id},
+            "categories": {unused_category.id},
+            "merchants": {merchant.id},
+            "tax_advantaged_categories": {tax_category.id},
+            "base_budgets": {base_budget.id},
+            "budget_tracked_categories": {tracked_category.id},
+            "bank_account_links": {bank_link.id},
+        },
     }
 
 
@@ -256,6 +284,8 @@ async def crowded_ledgers(ledgers):
         (Merchant, "merchants"),
         (TaxAdvantagedCategory, "tax_advantaged_categories"),
         (BaseBudget, "base_budgets"),
+        (BudgetTrackedCategory, "budget_tracked_categories"),
+        (BankAccountLink, "bank_account_links"),
     ],
 )
 async def test_reading_a_table_reads_none_of_another_users_rows(ledgers, model, table):
@@ -266,8 +296,89 @@ async def test_reading_a_table_reads_none_of_another_users_rows(ledgers, model, 
         rows_read = await _rows_read(session, table)
 
     # System categories and merchants are everyone's, so the rows the user sees are read too
-    assert visible, "the user's own rows come back, so a rule refusing everything can't pass"
-    assert rows_read - len(visible) < OTHER_ROWS, f"read {rows_read} rows of {table} to return {len(visible)}"
+    assert ledgers["own"][table] <= set(visible), "the user's own rows come back, so a rule refusing them can't pass"
+    assert rows_read - len(visible) < SLACK, f"read {rows_read} rows of {table} to return {len(visible)}"
+
+
+@pytest.fixture
+async def crowded_grants(ledgers):
+    """Give the other user MANY_ROWS groups they administer, each granting them an account and a budget
+
+    Three of these tables have a key that leads on the group, which Postgres can walk whole while
+    returning only the user's entries, so only many groups make such a walk show. The user
+    administers a group of their own and holds grants in one the other user owns, so each set has
+    rows of the user's to find
+    """
+    user_id, other_id = ledgers["user"].id, ledgers["other"].id
+    async with TestSession() as session:
+        own_group = Group(owner_id=user_id, name="Home")
+        shared_group = Group(owner_id=other_id, name="Shared")
+        session.add_all([own_group, shared_group])
+        await session.flush()
+        session.add_all(
+            [
+                GroupMember(group_id=own_group.id, user_id=user_id, is_admin=True),
+                GroupMember(group_id=shared_group.id, user_id=other_id, is_admin=True),
+                GroupMember(group_id=shared_group.id, user_id=user_id),
+            ]
+        )
+        own_group_account = _build_group_account(own_group.id)
+        shared_account = _build_group_account(shared_group.id)
+        shared_budget = BaseBudget(group_id=shared_group.id, name="Shared", currency="CAD", recurrence_freq=RecurrenceFreq.MONTHLY)
+        shared_tag = Tag(owner_id=other_id, group_id=shared_group.id, name="Shared")
+        session.add_all([own_group_account, shared_account, shared_budget, shared_tag])
+        await session.flush()
+        session.add_all(
+            [
+                AccountPermission(group_id=shared_group.id, user_id=user_id, account_id=shared_account.id, level=PermissionLevel.READ),
+                BudgetPermission(group_id=shared_group.id, user_id=user_id, base_budget_id=shared_budget.id, level=PermissionLevel.READ),
+            ]
+        )
+        await session.flush()
+
+        await session.execute(
+            text("INSERT INTO groups (id, owner_id, name) SELECT gen_random_uuid(), :other_id, 'Other' FROM generate_series(1, :count)"),
+            {"other_id": other_id, "count": MANY_ROWS},
+        )
+        await session.execute(
+            text(
+                "INSERT INTO group_members (group_id, user_id, is_admin)"
+                " SELECT id, owner_id, true FROM public.groups WHERE owner_id = :other_id AND name = 'Other'"
+            ),
+            {"other_id": other_id},
+        )
+        await session.execute(
+            text(
+                "INSERT INTO account_permissions (id, group_id, user_id, account_id, level)"
+                " SELECT gen_random_uuid(), id, owner_id, :account_id, 'WRITE' FROM public.groups"
+                " WHERE owner_id = :other_id AND name = 'Other'"
+            ),
+            {"other_id": other_id, "account_id": ledgers["other_account"].id},
+        )
+        await session.execute(
+            text(
+                "INSERT INTO budget_permissions (id, group_id, user_id, base_budget_id, level)"
+                " SELECT gen_random_uuid(), g.id, g.owner_id, b.id, 'READ'"
+                " FROM public.groups g CROSS JOIN LATERAL (SELECT id FROM public.base_budgets WHERE owner_id = :other_id LIMIT 1) b"
+                " WHERE g.owner_id = :other_id AND g.name = 'Other'"
+            ),
+            {"other_id": other_id},
+        )
+        await session.execute(text("ANALYZE"))
+        await session.commit()
+    # The rows each read reaches only through the user's group or grants
+    reached = {Account: {own_group_account.id, shared_account.id}, BaseBudget: {shared_budget.id}, Tag: {shared_tag.id}}
+    return {**ledgers, "reached": reached}
+
+
+@pytest.mark.parametrize("table", ["groups", "group_members", "account_permissions", "budget_permissions"])
+async def test_working_out_what_a_user_reaches_reads_none_of_another_users_grants(crowded_grants, table):
+    """The read rules find the user's groups and grants by key, not by reading every user's"""
+    async with _act_as(crowded_grants["user"].id) as session:
+        for model, reached in crowded_grants["reached"].items():
+            visible = set((await session.scalars(select(model.id))).all())
+            assert reached <= visible, f"{model.__tablename__} misses rows the user's groups and grants reach"
+        await _assert_reads_few_blocks(session, table)
 
 
 @pytest.mark.parametrize(
@@ -299,7 +410,7 @@ async def test_refund_candidates_read_none_of_another_users_links(ledgers):
         links_read = await _rows_read(session, "transaction_links")
 
     assert [candidate.id for candidate in candidates] == [ledgers["refund"].id]
-    assert links_read < OTHER_ROWS / 2, f"read {links_read} refund links"
+    assert links_read < SLACK, f"read {links_read} refund links"
 
 
 async def test_budget_spending_reads_none_of_another_users_transactions_in_the_category(crowded_ledgers):
@@ -307,21 +418,22 @@ async def test_budget_spending_reads_none_of_another_users_transactions_in_the_c
     ledgers = crowded_ledgers
     spend = text("SELECT sum(amount_sum) FROM public.budget_spend_rows(:budget_ids, :now)")
     async with _act_as(ledgers["user"].id) as session:
-        total = (await session.execute(spend, {"budget_ids": [ledgers["budget"].id], "now": datetime.now(UTC)})).scalar_one()
+        total = (await session.execute(spend, {"budget_ids": [ledgers["budget"].id], "now": NOW})).scalar_one()
 
         assert total == -1500
         await _assert_reads_few_blocks(session, "transactions")
 
 
-async def test_deleting_an_unused_category_reads_none_of_another_users_transactions(ledgers):
-    """The check that no transaction is still in a deleted category looks it up by key"""
+@pytest.mark.parametrize("referencing_table", ["transactions", "merchants", "budget_tracked_categories"])
+async def test_deleting_an_unused_category_reads_none_of_another_users_rows(ledgers, referencing_table):
+    """Each check that nothing still names a deleted category looks it up by key"""
     async with _act_as(ledgers["user"].id) as session:
         await _avoid_full_scans(session)
         await session.execute(delete(Category).where(Category.id == ledgers["unused_category"].id))
         await session.flush()
-        rows_read = await _rows_read(session, "transactions")
+        rows_read = await _rows_read(session, referencing_table)
 
-    assert rows_read < OTHER_ROWS, f"read {rows_read} transactions"
+    assert rows_read < SLACK, f"read {rows_read} rows of {referencing_table}"
 
 
 async def test_deleting_an_unused_tag_reads_none_of_another_users_tag_links(crowded_ledgers):
