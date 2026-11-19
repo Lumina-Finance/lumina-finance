@@ -8,7 +8,13 @@ import BudgetEditorModalCategorySection from '@/pages/budgets/components/budget-
 import BudgetEditorModalFooter from '@/pages/budgets/components/budget-editor-modal/layout/Footer'
 import BudgetEditorModalScopeSection from '@/pages/budgets/components/budget-editor-modal/sections/ScopeSection'
 import BudgetEditorModalShell from '@/pages/budgets/components/budget-editor-modal/layout/Shell'
-import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
+import type {
+  BudgetEditorModalErrorGetter,
+  BudgetEditorModalFieldIds,
+  BudgetEditorModalHandlers,
+  BudgetEditorModalOptions,
+  BudgetEditorModalViewState,
+} from '@/pages/budgets/components/budget-editor-modal/types'
 import { CREATE_BUDGET_MIN_LOADING_MS, MODAL_SURFACE_TRANSITION_MS } from '@/pages/budgets/constants'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import type { BudgetFormState } from '@/pages/budgets/types'
@@ -53,16 +59,19 @@ export default function BudgetCreateModal({
 }) {
   const createBaseBudget = useCreateBaseBudget()
 
-  const initialForm = useMemo<BudgetFormState>(() => ({
-    name: '',
-    currency: defaultCurrency,
-    categoryIds: [],
-    limit: '',
-    recurrenceFreq: 'monthly',
-    instanceLength: '1',
-    periodStart: getTodayYmd(timeZone),
-    recurs: true,
-  }), [defaultCurrency, timeZone])
+  const initialForm = useMemo<BudgetFormState>(
+    () => ({
+      name: '',
+      currency: defaultCurrency,
+      categoryIds: [],
+      limit: '',
+      recurrenceFreq: 'monthly',
+      instanceLength: '1',
+      periodStart: getTodayYmd(timeZone),
+      recurs: true,
+    }),
+    [defaultCurrency, timeZone],
+  )
 
   // New budgets are personal-only here, so shared and group categories are excluded
   const expenseCategories = useMemo(
@@ -194,10 +203,7 @@ export default function BudgetCreateModal({
         overall_limit: limitMinorUnits,
       })
 
-      await Promise.all([
-        createBudget,
-        minimumLoading,
-      ])
+      await Promise.all([createBudget, minimumLoading])
       onCreated()
       closeAndReset()
     } catch (error) {
@@ -230,7 +236,7 @@ export default function BudgetCreateModal({
       level="page"
       onClose={closeAndReset}
       onSubmit={handleSubmit}
-      footer={(
+      footer={
         <BudgetEditorModalFooter
           level="page"
           isPending={isPending}
@@ -239,7 +245,7 @@ export default function BudgetCreateModal({
           submitLabel="Create budget"
           onClose={closeAndReset}
         />
-      )}
+      }
     >
       <div className="grid min-h-0 items-stretch gap-7 min-[1050px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex min-h-0 flex-col gap-5">

@@ -46,14 +46,20 @@ function createForm(overrides: Partial<BudgetFormState> = {}): BudgetFormState {
 describe('create budget validation', () => {
   it('validates create-budget fields before building an API payload', () => {
     expect(validateBudgetCreateForm(createForm(), currencies, categories)).toEqual({})
-    expect(validateBudgetCreateForm(createForm({
-      name: ' ',
-      currency: 'BAD',
-      categoryIds: [],
-      limit: '0',
-      periodStart: '',
-      instanceLength: '0',
-    }), currencies, categories)).toEqual({
+    expect(
+      validateBudgetCreateForm(
+        createForm({
+          name: ' ',
+          currency: 'BAD',
+          categoryIds: [],
+          limit: '0',
+          periodStart: '',
+          instanceLength: '0',
+        }),
+        currencies,
+        categories,
+      ),
+    ).toEqual({
       name: 'Name is required',
       currency: 'Select a currency',
       limit: 'Limit must be greater than zero',
