@@ -6,7 +6,7 @@ inputs:
     description: Account name, shared by Docker Hub and the hardened images registry
     required: true
   registry-token:
-    description: Access token, shared by Docker Hub and the hardened images registry
+    description: Access token, shared by Docker Hub and the hardened images registry. Read-only unless the job publishes
     required: true
 
 runs:

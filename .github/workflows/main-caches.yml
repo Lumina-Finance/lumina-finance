@@ -21,7 +21,8 @@ jobs:
     uses: ./.github/workflows/_docker-build.yml
     with:
       save-cache: true
-    secrets: inherit
+    secrets:
+      DOCKERHUB_PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
   browser-setup:
     name: Save the browser suite's setup (${{ matrix.platform }})

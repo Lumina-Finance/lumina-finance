@@ -140,7 +140,8 @@ jobs:
         || needs.changes.outputs.docker == 'true'
         || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_service-images.yml
-    secrets: inherit
+    secrets:
+      DOCKERHUB_PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
   # Runs only when the images it loads were pulled
   backend-test:
@@ -179,7 +180,8 @@ jobs:
         || needs.changes.outputs.docker == 'true'
         || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_docker-build.yml
-    secrets: inherit
+    secrets:
+      DOCKERHUB_PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
   # The browser tests' type check and contract tests need no image, so they start at once and a type
   # error shows without waiting for the image build or a browser job's setup
@@ -198,7 +200,8 @@ jobs:
     uses: ./.github/workflows/_e2e-test.yml
     with:
       specs: ${{ needs.changes.outputs.e2e-specs }}
-    secrets: inherit
+    secrets:
+      DOCKERHUB_PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
   # Keep this name stable for the repository's required status check
   # Jobs skipped by path filters are allowed, but failures and cancellations block merging

@@ -5,7 +5,7 @@ registries:
     type: docker-registry
     url: https://dhi.io
     username: ${{secrets.DOCKERHUB_USERNAME}}
-    password: ${{secrets.DOCKERHUB_TOKEN}}
+    password: ${{secrets.DOCKERHUB_PULL_TOKEN}}
 
 updates:
   - package-ecosystem: uv

@@ -37,7 +37,7 @@ jobs:
         uses: ./.github/actions/docker-build-setup
         with:
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry-token: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
       # One architecture is enough here: the check is about Firefly III's export, not the image
       - name: Build image
@@ -80,7 +80,7 @@ jobs:
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          password: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
       # A release can be tagged before its image is pushed, so the newest release with an image
       # is checked and the summary says when that is not the newest release
@@ -178,7 +178,7 @@ jobs:
           platform: amd64
           app-url: http://localhost:8080
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry-token: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
       - name: Start the stack
         run: docker compose -f docker/compose.yml -f e2e/compose.mail.yaml up -d

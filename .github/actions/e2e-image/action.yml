@@ -12,7 +12,7 @@ inputs:
     description: Docker Hub account name
     required: true
   registry-token:
-    description: Docker Hub access token
+    description: Read-only Docker Hub access token
     required: true
 
 runs:
