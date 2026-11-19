@@ -7,6 +7,8 @@ export type {
   UpdateCategoryRequest,
 } from '@/api/categories/types'
 
+export { CATEGORY_ICON_MAX_LENGTH, CATEGORY_NAME_MAX_LENGTH } from '@/api/categories/types'
+
 export {
   createCategory,
   deleteCategory,

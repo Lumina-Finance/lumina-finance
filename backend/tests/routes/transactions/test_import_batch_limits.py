@@ -40,6 +40,22 @@ async def test_staging_a_batch_over_the_row_cap_is_refused(client, source):
 
 
 @pytest.mark.parametrize("source", _SOURCES)
+async def test_staging_a_new_category_with_a_40_character_icon_is_refused_before_anything_is_staged(client, source):
+    """A mapping creating a category with an icon past 32 characters is refused with the icon named."""
+    headers = _get_auth_header(await _create_user(client))
+    run_id = await _open_run(client, headers, 1, source)
+    batch = _build_batch(source, 1)
+    batch["categories"] = [{"source": "Groceries", "create": {"name": "Groceries", "kind": "expense", "icon": "x" * 40}}]
+
+    resp = await _stage_batch(client, headers, run_id, batch, source)
+
+    assert resp.status_code == 422
+    assert [(error["loc"], error["type"]) for error in resp.json()["detail"]] == [
+        (["body", "categories", 0, "create", "icon"], "string_too_long")
+    ]
+
+
+@pytest.mark.parametrize("source", _SOURCES)
 async def test_staging_a_batch_over_the_mapping_cap_is_refused(client, source):
     """A batch declaring more mappings than an import may carry is refused before any is checked."""
     headers = _get_auth_header(await _create_user(client))
@@ -76,8 +92,7 @@ async def test_staging_refuses_more_mappings_than_an_import_may_declare_across_b
     # The run already held the Groceries mapping every batch declares, so the total runs one past
     # the two halves
     assert second.json()["detail"] == (
-        f"This import declares {half * 2 + 1} distinct values for Category source, "
-        f"and the limit is {MAX_IMPORT_MAPPINGS}"
+        f"This import declares {half * 2 + 1} distinct values for Category source, and the limit is {MAX_IMPORT_MAPPINGS}"
     )
 
 

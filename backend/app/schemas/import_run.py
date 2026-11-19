@@ -9,6 +9,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validat
 from app.models.base import RecurrenceFreq
 from app.models.transaction import BANK_TRANSACTION_HASH_LENGTH
 from app.schemas.budget import validate_recurrence_anchor_fields
+from app.schemas.category import MAX_CATEGORY_ICON_LENGTH, MAX_CATEGORY_NAME_LENGTH
 from app.schemas.names import TrimmedName
 from app.utils.date_window import WindowDate
 
@@ -276,9 +277,9 @@ class TransactionImportAccountMapping(BaseModel):
 class TransactionImportCreateCategory(BaseModel):
     """New personal category to create during a transaction import."""
 
-    name: str = Field(min_length=1, max_length=256)
+    name: str = Field(min_length=1, max_length=MAX_CATEGORY_NAME_LENGTH)
     kind: str
-    icon: str | None = None
+    icon: str | None = Field(None, max_length=MAX_CATEGORY_ICON_LENGTH)
 
 
 class TransactionImportCategoryMapping(BaseModel):

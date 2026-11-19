@@ -34,3 +34,10 @@ export interface MergeCategoryRequest {
   categoryId: string
   payload: MergeCategoryPayload
 }
+
+/**
+ * Characters a category's name and icon may hold, matching the backend. The icon's room is for an
+ * emoji with skin tone and joiner sequences
+ */
+export const CATEGORY_NAME_MAX_LENGTH = 256
+export const CATEGORY_ICON_MAX_LENGTH = 32

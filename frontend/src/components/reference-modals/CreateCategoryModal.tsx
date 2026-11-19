@@ -9,11 +9,10 @@ import { FormError } from '@/components/forms/FormError'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
+import { validateCategoryForm } from '@/components/reference-modals/categoryForm'
 import {
   CREATE_CATEGORY_FIELD_IDS,
   CREATE_CATEGORY_FIELDS,
-  CREATE_CATEGORY_ICON_REQUIRED_MESSAGE,
-  CREATE_CATEGORY_NAME_REQUIRED_MESSAGE,
 } from '@/components/reference-modals/createCategoryConstants'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
@@ -66,14 +65,7 @@ export default function CreateCategoryModal({
   const isCreating = createCategory.isPending || createInProgress
   const isSecondary = level === 'stacked'
   const name = form.name.trim()
-  const refusal = useRefusedSubmit(
-    {
-      icon: form.icon ? undefined : CREATE_CATEGORY_ICON_REQUIRED_MESSAGE,
-      name: name ? undefined : CREATE_CATEGORY_NAME_REQUIRED_MESSAGE,
-    },
-    CREATE_CATEGORY_FIELDS,
-    CREATE_CATEGORY_FIELD_IDS,
-  )
+  const refusal = useRefusedSubmit(validateCategoryForm(form), CREATE_CATEGORY_FIELDS, CREATE_CATEGORY_FIELD_IDS)
 
   const setField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -180,7 +172,6 @@ export default function CreateCategoryModal({
                   onChange={(event) => setField('name', event.target.value)}
                   onBlur={() => refusal.touch('name')}
                   placeholder="Groceries"
-                  maxLength={256}
                   required
                 />
               </div>
