@@ -57,18 +57,23 @@ async def _fetch_json(url: str) -> dict[str, Any]:
         url: Provider document URL
 
     Returns:
-        The parsed JSON document
+        The parsed JSON object
 
     Raises:
-        HTTPException: The provider could not be reached or answered without valid JSON
+        HTTPException: The provider could not be reached or answered without a JSON object
     """
     try:
         async with _http_client() as client:
             response = await client.get(url)
             response.raise_for_status()
-            return response.json()
+            document = response.json()
     except (httpx.HTTPError, ValueError) as error:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable") from error
+
+    # Discovery and key documents are always objects, so any other JSON is a provider fault
+    if not isinstance(document, dict):
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable")
+    return document
 
 
 async def get_provider_metadata(issuer: str) -> dict[str, Any]:
@@ -276,8 +281,12 @@ async def exchange_authorization_code(
     if response.status_code != status.HTTP_200_OK:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
 
-    token_response = response.json()
-    if not token_response.get("id_token"):
+    # The code was spent on this answer, so one that isn't a JSON object fails the sign-in like a rejected code
+    try:
+        token_response = response.json()
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed") from None
+    if not isinstance(token_response, dict) or not token_response.get("id_token"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Single sign-on failed")
     return token_response
 
@@ -296,7 +305,12 @@ async def _get_jwk_set(jwks_uri: str, *, force_refresh: bool) -> jwt.PyJWKSet:
     if not force_refresh and cached is not None and cached[0] > time.monotonic():
         return cached[1]
 
-    jwk_set = jwt.PyJWKSet.from_dict(await _fetch_json(jwks_uri))
+    # PyJWT looks a key's alg up as a dictionary key, so an alg that is a list or an object raises
+    # TypeError rather than its own error
+    try:
+        jwk_set = jwt.PyJWKSet.from_dict(await _fetch_json(jwks_uri))
+    except jwt.PyJWTError, TypeError:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable") from None
     _jwks_cache[jwks_uri] = (time.monotonic() + _HTTP_CACHE_TTL_SECONDS, jwk_set)
     return jwk_set
 
@@ -438,6 +452,8 @@ async def fetch_userinfo(metadata: dict[str, Any], access_token: str, expected_s
             claims = response.json()
     except (httpx.HTTPError, ValueError) as error:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable") from error
+    if not isinstance(claims, dict):
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable")
 
     # A userinfo answer for a different subject than the verified token is a token
     # substitution, so it must not enrich this sign-in

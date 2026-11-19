@@ -1,5 +1,6 @@
 """OIDC sign-in orchestration and account resolution service"""
 
+import re
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -50,6 +51,11 @@ OIDC_EMAIL_CONFLICT_CODE = "email_already_registered"
 OIDC_PURPOSE_LOGIN = "login"
 OIDC_PURPOSE_LINK = "link"
 OIDC_PURPOSE_REAUTH = "reauth"
+
+# The users and oidc_identities email columns are VARCHAR(254), the longest address RFC 3696 allows
+_EMAIL_MAX_LENGTH = 254
+
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 
 
 @dataclass(frozen=True)
@@ -240,7 +246,7 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser
         email=email,
         email_verified=email_verified,
         first_name=_derive_first_name(claims, email),
-        last_name=claims.get("family_name") or None,
+        last_name=_derive_last_name(claims),
     )
 
 
@@ -710,15 +716,20 @@ def _require_provider_email(claims: dict) -> str:
         The asserted email address, spelled as a typed one is so that both meet as one account
 
     Raises:
-        HTTPException: The provider supplied no email address
+        HTTPException: The provider supplied no email address it can store
     """
+    # A claim that isn't text, holds a control character the database can't store or compare, or is
+    # longer than an address column holds can't name an account, so it counts as no email at all
     email = claims.get("email")
-    if not email or not email.strip():
+    normalized = None
+    if isinstance(email, str) and email.strip() and not _CONTROL_CHARACTERS.search(email.strip()):
+        normalized = normalize_typed_spelling(email)
+    if normalized is None or len(normalized) > _EMAIL_MAX_LENGTH:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Identity provider did not supply an email address",
         )
-    return normalize_typed_spelling(email)
+    return normalized
 
 
 async def _find_user_id_by_provider_email(db: AsyncSession, claims: dict, email: str) -> uuid.UUID | None:
@@ -761,3 +772,9 @@ def _derive_first_name(claims: dict, email: str) -> str:
         return full_name.strip().split()[0]
 
     return email.split("@")[0]
+
+
+def _derive_last_name(claims: dict) -> str | None:
+    """Return the family name the provider's claims offer for the completion form, ignoring one that isn't text"""
+    family_name = claims.get("family_name")
+    return family_name if isinstance(family_name, str) and family_name else None

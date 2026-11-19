@@ -432,3 +432,69 @@ async def test_userinfo_returns_claims_for_matching_subject(fake_provider):
     claims = await fetch_userinfo(_metadata(), "access-token", expected_subject="subject-1")
 
     assert claims["email"] == "user@example.com"
+
+
+# --- Replies of the wrong shape ---
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        lambda: httpx.Response(200, text="<html>Sign in</html>", headers={"content-type": "text/html"}),
+        lambda: httpx.Response(200, json=["id_token"]),
+    ],
+    ids=["html page", "json list"],
+)
+async def test_exchange_refuses_a_token_reply_that_is_not_an_object(fake_provider, answer):
+    """A token reply that isn't a JSON object fails the sign-in, not the server"""
+    fake_provider.responses["/token"] = answer
+
+    with pytest.raises(HTTPException) as excinfo:
+        await exchange_authorization_code(_metadata(), CLIENT_ID, "secret", code="c", code_verifier="v", redirect_uri="https://app.test/cb")
+
+    assert excinfo.value.status_code == 401
+    assert excinfo.value.detail == "Single sign-on failed"
+
+
+async def test_discovery_refuses_a_document_that_is_not_an_object(fake_provider):
+    """A discovery document that is a JSON list leaves the provider unavailable"""
+    fake_provider.responses["/.well-known/openid-configuration"] = lambda: httpx.Response(200, json=[_metadata()])
+
+    with pytest.raises(HTTPException) as excinfo:
+        await get_provider_metadata(ISSUER)
+
+    assert excinfo.value.status_code == 502
+    assert excinfo.value.detail == "Identity provider unavailable"
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        {"keys": "none"},
+        {"keys": ["x"]},
+        [_jwks_document()],
+        {"keys": [{**_jwks_document()["keys"][0], "alg": ["RS256"]}]},
+        {"keys": [{**_jwks_document()["keys"][0], "alg": {"name": "RS256"}}]},
+    ],
+    ids=["keys not a list", "key not an object", "json list", "algorithm a list", "algorithm an object"],
+)
+async def test_verify_id_token_refuses_a_key_set_it_cannot_read(fake_provider, document):
+    """A key set that isn't one leaves the provider unavailable rather than failing the server"""
+    fake_provider.responses["/jwks"] = lambda: httpx.Response(200, json=document)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await verify_provider_id_token(_make_id_token(), _metadata(), CLIENT_ID, "nonce-1")
+
+    assert excinfo.value.status_code == 502
+    assert excinfo.value.detail == "Identity provider unavailable"
+
+
+async def test_userinfo_refuses_an_answer_that_is_not_an_object(fake_provider):
+    """User info answered as a JSON list leaves the provider unavailable"""
+    fake_provider.responses["/userinfo"] = lambda: httpx.Response(200, json=[{"sub": "subject-1"}])
+
+    with pytest.raises(HTTPException) as excinfo:
+        await fetch_userinfo(_metadata(), "access-token", expected_subject="subject-1")
+
+    assert excinfo.value.status_code == 502
+    assert excinfo.value.detail == "Identity provider unavailable"

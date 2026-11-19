@@ -440,6 +440,52 @@ async def test_callback_refuses_an_address_of_only_blanks(client, provider_proto
     assert resp.json()["detail"] == "Identity provider did not supply an email address"
 
 
+@pytest.mark.parametrize(
+    "sent",
+    [42, ["sso-user@example.com"], f"{'a' * 243}@example.com", "sso-user\x00@example.com"],
+    ids=["number", "list", "one character longer than an address column", "control character"],
+)
+async def test_callback_refuses_an_address_it_cannot_store_and_creates_nothing(client, provider_protocol, sent):
+    """An email claim that isn't text, can't be stored or is too long is treated as no email, not as a server error"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email=sent)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Identity provider did not supply an email address"
+    async with TestSession() as session:
+        assert (await session.execute(select(User.id))).first() is None
+
+
+async def test_callback_onboards_an_address_as_long_as_the_column_holds(client, provider_protocol):
+    """A 254-character address, the most an address column stores, still reaches onboarding"""
+    await _seed_provider()
+    address = f"{'a' * 242}@example.com"
+    provider_protocol["claims"] = _claims(email=address)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert resp.json()["onboarding_required"] is True
+    assert resp.json()["email"] == address
+
+
+async def test_callback_ignores_a_family_name_that_is_not_text(client, provider_protocol):
+    """A family name that isn't text is left off the profile form and the sign-in goes ahead"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(family_name=["User"])
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert resp.json()["onboarding_required"] is True
+    assert resp.json()["last_name"] is None
+
+
 async def test_signup_completion_conflicts_when_the_provider_spells_the_domain_differently(client, provider_protocol, monkeypatch):
     """With verification relaxed, an unverified address meets the typed account of the same address when the signup completes"""
     monkeypatch.setattr(oidc_login, "OIDC_REQUIRE_VERIFIED_EMAIL", False)
