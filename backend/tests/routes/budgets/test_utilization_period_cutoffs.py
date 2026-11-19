@@ -1,4 +1,5 @@
 """Route tests for budget utilization endpoints."""
+
 import uuid
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -45,7 +46,9 @@ async def test_get_budget_utilization_category_added_after_period_end_is_not_tra
     base_resp = await _create_base_budget(client, headers, category_ids=[groceries])
     base_id = base_resp.json()["id"]
     inst_resp = await _create_budget_instance(
-        client, headers, base_id,
+        client,
+        headers,
+        base_id,
         period_start="2026-01-01",
     )
     budget_id = inst_resp.json()["id"]
@@ -69,13 +72,17 @@ async def test_get_budget_utilization_mid_period_category_addition_counts_whole_
     groceries = await _create_category(client, headers)
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries],
+        client,
+        headers,
+        category_ids=[groceries],
     )
 
     # Force added_at to mid-period (Mar 15). Direct DB edit because the public
     # API sets added_at to the user's local today
     await _set_tracked_category_timestamps(
-        base_id, groceries, added_at=date(2026, 3, 15),
+        base_id,
+        groceries,
+        added_at=date(2026, 3, 15),
     )
 
     # One txn before added_at (Mar 5) and one after (Mar 20). Both should count
@@ -103,12 +110,15 @@ async def test_get_budget_utilization_mid_period_category_removal_excludes_whole
     groceries = await _create_category(client, headers)
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries],
+        client,
+        headers,
+        category_ids=[groceries],
     )
 
     # added_at before period_start, removed_at mid-period. Forces the removed branch
     await _set_tracked_category_timestamps(
-        base_id, groceries,
+        base_id,
+        groceries,
         added_at=date(2026, 2, 1),
         removed_at=date(2026, 3, 15),
     )
@@ -137,7 +147,8 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
     groceries = await _create_category(client, headers)
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers,
+        client,
+        headers,
         category_ids=[groceries],
         instance_overrides={"period_start": "2026-01-01"},
     )
@@ -146,12 +157,18 @@ async def test_get_budget_utilization_past_period_frozen_when_category_removed_t
     # groceries during January. Without this, added_at = today > Jan 31 and the
     # category would never enter the tracked set in the first place
     await _set_tracked_category_timestamps(
-        base_id, groceries, added_at=date(2025, 12, 1),
+        base_id,
+        groceries,
+        added_at=date(2025, 12, 1),
     )
 
     await _create_transaction(
-        client, headers, account_id, groceries,
-        dt="2026-01-15", amount=-5000,
+        client,
+        headers,
+        account_id,
+        groceries,
+        dt="2026-01-15",
+        amount=-5000,
     )
 
     # Remove groceries via PATCH. removed_at is set to the user's local today — well after Jan 31
@@ -189,12 +206,15 @@ async def test_get_budget_utilization_past_period_frozen_when_category_added_tod
     addon = await _create_category(client, headers, name="Addon")
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers,
+        client,
+        headers,
         category_ids=[original],
         instance_overrides={"period_start": "2026-01-01"},
     )
     await _set_tracked_category_timestamps(
-        base_id, original, added_at=date(2025, 12, 1),
+        base_id,
+        original,
+        added_at=date(2025, 12, 1),
     )
 
     # One txn in each category, both dated inside the January period
@@ -233,7 +253,8 @@ async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
     today = datetime.now(ZoneInfo("America/Toronto")).date()
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers,
+        client,
+        headers,
         category_ids=[groceries],
         instance_overrides={"period_start": today.replace(day=1).isoformat()},
     )
@@ -267,8 +288,12 @@ async def test_get_budget_utilization_re_add_after_remove_single_counts(client):
     assert active_count == 1
 
     await _create_transaction(
-        client, headers, account_id, groceries,
-        dt=today.isoformat(), amount=-5000,
+        client,
+        headers,
+        account_id,
+        groceries,
+        dt=today.isoformat(),
+        amount=-5000,
     )
 
     data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
@@ -289,18 +314,27 @@ async def test_get_budget_utilization_future_period_has_no_spend(client):
     transit = await _create_category(client, headers, name="Transit")
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers,
+        client,
+        headers,
         category_ids=[groceries, transit],
         instance_overrides={"period_start": "2099-01-01"},
     )
 
     await _create_transaction(
-        client, headers, account_id, groceries,
-        dt="2099-01-10", amount=-4000,
+        client,
+        headers,
+        account_id,
+        groceries,
+        dt="2099-01-10",
+        amount=-4000,
     )
     await _create_transaction(
-        client, headers, account_id, transit,
-        dt="2099-01-20", amount=-1500,
+        client,
+        headers,
+        account_id,
+        transit,
+        dt="2099-01-20",
+        amount=-1500,
     )
 
     data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
