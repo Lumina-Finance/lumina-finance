@@ -18,7 +18,12 @@ import {
 } from '@/pages/imports/constants'
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
 import type { ImportAmountFormat } from '@/pages/imports/utils/amountFormats'
-import { buildImportPreviewRows, buildTransactionImportPayload, validateColumnValues, WHOLE_FILE_DATE_RANGE } from '@/pages/imports/utils'
+import {
+  buildImportPreviewRows,
+  buildTransactionImportPayload,
+  validateColumnValues,
+  WHOLE_FILE_DATE_RANGE,
+} from '@/pages/imports/utils'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
 
 // PKR is here because the browser reports it as having no decimal places while the app's own table
@@ -233,8 +238,20 @@ describe('converting an amount to minor units', () => {
   })
 
   it('refuses every character outside a complete normalized amount', () => {
-    for (const value of [' 12.34', '12.34 ', '\t12.34', '12.34\n', '12.34\r', '12.34\u2028',
-      '12.34\u2029', '\uFEFF12.34', '12.34\u00A0', '12.34\u001C', '12 34', '1e3']) {
+    for (const value of [
+      ' 12.34',
+      '12.34 ',
+      '\t12.34',
+      '12.34\n',
+      '12.34\r',
+      '12.34\u2028',
+      '12.34\u2029',
+      '\uFEFF12.34',
+      '12.34\u00A0',
+      '12.34\u001C',
+      '12 34',
+      '1e3',
+    ]) {
       expect(toImportMinorUnits(value, 2)).toBe('unreadable')
     }
     expect(toImportMinorUnits('-0.00', 2)).toBe(0n)
@@ -251,14 +268,9 @@ describe('converting an amount to minor units', () => {
 describe('refusing a row whose amount its currency cannot hold', () => {
   it('refuses a selected-format amount containing a non-ASCII decimal digit', () => {
     const amountFormat: ImportAmountFormat = { decimalSeparator: '.', groupingSeparator: ',' }
-    const validation = validateColumnValues(
-      [createFile('١2.34')],
-      'Amount',
-      'amount',
-      SUPPORTED_CURRENCY_CODES,
-      null,
-      { amountFormat },
-    )
+    const validation = validateColumnValues([createFile('١2.34')], 'Amount', 'amount', SUPPORTED_CURRENCY_CODES, null, {
+      amountFormat,
+    })
     const build = buildPayload('١2.34', 'CAD', '', amountFormat)
 
     expect(validation.valid).toBe(false)
@@ -321,10 +333,10 @@ describe('refusing a row whose amount its currency cannot hold', () => {
   it('normalizes surrounding currency text and decimal commas before judging precision', () => {
     expect(buildPayload('CHF100,99', 'CAD', '', DECIMAL_COMMA).payload?.rows[0].amount).toBe('100.99')
     expect(buildPayload('-CHF100,99', 'CAD', '', DECIMAL_COMMA).payload?.rows[0].amount).toBe('-100.99')
-    expect(buildPayload('12,3400', 'CAD', '', DECIMAL_COMMA_WITHOUT_GROUPING).payload?.rows[0].amount)
-      .toBe('12.3400')
-    expect(firstProblem(buildPayload('12,345', 'CAD', '', DECIMAL_COMMA_WITHOUT_GROUPING)))
-      .toBe(getRowAmountTooPreciseReason('CAD', DECIMAL_COMMA_WITHOUT_GROUPING))
+    expect(buildPayload('12,3400', 'CAD', '', DECIMAL_COMMA_WITHOUT_GROUPING).payload?.rows[0].amount).toBe('12.3400')
+    expect(firstProblem(buildPayload('12,345', 'CAD', '', DECIMAL_COMMA_WITHOUT_GROUPING))).toBe(
+      getRowAmountTooPreciseReason('CAD', DECIMAL_COMMA_WITHOUT_GROUPING),
+    )
   })
 
   // Some banks, Brazilian ones among them, write a negative amount with its sign after the symbol
@@ -366,19 +378,22 @@ describe('refusing a row whose amount its currency cannot hold', () => {
   })
 
   it('judges decimal commas against zero-decimal and three-decimal currencies', () => {
-    expect(firstProblem(buildPayload('12,34', 'JPY', '', DECIMAL_COMMA_WITHOUT_GROUPING)))
-      .toBe(getRowAmountTooPreciseReason('JPY', DECIMAL_COMMA_WITHOUT_GROUPING))
-    expect(buildPayload('1,234', 'BHD', '', DECIMAL_COMMA_WITHOUT_GROUPING).payload?.rows[0].amount)
-      .toBe('1.234')
+    expect(firstProblem(buildPayload('12,34', 'JPY', '', DECIMAL_COMMA_WITHOUT_GROUPING))).toBe(
+      getRowAmountTooPreciseReason('JPY', DECIMAL_COMMA_WITHOUT_GROUPING),
+    )
+    expect(buildPayload('1,234', 'BHD', '', DECIMAL_COMMA_WITHOUT_GROUPING).payload?.rows[0].amount).toBe('1.234')
   })
 
   it('normalizes both signed storage limits from period grouping and refuses one cent more', () => {
-    expect(buildPayload('92.233.720.368.547.758,07', 'CAD', '', DECIMAL_COMMA).payload?.rows[0].amount)
-      .toBe(LARGEST_STORABLE)
-    expect(buildPayload('-92.233.720.368.547.758,08', 'CAD', '', DECIMAL_COMMA).payload?.rows[0].amount)
-      .toBe(SMALLEST_STORABLE)
-    expect(firstProblem(buildPayload('92.233.720.368.547.758,08', 'CAD', '', DECIMAL_COMMA)))
-      .toBe(ROW_AMOUNT_TOO_LARGE_REASON)
+    expect(buildPayload('92.233.720.368.547.758,07', 'CAD', '', DECIMAL_COMMA).payload?.rows[0].amount).toBe(
+      LARGEST_STORABLE,
+    )
+    expect(buildPayload('-92.233.720.368.547.758,08', 'CAD', '', DECIMAL_COMMA).payload?.rows[0].amount).toBe(
+      SMALLEST_STORABLE,
+    )
+    expect(firstProblem(buildPayload('92.233.720.368.547.758,08', 'CAD', '', DECIMAL_COMMA))).toBe(
+      ROW_AMOUNT_TOO_LARGE_REASON,
+    )
   })
 
   it('refuses notation whose sign or internal text would be lost', () => {
@@ -415,12 +430,14 @@ describe('validating a mapped currency column', () => {
   })
 
   it('accepts a code the app supports, in either case', () => {
-    expect(validateColumnValues([createFile('12.34', 'cad')], 'Currency', 'currency', SUPPORTED_CURRENCY_CODES).valid).toBe(true)
+    expect(
+      validateColumnValues([createFile('12.34', 'cad')], 'Currency', 'currency', SUPPORTED_CURRENCY_CODES).valid,
+    ).toBe(true)
   })
 })
 
 describe('previewing an amount', () => {
-  it('scales by the table\'s exponent for a currency the browser reports differently', () => {
+  it("scales by the table's exponent for a currency the browser reports differently", () => {
     // A browser resolving PKR to zero fraction digits scaled 1234.56 down to 1235 minor units,
     // losing the decimals the file stated
     const rows = buildPreview('1234.56', 'PKR')
@@ -491,8 +508,9 @@ describe('checking a row against the currency its account is kept in', () => {
 
   it('checks the currency chosen for an account queued for creation', () => {
     expect(buildCreateAccountPayload('1234', 'JPY', 'JPY').rowProblems).toHaveLength(0)
-    expect(firstProblem(buildCreateAccountPayload('1234', 'JPY', 'CAD')))
-      .toBe(getRowCurrencyMismatchReason('CAD', 'JPY'))
+    expect(firstProblem(buildCreateAccountPayload('1234', 'JPY', 'CAD'))).toBe(
+      getRowCurrencyMismatchReason('CAD', 'JPY'),
+    )
   })
 
   it('refuses the mismatch before judging the decimals', () => {

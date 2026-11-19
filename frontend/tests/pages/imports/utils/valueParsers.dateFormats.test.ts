@@ -178,8 +178,12 @@ describe('ISO dates and timestamps', () => {
     expect(scanImportDateFormats([value], 'automatic', 'Asia/Tokyo').readable).toEqual([])
     expect(scanImportDateFormats([value], 'automatic', 'UTC').readable).toEqual(['iso'])
     const files = [createDateFile([value])]
-    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { timeZone: 'Asia/Tokyo' }).valid).toBe(false)
-    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { timeZone: 'UTC' }).valid).toBe(true)
+    expect(
+      validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { timeZone: 'Asia/Tokyo' }).valid,
+    ).toBe(false)
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { timeZone: 'UTC' }).valid).toBe(
+      true,
+    )
   })
 
   it('recognizes a source timestamp without imposing a conversion timezone', () => {
@@ -190,19 +194,41 @@ describe('ISO dates and timestamps', () => {
   })
 
   it.each([
-    '2025-02-29', '2024-02-31T00:00:00Z', '2024-13-01', '2024-00-01',
-    '2024-01-00', '0099-03-15', '2024-3-15', '2024/03/15',
-    '2024-03-15T24:00:00', '2024-03-15T00:60:00', '2024-03-15T00:00:60',
-    '2024-03-15T00:00:00+25:00', '2024-03-15T00:00:00-01:60',
-    '2024-03-15T00:00', '2024-03-15T00:00:00.', '2024-03-15T00:00:00+0900',
-    '2024-03-15T00:00:00+09', '2024-03-15t00:00:00Z', '2024-03-15T00:00:00z',
-    '2024-03-15 00:00:00Z', '2024-03-15Z', '2024-03-15T00:00:00Z junk',
+    '2025-02-29',
+    '2024-02-31T00:00:00Z',
+    '2024-13-01',
+    '2024-00-01',
+    '2024-01-00',
+    '0099-03-15',
+    '2024-3-15',
+    '2024/03/15',
+    '2024-03-15T24:00:00',
+    '2024-03-15T00:60:00',
+    '2024-03-15T00:00:60',
+    '2024-03-15T00:00:00+25:00',
+    '2024-03-15T00:00:00-01:60',
+    '2024-03-15T00:00',
+    '2024-03-15T00:00:00.',
+    '2024-03-15T00:00:00+0900',
+    '2024-03-15T00:00:00+09',
+    '2024-03-15t00:00:00Z',
+    '2024-03-15T00:00:00z',
+    '2024-03-15 00:00:00Z',
+    '2024-03-15Z',
+    '2024-03-15T00:00:00Z junk',
   ])('refuses malformed or impossible ISO values: %s', (value) => {
     expect(readImportDate(value, 'iso', 'automatic', 'UTC')).toBe('')
   })
 
   it('keeps the ISO example hyphens under a custom numeric separator', () => {
-    const result = validateColumnValues([createDateFile(['2024-03-15T24:00:00Z'])], 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { dateSeparator: '.' })
+    const result = validateColumnValues(
+      [createDateFile(['2024-03-15T24:00:00Z'])],
+      'Date',
+      'dt',
+      SUPPORTED_CURRENCY_CODES,
+      'iso',
+      { dateSeparator: '.' },
+    )
     expect(result.valid).toBe(false)
     expect(result.message).toContain('such as 2026-04-30T12:00:00Z')
   })
@@ -416,13 +442,15 @@ describe('validating a date column', () => {
   it('names the written format in sentence case, without repeating the word', () => {
     const files = [createDateFile(['July 4th, 2024'])]
 
-    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'written').message)
-      .toBe('Expected valid dates in the written format, such as April 30, 2026. Row 1 has "July 4th, 2024", which is not a valid date.')
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'written').message).toBe(
+      'Expected valid dates in the written format, such as April 30, 2026. Row 1 has "July 4th, 2024", which is not a valid date.',
+    )
   })
 
   it('names every format in sentence case', () => {
     const files = [createDateFile(['nonsense'])]
-    const named = (format: ImportDateFormat) => validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, format).message
+    const named = (format: ImportDateFormat) =>
+      validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, format).message
 
     expect(named('yearFirst')).toContain('in the year first format, such as 2026-04-30')
     expect(named('dayFirst')).toContain('in the day first format, such as 30/04/2026')
@@ -433,8 +461,9 @@ describe('validating a date column', () => {
   it('keeps the capitals of ISO in the name of its format', () => {
     const files = [createDateFile(['nonsense'])]
 
-    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso').message)
-      .toContain('in the ISO date/time format, such as 2026-04-30T12:00:00Z')
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso').message).toContain(
+      'in the ISO date/time format, such as 2026-04-30T12:00:00Z',
+    )
   })
 
   it('accepts a real date whatever century it falls in', () => {
