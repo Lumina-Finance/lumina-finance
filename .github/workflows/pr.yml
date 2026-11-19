@@ -23,11 +23,18 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       backend-image: ${{ steps.image-filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      frontend-image: ${{ steps.image-filter.outputs.frontend }}
       docker: ${{ steps.filter.outputs.docker }}
       lockfiles: ${{ steps.filter.outputs.lockfiles }}
+      backend-tests: ${{ steps.tests.outputs.backend }}
+      frontend-tests: ${{ steps.tests.outputs.frontend }}
+      e2e-specs: ${{ steps.tests.outputs.e2e }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          # The test file lists compare against the base branch
+          fetch-depth: 0
 
       - name: Filter changed paths
         id: filter
@@ -55,10 +62,10 @@ jobs:
               - 'backend/uv.lock'
               - 'frontend/package-lock.json'
 
-      # The app image holds none of the backend's tests, so a change to those alone builds the same
-      # image and gets the same browser result as main. The exclusions need their own step, since
-      # the setting reading them applies to every filter of a step
-      - name: Filter backend changes that reach the app image
+      # The app image holds none of the backend's or frontend's tests, so a change to those alone
+      # builds the same image and gets the same browser result as main. The exclusions need their own
+      # step, since the setting reading them applies to every filter of a step
+      - name: Filter changes that reach the app image
         id: image-filter
         uses: dorny/paths-filter@v4
         with:
@@ -68,6 +75,55 @@ jobs:
               - 'backend/**'
               - '!backend/tests/**'
               - '!backend/.test_durations'
+            frontend:
+              - 'frontend/**'
+              - '!frontend/tests/**'
+
+      # A suite whose reach holds only changes to its own test files runs just those files, since
+      # everything else it runs against matches the base branch. Any other change in its reach, such
+      # as a shared helper, fixture, config, lockfile or workflow, or a deleted test, leaves the list
+      # empty and the whole suite runs. The patterns admit only letters, digits and separators, since
+      # the lists reach shell commands. The browser suite's reach is what the app image and its stack
+      # are built from, with the fake bank providers in the backend's tests
+      - name: List the test files to run alone
+        id: tests
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # Without rename detection a renamed file shows as its deleted old path and its new one, so
+          # a helper renamed to a test file's name still runs the whole suite
+          changed=$(git diff --name-only --no-renames "origin/${BASE_REF}...HEAD")
+          deleted=$(git diff --name-only --no-renames --diff-filter=D "origin/${BASE_REF}...HEAD")
+
+          in_reach() {
+            grep -E "$1" <<<"${changed}" || true
+          }
+
+          # Prints the files on standard input without the folder in $2, separated by spaces, when
+          # each is a test file matching $1 that the pull request keeps, and nothing otherwise
+          only_tests() {
+            local files
+            files=$(cat)
+            if [ -z "${files}" ] || grep -vqE "$1" <<<"${files}" || grep -qxFf <(printf '%s\n' "${deleted}") <<<"${files}"; then
+              return 0
+            fi
+            sed "s|^$2/||" <<<"${files}" | paste -sd ' ' -
+          }
+
+          # The backend's tests also read the Caddyfile and entrypoint under docker
+          backend=$(in_reach '^(backend|docker|\.github)/' \
+            | only_tests '^backend/tests/([a-z0-9_]+/)*test_[a-z0-9_]+\.py$' backend)
+          frontend=$(in_reach '^(frontend|\.github)/' \
+            | only_tests '^frontend/tests/([A-Za-z0-9_-]+/)*[A-Za-z0-9_.-]+\.test\.tsx?$' frontend)
+          e2e=$(in_reach '^(backend|frontend|docker|e2e|\.github)/' \
+            | awk '!/^frontend\/tests\// && !(/^backend\/tests\// && !/^backend\/tests\/fake_/)' \
+            | only_tests '^e2e/tests/[A-Za-z0-9_.-]+\.spec\.ts$' e2e)
+
+          {
+            echo "backend=${backend}"
+            echo "frontend=${frontend}"
+            echo "e2e=${e2e}"
+          } | tee -a "${GITHUB_OUTPUT}"
 
   backend-lint:
     needs: changes
@@ -80,7 +136,7 @@ jobs:
     needs: changes
     if: >-
       ${{ needs.changes.outputs.backend == 'true'
-        || needs.changes.outputs.frontend == 'true'
+        || needs.changes.outputs.frontend-image == 'true'
         || needs.changes.outputs.docker == 'true'
         || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_service-images.yml
@@ -91,6 +147,8 @@ jobs:
     needs: [changes, service-images]
     if: ${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_backend-test.yml
+    with:
+      tests: ${{ needs.changes.outputs.backend-tests }}
 
   frontend-lint:
     needs: changes
@@ -101,6 +159,8 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_frontend-test.yml
+    with:
+      tests: ${{ needs.changes.outputs.frontend-tests }}
 
   frontend-build:
     needs: changes
@@ -109,13 +169,13 @@ jobs:
 
   # The image build starts alongside lint and unit tests rather than after them, so the browser
   # suite that follows it, the longest check, starts sooner. The PR gate still blocks merging on
-  # any failed job. A change to the backend's tests alone skips the build, and the browser suite
-  # with it
+  # any failed job. A change to the backend's or frontend's tests alone skips the build, and the
+  # browser suite with it
   docker-build:
     needs: changes
     if: >-
       ${{ needs.changes.outputs.backend-image == 'true'
-        || needs.changes.outputs.frontend == 'true'
+        || needs.changes.outputs.frontend-image == 'true'
         || needs.changes.outputs.docker == 'true'
         || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_docker-build.yml
@@ -127,15 +187,17 @@ jobs:
     needs: changes
     if: >-
       ${{ needs.changes.outputs.backend-image == 'true'
-        || needs.changes.outputs.frontend == 'true'
+        || needs.changes.outputs.frontend-image == 'true'
         || needs.changes.outputs.docker == 'true'
         || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_e2e-check.yml
 
   e2e-test:
-    needs: [docker-build, service-images]
+    needs: [changes, docker-build, service-images]
     if: ${{ !cancelled() && needs.docker-build.result == 'success' && needs.service-images.result == 'success' }}
     uses: ./.github/workflows/_e2e-test.yml
+    with:
+      specs: ${{ needs.changes.outputs.e2e-specs }}
     secrets: inherit
 
   # Keep this name stable for the repository's required status check
