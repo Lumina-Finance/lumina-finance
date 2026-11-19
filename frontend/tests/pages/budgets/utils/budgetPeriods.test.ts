@@ -99,8 +99,12 @@ describe('budget period helpers', () => {
 
   it('summarizes one-off and recurring form cadence', () => {
     expect(oneOffPeriodEnd(createForm({ recurs: false, recurrenceFreq: 'monthly' }))).toEqual(new Date(2026, 5, 30))
-    expect(cadenceSummary(createForm({ name: '  ', recurs: false }))).toBe('"Untitled" is one-off starting Jun 1, 2026 and ending Jun 30, 2026')
-    expect(cadenceSummary(createForm({ recurrenceFreq: 'weekly', instanceLength: '2' }))).toBe('"Groceries" will repeat every 2 weeks starting Jun 1, 2026')
+    expect(cadenceSummary(createForm({ name: '  ', recurs: false }))).toBe(
+      '"Untitled" is one-off starting Jun 1, 2026 and ending Jun 30, 2026',
+    )
+    expect(cadenceSummary(createForm({ recurrenceFreq: 'weekly', instanceLength: '2' }))).toBe(
+      '"Groceries" will repeat every 2 weeks starting Jun 1, 2026',
+    )
   })
 
   it('formats cadence labels and next budget period previews', () => {
@@ -108,10 +112,7 @@ describe('budget period helpers', () => {
     const latestPeriod = createBudget(baseBudget)
 
     expect(budgetCadenceLabel(baseBudget)).toBe('Monthly')
-    expect(nextBudgetPeriods(baseBudget, latestPeriod)).toEqual([
-      'Jul 1 – 31, 2026',
-      'Aug 1 – 31, 2026',
-    ])
+    expect(nextBudgetPeriods(baseBudget, latestPeriod)).toEqual(['Jul 1 – 31, 2026', 'Aug 1 – 31, 2026'])
   })
 
   it('returns no upcoming periods for an archived recurring budget', () => {
@@ -125,10 +126,7 @@ describe('budget period helpers', () => {
     const baseBudget = createBaseBudget()
     const latestPeriod = createBudget(baseBudget)
 
-    expect(missingRecurringPeriodStarts(baseBudget, latestPeriod, '2026-08-15')).toEqual([
-      '2026-07-01',
-      '2026-08-01',
-    ])
+    expect(missingRecurringPeriodStarts(baseBudget, latestPeriod, '2026-08-15')).toEqual(['2026-07-01', '2026-08-01'])
   })
 
   it('backfills nothing from a stored start the calendar does not have', () => {
@@ -147,8 +145,12 @@ describe('budget period helpers', () => {
   })
 
   it('keeps a period start the calendar does not have as its own label', () => {
-    expect(cadenceSummary(createForm({ recurs: false, periodStart: '2026-02-31' }))).toBe('"Groceries" is one-off starting 2026-02-31')
-    expect(cadenceSummary(createForm({ periodStart: '2026-02-31' }))).toBe('"Groceries" will repeat monthly starting 2026-02-31')
+    expect(cadenceSummary(createForm({ recurs: false, periodStart: '2026-02-31' }))).toBe(
+      '"Groceries" is one-off starting 2026-02-31',
+    )
+    expect(cadenceSummary(createForm({ periodStart: '2026-02-31' }))).toBe(
+      '"Groceries" will repeat monthly starting 2026-02-31',
+    )
     expect(oneOffPeriodEnd(createForm({ recurs: false, periodStart: '2026-02-31' }))).toBeNull()
   })
 

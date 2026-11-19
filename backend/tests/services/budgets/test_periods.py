@@ -2,6 +2,7 @@
 
 Pure functions — no DB, no fixtures, just stdlib date math
 """
+
 import calendar
 from datetime import date, timedelta
 
@@ -34,21 +35,25 @@ def _add_months(year, month, months):
     next_month = total_months % 12 + 1
     return next_year, next_month
 
+
 # --- validate_period_start: weekly ---
 
 
 class TestValidateWeekly:
     """Weekly alignment: period_start.weekday() must match the base's weekday."""
 
-    @pytest.mark.parametrize("weekday,start", [
-        (0, date(2026, 3, 2)),   # Monday
-        (1, date(2026, 3, 3)),   # Tuesday
-        (2, date(2026, 3, 4)),   # Wednesday
-        (3, date(2026, 3, 5)),   # Thursday
-        (4, date(2026, 3, 6)),   # Friday
-        (5, date(2026, 3, 7)),   # Saturday
-        (6, date(2026, 3, 8)),   # Sunday
-    ])
+    @pytest.mark.parametrize(
+        "weekday,start",
+        [
+            (0, date(2026, 3, 2)),  # Monday
+            (1, date(2026, 3, 3)),  # Tuesday
+            (2, date(2026, 3, 4)),  # Wednesday
+            (3, date(2026, 3, 5)),  # Thursday
+            (4, date(2026, 3, 6)),  # Friday
+            (5, date(2026, 3, 7)),  # Saturday
+            (6, date(2026, 3, 8)),  # Sunday
+        ],
+    )
     def test_valid_weekday(self, weekday, start):
         """Each weekday 0-6 is accepted when period_start lands on that day."""
         assert validate_period_start(start, RecurrenceFreq.WEEKLY, weekday=weekday) is None
