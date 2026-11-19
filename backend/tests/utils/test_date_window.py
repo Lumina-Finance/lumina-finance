@@ -1,16 +1,24 @@
 """Date window tests: where the window ends and which report ranges are refused"""
 
+import calendar
 from datetime import UTC, date, datetime
 
 import pytest
 from fastapi import HTTPException
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from app.utils import date_window
 from app.utils.date_window import get_latest_allowed_date, get_window_error, require_report_range
+from tests.routes.support.generators import date_ranges, date_ranges_near_span
 
 # 23:30 UTC on 9 June is already 10 June in the furthest-ahead timezone, so a window counted from
 # the UTC date would end a day early for a user there
 LATE_EVENING_UTC = datetime(2026, 6, 9, 23, 30, tzinfo=UTC)
+
+# The two ends of the window under that clock, written out so the property draws from the whole of it
+EARLIEST_ALLOWED = date(1900, 1, 1)
+LATEST_ALLOWED = date(2036, 6, 10)
 
 
 @pytest.fixture(autouse=True)
@@ -50,7 +58,6 @@ def test_window_error_names_the_edge_a_date_is_past(value, error):
 @pytest.mark.parametrize(
     ("from_date", "to_date"),
     [
-        (date(1900, 1, 1), date(1919, 12, 31)),
         (date(2010, 1, 1), date(2029, 12, 31)),
         (date(2016, 2, 29), date(2036, 2, 28)),
         (date(2016, 6, 11), date(2036, 6, 10)),
@@ -79,3 +86,37 @@ def test_report_range_refuses_each_case_with_a_message_naming_the_field(from_dat
 
     assert refusal.value.status_code == 422
     assert refusal.value.detail == detail
+
+
+def _covers_20_years_or_more(first: date, last: date) -> bool:
+    """Say whether the last day is 20 calendar years or more after the first
+
+    A 29 February first day has its anniversary on 28 February in a year without a 29th
+    """
+    is_leap_day = (first.month, first.day) == (2, 29)
+    anniversary_day = 28 if is_leap_day and not calendar.isleap(first.year + 20) else first.day
+    return (last.year, last.month, last.day) >= (first.year + 20, first.month, anniversary_day)
+
+
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(
+    report_range=st.one_of(
+        date_ranges(EARLIEST_ALLOWED, LATEST_ALLOWED),
+        date_ranges_near_span(20, EARLIEST_ALLOWED, LATEST_ALLOWED),
+    )
+)
+def test_report_range_inside_the_window_is_refused_exactly_when_it_covers_20_years_or_more(report_range):
+    """A range inside the window is refused when its last day is 20 years or more after its first
+
+    Every other range inside the window is taken. The frontend's span check runs the same property
+    over the same rule, so the two refuse the same ranges
+    """
+    first, last = report_range
+
+    if _covers_20_years_or_more(first, last):
+        with pytest.raises(HTTPException) as refusal:
+            require_report_range(first, last)
+        assert refusal.value.status_code == 422
+        assert refusal.value.detail == "Range can cover at most 20 years"
+    else:
+        require_report_range(first, last)

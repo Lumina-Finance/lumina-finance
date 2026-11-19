@@ -20,19 +20,15 @@ import {
   readMoneyInputChange,
   toMinorUnits,
 } from '@/utils/moneyInput'
+import { currencyExponents, nonNegativeMinorUnits } from '@tests/utils/generators'
 
 const CENTS = 2
 const WHOLE_UNITS = 0
 const MILS = 3
 
-// One more decimal place than any seeded currency uses, so a currency added later stays covered
-const MAX_EXPONENT = 4
-
 // An amount up to which the old division was exact at every exponent, so the new conversion must
 // give the same text up to this bound
 const DIVISION_EXACT_LIMIT = 10 ** 15
-
-const exponents = fc.integer({ min: 0, max: MAX_EXPONENT })
 
 /**
  * Replays showing a stored amount in a field and settling it when the field is left, returning the
@@ -46,7 +42,7 @@ function showAndSettle(minorUnits: number, exponent: number): number | null {
  * Builds text the field takes: whole digits, then optionally a decimal point and at most as many
  * digits as the currency holds, bounded to amounts that stay within the largest safe integer
  */
-const acceptedTyping = exponents.chain((exponent) =>
+const acceptedTyping = currencyExponents.chain((exponent) =>
   fc
     .record({
       whole: fc.stringMatching(/^\d{0,16}$/),
@@ -149,13 +145,6 @@ describe('replacing the whole field', () => {
 })
 
 describe('converting to and from stored minor units', () => {
-  it('scales by the currency decimal places in both directions', () => {
-    expect(toMinorUnits('1234.56', CENTS)).toBe(123456)
-    expect(toMinorUnits('1234', WHOLE_UNITS)).toBe(1234)
-    expect(fromMinorUnits(123456, CENTS)).toBe('1234.56')
-    expect(fromMinorUnits(1234, WHOLE_UNITS)).toBe('1234')
-  })
-
   it('moves the decimal point through the digits rather than multiplying', () => {
     expect(toMinorUnits('0.145', MILS)).toBe(145)
     expect(toMinorUnits('1.005', MILS)).toBe(1005)
@@ -203,8 +192,16 @@ describe('converting to and from stored minor units', () => {
 
   it('gives back every stored amount up to the largest safe integer once shown and settled', () => {
     fc.assert(
-      fc.property(fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER }), exponents, (minorUnits, exponent) => {
+      fc.property(nonNegativeMinorUnits, currencyExponents, (minorUnits, exponent) => {
         expect(showAndSettle(minorUnits, exponent)).toBe(minorUnits)
+      }),
+    )
+  })
+
+  it('refuses a shown negative amount rather than reading it as its positive', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: Number.MIN_SAFE_INTEGER, max: -1 }), currencyExponents, (minorUnits, exponent) => {
+        expect(toMinorUnits(fromMinorUnits(minorUnits, exponent), exponent)).toBeNull()
       }),
     )
   })
@@ -213,7 +210,7 @@ describe('converting to and from stored minor units', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: -DIVISION_EXACT_LIMIT, max: DIVISION_EXACT_LIMIT }),
-        exponents,
+        currencyExponents,
         (minorUnits, exponent) => {
           expect(fromMinorUnits(minorUnits, exponent)).toBe((minorUnits / 10 ** exponent).toFixed(exponent))
         },

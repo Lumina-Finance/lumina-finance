@@ -3,6 +3,7 @@
  * typed before 1 January 1900 or more than ten years ahead, or a range of over 20 years, is refused
  * with the reason a field says
  */
+import fc from 'fast-check'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DEFAULT_DATE_FORMAT, setDateFormat } from '@/utils/dateFormat'
 import {
@@ -11,9 +12,24 @@ import {
   getOverviewRangeSpanError,
   getRangeSpanError,
 } from '@/utils/dateWindow'
+import { dateRanges, dateRangesNearSpan, toYmd, type CalendarDay } from '@tests/utils/generators'
 
 // A fixed today, so the window's far edge is the same on every day the suite runs
 const TODAY = '2026-06-10'
+
+/**
+ * Says whether the last day is 20 calendar years or more after the first, a 29 February first day
+ * having its anniversary on 28 February in a year without a 29th. The server's own property test
+ * checks the same rule, so the two refuse the same ranges
+ */
+function coversTwentyYearsOrMore(from: CalendarDay, to: CalendarDay): boolean {
+  const year = from.year + 20
+  const isLeapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  const anniversaryDay = from.month === 2 && from.day === 29 && !isLeapYear ? 28 : from.day
+  const asNumber = (year: number, month: number, day: number) => (year * 100 + month) * 100 + day
+
+  return asNumber(to.year, to.month, to.day) >= asNumber(from.year + 20, from.month, anniversaryDay)
+}
 
 afterEach(() => setDateFormat(DEFAULT_DATE_FORMAT))
 
@@ -65,11 +81,24 @@ describe('getRangeSpanError', () => {
   it('counts a range starting on 29 February in whole years', () => {
     expect(getRangeSpanError('2016-02-29', '2036-02-28')).toBeNull()
     expect(getRangeSpanError('2016-02-29', '2036-02-29')).toBe('Can cover at most 20 years')
+    // 2100 is not a leap year, so the anniversary of 29 February 2080 is 28 February
+    expect(getRangeSpanError('2080-02-29', '2100-02-27')).toBeNull()
+    expect(getRangeSpanError('2080-02-29', '2100-02-28')).toBe('Can cover at most 20 years')
   })
 
   it('leaves ends not yet whole alone', () => {
     expect(getRangeSpanError('2010-01-01', '')).toBeNull()
     expect(getRangeSpanError('', '2030-01-01')).toBeNull()
+  })
+
+  it('refuses a range exactly when its last day is 20 years or more after its first, as the server does', () => {
+    fc.assert(
+      fc.property(fc.oneof(dateRanges, dateRangesNearSpan(20)), ({ from, to }) => {
+        const error = getRangeSpanError(toYmd(from), toYmd(to))
+
+        expect(error).toBe(coversTwentyYearsOrMore(from, to) ? 'Can cover at most 20 years' : null)
+      }),
+    )
   })
 })
 

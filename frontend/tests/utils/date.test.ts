@@ -2,6 +2,7 @@
  * Tests the shared date layer, covering the zone guard that keeps an unrecognized profile setting
  * from unmounting the app and the calendar arithmetic every view derives its ranges from
  */
+import fc from 'fast-check'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DEFAULT_DATE_FORMAT, setDateFormat, type DateFormatSetting } from '@/utils/dateFormat'
 import {
@@ -27,6 +28,7 @@ import {
   parseYmd,
   resolveTimeZone,
 } from '@/utils/date'
+import { calendarDays } from '@tests/utils/generators'
 
 // The suite runs in whatever zone the machine is set to, so expectations about the fallback are
 // written against the zone the browser reports rather than a fixed name
@@ -35,6 +37,17 @@ const BROWSER_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone
 // Late evening in Toronto on 30 June, already 1 July in UTC, so a zone mix-up shows up as a
 // different day and a different month
 const LATE_JUNE_EVENING = new Date('2026-07-01T02:00:00Z')
+
+const MONTHS_WITH_THIRTY_DAYS = [4, 6, 9, 11]
+
+/**
+ * Counts the days of a month, 1 for January, from the calendar's own rule rather than the app's
+ */
+function lengthOfMonth(year: number, month: number): number {
+  if (month === 2) return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28
+
+  return MONTHS_WITH_THIRTY_DAYS.includes(month) ? 30 : 31
+}
 
 describe('resolveTimeZone', () => {
   it('keeps a zone the browser recognizes', () => {
@@ -301,6 +314,29 @@ describe('calendar arithmetic', () => {
 
   it('clamps to the end of a shorter month instead of overflowing', () => {
     expect(formatYmd(addMonths(new Date(2026, 2, 31), -1))).toBe('2026-02-28')
+    expect(formatYmd(addMonths(new Date(2026, 0, 31), 1))).toBe('2026-02-28')
+    expect(formatYmd(addMonths(new Date(2028, 0, 31), 1))).toBe('2028-02-29')
+  })
+
+  it('lands on the same day of the target month, or on its last day when it is shorter', () => {
+    fc.assert(
+      fc.property(calendarDays, fc.integer({ min: -600, max: 600 }), (start, months) => {
+        const date = new Date(start.year, start.month - 1, start.day, 12)
+        const startTime = date.getTime()
+        const monthIndex = start.year * 12 + (start.month - 1) + months
+        const year = Math.floor(monthIndex / 12)
+        const month = (monthIndex % 12) + 1
+
+        const result = addMonths(date, months)
+
+        expect([result.getFullYear(), result.getMonth() + 1, result.getDate()]).toStrictEqual([
+          year,
+          month,
+          Math.min(start.day, lengthOfMonth(year, month)),
+        ])
+        expect(date.getTime()).toBe(startTime)
+      }),
+    )
   })
 
   it('numbers the week holding the first Thursday of the year as week one', () => {
