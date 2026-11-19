@@ -14,6 +14,7 @@ export { getAccessTokenExpiresAt } from '@/api/auth/tokenAge'
 
 export type {
   AuthResponse,
+  CompletedPasswordReset,
   ConfirmSignupPayload,
   ForgotPasswordPayload,
   LoginPayload,
@@ -21,6 +22,7 @@ export type {
   MfaRequiredResponse,
   MfaVerifyPayload,
   RegistrationStatus,
+  ResetLinkStatus,
   ResetPasswordPayload,
   ResetPasswordResult,
   ResetPasswordVerifyPayload,
@@ -29,6 +31,7 @@ export type {
 } from '@/api/auth/types'
 
 export {
+  checkResetLink,
   confirmSignup,
   fetchRegistrationStatus,
   forgotPassword,
@@ -43,4 +46,4 @@ export {
   verifyResetMfa,
 } from '@/api/auth/requests'
 
-export { useRegistrationStatus } from '@/api/auth/hooks'
+export { useRegistrationStatus, useResetLinkCheck } from '@/api/auth/hooks'

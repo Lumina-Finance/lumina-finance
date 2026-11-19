@@ -159,6 +159,8 @@ export const passkeyKeys = {
 
 export const authKeys = {
   registration: () => ['auth', 'registration'] as const,
+  resetLinks: () => ['auth', 'reset-link'] as const,
+  resetLink: (token: string) => ['auth', 'reset-link', token] as const,
 }
 
 export const oidcKeys = {

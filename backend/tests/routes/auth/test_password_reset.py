@@ -12,15 +12,18 @@ from sqlalchemy import delete, event, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app
-from app.models.auth import PasswordCredential, PasswordResetToken
+from app.models.auth import AuthIdentity, PasswordCredential, PasswordResetToken
+from app.models.base import AuthProvider
 from app.services.auth import password_reset, reset_send_limit, send_backoff
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession, scoped_engine
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
+    _count_sign_in_provider_links,
     _create_user,
     _fresh_totp_code,
     _get_auth_header,
+    _link_sign_in_providers,
     _seed_reset_token,
     sign_up_confirmed,
 )
@@ -456,6 +459,95 @@ async def test_reset_password_revokes_existing_sessions(client):
     assert revoked.status_code == 401
 
 
+async def test_reset_password_removes_every_linked_provider_and_says_so(client):
+    """A reset unlinks every sign-in provider, ends every session, and tells the success screen
+
+    Whoever controls a linked provider subject could otherwise sign straight back in, so an owner
+    reclaiming the address by email must also cut off any provider link someone else made
+    """
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    pre_reset_headers = _get_auth_header(signup)
+    await _link_sign_in_providers(user_id, 2)
+    other = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "other@example.com"})
+    other_id = uuid.UUID(other.json()["user"]["id"])
+    await _link_sign_in_providers(other_id, 1, first_index=2)
+    raw_token = await _seed_reset_token(user_id)
+
+    resp = await client.post("/auth/password/reset", json={"token": raw_token, "new_password": _NEW_PASSWORD})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"sign_in_providers_removed": 2}
+    assert await _count_sign_in_provider_links(user_id) == (0, 0)
+
+    # Only the reset account loses its links, and every account keeps its password sign-in method
+    assert await _count_sign_in_provider_links(other_id) == (1, 1)
+    async with TestSession() as session:
+        password_methods = await session.scalar(
+            select(func.count()).select_from(AuthIdentity).where(AuthIdentity.auth_provider == AuthProvider.PASSWORD)
+        )
+    assert password_methods == 2
+    revoked = await client.patch(
+        "/auth/password",
+        json={"current_password": _NEW_PASSWORD, "new_password": "AnotherSecret123!"},
+        headers=pre_reset_headers,
+    )
+    assert revoked.status_code == 401
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _NEW_PASSWORD})
+    assert login.status_code == 200
+
+
+async def test_reset_link_check_counts_only_this_accounts_providers_and_keeps_the_link(client):
+    """The form warns before the removal, so the check counts the link's account and spends nothing"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    await _link_sign_in_providers(user_id, 2)
+    other = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "other@example.com"})
+    await _link_sign_in_providers(uuid.UUID(other.json()["user"]["id"]), 1, first_index=2)
+    raw_token = await _seed_reset_token(user_id)
+    links_before = await _count_sign_in_provider_links(user_id)
+
+    check = await client.post("/auth/password/reset/check", json={"token": raw_token})
+
+    assert check.status_code == 200
+    assert check.json() == {"sign_in_providers_linked": 2}
+    assert await _count_sign_in_provider_links(user_id) == links_before
+    reset = await client.post("/auth/password/reset", json={"token": raw_token, "new_password": _NEW_PASSWORD})
+    assert reset.json() == {"sign_in_providers_removed": 2}
+
+
+async def test_reset_link_check_answers_zero_for_an_account_with_no_provider(client):
+    """An account with no provider linked gets no warning"""
+    signup = await _create_user(client)
+    raw_token = await _seed_reset_token(uuid.UUID(signup.json()["user"]["id"]))
+
+    check = await client.post("/auth/password/reset/check", json={"token": raw_token})
+
+    assert check.status_code == 200
+    assert check.json() == {"sign_in_providers_linked": 0}
+
+
+@pytest.mark.parametrize(
+    "seed",
+    [
+        pytest.param({"expires_in_seconds": -60}, id="expired"),
+        pytest.param({"used": True}, id="used"),
+        pytest.param(None, id="unknown"),
+    ],
+)
+async def test_reset_link_check_refuses_a_dead_link(client, seed):
+    """A dead link gets the same refusal as the reset itself, saying nothing of the account"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    await _link_sign_in_providers(user_id, 1)
+    raw_token = "does-not-exist" if seed is None else await _seed_reset_token(user_id, **seed)
+
+    check = await client.post("/auth/password/reset/check", json={"token": raw_token})
+
+    assert check.status_code == 400
+    assert check.json()["detail"] == "Invalid or expired reset token"
+
+
 async def test_reset_password_rejects_expired_token(client):
     """An expired token is rejected"""
     signup = await _create_user(client)
@@ -560,6 +652,51 @@ async def test_reset_verify_with_recovery_code_wipes_factors_and_grants_restrict
     assert login.status_code == 200
     assert login.json()["mfa_required"] is True
     assert login.json()["recovery_only"] is True
+
+
+async def test_reset_verify_with_totp_removes_linked_providers_and_says_so(client):
+    """A reset finished with an authenticator code unlinks the providers and tells the success screen"""
+    signup, secret, _ = await _enroll_totp(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    await _link_sign_in_providers(user_id, 1)
+    raw_token, challenge = await _begin_reset_with_factor(client, user_id)
+    assert await _count_sign_in_provider_links(user_id) == (1, 1)
+
+    verify = await client.post(
+        "/auth/password/reset/verify",
+        json={
+            "token": raw_token,
+            "new_password": _NEW_PASSWORD,
+            "mfa_token": challenge["mfa_token"],
+            "code": _fresh_totp_code(secret),
+        },
+    )
+
+    assert verify.status_code == 200
+    assert verify.json() == {"sign_in_providers_removed": 1}
+    assert await _count_sign_in_provider_links(user_id) == (0, 0)
+
+
+async def test_reset_verify_with_recovery_code_removes_linked_providers_and_still_grants_restricted_session(client):
+    """A recovery code unlinks the providers too, and still answers with the re-enrolment session"""
+    signup, _, recovery_codes = await _enroll_totp(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    await _link_sign_in_providers(user_id, 1)
+    raw_token, challenge = await _begin_reset_with_factor(client, user_id)
+
+    verify = await client.post(
+        "/auth/password/reset/verify",
+        json={
+            "token": raw_token,
+            "new_password": _NEW_PASSWORD,
+            "mfa_token": challenge["mfa_token"],
+            "code": recovery_codes[0],
+        },
+    )
+
+    assert verify.status_code == 200
+    assert verify.json()["access_token"]
+    assert await _count_sign_in_provider_links(user_id) == (0, 0)
 
 
 async def test_reset_during_reenrollment_requires_a_remaining_recovery_code(client):
@@ -726,6 +863,8 @@ async def test_reset_sets_first_password_for_provider_account(client):
 
     raw_token = await _seed_reset_token(user_id)
     resp = await client.post("/auth/password/reset", json={"token": raw_token, "new_password": _NEW_PASSWORD})
+
+    # The account had no provider subject linked, so nothing was removed to report
     assert resp.status_code == 204
 
     async with TestSession() as session:

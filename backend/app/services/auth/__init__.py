@@ -24,6 +24,7 @@ from app.services.auth.oidc_providers import (
 from app.services.auth.password_reset import (
     begin_password_reset,
     complete_password_reset,
+    count_reset_sign_in_providers,
     ensure_reset_token_active,
     request_password_reset,
 )
@@ -87,6 +88,7 @@ __all__ = [
     "confirm_recovery_codes",
     "confirm_signup",
     "confirm_totp_enrollment",
+    "count_reset_sign_in_providers",
     "create_access_token",
     "create_oidc_onboarding_token",
     "create_oidc_reauth_stepup_token",

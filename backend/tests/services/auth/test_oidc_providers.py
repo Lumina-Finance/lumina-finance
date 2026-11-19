@@ -18,6 +18,7 @@ def _config(slug: str = "test-idp", **overrides) -> OidcProviderConfig:
         "client_id": "client-123",
         "client_secret": "secret-abc",
         "scopes": "openid email profile",
+        "endpoint_hosts": frozenset(),
         **overrides,
     }
     return OidcProviderConfig(**values)

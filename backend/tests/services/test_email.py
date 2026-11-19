@@ -321,6 +321,14 @@ def test_render_reset_email_carries_link_in_both_parts():
     assert "15" in message.html_body
 
 
+def test_render_reset_email_says_nothing_of_sign_in_providers():
+    """An email keeps to its action, and the reset form warns only the accounts with a provider linked"""
+    message = render_reset_email("https://app.example.com/reset-password?token=abc123", 15)
+
+    assert "provider" not in message.text_body.lower()
+    assert "provider" not in message.html_body.lower()
+
+
 def test_render_action_needed_email_lists_the_accounts_in_both_parts_escaping_them_in_html():
     """Account and connection names are the user's own, so the HTML part escapes them while the text part keeps them as typed"""
     message = render_action_needed_email(

@@ -18,7 +18,7 @@ from app.models.user import User
 from app.services.auth import oidc_login, registration
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _seed_currency, sign_up_confirmed
+from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _seed_currency, _seed_reset_token, sign_up_confirmed
 
 ISSUER = "https://idp.test"
 CLIENT_ID = "client-123"
@@ -440,6 +440,52 @@ async def test_callback_refuses_an_address_of_only_blanks(client, provider_proto
     assert resp.json()["detail"] == "Identity provider did not supply an email address"
 
 
+@pytest.mark.parametrize(
+    "sent",
+    [42, ["sso-user@example.com"], f"{'a' * 243}@example.com", "sso-user\x00@example.com"],
+    ids=["number", "list", "one character longer than an address column", "control character"],
+)
+async def test_callback_refuses_an_address_it_cannot_store_and_creates_nothing(client, provider_protocol, sent):
+    """An email claim that isn't text, can't be stored or is too long is treated as no email, not as a server error"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email=sent)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Identity provider did not supply an email address"
+    async with TestSession() as session:
+        assert (await session.execute(select(User.id))).first() is None
+
+
+async def test_callback_onboards_an_address_as_long_as_the_column_holds(client, provider_protocol):
+    """A 254-character address, the most an address column stores, still reaches onboarding"""
+    await _seed_provider()
+    address = f"{'a' * 242}@example.com"
+    provider_protocol["claims"] = _claims(email=address)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert resp.json()["onboarding_required"] is True
+    assert resp.json()["email"] == address
+
+
+async def test_callback_ignores_a_family_name_that_is_not_text(client, provider_protocol):
+    """A family name that isn't text is left off the profile form and the sign-in goes ahead"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(family_name=["User"])
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert resp.json()["onboarding_required"] is True
+    assert resp.json()["last_name"] is None
+
+
 async def test_signup_completion_conflicts_when_the_provider_spells_the_domain_differently(client, provider_protocol, monkeypatch):
     """With verification relaxed, an unverified address meets the typed account of the same address when the signup completes"""
     monkeypatch.setattr(oidc_login, "OIDC_REQUIRE_VERIFIED_EMAIL", False)
@@ -603,6 +649,38 @@ async def test_signup_conflicts_with_an_account_registered_in_other_capitals_mea
     assert resp.json()["detail"] == "Email already registered"
     async with TestSession() as session:
         assert len((await session.execute(select(User))).scalars().all()) == 1
+
+
+async def test_a_subject_unlinked_by_a_password_reset_cannot_reach_the_account_again(client, provider_protocol, monkeypatch):
+    """Once the address owner resets the password, a squatter's provider subject meets signup's refusal
+
+    With verification relaxed, someone can create an account through a provider on an address they
+    don't own. The owner reclaims it through the reset link, and that removes the squatter's link,
+    so their next sign-in lands on onboarding and the signup is refused as already registered
+    """
+    monkeypatch.setattr(oidc_login, "OIDC_REQUIRE_VERIFIED_EMAIL", False)
+    await _seed_currency()
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email_verified=False)
+    signup_body = {"first_name": "Sso", "tz": "America/Toronto", "base_currency": "CAD"}
+    state = await _start_sign_in(client)
+    onboarding = (await client.post("/auth/oidc/callback", json={"code": "any", "state": state})).json()
+    squatted = await client.post("/auth/oidc/signup", json={"onboarding_token": onboarding["onboarding_token"], **signup_body})
+    assert squatted.status_code == 201
+    raw_token = await _seed_reset_token(uuid.UUID(squatted.json()["user"]["id"]))
+
+    reset = await client.post("/auth/password/reset", json={"token": raw_token, "new_password": "NewSecurePass123!"})
+    assert reset.status_code == 200
+    state = await _start_sign_in(client)
+    again = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+    assert again.status_code == 200
+    assert again.json()["onboarding_required"] is True
+    resp = await client.post("/auth/oidc/signup", json={"onboarding_token": again.json()["onboarding_token"], **signup_body})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Email already registered"
+    async with TestSession() as session:
+        assert (await session.execute(select(OidcIdentity))).scalars().all() == []
 
 
 async def test_signup_races_to_conflict_not_crash(client, provider_protocol, monkeypatch):

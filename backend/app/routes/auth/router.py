@@ -15,6 +15,7 @@ from app.routes.auth.logout_helpers import logout_auth_session
 from app.routes.auth.native import router as native_router
 from app.routes.auth.oidc import router as oidc_router
 from app.routes.auth.passkeys import router as passkeys_router
+from app.routes.auth.password_reset_helpers import answer_completed_reset
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
     complete_mfa_challenge,
@@ -30,8 +31,11 @@ from app.schemas.auth import (
     MfaRequiredResponse,
     MfaVerifyRequest,
     NativeRefreshTokenRequest,
+    PasswordResetResponse,
     RecoveryCodesResponse,
     RegistrationStatusResponse,
+    ResetLinkRequest,
+    ResetLinkResponse,
     ResetPasswordRequest,
     ResetPasswordVerifyRequest,
     SetPasswordRequest,
@@ -55,6 +59,7 @@ from app.services.auth import (
     confirm_recovery_codes,
     confirm_signup,
     confirm_totp_enrollment,
+    count_reset_sign_in_providers,
     disable_two_factor,
     ensure_reset_token_active,
     is_passkey_registered,
@@ -68,6 +73,7 @@ from app.services.auth import (
     set_first_password,
 )
 from app.services.auth.account_lockout import reset_failed_attempts
+from app.services.auth.password_reset import CompletedPasswordReset
 
 _security = HTTPBearer(auto_error=False)
 
@@ -261,7 +267,29 @@ async def forgot_password_route(
     await request_password_reset(db, data.email, background_tasks, session_factory)
 
 
-@router.post("/password/reset", response_model=MfaRequiredResponse | None)
+@router.post("/password/reset/check", response_model=ResetLinkResponse)
+async def check_reset_link_route(
+    data: ResetLinkRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Say how many linked sign-in providers a reset from this link would remove
+
+    The token travels in the body, never the address, so it stays out of access logs
+
+    Args:
+        data: Payload with the emailed token
+        db: Active database session
+
+    Returns:
+        The account's linked provider count
+
+    Raises:
+        HTTPException: The token is invalid, used, or expired
+    """
+    return ResetLinkResponse(sign_in_providers_linked=await count_reset_sign_in_providers(db, data.token))
+
+
+@router.post("/password/reset", response_model=MfaRequiredResponse | PasswordResetResponse | None)
 async def reset_password_route(
     data: ResetPasswordRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -276,24 +304,24 @@ async def reset_password_route(
         db: Active database session
 
     Returns:
-        A challenge when a second factor is required, otherwise an empty 204
+        A challenge when a second factor is required, otherwise the answer to the finished reset
 
     Raises:
         HTTPException: The token is invalid, used, or expired
     """
-    challenge = await begin_password_reset(db, data.token, data.new_password)
-    if challenge is None:
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    result = await begin_password_reset(db, data.token, data.new_password)
+    if isinstance(result, CompletedPasswordReset):
+        return answer_completed_reset(result)
 
     return MfaRequiredResponse(
-        mfa_token=challenge.mfa_token,
-        totp_enabled=challenge.totp_enabled,
-        passkey_available=challenge.passkey_available,
-        recovery_only=not challenge.totp_enabled and not challenge.passkey_available,
+        mfa_token=result.mfa_token,
+        totp_enabled=result.totp_enabled,
+        passkey_available=result.passkey_available,
+        recovery_only=not result.totp_enabled and not result.passkey_available,
     )
 
 
-@router.post("/password/reset/verify", response_model=AuthResponse | None)
+@router.post("/password/reset/verify", response_model=AuthResponse | PasswordResetResponse | None)
 async def reset_password_verify_route(
     data: ResetPasswordVerifyRequest,
     request: Request,
@@ -304,7 +332,8 @@ async def reset_password_verify_route(
 
     A recovery code is treated as lost authenticators, exactly like at login: every factor is
     wiped, re-enrolment is required, and the response carries the restricted session that can only
-    re-establish a factor. A routine code just finishes the reset
+    re-establish a factor. That session leads straight to re-enrolment with no success screen, so it
+    says nothing of any linked providers the reset removed. A routine code just finishes the reset
 
     Args:
         data: Reset payload with the emailed token, challenge token, code, and new password
@@ -313,7 +342,7 @@ async def reset_password_verify_route(
         db: Active database session
 
     Returns:
-        The restricted session after a recovery code, otherwise an empty 204
+        The restricted session after a recovery code, otherwise the answer to the finished reset
 
     Raises:
         HTTPException: The token, challenge, or code does not verify, or the account is locked
@@ -322,12 +351,12 @@ async def reset_password_verify_route(
     await ensure_reset_token_active(db, data.token)
 
     user, factor_kind = await complete_mfa_challenge(db, data.mfa_token, data.code, MFA_PURPOSE_PASSWORD_RESET)
-    await complete_password_reset(db, user.id, data.token, data.new_password)
+    completed = await complete_password_reset(db, user.id, data.token, data.new_password)
 
     if factor_kind == SECOND_FACTOR_RECOVERY_CODE:
         return await issue_and_store_tokens(db, request, response, user)
 
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return answer_completed_reset(completed)
 
 
 @router.get("/2fa/status", response_model=TotpStatusResponse)

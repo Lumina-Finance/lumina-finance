@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 import cbor2
 import pyotp
+import pytest
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import HTTPException
@@ -31,7 +32,15 @@ from app.models.base import AuthProvider
 from app.models.user import User
 from app.services.auth.recovery_codes import generate_recovery_codes
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header, _seed_reset_token, sign_up_confirmed
+from tests.routes.support import (
+    SIGNUP_PAYLOAD,
+    _count_sign_in_provider_links,
+    _create_user,
+    _get_auth_header,
+    _link_sign_in_providers,
+    _seed_reset_token,
+    sign_up_confirmed,
+)
 
 _NEW_PASSWORD = "NewSecurePass123!"
 
@@ -1085,12 +1094,17 @@ async def test_restricted_session_cannot_manage_passkeys(client):
     assert response.status_code == 403
 
 
-async def test_passkey_completes_password_reset(client, monkeypatch):
-    """The reset-scoped passkey ceremony completes a factor-gated password reset"""
+@pytest.mark.parametrize(
+    ("linked_providers", "expected_status", "expected_body"),
+    [(0, 204, b""), (1, 200, b'{"sign_in_providers_removed":1}')],
+)
+async def test_passkey_completes_password_reset(client, monkeypatch, linked_providers, expected_status, expected_body):
+    """The reset-scoped passkey ceremony completes a factor-gated password reset, unlinking any providers"""
     signup = await _create_user(client)
     user_id = signup.json()["user"]["id"]
     credential_id = b"reset-factor-key"
     await _seed_passkey(user_id, credential_id)
+    await _link_sign_in_providers(uuid.UUID(user_id), linked_providers)
 
     raw_token = await _seed_reset_token(uuid.UUID(user_id))
     begin = await client.post("/auth/password/reset", json={"token": raw_token, "new_password": _NEW_PASSWORD})
@@ -1112,7 +1126,9 @@ async def test_passkey_completes_password_reset(client, monkeypatch):
         "/auth/passkeys/reset/verify",
         json={"token": raw_token, "new_password": _NEW_PASSWORD, "mfa_token": mfa_token, "credential": assertion},
     )
-    assert verified.status_code == 204
+    assert verified.status_code == expected_status
+    assert verified.content == expected_body
+    assert await _count_sign_in_provider_links(uuid.UUID(user_id)) == (0, 0)
 
     # The new password authenticates and the passkey factor survives the reset
     login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _NEW_PASSWORD})

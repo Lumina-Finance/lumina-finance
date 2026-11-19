@@ -10,6 +10,7 @@ from app.config.webauthn import WEBAUTHN_RP_ID
 from app.database import get_db
 from app.dependencies import get_authenticated_user, get_current_user
 from app.models.user import User
+from app.routes.auth.password_reset_helpers import answer_completed_reset
 from app.routes.auth.token_helpers import (
     complete_mfa_challenge_with_passkey,
     get_mfa_challenge_user_id,
@@ -27,6 +28,7 @@ from app.schemas.auth import (
     PasskeyRenameRequest,
     PasskeyResetVerifyRequest,
     PasskeySummary,
+    PasswordResetResponse,
     StepUpRequest,
 )
 from app.services.auth import (
@@ -183,7 +185,7 @@ async def passkey_reset_factor_options_route(
     return Response(content=options_json, media_type=_OPTIONS_MEDIA_TYPE)
 
 
-@router.post("/reset/verify", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/reset/verify", response_model=PasswordResetResponse | None)
 async def verify_passkey_reset_factor_route(
     data: PasskeyResetVerifyRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -194,6 +196,9 @@ async def verify_passkey_reset_factor_route(
         data: The reset payload with the emailed token, challenge token, assertion, and new password
         db: Active database session
 
+    Returns:
+        The answer to the finished reset
+
     Raises:
         HTTPException: The token, challenge, or assertion does not verify, or the account is locked
     """
@@ -201,7 +206,7 @@ async def verify_passkey_reset_factor_route(
     await ensure_reset_token_active(db, data.token)
 
     user, _ = await complete_mfa_challenge_with_passkey(db, data.mfa_token, data.credential, MFA_PURPOSE_PASSWORD_RESET)
-    await complete_password_reset(db, user.id, data.token, data.new_password)
+    return answer_completed_reset(await complete_password_reset(db, user.id, data.token, data.new_password))
 
 
 @router.get("", response_model=list[PasskeySummary])
