@@ -1,22 +1,10 @@
-import type {
-  InsightsComparisonPeriod,
-  SavedInsightsRangeQualifier,
-  SavedInsightsRangeUnit,
-} from '@/api/insights'
+import type { InsightsComparisonPeriod, SavedInsightsRangeQualifier, SavedInsightsRangeUnit } from '@/api/insights'
 import type {
   InsightsFixedRangePreset,
   InsightsRangeInputDates,
   InsightsRangePreset,
 } from '@/pages/insights/types/range'
-import {
-  DATE_FORMATS,
-  addDays,
-  formatDateRange,
-  formatYmd,
-  getStartOfWeek,
-  getTodayDate,
-  parseYmd,
-} from '@/utils/date'
+import { DATE_FORMATS, addDays, formatDateRange, formatYmd, getStartOfWeek, getTodayDate, parseYmd } from '@/utils/date'
 
 // How many months each calendar unit spans, which doubles as the alignment granularity used to
 // roll a window start back to the first day of a whole month, quarter, or year
@@ -62,10 +50,7 @@ export function getCustomRangeDays(from: string, to: string) {
  * @param preset - The preset being resolved
  * @param timeZone - Zone deciding which day the window ends on, defaulting to the browser's
  */
-export function getRangeInputDates(
-  preset: InsightsFixedRangePreset,
-  timeZone?: string,
-): InsightsRangeInputDates {
+export function getRangeInputDates(preset: InsightsFixedRangePreset, timeZone?: string): InsightsRangeInputDates {
   const { start, end } = getFixedPresetBounds(preset, timeZone)
   return { from: formatYmd(start), to: formatYmd(end) }
 }
