@@ -2,7 +2,13 @@
  * Tests that the import judges an amount against the decimal places its currency actually has, and
  * against the range the backend can store, so a value the commit would refuse is named against its
  * row beforehand rather than failing the request
+ *
+ * The properties check the conversion's law: a written amount reads back as the same minor units at
+ * every exponent and across the stored range, and any text reads as exactly what it spells or is
+ * refused for the rule it breaks. The examples pin a missing and a third decimal place, the bounds
+ * of the range and the odd text that once got through
  */
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
@@ -24,7 +30,57 @@ import {
   validateColumnValues,
   WHOLE_FILE_DATE_RANGE,
 } from '@/pages/imports/utils'
-import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
+import { type ImportAmountRefusal, toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
+import { currencyExponents, INT64_MAX, INT64_MIN, storableMinorUnits, writeMinorUnits } from '@tests/utils/generators'
+
+const NO_BREAK_SPACE = String.fromCodePoint(0xa0)
+const ARABIC_INDIC_DIGIT_ONE = String.fromCodePoint(0x661)
+const LINE_SEPARATOR = String.fromCodePoint(0x2028)
+const BYTE_ORDER_MARK = String.fromCodePoint(0xfeff)
+
+// Characters that make text almost an amount: digits, signs, separators, padding, a currency mark, a
+// Latin and an Arabic-Indic digit, the exponent letter, line endings and a byte order mark
+const LOOKALIKE_ALPHABET = [
+  ..."0123456789+-., _'$e\n",
+  NO_BREAK_SPACE,
+  ARABIC_INDIC_DIGIT_ONE,
+  LINE_SEPARATOR,
+  BYTE_ORDER_MARK,
+]
+
+// Text of every shape an import meets: anything at all, near misses made of the characters above, and
+// amounts written with more decimal places than any currency holds, whose extremes reach past the range
+const amountTexts = fc.oneof(
+  fc.string({ unit: 'binary' }),
+  fc.string({ unit: fc.constantFrom(...LOOKALIKE_ALPHABET), maxLength: 12 }),
+  fc
+    .tuple(storableMinorUnits, fc.integer({ min: 0, max: 8 }))
+    .map(([amount, places]) => writeMinorUnits(amount, places)),
+)
+
+/**
+ * Works out what a text means without the reader's rules: the minor units it spells, or the refusal
+ * its shape, its decimal places or its size call for
+ */
+function getExpectedMinorUnits(text: string, exponent: number): bigint | ImportAmountRefusal {
+  const sign = text[0] === '-' || text[0] === '+' ? text[0] : ''
+  const parts = text.slice(sign.length).split('.')
+  if (
+    parts.length > 2 ||
+    parts.some((part) => !part || [...part].some((character) => !'0123456789'.includes(character)))
+  )
+    return 'unreadable'
+
+  const [whole, fraction = ''] = parts
+  const scale = 10n ** BigInt(Math.abs(exponent - fraction.length))
+  const digits = BigInt(`${whole}${fraction}`)
+  if (fraction.length > exponent && digits % scale !== 0n) return 'tooPrecise'
+
+  const magnitude = fraction.length > exponent ? digits / scale : digits * scale
+  const minorUnits = sign === '-' ? -magnitude : magnitude
+
+  return minorUnits >= INT64_MIN && minorUnits <= INT64_MAX ? minorUnits : 'tooLarge'
+}
 
 // PKR is here because the browser reports it as having no decimal places while the app's own table
 // gives it two, which is the disagreement these tests pin down. BHD stands for the three-decimal
@@ -216,25 +272,34 @@ describe('converting an amount to minor units', () => {
     expect(toImportMinorUnits('8.29', 2)).toBe(829n)
   })
 
-  it('keeps trailing zeros droppable but refuses a digit the currency cannot hold', () => {
-    expect(toImportMinorUnits('12.3400', 2)).toBe(1234n)
-    expect(toImportMinorUnits('12.345', 2)).toBe('tooPrecise')
+  it('reads a missing decimal place as a zero and refuses a third one in a two-decimal currency', () => {
+    expect(toImportMinorUnits('1234.5', 2)).toBe(123450n)
+    expect(toImportMinorUnits('1.234', 2)).toBe('tooPrecise')
   })
 
-  it('scales by the currency rather than by a hundred', () => {
-    expect(toImportMinorUnits('1234', 0)).toBe(1234n)
-    expect(toImportMinorUnits('12.34', 0)).toBe('tooPrecise')
-    expect(toImportMinorUnits('1.234', 3)).toBe(1234n)
-    expect(toImportMinorUnits('1.2345', 3)).toBe('tooPrecise')
+  it('reads any written amount back as the same minor units, whatever zeros follow it', () => {
+    fc.assert(
+      fc.property(
+        storableMinorUnits,
+        currencyExponents,
+        fc.boolean(),
+        fc.integer({ min: 0, max: 3 }),
+        (amount, exponent, hasPlusSign, extraZeros) => {
+          const sign = hasPlusSign && amount >= 0n ? '+' : ''
+          const zeros = extraZeros === 0 ? '' : `${exponent === 0 ? '.' : ''}${'0'.repeat(extraZeros)}`
+
+          expect(toImportMinorUnits(`${sign}${writeMinorUnits(amount, exponent)}${zeros}`, exponent)).toBe(amount)
+        },
+      ),
+    )
   })
 
-  it('reads normalized signed decimals and refuses grouping or text', () => {
-    expect(toImportMinorUnits('-12.34', 2)).toBe(-1234n)
-    expect(toImportMinorUnits('+12.34', 2)).toBe(1234n)
-    expect(toImportMinorUnits('1,234.56', 2)).toBe('unreadable')
-    expect(toImportMinorUnits('$12.34', 2)).toBe('unreadable')
-    expect(toImportMinorUnits('1.234.567', 2)).toBe('unreadable')
-    expect(toImportMinorUnits('', 2)).toBe('unreadable')
+  it('reads any text as exactly the amount it spells, or says which rule refused it', () => {
+    fc.assert(
+      fc.property(amountTexts, currencyExponents, (text, exponent) => {
+        expect(toImportMinorUnits(text, exponent)).toBe(getExpectedMinorUnits(text, exponent))
+      }),
+    )
   })
 
   it('refuses every character outside a complete normalized amount', () => {
