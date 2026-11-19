@@ -5,16 +5,23 @@
  * The examples pin the odd cells banks write, such as currency text, debit markers and lookalike
  * minus signs. The properties add every supported format with and without grouping, each space
  * character and each sign, over amounts of any length, and check each amount reads back as its own
- * digits
+ * digits. A last property checks the direction a row states: money out reads as a negative amount and
+ * money in as a positive one, and only a sign contradicting the direction is refused
  */
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
+import type { ImportAmountDirection } from '@/pages/imports/types'
 import {
+  applyImportAmountReadingDirection,
+  doesImportAmountReadingSignDisagreeWithDirection,
   IMPORT_AMOUNT_FORMATS,
   isBareImportAmount,
   readImportAmount,
+  readNormalizedImportAmount,
   type ImportAmountFormat,
 } from '@/pages/imports/utils/amountFormats'
+import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
+import { currencyExponents, INT64_MAX, INT64_MIN, writeMinorUnits } from '@tests/utils/generators'
 
 const DECIMAL_COMMA: ImportAmountFormat = { decimalSeparator: ',', groupingSeparator: '.' }
 const DECIMAL_POINT: ImportAmountFormat = { decimalSeparator: '.', groupingSeparator: ',' }
@@ -209,5 +216,35 @@ describe('reading an amount in a selected format', () => {
   it('retains every decimal digit for exact minor-unit conversion', () => {
     expect(readImportAmount('12,3400', DECIMAL_COMMA)?.normalized).toBe('12.3400')
     expect(readImportAmount('92.233.720.368.547.758,07', DECIMAL_COMMA)?.normalized).toBe('92233720368547758.07')
+  })
+})
+
+describe('giving an amount the direction its row states', () => {
+  it('makes a nonzero amount out negative and leaves a zero unsigned', () => {
+    expect(applyImportAmountReadingDirection(readNormalizedImportAmount('12.50')!, 'out')).toBe('-12.50')
+    expect(applyImportAmountReadingDirection(readNormalizedImportAmount('-0.00')!, 'out')).toBe('0.00')
+  })
+
+  it('reads any amount out as negative and in as positive, refusing only a sign that contradicts it', () => {
+    fc.assert(
+      fc.property(
+        // Reaches one past the largest stored amount, since only money out can hold that magnitude
+        fc.oneof(fc.constant(0n), fc.bigInt({ min: 0n, max: -INT64_MIN })),
+        currencyExponents,
+        fc.constantFrom('', '+', '-'),
+        fc.constantFrom<ImportAmountDirection>('out', 'in'),
+        (magnitude, exponent, sign, direction) => {
+          const reading = readNormalizedImportAmount(`${sign}${writeMinorUnits(magnitude, exponent)}`)!
+          const isContradicted = magnitude !== 0n && sign === (direction === 'out' ? '+' : '-')
+
+          expect(doesImportAmountReadingSignDisagreeWithDirection(reading, direction)).toBe(isContradicted)
+          if (isContradicted) return
+
+          const amount = toImportMinorUnits(applyImportAmountReadingDirection(reading, direction), exponent)
+          const signed = direction === 'out' ? -magnitude : magnitude
+          expect(amount).toBe(signed <= INT64_MAX ? signed : 'tooLarge')
+        },
+      ),
+    )
   })
 })

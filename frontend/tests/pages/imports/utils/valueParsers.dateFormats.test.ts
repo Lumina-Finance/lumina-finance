@@ -2,18 +2,125 @@
  * Tests the import date reader, which resolves a cell into a calendar day under one stated format
  * rather than guessing between readings, and the column scan that decides which formats a file
  * could be read in
+ *
+ * The property checks the reader's law: a day written in any format, padded or not, with any
+ * separator and any spelling of its month, reads as that day when the calendar has it and as nothing
+ * when it does not, never as a day it rolls over into. The examples pin 30 February read as nothing, times
+ * of day, timestamps, mismatched separators and the spellings the reader refuses
  */
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import { validateColumnValues } from '@/pages/imports/utils'
 import {
+  IMPORT_DATE_FORMATS,
   type ImportDateFormat,
+  type ImportDateSeparator,
   isValidDateValue,
   readImportDate,
   scanImportDateFormats,
 } from '@/pages/imports/utils/valueParsers'
+import { type CalendarDay, calendarDays, getDaysInUtcMonth, toYmd } from '@tests/utils/generators'
 
 const ALL_FORMATS: ImportDateFormat[] = ['yearFirst', 'dayFirst', 'monthFirst', 'written', 'iso']
+
+const NUMERIC_SEPARATORS = ['-', '/', '.', ':'] as const
+
+const DATE_PROPERTY_RUNS = 1000
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+/**
+ * Draws the parts of a day that may not exist: months and days past their ends, zeros, and February's
+ * last days in leap and common years, centuries among them, so both sides of every month's end come up
+ *
+ * Years start at 1000 so every year is four digits with no leading zero. The reader refuses a year
+ * written with a leading zero, and the law allows that, so the pinned examples cover those years
+ */
+const years = fc.oneof(
+  fc.integer({ min: 1000, max: 9999 }),
+  fc.integer({ min: 250, max: 2499 }).map((fourYears) => fourYears * 4),
+  fc.integer({ min: 10, max: 99 }).map((centuries) => centuries * 100),
+)
+
+const dayParts: fc.Arbitrary<CalendarDay> = fc.oneof(
+  fc.record({ year: years, month: fc.constant(2), day: fc.integer({ min: 28, max: 30 }) }),
+  fc.record({
+    year: years,
+    month: fc.oneof(fc.integer({ min: 0, max: 13 }), fc.integer({ min: 0, max: 99 })),
+    day: fc.oneof(fc.integer({ min: 28, max: 32 }), fc.integer({ min: 0, max: 99 })),
+  }),
+)
+
+/**
+ * Reports whether the calendar has a day, worked out apart from the reader
+ */
+function isRealDay({ year, month, day }: CalendarDay) {
+  return month >= 1 && month <= 12 && day >= 1 && day <= getDaysInUtcMonth(year, month)
+}
+
+/**
+ * Writes a day as a file under one format would, with the separator setting the reading is given
+ */
+const writtenDays = fc
+  .record({
+    day: fc.oneof(calendarDays, dayParts),
+    format: fc.constantFrom(...IMPORT_DATE_FORMATS),
+    separator: fc.constantFrom(...NUMERIC_SEPARATORS),
+    isSeparatorRequired: fc.boolean(),
+    isPadded: fc.boolean(),
+    isCompact: fc.boolean(),
+    monthSpelling: fc.constantFrom('name', 'abbreviation', 'abbreviation with period'),
+    letterCase: fc.constantFrom('title', 'lower', 'upper'),
+    isMonthFirst: fc.boolean(),
+    hasComma: fc.boolean(),
+  })
+  .filter(({ day, format }) => format !== 'written' || (day.month >= 1 && day.month <= 12))
+  .map((draw) => {
+    const { day, format, separator, isSeparatorRequired, isPadded } = draw
+    const setting: ImportDateSeparator = isSeparatorRequired ? separator : 'automatic'
+    const year = String(day.year)
+    const pad = (part: number) => String(part).padStart(2, '0')
+    const month = isPadded ? pad(day.month) : String(day.month)
+    const dayOfMonth = isPadded ? pad(day.day) : String(day.day)
+
+    const text = {
+      iso: () => `${year}-${pad(day.month)}-${pad(day.day)}`,
+      yearFirst: () =>
+        draw.isCompact && !isSeparatorRequired
+          ? `${year}${pad(day.month)}${pad(day.day)}`
+          : `${year}${separator}${month}${separator}${dayOfMonth}`,
+      dayFirst: () => `${dayOfMonth}${separator}${month}${separator}${year}`,
+      monthFirst: () => `${month}${separator}${dayOfMonth}${separator}${year}`,
+      written: () => {
+        const fullName = MONTH_NAMES[day.month - 1]
+        const spelled = {
+          name: fullName,
+          abbreviation: fullName.slice(0, 3),
+          'abbreviation with period': `${fullName.slice(0, 3)}.`,
+        }[draw.monthSpelling]
+        const name = { title: spelled, lower: spelled.toLowerCase(), upper: spelled.toUpperCase() }[draw.letterCase]
+        const comma = draw.hasComma ? ',' : ''
+
+        return draw.isMonthFirst ? `${name} ${dayOfMonth}${comma} ${year}` : `${dayOfMonth} ${name}${comma} ${year}`
+      },
+    }[format]()
+
+    return { day, text, format, separator: setting }
+  })
 
 // The date column never consults it, so its contents do not matter here
 const SUPPORTED_CURRENCY_CODES = new Set(['CAD', 'USD'])
@@ -34,15 +141,6 @@ function createDateFile(dates: string[]): ImportFileDraft {
 }
 
 describe('year first dates', () => {
-  it('reads a date with every supported separator, padded or not', () => {
-    expect(readImportDate('2024-03-15', 'yearFirst')).toBe('2024-03-15')
-    expect(readImportDate('2024-3-15', 'yearFirst')).toBe('2024-03-15')
-    expect(readImportDate('2024-3-5', 'yearFirst')).toBe('2024-03-05')
-    expect(readImportDate('2024/03/15', 'yearFirst')).toBe('2024-03-15')
-    expect(readImportDate('2024.03.15', 'yearFirst')).toBe('2024-03-15')
-    expect(readImportDate('2024:03:15', 'yearFirst')).toBe('2024-03-15')
-  })
-
   it('refuses a value whose two separators disagree', () => {
     expect(readImportDate('2024-03/15', 'yearFirst')).toBe('')
     expect(readImportDate('2024/03-15', 'yearFirst')).toBe('')
@@ -54,16 +152,6 @@ describe('year first dates', () => {
 })
 
 describe('dates written with no separators', () => {
-  it('reads year, month and day as eight digits', () => {
-    expect(readImportDate('20260405', 'yearFirst')).toBe('2026-04-05')
-    expect(readImportDate('20260131', 'yearFirst')).toBe('2026-01-31')
-  })
-
-  it('refuses eight digits that name no real day', () => {
-    expect(readImportDate('20261340', 'yearFirst')).toBe('')
-    expect(readImportDate('20260230', 'yearFirst')).toBe('')
-  })
-
   it('refuses eight digits when a separator is required, and under the other orders', () => {
     expect(readImportDate('20260405', 'yearFirst', '-')).toBe('')
     expect(readImportDate('20260405', 'dayFirst')).toBe('')
@@ -178,8 +266,12 @@ describe('ISO dates and timestamps', () => {
     expect(scanImportDateFormats([value], 'automatic', 'Asia/Tokyo').readable).toEqual([])
     expect(scanImportDateFormats([value], 'automatic', 'UTC').readable).toEqual(['iso'])
     const files = [createDateFile([value])]
-    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { timeZone: 'Asia/Tokyo' }).valid).toBe(false)
-    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { timeZone: 'UTC' }).valid).toBe(true)
+    expect(
+      validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { timeZone: 'Asia/Tokyo' }).valid,
+    ).toBe(false)
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { timeZone: 'UTC' }).valid).toBe(
+      true,
+    )
   })
 
   it('recognizes a source timestamp without imposing a conversion timezone', () => {
@@ -190,45 +282,47 @@ describe('ISO dates and timestamps', () => {
   })
 
   it.each([
-    '2025-02-29', '2024-02-31T00:00:00Z', '2024-13-01', '2024-00-01',
-    '2024-01-00', '0099-03-15', '2024-3-15', '2024/03/15',
-    '2024-03-15T24:00:00', '2024-03-15T00:60:00', '2024-03-15T00:00:60',
-    '2024-03-15T00:00:00+25:00', '2024-03-15T00:00:00-01:60',
-    '2024-03-15T00:00', '2024-03-15T00:00:00.', '2024-03-15T00:00:00+0900',
-    '2024-03-15T00:00:00+09', '2024-03-15t00:00:00Z', '2024-03-15T00:00:00z',
-    '2024-03-15 00:00:00Z', '2024-03-15Z', '2024-03-15T00:00:00Z junk',
+    '2025-02-29',
+    '2024-02-31T00:00:00Z',
+    '2024-13-01',
+    '2024-00-01',
+    '2024-01-00',
+    '0099-03-15',
+    '2024-3-15',
+    '2024/03/15',
+    '2024-03-15T24:00:00',
+    '2024-03-15T00:60:00',
+    '2024-03-15T00:00:60',
+    '2024-03-15T00:00:00+25:00',
+    '2024-03-15T00:00:00-01:60',
+    '2024-03-15T00:00',
+    '2024-03-15T00:00:00.',
+    '2024-03-15T00:00:00+0900',
+    '2024-03-15T00:00:00+09',
+    '2024-03-15t00:00:00Z',
+    '2024-03-15T00:00:00z',
+    '2024-03-15 00:00:00Z',
+    '2024-03-15Z',
+    '2024-03-15T00:00:00Z junk',
   ])('refuses malformed or impossible ISO values: %s', (value) => {
     expect(readImportDate(value, 'iso', 'automatic', 'UTC')).toBe('')
   })
 
   it('keeps the ISO example hyphens under a custom numeric separator', () => {
-    const result = validateColumnValues([createDateFile(['2024-03-15T24:00:00Z'])], 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso', { dateSeparator: '.' })
+    const result = validateColumnValues(
+      [createDateFile(['2024-03-15T24:00:00Z'])],
+      'Date',
+      'dt',
+      SUPPORTED_CURRENCY_CODES,
+      'iso',
+      { dateSeparator: '.' },
+    )
     expect(result.valid).toBe(false)
     expect(result.message).toContain('such as 2026-04-30T12:00:00Z')
   })
 })
 
 describe('numeric dates in a stated order', () => {
-  it('reads the same value as two different days depending on the order', () => {
-    expect(readImportDate('03/04/2024', 'dayFirst')).toBe('2024-04-03')
-    expect(readImportDate('03/04/2024', 'monthFirst')).toBe('2024-03-04')
-  })
-
-  it('never falls back to the other order when the stated one does not fit', () => {
-    expect(readImportDate('13/04/2024', 'monthFirst')).toBe('')
-    expect(readImportDate('04/13/2024', 'dayFirst')).toBe('')
-  })
-
-  it('accepts unpadded parts and every supported separator', () => {
-    expect(readImportDate('5/3/2024', 'dayFirst')).toBe('2024-03-05')
-    expect(readImportDate('15-03-2024', 'dayFirst')).toBe('2024-03-15')
-    expect(readImportDate('31.08.2026', 'dayFirst')).toBe('2026-08-31')
-    expect(readImportDate('31:08:2026', 'dayFirst')).toBe('2026-08-31')
-    expect(readImportDate('08.31.2026', 'monthFirst')).toBe('2026-08-31')
-    expect(readImportDate('08:31:2026', 'monthFirst')).toBe('2026-08-31')
-    expect(readImportDate('08-31-2026', 'monthFirst')).toBe('2026-08-31')
-  })
-
   it('can require one selected separator', () => {
     expect(readImportDate('31.08.2026', 'dayFirst', '.')).toBe('2026-08-31')
     expect(readImportDate('31/08/2026', 'dayFirst', '.')).toBe('')
@@ -243,25 +337,6 @@ describe('numeric dates in a stated order', () => {
 })
 
 describe('written dates', () => {
-  it('reads the month name on either side of the day', () => {
-    expect(readImportDate('July 4, 2024', 'written')).toBe('2024-07-04')
-    expect(readImportDate('July 4 2024', 'written')).toBe('2024-07-04')
-    expect(readImportDate('4 July, 2024', 'written')).toBe('2024-07-04')
-    expect(readImportDate('4 July 2024', 'written')).toBe('2024-07-04')
-  })
-
-  it('reads a three-letter abbreviation, with or without its period', () => {
-    expect(readImportDate('Jul 4, 2024', 'written')).toBe('2024-07-04')
-    expect(readImportDate('Jul. 4, 2024', 'written')).toBe('2024-07-04')
-    expect(readImportDate('4 Jul, 2024', 'written')).toBe('2024-07-04')
-  })
-
-  it('ignores case and a leading zero on the day', () => {
-    expect(readImportDate('jul 4 2024', 'written')).toBe('2024-07-04')
-    expect(readImportDate('JULY 4, 2024', 'written')).toBe('2024-07-04')
-    expect(readImportDate('04 jul 2024', 'written')).toBe('2024-07-04')
-  })
-
   it('refuses an ordinal suffix', () => {
     expect(readImportDate('July 4th, 2024', 'written')).toBe('')
     expect(readImportDate('1st July 2024', 'written')).toBe('')
@@ -288,26 +363,20 @@ describe('written dates', () => {
 })
 
 describe('days the calendar does not have', () => {
-  it('refuses them in every format', () => {
-    expect(readImportDate('2024-02-31', 'yearFirst')).toBe('')
-    expect(readImportDate('31/02/2024', 'dayFirst')).toBe('')
-    expect(readImportDate('02/31/2024', 'monthFirst')).toBe('')
-    expect(readImportDate('February 31, 2024', 'written')).toBe('')
-    expect(readImportDate('2025-02-29', 'yearFirst')).toBe('')
+  it('reads 30 February as nothing, never as 2 March', () => {
+    expect(readImportDate('2026-02-30', 'yearFirst')).toBe('')
+    expect(readImportDate('2026-02-30', 'iso')).toBe('')
   })
 
-  it('keeps the leap day of a leap year', () => {
-    expect(readImportDate('29/02/2024', 'dayFirst')).toBe('2024-02-29')
-    expect(readImportDate('29.02.2024', 'dayFirst')).toBe('2024-02-29')
-  })
-
-  it('refuses a period-separated day the calendar does not have', () => {
-    expect(readImportDate('31.02.2026', 'dayFirst')).toBe('')
-  })
-
-  it('accepts any four-digit year the calendar can express', () => {
-    expect(readImportDate('1899-03-15', 'yearFirst')).toBe('1899-03-15')
-    expect(readImportDate('2101-03-15', 'yearFirst')).toBe('2101-03-15')
+  it('reads any day written in any format as that day when the calendar has it, and as nothing otherwise', () => {
+    fc.assert(
+      fc.property(writtenDays, ({ day, text, format, separator }) => {
+        expect(readImportDate(text, format, separator)).toBe(isRealDay(day) ? toYmd(day) : '')
+      }),
+      // Five formats, several spellings and both sides of each month's end share the draws, so the
+      // default hundred runs would meet each combination only by chance
+      { numRuns: DATE_PROPERTY_RUNS },
+    )
   })
 
   it('refuses a year the date constructor would silently move into the 1900s', () => {
@@ -416,13 +485,15 @@ describe('validating a date column', () => {
   it('names the written format in sentence case, without repeating the word', () => {
     const files = [createDateFile(['July 4th, 2024'])]
 
-    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'written').message)
-      .toBe('Expected valid dates in the written format, such as April 30, 2026. Row 1 has "July 4th, 2024", which is not a valid date.')
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'written').message).toBe(
+      'Expected valid dates in the written format, such as April 30, 2026. Row 1 has "July 4th, 2024", which is not a valid date.',
+    )
   })
 
   it('names every format in sentence case', () => {
     const files = [createDateFile(['nonsense'])]
-    const named = (format: ImportDateFormat) => validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, format).message
+    const named = (format: ImportDateFormat) =>
+      validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, format).message
 
     expect(named('yearFirst')).toContain('in the year first format, such as 2026-04-30')
     expect(named('dayFirst')).toContain('in the day first format, such as 30/04/2026')
@@ -433,8 +504,9 @@ describe('validating a date column', () => {
   it('keeps the capitals of ISO in the name of its format', () => {
     const files = [createDateFile(['nonsense'])]
 
-    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso').message)
-      .toContain('in the ISO date/time format, such as 2026-04-30T12:00:00Z')
+    expect(validateColumnValues(files, 'Date', 'dt', SUPPORTED_CURRENCY_CODES, 'iso').message).toContain(
+      'in the ISO date/time format, such as 2026-04-30T12:00:00Z',
+    )
   })
 
   it('accepts a real date whatever century it falls in', () => {

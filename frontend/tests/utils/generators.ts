@@ -16,6 +16,35 @@ export const currencyExponents = fc.integer({ min: 0, max: MAX_CURRENCY_EXPONENT
 export const signedMinorUnits = fc.integer({ min: Number.MIN_SAFE_INTEGER, max: Number.MAX_SAFE_INTEGER })
 export const nonNegativeMinorUnits = fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER })
 
+// Signed 64-bit, the range a stored amount in minor units can hold. Imports read amounts as bigints, so
+// they reach past the numbers above to the ends of what the backend stores
+export const INT64_MIN = -(2n ** 63n)
+export const INT64_MAX = 2n ** 63n - 1n
+
+// How far inside each end of the stored range the end-favouring draws reach
+const RANGE_END_SPREAD = 2n
+
+/**
+ * Draws an amount anywhere in the stored range, with its two ends drawn on purpose, since a bound one
+ * step off holds for every amount but the last
+ */
+export const storableMinorUnits = fc.oneof(
+  fc.bigInt({ min: INT64_MIN, max: INT64_MAX }),
+  fc.bigInt({ min: INT64_MAX - RANGE_END_SPREAD, max: INT64_MAX }),
+  fc.bigInt({ min: INT64_MIN, max: INT64_MIN + RANGE_END_SPREAD }),
+)
+
+/**
+ * Writes an amount in minor units as the decimal text an import submits, with every decimal place
+ */
+export function writeMinorUnits(amount: bigint, exponent: number): string {
+  const sign = amount < 0n ? '-' : ''
+  const digits = (amount < 0n ? -amount : amount).toString().padStart(exponent + 1, '0')
+  if (exponent === 0) return `${sign}${digits}`
+
+  return `${sign}${digits.slice(0, -exponent)}.${digits.slice(-exponent)}`
+}
+
 // The calendar the generated days come from, wide enough to cross leap years and centuries
 const EARLIEST_YEAR = 1900
 const LATEST_YEAR = 2100
