@@ -1,6 +1,7 @@
 /**
  * Tests budget details helpers so chart rows, category colours, period ordering, and utilization math stay stable while the modal is split apart
  */
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import type { Category } from '@/api/categories'
@@ -17,6 +18,7 @@ import {
   getLatestBudgetCategories,
   getSortedBudgetPeriods,
 } from '@/pages/budgets/utils/budgetDetails'
+import { calendarDays, shiftCalendarDays, toYmd } from '@tests/utils/generators'
 
 /**
  * Formats a calendar year, month, and day as the backend YYYY-MM-DD period key
@@ -124,16 +126,16 @@ describe('budget details helpers', () => {
   it('builds chart categories with fallback names and deterministic colour keys', () => {
     const baseBudget = createBaseBudget({ category_ids: ['groceries', 'missing'] })
     const categoryById = new Map([['missing', 'Legacy category']])
-    const categories = new Map([
-      ['groceries', createCategory({ id: 'groceries', name: 'Groceries' })],
-    ])
+    const categories = new Map([['groceries', createCategory({ id: 'groceries', name: 'Groceries' })]])
 
-    expect(getBudgetChartCategories({
-      baseBudget,
-      categoryById,
-      categoryDetailsById: categories,
-      latestUtilization: undefined,
-    })).toMatchObject([
+    expect(
+      getBudgetChartCategories({
+        baseBudget,
+        categoryById,
+        categoryDetailsById: categories,
+        latestUtilization: undefined,
+      }),
+    ).toMatchObject([
       {
         id: 'groceries',
         name: 'Groceries',
@@ -172,7 +174,11 @@ describe('budget details helpers', () => {
 
     // Gas has no spending row at all, so it ranks with the zero spenders rather than being dropped
     expect(chartCategories.map((category) => category.id)).toEqual(['electricity', 'water', 'gas'])
-    expect(chartCategories.map((category) => category.dataKey)).toEqual(['categoryPct0', 'categoryPct1', 'categoryPct2'])
+    expect(chartCategories.map((category) => category.dataKey)).toEqual([
+      'categoryPct0',
+      'categoryPct1',
+      'categoryPct2',
+    ])
   })
 
   it('orders equally spending chart categories by name and then ID', () => {
@@ -232,16 +238,27 @@ describe('budget details helpers', () => {
     expect(getBudgetUtilizationByBudgetId(seeded, [loaded]).get('budget')?.total_spent).toBe(2000)
   })
 
-  it('orders periods by calendar date and leaves the array passed in alone', () => {
-    const periods = [
-      createBudget({ id: 'october', period_start: '2026-10-01', period_end: '2026-10-31' }),
-      createBudget({ id: 'february', period_start: '2026-02-01', period_end: '2026-02-28' }),
-      createBudget({ id: 'september', period_start: '2026-09-01', period_end: '2026-09-30' }),
-    ]
+  it('keeps every period once, in ascending start order, and leaves the array passed in alone', () => {
+    // A budget never holds two periods with the same start, so the starts drawn are distinct. Ten
+    // periods in the order drawn is the case the budget details chart sorts
+    const spreadStarts = fc.uniqueArray(calendarDays.map(toYmd), { minLength: 10, maxLength: 10 })
+    // Starts days apart, as a weekly budget's are, where an order read from only the month or year ties
+    const closeStarts = fc
+      .tuple(calendarDays, fc.uniqueArray(fc.integer({ min: 0, max: 70 }), { minLength: 10, maxLength: 10 }))
+      .map(([first, offsets]) => offsets.map((offsetDays) => toYmd(shiftCalendarDays(first, offsetDays))))
+    const shuffledStarts = fc.oneof(spreadStarts, closeStarts)
 
-    expect(getSortedBudgetPeriods(periods).map((period) => period.id))
-      .toEqual(['february', 'september', 'october'])
-    expect(periods.map((period) => period.id)).toEqual(['october', 'february', 'september'])
+    fc.assert(
+      fc.property(shuffledStarts, (starts) => {
+        const periods = starts.map((start) => createBudget({ id: start, period_start: start }))
+
+        const sortedStarts = getSortedBudgetPeriods(periods).map((period) => period.id)
+
+        // Written "YYYY-MM-DD", starts sort as text in the order of their days
+        expect(sortedStarts).toEqual([...starts].sort())
+        expect(periods.map((period) => period.id)).toEqual(starts)
+      }),
+    )
   })
 
   it('refuses a period whose start date is not a real day', () => {
@@ -267,14 +284,17 @@ describe('budget details helpers', () => {
       { id: 'travel', name: 'Travel', kind: 'expense' as const, dataKey: 'categoryPct1', color: '#7AAEC8' },
     ]
     const utilizationByBudgetId = new Map([
-      ['budget-2', createUtilization({
-        budget_id: 'budget-2',
-        total_spent: 62500,
-        categories: [
-          { category_id: 'groceries', spent: 25000 },
-          { category_id: 'travel', spent: 12500 },
-        ],
-      })],
+      [
+        'budget-2',
+        createUtilization({
+          budget_id: 'budget-2',
+          total_spent: 62500,
+          categories: [
+            { category_id: 'groceries', spent: 25000 },
+            { category_id: 'travel', spent: 12500 },
+          ],
+        }),
+      ],
     ])
 
     const chartData = getBudgetDetailsChartData({
@@ -285,10 +305,6 @@ describe('budget details helpers', () => {
       today: ymd(2027, 1, 1),
     })
 
-    expect(sortedPeriods.map((period) => period.id)).toEqual([
-      'budget-1', 'budget-2', 'budget-3', 'budget-4', 'budget-5', 'budget-6', 'budget-7',
-      'budget-8', 'budget-9', 'budget-10', 'budget-11', 'budget-12', 'budget-13',
-    ])
     expect(chartData).toHaveLength(12)
     expect(chartData.every((point) => !point.archived)).toBe(true)
     expect(chartData[0]).toMatchObject({
@@ -397,9 +413,9 @@ describe('budget details helpers', () => {
     const archivedStretch = chartData.slice(1, 11)
     expect(archivedStretch).toHaveLength(10)
     expect(archivedStretch.every((point) => point.archived)).toBe(true)
-    expect(archivedStretch.map((point) => point.periodKey)).toEqual([
-      2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    ].map((month) => `${ARCHIVED_SLOT_LABEL_PREFIX}${ymd(2026, month, 1)}`))
+    expect(archivedStretch.map((point) => point.periodKey)).toEqual(
+      [2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((month) => `${ARCHIVED_SLOT_LABEL_PREFIX}${ymd(2026, month, 1)}`),
+    )
   })
 
   it('shades a trailing gap only while the base budget is archived', () => {
@@ -471,13 +487,15 @@ describe('budget details helpers', () => {
     // the same value and stops on it first in the modal
     const periods = [createBudget({ id: 'february', period_start: '2026-02-31' })]
 
-    expect(() => getBudgetDetailsChartData({
-      sortedPeriods: periods,
-      utilizationByBudgetId: new Map(),
-      chartCategories: [],
-      baseBudget,
-      today: ymd(2026, 3, 1),
-    })).toThrow('2026-02-31')
+    expect(() =>
+      getBudgetDetailsChartData({
+        sortedPeriods: periods,
+        utilizationByBudgetId: new Map(),
+        chartCategories: [],
+        baseBudget,
+        today: ymd(2026, 3, 1),
+      }),
+    ).toThrow('2026-02-31')
   })
 
   it('suffixes the first ISO week of the year with the two-digit year', () => {

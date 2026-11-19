@@ -27,7 +27,7 @@ export type CalendarDay = { year: number; month: number; day: number }
 
 export type DateRange = { from: CalendarDay; to: CalendarDay }
 
-function getDaysInUtcMonth(year: number, month: number): number {
+export function getDaysInUtcMonth(year: number, month: number): number {
   // Day zero of the following month is the last day of this one
   return new Date(Date.UTC(year, month, 0)).getUTCDate()
 }
@@ -42,10 +42,39 @@ export const calendarDays: fc.Arbitrary<CalendarDay> = fc
   )
 
 /**
+ * Draws 29 February of every fourth year from 1904 to 2096, all leap, since rules stepping by
+ * months or years treat that day differently
+ */
+export const leapDays: fc.Arbitrary<CalendarDay> = fc
+  .integer({ min: 476, max: 524 })
+  .map((fourYears) => ({ year: fourYears * 4, month: 2, day: 29 }))
+
+/**
+ * Draws one of the last four days of a month, where a rule clamping a day to the month's length
+ * changes what it returns
+ */
+export const lateMonthDays: fc.Arbitrary<CalendarDay> = fc
+  .tuple(
+    fc.integer({ min: EARLIEST_YEAR, max: LATEST_YEAR }),
+    fc.integer({ min: 1, max: 12 }),
+    fc.integer({ min: 0, max: 3 }),
+  )
+  .map(([year, month, daysBeforeEnd]) => ({ year, month, day: getDaysInUtcMonth(year, month) - daysBeforeEnd }))
+
+/**
  * Writes a calendar day as "YYYY-MM-DD"
  */
 export function toYmd({ year, month, day }: CalendarDay): string {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+/**
+ * Returns the calendar day the given number of days later, or earlier for a negative count
+ */
+export function shiftCalendarDays({ year, month, day }: CalendarDay, days: number): CalendarDay {
+  const shifted = new Date(Date.UTC(year, month - 1, day + days))
+
+  return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate() }
 }
 
 /**
@@ -62,10 +91,7 @@ export const dateRanges: fc.Arbitrary<DateRange> = fc.tuple(calendarDays, calend
  * so a property about a span meets both sides of its edge
  */
 export function dateRangesNearSpan(years: number): fc.Arbitrary<DateRange> {
-  // A range starting on 29 February is the case a span's edge treats differently, so it is drawn on purpose.
-  // The years are every fourth one from 1904 to 2096, all leap
-  const leapDays = fc.integer({ min: 476, max: 524 }).map((fourYears) => ({ year: fourYears * 4, month: 2, day: 29 }))
-
+  // A range starting on 29 February is the case a span's edge treats differently, so it is drawn on purpose
   return fc
     .tuple(fc.oneof(calendarDays, leapDays), fc.integer({ min: -EDGE_SPREAD_DAYS, max: EDGE_SPREAD_DAYS }))
     .map(([from, spread]) => {
