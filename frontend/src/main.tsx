@@ -24,13 +24,13 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
-});
+})
 
-const queryCachePersistOptions = createQueryCachePersistOptions();
+const queryCachePersistOptions = createQueryCachePersistOptions()
 
 // Saving starts once the restore settles either way, as the persister's own saving does, so hiding
 // the page mid-restore cannot overwrite the stored copy with a cache still waiting for it
-const startSavingOnPageHide = () => saveQueryCacheOnPageHide(queryClient);
+const startSavingOnPageHide = () => saveQueryCacheOnPageHide(queryClient)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

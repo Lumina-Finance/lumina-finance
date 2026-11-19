@@ -1,6 +1,6 @@
-import type { QueryClient } from '@tanstack/react-query';
-import type { AuthResponse } from '@/api/auth';
-import type { AuthState } from '@/contexts/AuthContext';
+import type { QueryClient } from '@tanstack/react-query'
+import type { AuthResponse } from '@/api/auth'
+import type { AuthState } from '@/contexts/AuthContext'
 
 /**
  * Takes a renewed session into the tab, or signs the tab out when it belongs to someone else
@@ -22,10 +22,10 @@ export function takeRenewedSession(
   applyState: (next: AuthState) => void,
 ): boolean {
   if (tabState.user !== null && tabState.user.id !== renewed.user.id) {
-    applyState({ user: null, accessToken: null, loading: false });
-    queryClient.clear();
-    return false;
+    applyState({ user: null, accessToken: null, loading: false })
+    queryClient.clear()
+    return false
   }
-  applyState({ user: renewed.user, accessToken: renewed.access_token, loading: false });
-  return true;
+  applyState({ user: renewed.user, accessToken: renewed.access_token, loading: false })
+  return true
 }
