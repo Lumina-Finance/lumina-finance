@@ -70,7 +70,8 @@ export const ACTUAL_REQUIRED_COLUMNS: Record<string, string[]> = {
 }
 
 /** Where to get a file the import reads, repeated in each refusal that means the wrong file came */
-export const ACTUAL_FILE_GUIDANCE = "Choose the .zip from Actual's Settings under Export data, or the db.sqlite in Actual's data folder."
+export const ACTUAL_FILE_GUIDANCE =
+  "Choose the .zip from Actual's Settings under Export data, or the db.sqlite in Actual's data folder."
 
 /** Prefixes that keep each category role's mapping sources apart from Actual's category ids */
 export const ACTUAL_TRANSFER_CATEGORY_SOURCE_PREFIX = 'transfer:'
@@ -85,7 +86,8 @@ export const ACTUAL_CREDIT_PAYMENT_LABEL = 'Payments to credit cards and credit 
 // category, since the account they reach comes in as one of the user's own, as a tracked debt does
 export const ACTUAL_DEFAULT_PAYMENT_MODE: ActualPaymentMode = 'transfer'
 
-export const ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON = "The other side of this transfer is left out, so this side is left out with it"
+export const ACTUAL_TRANSFER_SIDE_LEFT_OUT_REASON =
+  'The other side of this transfer is left out, so this side is left out with it'
 
 export function getActualUnbalancedSplitReason(partsTotal: string, total: string) {
   return `Its split parts add up to ${partsTotal}, not the ${total} the transaction is for, so Actual flags it as unbalanced`
@@ -95,7 +97,7 @@ export function getActualTagTooLongReason(tag: string) {
   return `The tag #${tag.slice(0, 28)} is longer than the ${IMPORT_TAG_NAME_MAX_LENGTH} characters a tag can have`
 }
 
-export const ACTUAL_INCOME_BUDGET_REASON = 'Budgets only track expenses, so income budgets aren\'t imported'
+export const ACTUAL_INCOME_BUDGET_REASON = "Budgets only track expenses, so income budgets aren't imported"
 
 export function getActualBudgetAmountReason(amount: string, currencyCode: string) {
   return `One of its months is budgeted at ${amount}, which has more decimal places than ${currencyCode} allows`
@@ -106,7 +108,8 @@ export function getActualBudgetGroupCategoryReason(categoryName: string) {
 }
 
 // An imported budget tracks one expense category, as a budget made in the app does
-export const ACTUAL_BUDGET_NOT_EXPENSE_REASON = "Budgets only track expenses, and its category is matched to or set up as another type. Match it to an expense category, or set its type to Expense"
+export const ACTUAL_BUDGET_NOT_EXPENSE_REASON =
+  'Budgets only track expenses, and its category is matched to or set up as another type. Match it to an expense category, or set its type to Expense'
 
 /**
  * Lumina account types for the types older Actual releases asked for when an account was made.
@@ -191,4 +194,5 @@ export function getActualUnsupportedCurrencyError(currencyCode: string) {
 
 // An account created from Actual opens with the starting balance Actual recorded for it, written as
 // a balance adjustment, so the shared note about adding one does not apply
-export const ACTUAL_CREATED_ACCOUNT_EXPLANATION = 'These will be created as new accounts, each opening with the starting balance Actual recorded and no credit limit:'
+export const ACTUAL_CREATED_ACCOUNT_EXPLANATION =
+  'These will be created as new accounts, each opening with the starting balance Actual recorded and no credit limit:'

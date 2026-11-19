@@ -1,10 +1,6 @@
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import type {
-  ImportBudgetLimit,
-  ImportBudgetRecurrence,
-  ImportRunBudgets,
-} from '@/api/provider-imports'
+import type { ImportBudgetLimit, ImportBudgetRecurrence, ImportRunBudgets } from '@/api/provider-imports'
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
 import type { CsvRow, ImportFileDraft } from '@/pages/imports/types'
 import {
@@ -32,7 +28,11 @@ import { parseYmd } from '@/utils/date'
 import { formatList } from '@/utils/formatList'
 import { formatCurrency } from '@/utils/formatCurrency'
 import { JOURNAL_NO_CATEGORY_SOURCE } from '@/api/provider-imports'
-import { CREATE_CATEGORY_VALUE, IMPORT_BUDGET_NAME_MAX_LENGTH, JOURNAL_ROW_FIELD_MAX_LENGTHS } from '@/pages/imports/constants'
+import {
+  CREATE_CATEGORY_VALUE,
+  IMPORT_BUDGET_NAME_MAX_LENGTH,
+  JOURNAL_ROW_FIELD_MAX_LENGTHS,
+} from '@/pages/imports/constants'
 import { findReusedImportCategory, getCategoryNameKey } from '@/pages/imports/utils/categoryMatching'
 import {
   countCharacters,
@@ -120,8 +120,7 @@ export function buildFireflyBudgetDrafts({
     const name = row.name?.trim()
     if (!name) continue
 
-    const budget = rowsByName.get(name)
-      ?? { isArchived: row.active?.trim() !== FIREFLY_ACTIVE_VALUE, limitRows: [] }
+    const budget = rowsByName.get(name) ?? { isArchived: row.active?.trim() !== FIREFLY_ACTIVE_VALUE, limitRows: [] }
     budget.limitRows.push({
       start: row.start_date?.trim() ?? '',
       end: row.end_date?.trim() ?? '',
@@ -252,18 +251,21 @@ export function buildFireflyBudgetCountingNotes({
   options: FireflyRowResolutionOptions
 }): string[] {
   const selected = drafts.filter((draft) => !draft.disabledReason && selectedNames.has(draft.name))
-  const targetsByBudget = new Map(selected.map((draft) => {
-    const targets = new Map<string, string>()
-    for (const categoryName of draft.categoryNames) {
-      const target = getFireflyCategoryTarget(categoryName, options)
-      if (target) targets.set(target.key, target.name)
-    }
-    return [draft.name, targets]
-  }))
+  const targetsByBudget = new Map(
+    selected.map((draft) => {
+      const targets = new Map<string, string>()
+      for (const categoryName of draft.categoryNames) {
+        const target = getFireflyCategoryTarget(categoryName, options)
+        if (target) targets.set(target.key, target.name)
+      }
+      return [draft.name, targets]
+    }),
+  )
 
   const budgetNamesByTarget = new Map<string, string[]>()
   for (const [budgetName, targets] of targetsByBudget) {
-    for (const key of targets.keys()) budgetNamesByTarget.set(key, [...budgetNamesByTarget.get(key) ?? [], budgetName])
+    for (const key of targets.keys())
+      budgetNamesByTarget.set(key, [...(budgetNamesByTarget.get(key) ?? []), budgetName])
   }
 
   const uncategorizedTarget = getFireflyCategoryTarget(JOURNAL_NO_CATEGORY_SOURCE, options)
@@ -292,14 +294,18 @@ export function buildFireflyBudgetCountingNotes({
       const others = (budgetNamesByTarget.get(key) ?? []).filter((name) => name !== draft.name)
       if (others.length === 0) continue
       const theirs = others.length === 1 ? `${others[0]}'s` : 'their'
-      notes.push(`${draft.name} shares ${categoryName} with ${formatList(others)}, so it also counts ${theirs} spending in ${categoryName}.`)
+      notes.push(
+        `${draft.name} shares ${categoryName} with ${formatList(others)}, so it also counts ${theirs} spending in ${categoryName}.`,
+      )
     }
 
-    const totals = [...uncategorizedByBudget.get(draft.name) ?? []]
+    const totals = [...(uncategorizedByBudget.get(draft.name) ?? [])]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([currencyCode, minorUnits]) => formatCurrency(minorUnits, currencyCode, options.currencies))
     if (totals.length > 0) {
-      notes.push(`${draft.name} has ${formatList(totals)} of spending with no category in Firefly III, which it will not count.`)
+      notes.push(
+        `${draft.name} has ${formatList(totals)} of spending with no category in Firefly III, which it will not count.`,
+      )
     }
     return notes
   })
@@ -408,7 +414,7 @@ function buildBudgetDraft(
   usage: FireflyBudgetUsage | undefined,
   context: FireflyBudgetDraftContext,
 ): FireflyBudgetDraft {
-  const categoryNames = [...usage?.categoryNames ?? []].sort((a, b) => a.localeCompare(b))
+  const categoryNames = [...(usage?.categoryNames ?? [])].sort((a, b) => a.localeCompare(b))
   const schedule = buildLimitSchedule(budget.limitRows)
   const { limits, currencyCodes, latestCurrencyCode } = schedule
 
@@ -426,8 +432,8 @@ function buildBudgetDraft(
         ? FIREFLY_BUDGET_NO_LIMITS_REASON
         : categoryNames.length === 0
           ? FIREFLY_BUDGET_NO_CATEGORIES_REASON
-          : getRefusalReason(name, categoryNames, schedule, context)
-            ?? (repeatsUnsupported ? FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON : null)
+          : (getRefusalReason(name, categoryNames, schedule, context) ??
+            (repeatsUnsupported ? FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON : null))
 
   return {
     name,
@@ -456,9 +462,9 @@ function getRefusalReason(
   schedule: ReturnType<typeof buildLimitSchedule>,
   { currencies, categoryMappings, categoryById }: FireflyBudgetDraftContext,
 ): string | null {
-  const groupCategory = categoryNames.find((categoryName) => (
-    categoryById.get(categoryMappings[categoryName] ?? '')?.group_id
-  ))
+  const groupCategory = categoryNames.find(
+    (categoryName) => categoryById.get(categoryMappings[categoryName] ?? '')?.group_id,
+  )
   if (groupCategory) return getFireflyBudgetGroupCategoryReason(groupCategory)
 
   // Every check below reads the budget's one currency
@@ -481,7 +487,11 @@ function getRefusalReason(
     return getFireflyBudgetOverLimitReason('name length', nameLength, IMPORT_BUDGET_NAME_MAX_LENGTH)
   }
   if (schedule.limits.length > FIREFLY_BUDGET_MAX_LIMIT_PERIODS) {
-    return getFireflyBudgetOverLimitReason('limit period count', schedule.limits.length, FIREFLY_BUDGET_MAX_LIMIT_PERIODS)
+    return getFireflyBudgetOverLimitReason(
+      'limit period count',
+      schedule.limits.length,
+      FIREFLY_BUDGET_MAX_LIMIT_PERIODS,
+    )
   }
   if (categoryNames.length > FIREFLY_BUDGET_MAX_CATEGORIES) {
     return getFireflyBudgetOverLimitReason('category count', categoryNames.length, FIREFLY_BUDGET_MAX_CATEGORIES)
@@ -520,8 +530,7 @@ function repeatsOnUnsupportedCadence(limits: ImportBudgetLimit[]): boolean {
   if (getFireflyBudgetRecurrence(latest) !== null) return false
 
   const previous = limits[limits.length - 2]
-  return inclusiveDayLength(previous) === inclusiveDayLength(latest)
-    && addDays(previous.end, 1) === latest.start
+  return inclusiveDayLength(previous) === inclusiveDayLength(latest) && addDays(previous.end, 1) === latest.start
 }
 
 /**
@@ -597,8 +606,9 @@ function monthCadenceOf(limit: ImportBudgetLimit): { months: number; dom: number
   const followingStart = parseIsoDateUtc(addDays(limit.end, 1))
   if (start === null || followingStart === null) return null
 
-  const months = (followingStart.getUTCFullYear() - start.getUTCFullYear()) * MONTHS_PER_YEAR
-    + (followingStart.getUTCMonth() - start.getUTCMonth())
+  const months =
+    (followingStart.getUTCFullYear() - start.getUTCFullYear()) * MONTHS_PER_YEAR +
+    (followingStart.getUTCMonth() - start.getUTCMonth())
   if (months <= 0) return null
 
   const startDay = start.getUTCDate()

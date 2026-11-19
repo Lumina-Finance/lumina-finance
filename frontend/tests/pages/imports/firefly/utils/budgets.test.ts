@@ -38,14 +38,22 @@ const CURRENCIES = [
   { id: 'JPY', minor_unit_exponent: 0 },
 ] as Currency[]
 
-const MONTHLY_ON_THE_FIRST: ImportBudgetRecurrence = { freq: 'monthly', instance_length: 1, weekday: null, dom: 1, month: null }
+const MONTHLY_ON_THE_FIRST: ImportBudgetRecurrence = {
+  freq: 'monthly',
+  instance_length: 1,
+  weekday: null,
+  dom: 1,
+  month: null,
+}
 
 /**
  * Builds budget drafts against the supported currencies, with every category left unmatched
  * unless a test says otherwise
  */
-function buildDrafts(input: Pick<Parameters<typeof buildFireflyBudgetDrafts>[0], 'budgetsFile' | 'transactionRows'>
-  & Partial<Parameters<typeof buildFireflyBudgetDrafts>[0]>) {
+function buildDrafts(
+  input: Pick<Parameters<typeof buildFireflyBudgetDrafts>[0], 'budgetsFile' | 'transactionRows'> &
+    Partial<Parameters<typeof buildFireflyBudgetDrafts>[0]>,
+) {
   return buildFireflyBudgetDrafts({ currencies: CURRENCIES, categoryMappings: {}, categoryById: new Map(), ...input })
 }
 
@@ -115,7 +123,7 @@ describe('buildFireflyBudgetDrafts', () => {
     expect(draft.disabledReason).toBeNull()
   })
 
-  it('reads the archived flag off any of a budget\'s limit rows', () => {
+  it("reads the archived flag off any of a budget's limit rows", () => {
     const budgetsFile = createBudgetsFile([
       createLimitRow({ name: 'Home Office', active: '0', start_date: '2024-01-01' }),
       createLimitRow({ name: 'Home Office', active: '0', start_date: '2024-02-01', end_date: '2024-02-29' }),
@@ -194,8 +202,9 @@ describe('buildFireflyBudgetDrafts', () => {
       createLimitRow({ name: 'Fitness', start_date: '2024-01-01', end_date: '2024-01-07' }),
       createLimitRow({ name: 'Trip', start_date: '2024-10-04', end_date: '2024-10-26' }),
     ])
-    const transactionRows = ['Entertainment', 'Clothing', 'Giving', 'Fitness', 'Trip']
-      .map((budget) => createTransactionRow({ budget }))
+    const transactionRows = ['Entertainment', 'Clothing', 'Giving', 'Fitness', 'Trip'].map((budget) =>
+      createTransactionRow({ budget }),
+    )
 
     const drafts = buildDrafts({ budgetsFile, transactionRows })
 
@@ -313,7 +322,12 @@ describe('buildFireflyBudgetDrafts', () => {
       createLimitRow({ start_date: '', amount: '500.000000000000' }),
       createLimitRow({ start_date: '2024-01-01', amount: '' }),
       createLimitRow({ start_date: '2024-03-01', end_date: '', amount: '610.000000000000' }),
-      createLimitRow({ start_date: '2024-05-01', end_date: '2024-05-31', currency_code: '', amount: '615.000000000000' }),
+      createLimitRow({
+        start_date: '2024-05-01',
+        end_date: '2024-05-31',
+        currency_code: '',
+        amount: '615.000000000000',
+      }),
       createLimitRow({ start_date: '2024-06-01', end_date: '2024-06-30', amount: '625.000000000000' }),
     ])
 
@@ -360,9 +374,7 @@ describe('buildFireflyBudgetDrafts', () => {
   })
 
   it('disables a budget whose export rows cannot form a limit schedule', () => {
-    const budgetsFile = createBudgetsFile([
-      createLimitRow({ start_date: '', amount: '' }),
-    ])
+    const budgetsFile = createBudgetsFile([createLimitRow({ start_date: '', amount: '' })])
 
     const [draft] = buildDrafts({
       budgetsFile,
@@ -624,15 +636,24 @@ describe('buildFireflyBudgetDrafts', () => {
 
   // An imported budget is the user's own, and the budget import takes only their own and built-in
   // categories, so one matched to a group's category would fail every budget with it
-  it('skips a budget whose category is matched to a group category and keeps one matched to the user\'s own', () => {
-    const familyFood = { id: 'family-food', name: 'Food', kind: 'expense', group_id: 'family', is_system: false } as Category
+  it("skips a budget whose category is matched to a group category and keeps one matched to the user's own", () => {
+    const familyFood = {
+      id: 'family-food',
+      name: 'Food',
+      kind: 'expense',
+      group_id: 'family',
+      is_system: false,
+    } as Category
     const housing = { id: 'housing', name: 'Housing', kind: 'expense', group_id: null, is_system: false } as Category
 
     const drafts = buildDrafts({
       budgetsFile: createBudgetsFile([createLimitRow(), createLimitRow({ name: 'Rent' })]),
       transactionRows: [createTransactionRow(), createTransactionRow({ budget: 'Rent', category: 'Housing' })],
       categoryMappings: { Food: familyFood.id, Housing: housing.id },
-      categoryById: new Map([[familyFood.id, familyFood], [housing.id, housing]]),
+      categoryById: new Map([
+        [familyFood.id, familyFood],
+        [housing.id, housing],
+      ]),
     })
 
     const byName = Object.fromEntries(drafts.map((draft) => [draft.name, draft]))
@@ -643,13 +664,46 @@ describe('buildFireflyBudgetDrafts', () => {
 
 // Firefly III gives each transaction one budget, while a Lumina budget counts whole categories
 describe('how imported Firefly budgets will count spending', () => {
-  const chequing = { id: 'chequing', name: 'Chequing', currency: 'CAD', institution: null, can_write: true, is_archived: false } as AccountsOverview
-  const wallet = { id: 'wallet', name: 'Euro Wallet', currency: 'EUR', institution: null, can_write: true, is_archived: false } as AccountsOverview
-  const restaurants = { id: 'restaurants', name: 'Restaurants', kind: 'expense', group_id: null, is_system: false } as Category
+  const chequing = {
+    id: 'chequing',
+    name: 'Chequing',
+    currency: 'CAD',
+    institution: null,
+    can_write: true,
+    is_archived: false,
+  } as AccountsOverview
+  const wallet = {
+    id: 'wallet',
+    name: 'Euro Wallet',
+    currency: 'EUR',
+    institution: null,
+    can_write: true,
+    is_archived: false,
+  } as AccountsOverview
+  const restaurants = {
+    id: 'restaurants',
+    name: 'Restaurants',
+    kind: 'expense',
+    group_id: null,
+    is_system: false,
+  } as Category
   const travel = { id: 'travel', name: 'Travel', kind: 'expense', group_id: null, is_system: false } as Category
   const housing = { id: 'housing', name: 'Housing', kind: 'expense', group_id: null, is_system: false } as Category
-  const miscellaneous = { id: 'miscellaneous', name: 'Miscellaneous', kind: 'expense', group_id: null, is_system: true } as Category
-  const carLoan = { id: 'car-loan', name: 'Car Loan', currency: 'CAD', institution: null, can_write: true, is_archived: false } as AccountsOverview
+  const miscellaneous = {
+    id: 'miscellaneous',
+    name: 'Miscellaneous',
+    kind: 'expense',
+    group_id: null,
+    is_system: true,
+  } as Category
+  const carLoan = {
+    id: 'car-loan',
+    name: 'Car Loan',
+    currency: 'CAD',
+    institution: null,
+    can_write: true,
+    is_archived: false,
+  } as AccountsOverview
 
   /**
    * Resolution options with both accounts mapped and the export's categories matched, the two
@@ -658,7 +712,11 @@ describe('how imported Firefly budgets will count spending', () => {
   function createOptions(categoryMappings: Record<string, string> = {}): FireflyRowResolutionOptions {
     return {
       accountSources: createNameKeyedAccountSources(['Chequing', 'Euro Wallet', 'Car Loan']),
-      accountById: new Map([[chequing.id, chequing], [wallet.id, wallet], [carLoan.id, carLoan]]),
+      accountById: new Map([
+        [chequing.id, chequing],
+        [wallet.id, wallet],
+        [carLoan.id, carLoan],
+      ]),
       accountMappings: { Chequing: chequing.id, 'Euro Wallet': wallet.id, 'Car Loan': carLoan.id },
       accountCreateDetails: {},
       institutionById: new Map(),
@@ -705,12 +763,13 @@ describe('how imported Firefly budgets will count spending', () => {
   // Food and Holiday name different Firefly categories, which both become Restaurants
   it('names the Lumina categories a selected budget shares with another selected budget', () => {
     const drafts = buildDrafts({ budgetsFile, transactionRows })
-    const build = (selected: string[]) => buildFireflyBudgetCountingNotes({
-      drafts,
-      selectedNames: new Set(selected),
-      rows: transactionRows,
-      options: createOptions(),
-    })
+    const build = (selected: string[]) =>
+      buildFireflyBudgetCountingNotes({
+        drafts,
+        selectedNames: new Set(selected),
+        rows: transactionRows,
+        options: createOptions(),
+      })
 
     expect(build(['Food', 'Holiday', 'Rent', 'Dining'])).toEqual([
       "Food shares Restaurants with Holiday, so it also counts Holiday's spending in Restaurants.",
@@ -751,12 +810,14 @@ describe('how imported Firefly budgets will count spending', () => {
       createTransactionRow({ journal_id: '3', budget: 'Rent', category: rentCategory, ...withMerchant('Roastery') }),
     ]
 
-    expect(buildFireflyBudgetCountingNotes({
-      drafts: buildDrafts({ budgetsFile, transactionRows: rows }),
-      selectedNames: new Set(['Food', 'Holiday', 'Rent']),
-      rows,
-      options: createOptions(Object.fromEntries(created.map((name) => [name, CREATE_CATEGORY_VALUE]))),
-    })).toEqual(expected)
+    expect(
+      buildFireflyBudgetCountingNotes({
+        drafts: buildDrafts({ budgetsFile, transactionRows: rows }),
+        selectedNames: new Set(['Food', 'Holiday', 'Rent']),
+        rows,
+        options: createOptions(Object.fromEntries(created.map((name) => [name, CREATE_CATEGORY_VALUE]))),
+      }),
+    ).toEqual(expected)
   })
 
   it('matches a new category by the name it is renamed to', () => {
@@ -766,15 +827,25 @@ describe('how imported Firefly budgets will count spending', () => {
       createTransactionRow({ journal_id: '2', budget: 'Holiday', category: 'Coffee', ...withMerchant('Café') }),
     ]
 
-    expect(buildFireflyBudgetCountingNotes({
-      drafts: buildDrafts({ budgetsFile, transactionRows: rows }),
-      selectedNames: new Set(['Food', 'Holiday']),
-      rows,
-      options: {
-        ...createOptions({ Coffee: CREATE_CATEGORY_VALUE }),
-        categoryRenames: { Coffee: { name: 'restaurants', sourceName: 'Coffee', kind: 'expense', heldBy: incomeCoffee, isProposed: false } },
-      },
-    })).toEqual([
+    expect(
+      buildFireflyBudgetCountingNotes({
+        drafts: buildDrafts({ budgetsFile, transactionRows: rows }),
+        selectedNames: new Set(['Food', 'Holiday']),
+        rows,
+        options: {
+          ...createOptions({ Coffee: CREATE_CATEGORY_VALUE }),
+          categoryRenames: {
+            Coffee: {
+              name: 'restaurants',
+              sourceName: 'Coffee',
+              kind: 'expense',
+              heldBy: incomeCoffee,
+              isProposed: false,
+            },
+          },
+        },
+      }),
+    ).toEqual([
       "Food shares Restaurants with Holiday, so it also counts Holiday's spending in Restaurants.",
       "Holiday shares Restaurants with Food, so it also counts Food's spending in Restaurants.",
     ])
@@ -783,8 +854,21 @@ describe('how imported Firefly budgets will count spending', () => {
   it('totals the budgeted spending with no category as each row will import', () => {
     const rows = [
       ...transactionRows,
-      createTransactionRow({ journal_id: '6', budget: 'Food', category: '', amount: '-3.000000000000', currency_code: 'EUR', ...withMerchant('Café', 'Euro Wallet') }),
-      createTransactionRow({ journal_id: '7', budget: 'Food', category: '', amount: '-12.500000000000', ...withMerchant('Market') }),
+      createTransactionRow({
+        journal_id: '6',
+        budget: 'Food',
+        category: '',
+        amount: '-3.000000000000',
+        currency_code: 'EUR',
+        ...withMerchant('Café', 'Euro Wallet'),
+      }),
+      createTransactionRow({
+        journal_id: '7',
+        budget: 'Food',
+        category: '',
+        amount: '-12.500000000000',
+        ...withMerchant('Market'),
+      }),
 
       // Written in its foreign amount, the one in the account's currency
       createTransactionRow({
@@ -799,7 +883,14 @@ describe('how imported Firefly budgets will count spending', () => {
       }),
 
       // Neither amount is in the account's currency, so the import skips this row
-      createTransactionRow({ journal_id: '9', budget: 'Food', category: '', amount: '-40.000000000000', currency_code: 'USD', ...withMerchant('Pub') }),
+      createTransactionRow({
+        journal_id: '9',
+        budget: 'Food',
+        category: '',
+        amount: '-40.000000000000',
+        currency_code: 'USD',
+        ...withMerchant('Pub'),
+      }),
 
       // A payment to a loan imports as a transfer, which no budget counts
       createTransactionRow({
@@ -815,29 +906,35 @@ describe('how imported Firefly budgets will count spending', () => {
     ]
     const drafts = buildDrafts({ budgetsFile, transactionRows: rows })
 
-    expect(buildFireflyBudgetCountingNotes({
-      drafts,
-      selectedNames: new Set(['Food', 'Holiday']),
-      rows,
-      options: createOptions(),
-    })).toContain('Food has CA$19.75 and €3.00 of spending with no category in Firefly III, which it will not count.')
-    expect(buildFireflyBudgetCountingNotes({
-      drafts,
-      selectedNames: new Set(['Holiday']),
-      rows,
-      options: createOptions(),
-    })).toEqual([])
+    expect(
+      buildFireflyBudgetCountingNotes({
+        drafts,
+        selectedNames: new Set(['Food', 'Holiday']),
+        rows,
+        options: createOptions(),
+      }),
+    ).toContain('Food has CA$19.75 and €3.00 of spending with no category in Firefly III, which it will not count.')
+    expect(
+      buildFireflyBudgetCountingNotes({
+        drafts,
+        selectedNames: new Set(['Holiday']),
+        rows,
+        options: createOptions(),
+      }),
+    ).toEqual([])
 
     // Once rows with no category become a category Food tracks, Food counts them after all
-    expect(buildFireflyBudgetCountingNotes({
-      drafts,
-      selectedNames: new Set(['Food']),
-      rows,
-      options: createOptions({ '(no category)': restaurants.id }),
-    })).toEqual([])
+    expect(
+      buildFireflyBudgetCountingNotes({
+        drafts,
+        selectedNames: new Set(['Food']),
+        rows,
+        options: createOptions({ '(no category)': restaurants.id }),
+      }),
+    ).toEqual([])
   })
 
-  it('shows a limit in its currency\'s format, or as exported when the currency cannot read it', () => {
+  it("shows a limit in its currency's format, or as exported when the currency cannot read it", () => {
     const drafts = buildDrafts({
       budgetsFile: createBudgetsFile([
         createLimitRow({ name: 'Groceries', currency_code: 'JPY', amount: '5000.000000000000' }),
@@ -890,12 +987,12 @@ describe('buildFireflyRunBudgets', () => {
       budgetsFile: createBudgetsFile([createLimitRow({ amount: ' \t600.00\n' })]),
       transactionRows: [createTransactionRow()],
     })
-    const { budgets: [budget] } = buildFireflyRunBudgets(drafts, [FOOD])
+    const {
+      budgets: [budget],
+    } = buildFireflyRunBudgets(drafts, [FOOD])
 
     expect(drafts[0].disabledReason).toBeNull()
-    expect(budget.limits).toEqual([
-      { start: '2024-01-01', end: '2024-01-31', amount: '600.00' },
-    ])
+    expect(budget.limits).toEqual([{ start: '2024-01-01', end: '2024-01-31', amount: '600.00' }])
   })
 
   // The commit resolves the sources against the run's mappings, so the budgets carry the mapping of
@@ -933,7 +1030,8 @@ describe('buildFireflyRunBudgets', () => {
   })
 
   it('refuses a budget naming a category the import does not map, naming the budget', () => {
-    expect(() => buildFireflyRunBudgets([createDraft({ categoryNames: ['Food', 'Travel'] })], [FOOD]))
-      .toThrow('Groceries: category Travel is not mapped')
+    expect(() => buildFireflyRunBudgets([createDraft({ categoryNames: ['Food', 'Travel'] })], [FOOD])).toThrow(
+      'Groceries: category Travel is not mapped',
+    )
   })
 })

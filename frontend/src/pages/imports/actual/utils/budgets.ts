@@ -66,7 +66,10 @@ export function buildActualBudgetDrafts(budget: ActualBudgetFile, currentMonth: 
   const monthsByCategory = new Map<string, { month: string; amount: number }[]>()
   for (const figure of budget.budgetFigures) {
     if (figure.amount <= 0 || !categoryById.has(figure.categoryId)) continue
-    monthsByCategory.set(figure.categoryId, [...(monthsByCategory.get(figure.categoryId) ?? []), { month: figure.month, amount: figure.amount }])
+    monthsByCategory.set(figure.categoryId, [
+      ...(monthsByCategory.get(figure.categoryId) ?? []),
+      { month: figure.month, amount: figure.amount },
+    ])
   }
 
   const drafts: ActualBudgetDraft[] = []
@@ -83,7 +86,9 @@ export function buildActualBudgetDrafts(budget: ActualBudgetFile, currentMonth: 
       isArchived: category.hidden,
       disabledReason: category.isIncome
         ? ACTUAL_INCOME_BUDGET_REASON
-        : name.length > IMPORT_BUDGET_NAME_MAX_LENGTH ? ACTUAL_BUDGET_NAME_TOO_LONG_REASON : null,
+        : name.length > IMPORT_BUDGET_NAME_MAX_LENGTH
+          ? ACTUAL_BUDGET_NAME_TOO_LONG_REASON
+          : null,
     })
   }
   return drafts.sort((a, b) => a.name.localeCompare(b.name))
@@ -122,8 +127,14 @@ export function getActualBudgetRefusal(
   if (kind && kind !== 'expense') return ACTUAL_BUDGET_NOT_EXPENSE_REASON
 
   if (currency && currencyExponent !== null) {
-    const month = draft.months.find(({ amount }) => formatScaledAmount(amount, budgetDecimals, currencyExponent) === null)
-    if (month) return getActualBudgetAmountReason(formatScaledAmount(month.amount, budgetDecimals, budgetDecimals) ?? '', currency)
+    const month = draft.months.find(
+      ({ amount }) => formatScaledAmount(amount, budgetDecimals, currencyExponent) === null,
+    )
+    if (month)
+      return getActualBudgetAmountReason(
+        formatScaledAmount(month.amount, budgetDecimals, budgetDecimals) ?? '',
+        currency,
+      )
   }
   return null
 }
