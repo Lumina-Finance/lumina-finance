@@ -6,6 +6,7 @@ from types import ModuleType, SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from hypothesis import settings
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, Pool
@@ -30,6 +31,11 @@ from tests.services.bank_sync.fake_provider import FakeProviderAdapter, remove_p
 
 # Import all models so Base.metadata has the full schema
 import_all_models()
+
+# Every run draws the same examples, so a property passing on one machine passes on every machine
+# and a failure in CI reproduces from its log
+settings.register_profile("repeatable", derandomize=True)
+settings.load_profile("repeatable")
 
 # Database credentials come from .env.test, which points at the isolated test database
 DB_HOST = require("DB_HOST")

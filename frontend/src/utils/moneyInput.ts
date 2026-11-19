@@ -110,13 +110,23 @@ export function toMinorUnits(value: string, exponent: number): number | null {
 }
 
 /**
- * Converts stored minor units into a money value carrying the currency's decimal places, returning
- * an empty string for a null amount so an optional field stays empty
+ * Converts stored whole minor units into a money value carrying the currency's decimal places,
+ * returning an empty string for a null amount so an optional field stays empty
+ *
+ * The decimal point is moved through the digits rather than the value being divided, so every
+ * integer up to the largest one JavaScript represents exactly shows as the digits stored
  */
 export function fromMinorUnits(minorUnits: number | null, exponent: number): string {
   if (minorUnits === null) return ''
 
-  return (minorUnits / Math.pow(10, exponent)).toFixed(exponent)
+  const sign = minorUnits < 0 ? '-' : ''
+  // One more digit than the decimal places, so an amount below one whole unit keeps its leading zero
+  const digits = String(Math.abs(minorUnits)).padStart(exponent + 1, '0')
+  if (exponent === 0) return `${sign}${digits}`
+
+  const pointAt = digits.length - exponent
+
+  return `${sign}${digits.slice(0, pointAt)}${CANONICAL_DECIMAL}${digits.slice(pointAt)}`
 }
 
 /**
