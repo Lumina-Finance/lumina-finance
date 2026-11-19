@@ -7,6 +7,11 @@ export interface Institution {
   logo_url: string | null
 }
 
+/**
+ * Characters an institution's website and logo address may hold, matching the backend
+ */
+export const INSTITUTION_ADDRESS_MAX_LENGTH = 2048
+
 export interface CreateInstitutionPayload {
   name: string
   country_code: string

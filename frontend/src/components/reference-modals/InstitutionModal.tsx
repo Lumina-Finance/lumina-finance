@@ -13,6 +13,11 @@ import {
   INSTITUTION_FIELD_IDS,
   INSTITUTION_FIELDS,
 } from '@/components/reference-modals/institutionModalConstants'
+import {
+  validateInstitutionForm,
+  type InstitutionField,
+  type InstitutionForm,
+} from '@/components/reference-modals/institutionForm'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
@@ -22,10 +27,6 @@ const INITIAL_FORM = {
   country_code: '',
   website: '',
 }
-
-type InstitutionForm = typeof INITIAL_FORM
-type InstitutionField = keyof InstitutionForm
-type InstitutionFieldErrors = Partial<Record<InstitutionField, string>>
 
 interface InstitutionModalProps {
   open: boolean
@@ -38,17 +39,6 @@ interface InstitutionModalProps {
   institution?: Institution | null
   onClose: () => void
   onSaved: (institution: Institution) => void
-}
-
-/**
- * Validates the institution fields the backend requires on both write paths
- */
-function validateInstitutionForm(form: InstitutionForm): InstitutionFieldErrors {
-  const errors: InstitutionFieldErrors = {}
-  if (!form.name.trim()) errors.name = 'Name is required'
-  if (!form.country_code) errors.country_code = 'Select a country'
-  if (!form.website.trim()) errors.website = 'Website is required'
-  return errors
 }
 
 /**

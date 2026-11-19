@@ -343,6 +343,31 @@ async def test_update_institution_clears_logo_url_with_an_explicit_null(client):
     assert resp.json()["logo_url"] is None
 
 
+async def test_create_institution_refuses_an_address_that_is_not_https_and_stores_nothing(client):
+    """A logo address that is not https is refused on create, so no one's page ever loads it."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.post("/institutions", json={**INSTITUTION_PAYLOAD, "logo_url": "javascript:alert(1)"}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"] == ["body", "logo_url"]
+    assert (await client.get("/institutions", headers=headers)).json() == []
+
+
+async def test_update_institution_refuses_a_website_that_is_not_https_and_keeps_the_stored_one(client):
+    """A correction to a website without https is refused and leaves what every user sees as it was."""
+    inst = await _seed_institution()
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    resp = await client.patch(f"/institutions/{inst.id}", json={"website": "http://www.td.com"}, headers=headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"][0]["loc"] == ["body", "website"]
+    assert (await client.get(f"/institutions/{inst.id}", headers=headers)).json()["website"] == inst.website
+
+
 async def test_update_institution_rejects_a_null_on_a_required_field(client):
     """A field backed by a NOT NULL column cannot be sent as null."""
     inst = await _seed_institution()
