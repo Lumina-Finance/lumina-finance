@@ -1,10 +1,7 @@
 import type { TransactionsOverview } from '@/api/transactions'
 
 export type TransactionOverviewState =
-  | { kind: 'loading' }
-  | { kind: 'failed' }
-  | { kind: 'empty'; message: string }
-  | { kind: 'content' }
+  { kind: 'loading' } | { kind: 'failed' } | { kind: 'empty'; message: string } | { kind: 'content' }
 
 /**
  * Selects the visible transaction-overview presentation from its query result
@@ -34,13 +31,10 @@ export function selectTransactionOverviewState({
   if (failed) return { kind: 'failed' }
 
   const hasTransactions = overview?.total_inflow !== null && overview?.total_inflow !== undefined
-  const hasNetFlowData =
-    (overview?.total_inflow ?? 0) !== 0 || (overview?.total_outflow ?? 0) !== 0
+  const hasNetFlowData = (overview?.total_inflow ?? 0) !== 0 || (overview?.total_outflow ?? 0) !== 0
   const hasOutlierData = (overview?.outliers?.length ?? 0) > 0
   const hasCategoryData = (overview?.top_categories?.length ?? 0) > 0
-  const hasDailyCashFlowData = overview?.daily_cash_flow?.some(
-    (day) => day.inflow !== 0 || day.outflow !== 0,
-  ) ?? false
+  const hasDailyCashFlowData = overview?.daily_cash_flow?.some((day) => day.inflow !== 0 || day.outflow !== 0) ?? false
 
   if (hasNetFlowData || hasOutlierData || hasCategoryData || hasDailyCashFlowData) {
     return { kind: 'content' }
