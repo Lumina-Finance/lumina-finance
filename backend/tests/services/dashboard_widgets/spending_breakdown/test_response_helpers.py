@@ -11,6 +11,7 @@ from app.services.dashboard_widgets.spending_breakdown.response_helpers import (
     get_spending_breakdown_categories_by_sign,
     get_spending_breakdown_totals,
 )
+from tests.routes.support.generators import minor_units
 
 SALARY_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 CAPITAL_LOSS_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
@@ -137,6 +138,40 @@ def test_get_spending_breakdown_categories_by_sign_routes_crossovers():
     ]
 
 
+def test_get_spending_breakdown_categories_by_sign_leaves_out_a_zero_total():
+    """A category netting to zero shows in neither list, and one at -40 only under spending"""
+    category_totals = {
+        GROCERIES_ID: SpendingBreakdownCategoryTotal(name="Test Groceries Net", kind=CategoryKind.EXPENSE, amount=-40),
+        OVER_REFUND_ID: SpendingBreakdownCategoryTotal(name="Test Reimbursed", kind=CategoryKind.EXPENSE, amount=0),
+    }
+
+    expense_categories, income_categories = get_spending_breakdown_categories_by_sign(category_totals)
+
+    assert [(category.category_id, category.amount) for category in expense_categories] == [(GROCERIES_ID, 40)]
+    assert income_categories == []
+
+
+@given(category_data=st.lists(st.tuples(st.sampled_from(_BREAKDOWN_KINDS), st.one_of(st.just(0), minor_units)), max_size=25))
+def test_get_spending_breakdown_categories_by_sign_puts_each_nonzero_total_in_exactly_one_list(category_data):
+    """Each nonzero category total shows once, under spending when negative and income when positive, at its size"""
+    category_totals = _make_category_totals(category_data)
+
+    expense_categories, income_categories = get_spending_breakdown_categories_by_sign(category_totals)
+
+    expected_expense = {category_id: -total.amount for category_id, total in category_totals.items() if total.amount < 0}
+    expected_income = {category_id: total.amount for category_id, total in category_totals.items() if total.amount > 0}
+    expense_ids = [category.category_id for category in expense_categories]
+    income_ids = [category.category_id for category in income_categories]
+    assert len(expense_ids) == len(set(expense_ids)), "a category shows twice under spending"
+    assert len(income_ids) == len(set(income_ids)), "a category shows twice under income"
+    assert {category.category_id: category.amount for category in expense_categories} == expected_expense, (
+        "spending holds exactly the negative totals"
+    )
+    assert {category.category_id: category.amount for category in income_categories} == expected_income, (
+        "income holds exactly the positive totals"
+    )
+
+
 def test_get_spending_breakdown_totals_net_crossovers_against_original_side():
     """Summary totals subtract refunds and losses from the side their category belongs to"""
     expense_categories = [
@@ -207,8 +242,6 @@ def test_get_spending_breakdown_categories_by_sign_preserves_generated_totals(ca
     expected_expense_refunds = sum(amount for kind, amount in category_data if kind == CategoryKind.EXPENSE and amount > 0)
     expected_income_losses = sum(-amount for kind, amount in category_data if kind == CategoryKind.INCOME and amount < 0)
 
-    assert sum(category.amount for category in expense_categories) == expected_expense_amount
-    assert sum(category.amount for category in income_categories) == expected_income_amount
     assert expense_total == max(expected_expense_amount - expected_expense_refunds, 0)
     assert income_total == max(expected_income_amount - expected_income_losses, 0)
     assert expense_categories == sorted(expense_categories, key=lambda category: (-category.amount, category.name))
