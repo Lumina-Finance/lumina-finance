@@ -77,11 +77,15 @@ describe('the range while its currency has no known decimal places', () => {
 
   it('shows nothing rather than an amount scaled by the two-place fallback', () => {
     expect(findAmountRangeDraft({ min_amount: 1000, amount_currency: 'JPY' }, NO_CURRENCIES)).toBeNull()
-    expect(findAmountRangeDraft({ min_amount: 1000, max_amount: 5000, amount_currency: 'JPY' }, currencies)).toStrictEqual({
+    expect(
+      findAmountRangeDraft({ min_amount: 1000, max_amount: 5000, amount_currency: 'JPY' }, currencies),
+    ).toStrictEqual({
       min: '1000',
       max: '5000',
     })
-    expect(findAmountRangeDraft({ min_amount: 1000, max_amount: 5000, amount_currency: 'CAD' }, currencies)).toStrictEqual({
+    expect(
+      findAmountRangeDraft({ min_amount: 1000, max_amount: 5000, amount_currency: 'CAD' }, currencies),
+    ).toStrictEqual({
       min: '10.00',
       max: '50.00',
     })
@@ -100,55 +104,64 @@ describe('the range while its currency has no known decimal places', () => {
   })
 
   it('keeps the applied bounds and their own currency while the fields are locked', () => {
-    expect(buildAmountFilterPatch({
-      amount: { min: '', max: '' },
-      amountCurrency: 'USD',
-      exponent: CENTS,
-      isLocked: true,
-      filters: { min_amount: 1000, max_amount: 5000, amount_currency: 'CAD' },
-    })).toStrictEqual({ min_amount: 1000, max_amount: 5000, amount_currency: 'CAD' })
+    expect(
+      buildAmountFilterPatch({
+        amount: { min: '', max: '' },
+        amountCurrency: 'USD',
+        exponent: CENTS,
+        isLocked: true,
+        filters: { min_amount: 1000, max_amount: 5000, amount_currency: 'CAD' },
+      }),
+    ).toStrictEqual({ min_amount: 1000, max_amount: 5000, amount_currency: 'CAD' })
   })
 
   it('refuses to convert text left in a locked field at the fallback scale', () => {
-    expect(buildAmountFilterPatch({
-      amount: { min: '7', max: '' },
-      amountCurrency: 'JPY',
-      exponent: CENTS,
-      isLocked: true,
-      filters: { min_amount: 1000, max_amount: 5000, amount_currency: 'JPY' },
-    })).toStrictEqual({ min_amount: 1000, max_amount: 5000, amount_currency: 'JPY' })
+    expect(
+      buildAmountFilterPatch({
+        amount: { min: '7', max: '' },
+        amountCurrency: 'JPY',
+        exponent: CENTS,
+        isLocked: true,
+        filters: { min_amount: 1000, max_amount: 5000, amount_currency: 'JPY' },
+      }),
+    ).toStrictEqual({ min_amount: 1000, max_amount: 5000, amount_currency: 'JPY' })
   })
-
 })
 
 describe('the range once its currency is known', () => {
   it('commits what the fields hold', () => {
-    expect(buildAmountFilterPatch({
-      amount: { min: '25', max: '80' },
-      amountCurrency: 'JPY',
-      exponent: WHOLE_UNITS,
-      isLocked: false,
-      filters: { min_amount: 1000, max_amount: 5000, amount_currency: 'CAD' },
-    })).toStrictEqual({ min_amount: 25, max_amount: 80, amount_currency: 'JPY' })
+    expect(
+      buildAmountFilterPatch({
+        amount: { min: '25', max: '80' },
+        amountCurrency: 'JPY',
+        exponent: WHOLE_UNITS,
+        isLocked: false,
+        filters: { min_amount: 1000, max_amount: 5000, amount_currency: 'CAD' },
+      }),
+    ).toStrictEqual({ min_amount: 25, max_amount: 80, amount_currency: 'JPY' })
   })
 
   it('keeps a bound of zero rather than dropping the range', () => {
-    expect(buildAmountFilterPatch({
-      amount: { min: '0', max: '' },
-      amountCurrency: 'CAD',
-      exponent: CENTS,
-      isLocked: false,
-      filters: {},
-    })).toStrictEqual({ min_amount: 0, max_amount: undefined, amount_currency: 'CAD' })
+    expect(
+      buildAmountFilterPatch({
+        amount: { min: '0', max: '' },
+        amountCurrency: 'CAD',
+        exponent: CENTS,
+        isLocked: false,
+        filters: {},
+      }),
+    ).toStrictEqual({ min_amount: 0, max_amount: undefined, amount_currency: 'CAD' })
   })
 
   it('drops the currency along with the bounds when both are cleared', () => {
-    expect(buildAmountFilterPatch({
-      amount: { min: '', max: '' },
-      amountCurrency: 'JPY',
-      exponent: WHOLE_UNITS,
-      isLocked: false,
-      filters: { min_amount: 1000, max_amount: 5000, amount_currency: 'JPY' },
-    })).toStrictEqual({ min_amount: undefined, max_amount: undefined, amount_currency: undefined })
+    expect(
+      buildAmountFilterPatch({
+        amount: { min: '', max: '' },
+        amountCurrency: 'JPY',
+        exponent: WHOLE_UNITS,
+        isLocked: false,
+        filters: { min_amount: 1000, max_amount: 5000, amount_currency: 'JPY' },
+      }),
+    ).toStrictEqual({ min_amount: undefined, max_amount: undefined, amount_currency: undefined })
   })
 })
