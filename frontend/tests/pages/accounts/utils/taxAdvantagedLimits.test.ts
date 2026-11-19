@@ -1,12 +1,14 @@
 /**
  * Tests the tax-advantaged limit helpers, so the usage percentages, meter labels and plan summaries
  * cannot drift from the contribution room recorded against each plan, including a meter amount that
- * rounds up to a million reading CA$1M rather than CA$1,000K
+ * rounds up to a million reading CA$1M rather than CA$1,000K, and a meter drawn past full or under
+ * empty, or saying over when the used amount is within the limit
  *
  * A currency's symbol is written the reader's way, so the amounts below assume the region the suite
  * pins through LC_ALL in its package script: read from the United States, where US dollars are the
  * plain ones and Canadian dollars are marked CA$
  */
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { getFilteredRows } from '@/pages/accounts/utils/filters'
 import {
@@ -20,12 +22,66 @@ import {
   hasTaxAdvantagedLimitTracking,
   getTaxAdvantagedUsageBarColor,
 } from '@/pages/accounts/utils/taxAdvantagedLimits'
+import { signedMinorUnits } from '@tests/utils/generators'
 import { createAccount, createInstitution, createTaxAdvantagedCategory, testCurrencies } from './fixtures'
 
+// How far from the limit a near draw puts the used amount, so a property meets both sides of it and the limit itself
+const NEAR_LIMIT_SPREAD = 2
+
+// The meters treat a limit of zero or less as having no room to measure, and a zero limit is the one a
+// division can't take, so it is drawn often
+const limits = fc.oneof(signedMinorUnits, fc.constant(0))
+
+/**
+ * Draws a limit and a used amount, half the time within a few minor units of each other, since two
+ * independent draws almost never land on the edge where the meter fills
+ */
+const limitsAndUsage: fc.Arbitrary<[number, number]> = fc.oneof(
+  fc.tuple(limits, signedMinorUnits),
+  fc
+    .tuple(limits, fc.integer({ min: -NEAR_LIMIT_SPREAD, max: NEAR_LIMIT_SPREAD }))
+    .map(([limit, offset]): [number, number] => [limit, limit + offset])
+    .filter(([, used]) => Number.isSafeInteger(used)),
+)
+
 describe('tax-advantaged limit helpers', () => {
-  it('bounds usage percentages and marks over-limit usage as negative', () => {
-    expect(getTaxAdvantagedUsagePercent(125, 100)).toBe(100)
-    expect(getTaxAdvantagedUsagePercent(-25, 100)).toBe(0)
+  it('keeps the meter and its percent between empty and full for any used amount and limit', () => {
+    fc.assert(
+      fc.property(limitsAndUsage, ([limit, used]) => {
+        for (const percent of [
+          getTaxAdvantagedUsagePercent(used, limit),
+          getTaxAdvantagedUsageLabelPercent(used, limit),
+        ]) {
+          expect(percent).toBeGreaterThanOrEqual(0)
+          expect(percent).toBeLessThanOrEqual(100)
+        }
+      }),
+    )
+  })
+
+  it('says over only when the used amount exceeds the limit', () => {
+    fc.assert(
+      fc.property(limitsAndUsage, fc.constantFrom('USD', 'CAD'), ([limit, used], currency) => {
+        const { remainingLabel } = getTaxAdvantagedMeterLabels(used, limit, currency, testCurrencies)
+
+        expect(remainingLabel.endsWith(' over')).toBe(used > limit)
+      }),
+    )
+  })
+
+  it.each([
+    ['more than the limit fills the meter and says over', 750_000, 100, 'CA$500 over'],
+    ['exactly the limit fills the meter without saying over', 700_000, 100, 'CA$0'],
+    ['a refund leaving less than nothing empties the meter', -20_000, 0, 'CA$7.2K'],
+  ])('shows that %s', (_, used, percent, remainingLabel) => {
+    const limit = 700_000
+
+    expect(getTaxAdvantagedUsagePercent(used, limit)).toBe(percent)
+    expect(getTaxAdvantagedUsageLabelPercent(used, limit)).toBe(percent)
+    expect(getTaxAdvantagedMeterLabels(used, limit, 'CAD', testCurrencies).remainingLabel).toBe(remainingLabel)
+  })
+
+  it('colours usage over the limit as negative and usage at the limit as spent', () => {
     expect(getTaxAdvantagedUsageColor(125, 100)).toBe('var(--app-negative)')
     expect(getTaxAdvantagedUsageColor(100, 100)).toBe('var(--app-text-muted)')
   })
@@ -86,8 +142,12 @@ describe('tax-advantaged limit helpers', () => {
 
   it('labels usage with the percent rounded up and held to the bar', () => {
     expect(getTaxAdvantagedUsageLabelPercent(1, 3)).toBe(34)
-    expect(getTaxAdvantagedUsageLabelPercent(150, 100)).toBe(100)
     expect(getTaxAdvantagedUsageLabelPercent(5, 0)).toBe(100)
+  })
+
+  it('fills the meter when the limit leaves no room to measure', () => {
+    expect(getTaxAdvantagedUsagePercent(5, 0)).toBe(100)
+    expect(getTaxAdvantagedUsagePercent(0, -100)).toBe(100)
   })
 
   it('shows lifetime available boundary only when accrued room is between used and the lifetime cap', () => {
