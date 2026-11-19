@@ -32,6 +32,7 @@ function render({
       overview,
       loading,
       failed,
+      rangeTooLong: false,
       displayCurrency: 'CAD',
       retrying: false,
       skipEntrance: true,

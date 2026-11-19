@@ -2,6 +2,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Merchant } from '@/api/merchants'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
+import { getTodayYmd } from '@/utils/date'
 import {
   getDirectionValuesAgreeError,
   getImportAccountNameTooLongError,
@@ -335,7 +336,12 @@ export function buildTransactionImportPayload({
     directionAnswers,
     currencyByAccountSource: getCurrencyByAccountSource(accountMappings, accountById, accountCreateCurrencies),
   }
-  const rowJudgement: ImportRowJudgement = { currencies, accountMappings, recordsCounterpartyBySource }
+  const rowJudgement: ImportRowJudgement = {
+    currencies,
+    accountMappings,
+    recordsCounterpartyBySource,
+    todayYmd: getTodayYmd(timeZone),
+  }
 
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []

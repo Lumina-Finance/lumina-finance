@@ -4,7 +4,8 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from pydantic_core import PydanticCustomError
 
 from app.schemas.fx import FxStatus
 
@@ -17,6 +18,14 @@ SavedInsightsRangeQualifier = Literal["this", "last", "past"]
 
 # Guards a saved range against absurd look-backs while leaving room for any sensible window
 SAVED_INSIGHTS_RANGE_MAX_AMOUNT = 999
+
+# The most of each larger unit a saved range holds. That is as many as fit in the 20 years a report
+# covers. Days and weeks need no entry, since the amount limit above is already inside 20 years for both
+SAVED_INSIGHTS_RANGE_MAX_AMOUNT_BY_UNIT: dict[str, int] = {
+    "month": 240,
+    "quarter": 80,
+    "year": 20,
+}
 
 
 class InsightsPeriodAtAGlanceResponse(BaseModel):
@@ -119,6 +128,13 @@ class SavedInsightsRangeCreate(BaseModel):
     amount: int = Field(ge=1, le=SAVED_INSIGHTS_RANGE_MAX_AMOUNT)
     unit: SavedInsightsRangeUnit
     qualifier: SavedInsightsRangeQualifier = "past"
+
+    @model_validator(mode="after")
+    def _limit_range_to_twenty_years(self) -> SavedInsightsRangeCreate:
+        """Refuse an amount whose unit makes the range cover over 20 years, except for This (one period)"""
+        if self.qualifier != "this" and self.amount > SAVED_INSIGHTS_RANGE_MAX_AMOUNT_BY_UNIT.get(self.unit, self.amount):
+            raise PydanticCustomError("range_too_long", "Range can cover at most 20 years")
+        return self
 
 
 class SavedInsightsRangeResponse(BaseModel):

@@ -536,6 +536,10 @@ export const IMPORT_NO_CATEGORY_TRANSFER_SOURCE = '(transfer, no category)'
 export const ROW_ACCOUNT_BLANK_REASON = 'The account cell is blank.'
 export const ROW_DATE_BLANK_REASON = 'The date cell is blank.'
 export const ROW_DATE_UNREADABLE_REASON = 'The date is not a real date in the format chosen above.'
+
+// Said of a row in any source whose date is a real one outside the window every date must sit in,
+// which the server would refuse the whole import for
+export const ROW_DATE_OUTSIDE_WINDOW_REASON = 'The date is before 1 January 1900 or more than ten years from today.'
 export const ROW_AMOUNT_BLANK_REASON = 'The amount cell is blank.'
 export const ROW_AMOUNT_UNREADABLE_REASON = 'The amount is not a number.'
 export const ROW_AMOUNT_TOO_LARGE_REASON = 'The amount is larger than this app can store.'

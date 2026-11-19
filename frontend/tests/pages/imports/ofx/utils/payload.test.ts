@@ -5,7 +5,7 @@
  * holds under the same account, currency and bank ID skipped, whatever the files are named, and the
  * hash of the bank account and bank ID the save matches on carried with every row in place of either
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
@@ -18,6 +18,7 @@ import {
   JOURNAL_ROW_FIELD_MAX_LENGTHS,
   MAX_IMPORT_NOTES_LENGTH,
   ROW_AMOUNT_TOO_LARGE_REASON,
+  ROW_DATE_OUTSIDE_WINDOW_REASON,
 } from '@/pages/imports/constants'
 import {
   getOfxAlreadyInAccountReason,
@@ -755,5 +756,46 @@ describe('a transaction that its account already holds from an earlier import', 
     expect(build.skippedRows.map((row) => row.reason).sort()).toEqual(
       [getOfxAlreadyInAccountReason('Chequing'), getOfxRepeatedTransactionReason('2024-01.qfx')].sort(),
     )
+  })
+})
+
+describe('OFX transactions dated outside the window every date must sit in', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('lists a transaction before 1 January 1900 or past ten years from today with its reason and imports the rest', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-10T12:00:00Z'))
+    const file = await readStatements([
+      {
+        transactions: [
+          { posted: '19000101', amount: '-5.00', name: 'Earliest', fitId: '1' },
+          { posted: '18991231', amount: '-5.00', name: 'Too early', fitId: '2' },
+          { posted: '20360610', amount: '-5.00', name: 'Latest', fitId: '3' },
+          { posted: '99991231', amount: '-5.00', name: 'Too late', fitId: '4' },
+        ],
+      },
+    ])
+    const build = buildOfxImportPayload(file, createAnswers(file, CHEQUING.id))
+
+    expect(build.skippedRows.map((row) => [row.payee, row.reason])).toEqual([
+      ['Too early', ROW_DATE_OUTSIDE_WINDOW_REASON],
+      ['Too late', ROW_DATE_OUTSIDE_WINDOW_REASON],
+    ])
+    expect(build.payload?.rows.map((row) => row.dt)).toEqual(['1900-01-01', '2036-06-10'])
+  })
+
+  it('counts today in the profile timezone, not the browser one', async () => {
+    // 30 June in Toronto, already 1 July in UTC, so the last day inside the window differs by a day
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-01T02:00:00Z'))
+    const file = await readStatements([
+      { transactions: [{ posted: '20360701', amount: '-5.00', name: 'Edge', fitId: '1' }] },
+    ])
+
+    const inToronto = buildOfxImportPayload(file, { ...createAnswers(file, CHEQUING.id), timeZone: 'America/Toronto' })
+    const inUtc = buildOfxImportPayload(file, { ...createAnswers(file, CHEQUING.id), timeZone: 'UTC' })
+
+    expect(inToronto.skippedRows.map((row) => row.reason)).toEqual([ROW_DATE_OUTSIDE_WINDOW_REASON])
+    expect(inUtc.skippedRows).toEqual([])
   })
 })

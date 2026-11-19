@@ -1,4 +1,6 @@
 """Cash-flow bucket helpers"""
+
+from bisect import bisect_left, bisect_right
 from collections.abc import Mapping
 from datetime import date, timedelta
 from typing import Literal
@@ -25,19 +27,13 @@ def get_cash_flow_buckets(from_date: date, to_date: date) -> list[CashFlowBucket
     granularity = _get_cash_flow_granularity(from_date, to_date)
     buckets: list[CashFlowBucket] = []
     bucket_start = from_date
-    current_key = _get_cash_flow_bucket_key(from_date, granularity)
-    cursor = from_date
 
-    # Walk the range and close a bucket when the granularity key changes
-    while cursor <= to_date:
-        bucket_key = _get_cash_flow_bucket_key(cursor, granularity)
-        if bucket_key != current_key:
-            buckets.append((bucket_start, cursor - timedelta(days=1)))
-            bucket_start = cursor
-            current_key = bucket_key
-        cursor += timedelta(days=1)
+    # Step from one bucket to the next, so the work follows the bucket count and not the days in the range
+    while bucket_start <= to_date:
+        next_start = _get_next_bucket_start(bucket_start, granularity)
+        buckets.append((bucket_start, min(next_start - timedelta(days=1), to_date)))
+        bucket_start = next_start
 
-    buckets.append((bucket_start, to_date))
     return buckets
 
 
@@ -55,17 +51,18 @@ def get_cash_flow_bucket_rows(
         Cash-flow bucket rows containing date range, inflow, and outflow
     """
     cash_flow_rows: list[CashFlowBucketRow] = []
+    dates_with_totals = sorted(daily_totals)
 
-    # Sum daily totals into each bucket so response granularity matches the selected range
+    # Sum the days that have totals into each bucket so response granularity matches the selected range
     for bucket_start, bucket_end in buckets:
         inflow = 0
         outflow = 0
-        cursor = bucket_start
-        while cursor <= bucket_end:
-            day_inflow, day_outflow = daily_totals.get(cursor, (0, 0))
+        first = bisect_left(dates_with_totals, bucket_start)
+        last = bisect_right(dates_with_totals, bucket_end)
+        for day in dates_with_totals[first:last]:
+            day_inflow, day_outflow = daily_totals[day]
             inflow += day_inflow
             outflow += day_outflow
-            cursor += timedelta(days=1)
         bucket_row = (bucket_start, bucket_end, inflow, outflow)
         cash_flow_rows.append(bucket_row)
     return cash_flow_rows
@@ -89,21 +86,22 @@ def _get_cash_flow_granularity(from_date: date, to_date: date) -> CashFlowGranul
     return "month"
 
 
-def _get_cash_flow_bucket_key(target: date, granularity: CashFlowGranularity) -> tuple[int, ...]:
-    """Return the grouping key for a cash-flow bucket date
+def _get_next_bucket_start(current: date, granularity: CashFlowGranularity) -> date:
+    """Return the first date of the bucket after the one holding a date
 
     Args:
-        target: Date being assigned to a bucket
+        current: Date inside the bucket being closed
         granularity: Bucket granularity used for the selected range
 
     Returns:
-        Tuple key representing the target date bucket
+        The next day, the next ISO Monday or the first of the next month
     """
     if granularity == "day":
-        bucket_key = (target.year, target.month, target.day)
+        next_start = current + timedelta(days=1)
     elif granularity == "week":
-        iso_year, iso_week, _weekday = target.isocalendar()
-        bucket_key = (iso_year, iso_week)
+        next_start = current + timedelta(days=7 - current.weekday())
+    elif current.month == 12:
+        next_start = date(current.year + 1, 1, 1)
     else:
-        bucket_key = (target.year, target.month)
-    return bucket_key
+        next_start = date(current.year, current.month + 1, 1)
+    return next_start

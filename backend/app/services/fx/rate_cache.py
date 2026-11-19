@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 
 from app.services.fx.errors import FxRateNotFoundError, FxRateRejectedError
 from app.services.fx.provider import FxRateProvider
+from app.services.fx.rate_parser_helpers import is_plausible_rate
 from app.utils.dates import get_dates_in_range
 from app.valkey_store import ValkeyEntry, ValkeyStore, get_valkey
 
@@ -59,14 +60,14 @@ def _ttl(rate_date: date, now: datetime, *, is_missing: bool) -> timedelta:
 def _parse_rate(value: bytes) -> Decimal | None:
     """Return a stored rate, or None when it isn't one the provider could have given
 
-    A rate must be finite and above zero, as the provider's own parser requires, so a corrupt or
-    tampered entry is fetched again instead of converting amounts to nothing or to nonsense
+    A rate must be one the provider's own parser takes, finite and within its plausible range, so a
+    corrupt or tampered entry is fetched again instead of converting amounts to nothing or to nonsense
     """
     try:
         rate = Decimal(value.decode())
     except UnicodeDecodeError, InvalidOperation:
         return None
-    return rate if rate.is_finite() and rate > 0 else None
+    return rate if is_plausible_rate(rate) else None
 
 
 class CachedFxRateProvider:

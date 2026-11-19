@@ -34,7 +34,11 @@ interface Manifest {
   accountMonths: { account: string; accountType: string; month: string; count: number; total: string }[]
   categoryMonths: { category: string; month: string; currency: string; total: string }[]
   rows: { date: string; type: string; source: Endpoint; destination: Endpoint; category: string; budget: string }[]
-  budgets: { name: string; active: boolean; limits: { start: string; end: string; amount: string; currency: string }[] }[]
+  budgets: {
+    name: string
+    active: boolean
+    limits: { start: string; end: string; amount: string; currency: string }[]
+  }[]
 }
 
 const CURRENCIES: Currency[] = [
@@ -46,18 +50,17 @@ const CURRENCIES: Currency[] = [
 const readFixture = (name: string) => readFileSync(new URL(`../fixtures/real-export/${name}`, import.meta.url), 'utf8')
 
 // What the import screen sent for this export in the same run, which the backend test replays
-const capturedUpload = JSON.parse(readFileSync(
-  new URL('../../../../../../backend/tests/fixtures/firefly/real-export-upload.json', import.meta.url),
-  'utf8',
-)) as { transactions: JournalImportStageBatch[]; budgets: ImportRunBudgets | null; archive: string[] | null }
+const capturedUpload = JSON.parse(
+  readFileSync(
+    new URL('../../../../../../backend/tests/fixtures/firefly/real-export-upload.json', import.meta.url),
+    'utf8',
+  ),
+) as { transactions: JournalImportStageBatch[]; budgets: ImportRunBudgets | null; archive: string[] | null }
 const manifest = JSON.parse(readFixture('manifest.json')) as Manifest
 const { fireflyVersion } = JSON.parse(readFixture('run.json')) as { fireflyVersion: string }
 
-const readExport = (name: string, kind: FireflyFileKind) => readFireflyCsvFile(
-  new File([readFixture(name)], name),
-  kind,
-  new Set(CURRENCIES.map((currency) => currency.id)),
-)
+const readExport = (name: string, kind: FireflyFileKind) =>
+  readFireflyCsvFile(new File([readFixture(name)], name), kind, new Set(CURRENCIES.map((currency) => currency.id)))
 
 /** Writes minor units the way the manifest writes amounts */
 function formatMinorUnits(minorUnits: number, currency: string) {
@@ -74,8 +77,10 @@ function getAccountKey(name: string, type: string) {
 
 /** A withdrawal from, or deposit into, an imported account whose other side is outside */
 function isMerchantRow(row: Manifest['rows'][number]) {
-  return (row.type === 'withdrawal' && row.source.imported && !row.destination.imported)
-    || (row.type === 'deposit' && row.destination.imported && !row.source.imported)
+  return (
+    (row.type === 'withdrawal' && row.source.imported && !row.destination.imported) ||
+    (row.type === 'deposit' && row.destination.imported && !row.source.imported)
+  )
 }
 
 describe(`a real Firefly III ${fireflyVersion} export`, () => {
@@ -119,21 +124,40 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
       }
     }
 
-    const currencyByAccount = new Map(manifest.accounts.map((account) => [getAccountKey(account.name, account.type), account.currency]))
-    expect(Object.fromEntries([...balances].map(([account, total]) => [account, formatMinorUnits(total, currencyByAccount.get(account)!)])))
-      .toEqual(Object.fromEntries(manifest.accounts.map((account) => [getAccountKey(account.name, account.type), account.balance])))
-    expect(Object.fromEntries([...accountMonths].map(([key, { count, total }]) => {
-      const [account] = JSON.parse(key) as [string, string]
-      return [key, `${count} ${formatMinorUnits(total, currencyByAccount.get(account)!)}`]
-    }))).toEqual(Object.fromEntries(manifest.accountMonths.map((month) => [
-      JSON.stringify([getAccountKey(month.account, month.accountType), month.month]),
-      `${month.count} ${month.total}`,
-    ])))
-    expect(Object.fromEntries([...categoryMonths].map(([key, total]) => [key, formatMinorUnits(total, key.slice(-3))])))
-      .toEqual(Object.fromEntries(manifest.categoryMonths.map((month) => [
-        `${month.category} ${month.month} ${month.currency}`,
-        month.total,
-      ])))
+    const currencyByAccount = new Map(
+      manifest.accounts.map((account) => [getAccountKey(account.name, account.type), account.currency]),
+    )
+    expect(
+      Object.fromEntries(
+        [...balances].map(([account, total]) => [account, formatMinorUnits(total, currencyByAccount.get(account)!)]),
+      ),
+    ).toEqual(
+      Object.fromEntries(
+        manifest.accounts.map((account) => [getAccountKey(account.name, account.type), account.balance]),
+      ),
+    )
+    expect(
+      Object.fromEntries(
+        [...accountMonths].map(([key, { count, total }]) => {
+          const [account] = JSON.parse(key) as [string, string]
+          return [key, `${count} ${formatMinorUnits(total, currencyByAccount.get(account)!)}`]
+        }),
+      ),
+    ).toEqual(
+      Object.fromEntries(
+        manifest.accountMonths.map((month) => [
+          JSON.stringify([getAccountKey(month.account, month.accountType), month.month]),
+          `${month.count} ${month.total}`,
+        ]),
+      ),
+    )
+    expect(
+      Object.fromEntries([...categoryMonths].map(([key, total]) => [key, formatMinorUnits(total, key.slice(-3))])),
+    ).toEqual(
+      Object.fromEntries(
+        manifest.categoryMonths.map((month) => [`${month.category} ${month.month} ${month.currency}`, month.total]),
+      ),
+    )
   })
 
   // A new user's import creates every account, so staging everything as new sends what the screen
@@ -170,12 +194,14 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
       currencies: CURRENCIES,
       categoryMappings: options.categoryMappings,
       categoryById: new Map(),
+      todayYmd: '2026-09-26',
     }).filter((draft) => draft.disabledReason === null)
     const runBudgets = buildFireflyRunBudgets(drafts, payload.categories)
     expect(runBudgets.budgets).toEqual(capturedUpload.budgets?.budgets)
     // The captured mappings name an existing category rather than its id, so only the sources compare
-    expect(runBudgets.categories.map((mapping) => mapping.source))
-      .toEqual(capturedUpload.budgets?.categories.map((mapping) => mapping.source))
+    expect(runBudgets.categories.map((mapping) => mapping.source)).toEqual(
+      capturedUpload.budgets?.categories.map((mapping) => mapping.source),
+    )
   })
 
   it('reads every budget with the limits and categories Firefly III holds for it', async () => {
@@ -190,29 +216,37 @@ describe(`a real Firefly III ${fireflyVersion} export`, () => {
       currencies: CURRENCIES,
       categoryMappings: options.categoryMappings,
       categoryById: new Map(),
+      todayYmd: '2026-09-26',
     })
 
     // Limits are compared as numbers, since the export writes twelve decimal places
-    const describeLimits = (limits: { start: string; end: string; amount: string }[]) => limits
-      .map((limit) => `${limit.start} ${limit.end} ${Number(limit.amount)}`)
-      .sort()
+    const describeLimits = (limits: { start: string; end: string; amount: string }[]) =>
+      limits.map((limit) => `${limit.start} ${limit.end} ${Number(limit.amount)}`).sort()
 
-    expect(drafts.map((draft) => ({
-      name: draft.name,
-      isArchived: draft.isArchived,
-      disabledReason: draft.disabledReason,
-      currency: draft.currencyCode,
-      categories: [...draft.categoryNames].sort(),
-      limits: describeLimits(draft.limits),
-    }))).toEqual(manifest.budgets.map((budget) => ({
-      name: budget.name,
-      isArchived: !budget.active,
-      disabledReason: null,
-      currency: budget.limits[0].currency,
-      categories: [...new Set(manifest.rows
-        .filter((row) => row.budget === budget.name && row.category && isMerchantRow(row))
-        .map((row) => row.category))].sort(),
-      limits: describeLimits(budget.limits),
-    })))
+    expect(
+      drafts.map((draft) => ({
+        name: draft.name,
+        isArchived: draft.isArchived,
+        disabledReason: draft.disabledReason,
+        currency: draft.currencyCode,
+        categories: [...draft.categoryNames].sort(),
+        limits: describeLimits(draft.limits),
+      })),
+    ).toEqual(
+      manifest.budgets.map((budget) => ({
+        name: budget.name,
+        isArchived: !budget.active,
+        disabledReason: null,
+        currency: budget.limits[0].currency,
+        categories: [
+          ...new Set(
+            manifest.rows
+              .filter((row) => row.budget === budget.name && row.category && isMerchantRow(row))
+              .map((row) => row.category),
+          ),
+        ].sort(),
+        limits: describeLimits(budget.limits),
+      })),
+    )
   })
 })

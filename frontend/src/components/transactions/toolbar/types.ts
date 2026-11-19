@@ -14,6 +14,8 @@ export type TransactionListToolbarProps = {
   categories?: Category[]
   accounts?: TransactionListAccount[]
   showAccountFilter: boolean
+  // True where a summary sits above the list, so a range over 20 years is refused
+  checksSummarySpan?: boolean
   // The account's currency on its own transaction list, which pins the amount currency
   lockedCurrency?: string
   onCreateTransaction: () => void

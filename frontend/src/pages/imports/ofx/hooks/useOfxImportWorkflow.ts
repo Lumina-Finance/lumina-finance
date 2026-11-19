@@ -298,6 +298,7 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
               categories,
               currencies,
               heldRowIds,
+              timeZone: user?.tz,
             }),
     [
       accountById,
@@ -307,6 +308,7 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
       heldRowIds,
       ofxFile,
       readingError,
+      user?.tz,
       resolvedAccountCreateDetails,
       resolvedAccountMappings,
     ],

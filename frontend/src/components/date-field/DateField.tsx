@@ -26,7 +26,8 @@ import {
   type DateSegments,
 } from '@/components/date-field/dateSegments'
 import { useAuth } from '@/hooks/useAuth'
-import { getTodayDate } from '@/utils/date'
+import { getTodayDate, getTodayYmd } from '@/utils/date'
+import { getDateWindowError } from '@/utils/dateWindow'
 
 export type DateFieldHandle = {
   // Empties all three segments as if they had been erased by hand, then focuses the year, so a control
@@ -61,7 +62,8 @@ interface DateFieldProps {
   // Lights the field with its focus look without moving focus into it: 'lit' while a change made elsewhere is
   // pointed out, 'fading' while the light eases out again. Left out, or null, the field is as focus makes it
   stepHighlight?: 'lit' | 'fading' | null
-  // Days the calendar refuses. Typing one is still possible, so the form validates the value too
+  // Days the calendar refuses on top of those outside the window every date must sit in. Typing one is
+  // still possible, so the form validates the value too
   isDateDisabled?: (iso: string) => boolean
   // Why the calendar refuses a day, said when the day is pressed, hovered or focused. Left out, a refused day says nothing
   getDateDisabledReason?: (iso: string) => string | null
@@ -105,6 +107,10 @@ export default function DateField({
   getDateDisabledReason,
 }: DateFieldProps) {
   const { user } = useAuth()
+
+  // The calendar never offers a day outside the window every date must sit in, whatever else the
+  // caller refuses
+  const todayYmd = getTodayYmd(user?.tz)
   const [segments, setSegments] = useState<DateSegments>(() => parseIsoDate(value))
   const [popoverOpen, setPopoverOpen] = useState(false)
   const lastEmittedRef = useRef(value)
@@ -340,8 +346,8 @@ export default function DateField({
         value={value}
         onSelect={(iso) => commit(parseIsoDate(iso))}
         onClose={() => setPopoverOpen(false)}
-        isDateDisabled={isDateDisabled}
-        getDateDisabledReason={getDateDisabledReason}
+        isDateDisabled={(iso) => getDateWindowError(iso, todayYmd) !== null || (isDateDisabled?.(iso) ?? false)}
+        getDateDisabledReason={(iso) => getDateWindowError(iso, todayYmd) ?? getDateDisabledReason?.(iso) ?? null}
       />
     </div>
   )

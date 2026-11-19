@@ -19,7 +19,8 @@ import {
   type AmountDraft,
 } from '@/components/transactions/utils/amountRange'
 import { isFilterPatchApplied } from '@/components/transactions/utils/filterDraft'
-import { isDateRangeCrossed } from '@/utils/date'
+import { getTodayYmd, isDateRangeCrossed } from '@/utils/date'
+import { getDateRangeErrors } from '@/components/transactions/utils/dateRangeErrors'
 import { useRestoreAmountRange } from '@/components/transactions/toolbar/hooks/useRestoreAmountRange'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/components/transactions/toolbar/types'
@@ -72,6 +73,10 @@ type UseTransactionFilterDraftArgs = {
   // False on an account's own transaction list, where the account scope is fixed, so the account
   // facet is not seeded and reads as an applied filter
   showAccountFilter: boolean
+  // True when a summary sits above the list. The summary always asks for both ends, so a range leading
+  // the summary to cover over 20 years is refused. Off for an account's own list and the refund search,
+  // since neither has a summary
+  checksSummarySpan?: boolean
   // The account's currency on its own transaction list, which pins the amount currency without
   // counting as an applied currency filter
   lockedCurrency?: string
@@ -91,6 +96,7 @@ export function useTransactionFilterDraft({
   accountOptions,
   categoryOptions,
   showAccountFilter,
+  checksSummarySpan = false,
   lockedCurrency,
   onClose,
 }: UseTransactionFilterDraftArgs) {
@@ -131,7 +137,9 @@ export function useTransactionFilterDraft({
   // user never picks a currency twice
   const currencyLocked = Boolean(lockedCurrency)
   const amountCurrency = lockedCurrency ?? selections.currency[0] ?? baseCurrency
-  const amountSymbol = currencies.some((currency) => currency.id === amountCurrency) ? formatCurrencySymbol(amountCurrency) : ''
+  const amountSymbol = currencies.some((currency) => currency.id === amountCurrency)
+    ? formatCurrencySymbol(amountCurrency)
+    : ''
   const amountExponent = getCurrencyExponent(currencies, amountCurrency)
   // Both fields refuse input while the decimal places are unknown, since a bound typed against the
   // two-place fallback would be stored at the wrong scale. Decided here rather than in the body, so
@@ -149,17 +157,21 @@ export function useTransactionFilterDraft({
       : `Amounts are matched in ${amountCurrency}, your base currency`
   const hasCrossedDateRange = isDateRangeCrossed(dateRange)
 
+  // A typed date outside the window every date must sit in is refused on its own field, and nothing
+  // is filtered by it
+  const todayYmd = getTodayYmd(user?.tz)
+  const dateWindowErrors = getDateRangeErrors(dateRange, todayYmd, checksSummarySpan)
+  const dateWindowError = dateWindowErrors.from ?? dateWindowErrors.to
+
   // Either range excluding itself blocks the whole commit, since no transaction can satisfy it and
   // applying it would close the panel on an empty list
-  const isApplyBlocked = hasCrossedAmountBounds || hasCrossedDateRange
+  const isApplyBlocked = hasCrossedAmountBounds || hasCrossedDateRange || dateWindowError !== null
 
-  // The first reason, when both ranges cross. The amount message sits in the panel's own line and the
-  // date message on the From field's label, so each shows where it applies
+  // The first reason, when several hold. The amount message sits in the panel's own line and the
+  // date messages on the date fields' labels, so each shows where it applies
   const applyBlockedReason = hasCrossedAmountBounds
     ? CROSSED_AMOUNT_RANGE_MESSAGE
-    : hasCrossedDateRange
-      ? CROSSED_DATE_RANGE_MESSAGE
-      : undefined
+    : (dateWindowError ?? (hasCrossedDateRange ? CROSSED_DATE_RANGE_MESSAGE : undefined))
 
   /**
    * Counts the live selections on a facet so its tab can show a badge and the pill can show a total
@@ -199,7 +211,7 @@ export function useTransactionFilterDraft({
       ...EMPTY_SELECTIONS,
       // The fixed account scope is not a user-applied filter, so it is left out of the draft to keep
       // the account facet empty rather than showing a count, badge, or chip
-      accounts: showAccountFilter ? filters.account_id ?? [] : [],
+      accounts: showAccountFilter ? (filters.account_id ?? []) : [],
       categories: filters.category_id ?? [],
       merchants: filters.merchant_id ?? [],
       tags: filters.tag_id ?? [],
@@ -236,10 +248,7 @@ export function useTransactionFilterDraft({
   }
 
   // The account scope of a list that fixes it is no applied filter, so it is not compared
-  const isDraftApplied = isFilterPatchApplied(
-    draftPatch,
-    showAccountFilter ? filters : { ...filters, account_id: [] },
-  )
+  const isDraftApplied = isFilterPatchApplied(draftPatch, showAccountFilter ? filters : { ...filters, account_id: [] })
 
   /**
    * Adds or removes a value from a facet draft, recording the label for server-searched facets
@@ -253,9 +262,7 @@ export function useTransactionFilterDraft({
       if (isSingle) {
         return { ...current, [facetId]: values.includes(value) ? [] : [value] }
       }
-      const next = values.includes(value)
-        ? values.filter((entry) => entry !== value)
-        : [...values, value]
+      const next = values.includes(value) ? values.filter((entry) => entry !== value) : [...values, value]
       return { ...current, [facetId]: next }
     })
 
@@ -316,6 +323,7 @@ export function useTransactionFilterDraft({
     currencyListState,
     hasCrossedAmountBounds,
     hasCrossedDateRange,
+    dateWindowErrors,
     isApplyBlocked,
     applyBlockedReason,
     isDraftApplied,

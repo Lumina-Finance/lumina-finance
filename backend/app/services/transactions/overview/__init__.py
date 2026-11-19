@@ -4,7 +4,6 @@ import uuid
 from datetime import date
 
 import sqlalchemy as sa
-from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +28,7 @@ from app.services.transactions.overview.queries import (
     get_overview_category_total_rows,
     get_overview_outlier_candidate_rows,
 )
+from app.utils.date_window import require_optional_report_range
 
 
 async def get_transactions_overview(
@@ -57,10 +57,10 @@ async def get_transactions_overview(
         the selected transaction window
 
     Raises:
-        HTTPException: Raised with 422 when ``from_date`` is after ``to_date``
+        HTTPException: Raised with 422 when a date is outside the window, ``from_date`` is after
+            ``to_date`` or both are set and cover over 20 years
     """
-    if from_date is not None and to_date is not None and from_date > to_date:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Start date must be before end date")
+    require_optional_report_range(from_date, to_date)
 
     transaction_filters = build_overview_transaction_filters(
         user.id,

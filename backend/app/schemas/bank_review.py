@@ -1,7 +1,7 @@
 """Bank review schemas"""
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -10,6 +10,7 @@ from app.models.bank_transaction import CorrectableBankField, EditableBankField
 from app.schemas.bank_sync import BankValues
 from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
 from app.schemas.transaction import MAX_BULK_UPDATE_TRANSACTIONS, TransactionEntry
+from app.utils.date_window import WindowDate
 
 # A bank transaction to add or dismiss, or a change or removal the bank reports for one already in the ledger
 ReviewItemKind = Literal["new", "correction", "removal"]
@@ -103,7 +104,7 @@ class BulkAddReviewItemsRequest(BulkDismissReviewItemsRequest):
     category_id: uuid.UUID
     tag_ids: list[uuid.UUID] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
     notes: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
-    dt: date | None = None
+    dt: WindowDate | None = None
 
 
 class BulkReviewResultResponse(BaseModel):

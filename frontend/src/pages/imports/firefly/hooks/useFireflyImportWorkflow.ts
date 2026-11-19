@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { getTodayYmd } from '@/utils/date'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
@@ -73,6 +75,8 @@ const FIREFLY_FILE_KINDS: readonly FireflyFileKind[] = ['transactions', 'budgets
  * failed for a reason trying again could clear keeps its upload, so a retry only saves again
  */
 export function useFireflyImportWorkflow() {
+  const { user } = useAuth()
+  const todayYmd = getTodayYmd(user?.tz)
   const [transactionsFile, setTransactionsFile] = useState<ImportFileDraft | null>(null)
   const [budgetsFile, setBudgetsFile] = useState<ImportFileDraft | null>(null)
   const [accountsFile, setAccountsFile] = useState<ImportFileDraft | null>(null)
@@ -314,8 +318,13 @@ export function useFireflyImportWorkflow() {
   // and both row lists always come from the same resolution and the transaction estimate never
   // counts rows the commit would skip
   const importForecast = useMemo(
-    () => forecastFireflyImport(fireflyRows, { fileId: transactionsFile?.id ?? null, ...rowResolutionOptions }),
-    [fireflyRows, rowResolutionOptions, transactionsFile],
+    () =>
+      forecastFireflyImport(fireflyRows, {
+        fileId: transactionsFile?.id ?? null,
+        timeZone: user?.tz,
+        ...rowResolutionOptions,
+      }),
+    [fireflyRows, rowResolutionOptions, transactionsFile, user?.tz],
   )
   const importEstimate = importForecast
   const predictedSkippedRows = importForecast.skippedRows
@@ -444,8 +453,9 @@ export function useFireflyImportWorkflow() {
         currencies,
         categoryMappings: resolvedCategoryMappings,
         categoryById,
+        todayYmd,
       }),
-    [budgetsFile, categoryById, currencies, fireflyRows, resolvedCategoryMappings],
+    [budgetsFile, categoryById, currencies, fireflyRows, resolvedCategoryMappings, todayYmd],
   )
 
   const importableBudgetNames = useMemo(

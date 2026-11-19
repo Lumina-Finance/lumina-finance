@@ -327,11 +327,7 @@ export function useActualImportWorkflow() {
       reference: { categoriesResolved, categoryById: referenceBeforeImport.categoryById },
     })
 
-  const currentMonth = today.slice(0, 7)
-  const budgetDrafts = useMemo(
-    () => (budget ? buildActualBudgetDrafts(budget, currentMonth) : []),
-    [budget, currentMonth],
-  )
+  const budgetDrafts = useMemo(() => (budget ? buildActualBudgetDrafts(budget, today) : []), [budget, today])
 
   const importableBudgetIds = useMemo(
     () => budgetDrafts.filter((draft) => !draft.disabledReason).map((draft) => draft.categoryId),

@@ -2,12 +2,13 @@
  * Tests how the import commit payload reads its date column, covering the row values it sends and
  * the refusal to build anything at all until a date format has been settled
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import {
   EMPTY_COLUMN_MAP,
   ROW_DATE_BLANK_REASON,
+  ROW_DATE_OUTSIDE_WINDOW_REASON,
   ROW_DATE_UNREADABLE_REASON,
 } from '@/pages/imports/constants'
 import type { ColumnMap, ImportFileDraft } from '@/pages/imports/types'
@@ -16,9 +17,7 @@ import type { ImportDateFormat, ImportDateSeparator } from '@/pages/imports/util
 
 // The account these rows are written to has no currency of its own in this file's fixtures, so the
 // list only has to hold whatever the amount checks would read
-const CURRENCIES: Currency[] = [
-  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
-]
+const CURRENCIES: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
 
 const CATEGORY: Category = {
   id: 'category-1',
@@ -100,8 +99,9 @@ describe('import payload dates', () => {
   it('leaves out an invalid ISO timestamp and imports the rest', () => {
     const result = build(['2024-03-15T00:30:00Z', '2024-03-16T24:00:00Z'], 'iso', {}, 'automatic', 'UTC')
     expect(result.payload?.rows.map((row) => row.dt)).toEqual(['2024-03-15'])
-    expect(result.rowProblems.map((problem) => ({ rowNumber: problem.rowNumber, reason: problem.reason })))
-      .toEqual([{ rowNumber: 2, reason: ROW_DATE_UNREADABLE_REASON }])
+    expect(result.rowProblems.map((problem) => ({ rowNumber: problem.rowNumber, reason: problem.reason }))).toEqual([
+      { rowNumber: 2, reason: ROW_DATE_UNREADABLE_REASON },
+    ])
     expect(build(['2024-03-15T00:30:00Z'], 'yearFirst', {}, 'automatic', 'UTC').payload).toBeNull()
   })
 
@@ -126,8 +126,7 @@ describe('import payload dates', () => {
   })
 
   it('refuses a supported separator that does not match the selection', () => {
-    expect(build(['31/08/2026'], 'dayFirst', {}, '.').rowProblems[0]?.reason)
-      .toBe(ROW_DATE_UNREADABLE_REASON)
+    expect(build(['31/08/2026'], 'dayFirst', {}, '.').rowProblems[0]?.reason).toBe(ROW_DATE_UNREADABLE_REASON)
   })
 
   it('refuses to build until a date format is chosen, saying so rather than blaming the rows', () => {
@@ -141,7 +140,8 @@ describe('import payload dates', () => {
   })
 
   it('lists the rows behind a column the values do not fit, alongside the column error', () => {
-    const columnError = 'Expected valid dates in the day-first format, such as 15/03/2024. "2024-03-16" is not a valid date.'
+    const columnError =
+      'Expected valid dates in the day-first format, such as 15/03/2024. "2024-03-16" is not a valid date.'
     const result = build(['15/03/2024', '2024-03-16'], 'dayFirst', { Date: columnError })
 
     // A column whose values do not fit is a statement about rows, so it reports the column and the
@@ -151,7 +151,25 @@ describe('import payload dates', () => {
   })
 
   it('tells a blank cell apart from one the chosen format cannot read', () => {
-    expect(build(['15/03/2024', ''], 'dayFirst').rowProblems.map((problem) => problem.reason))
-      .toEqual([ROW_DATE_BLANK_REASON])
+    expect(build(['15/03/2024', ''], 'dayFirst').rowProblems.map((problem) => problem.reason)).toEqual([
+      ROW_DATE_BLANK_REASON,
+    ])
+  })
+})
+
+describe('import rows dated outside the window every date must sit in', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('lists a row before 1 January 1900 or past ten years from today with its reason and imports the rest', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-10T12:00:00Z'))
+
+    const result = build(['1900-01-01', '1899-12-31', '2036-06-10', '9999-12-31'], 'yearFirst')
+
+    expect(result.payload?.rows.map((row) => row.dt)).toEqual(['1900-01-01', '2036-06-10'])
+    expect(result.rowProblems.map((problem) => [problem.rowNumber, problem.reason])).toEqual([
+      [2, ROW_DATE_OUTSIDE_WINDOW_REASON],
+      [4, ROW_DATE_OUTSIDE_WINDOW_REASON],
+    ])
   })
 })

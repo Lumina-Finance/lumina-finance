@@ -40,6 +40,7 @@ export default function TransactionsTopBand({
   displayCurrency,
   loading,
   failed,
+  rangeTooLong,
   retrying,
   skipEntrance,
   rangeLabel,
@@ -56,6 +57,8 @@ export default function TransactionsTopBand({
   displayCurrency: string
   loading: boolean
   failed: boolean
+  // True when the applied dates cover more than a summary can. No summary is asked for in that case
+  rangeTooLong: boolean
   retrying: boolean
   skipEntrance: boolean
   rangeLabel: string
@@ -83,6 +86,7 @@ export default function TransactionsTopBand({
     failed,
     retrying,
     rangeLabel,
+    rangeTooLong,
   })
 
   // Sample content is hidden from assistive technology and the tab order whenever it stands in for missing

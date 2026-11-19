@@ -5,15 +5,28 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
-import { ACTUAL_BUDGET_NAME_TOO_LONG_REASON, ACTUAL_BUDGET_NOT_EXPENSE_REASON, ACTUAL_INCOME_BUDGET_REASON, getActualBudgetAmountReason, getActualBudgetGroupCategoryReason } from '@/pages/imports/actual/constants'
+import {
+  ACTUAL_BUDGET_MONTH_OUTSIDE_WINDOW_REASON,
+  ACTUAL_BUDGET_NAME_TOO_LONG_REASON,
+  ACTUAL_BUDGET_NOT_EXPENSE_REASON,
+  ACTUAL_INCOME_BUDGET_REASON,
+  getActualBudgetAmountReason,
+  getActualBudgetGroupCategoryReason,
+} from '@/pages/imports/actual/constants'
 import { formatScaledAmount } from '@/pages/imports/actual/utils/amounts'
-import { buildActualBudgetDrafts, buildActualRunBudgets, getActualBudgetRefusal, type ActualBudgetDraft } from '@/pages/imports/actual/utils/budgets'
+import {
+  buildActualBudgetDrafts,
+  buildActualRunBudgets,
+  getActualBudgetRefusal,
+  type ActualBudgetDraft,
+} from '@/pages/imports/actual/utils/budgets'
 import { CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { ImportCategoryKind } from '@/pages/imports/types'
 import { normaliseActualBudget } from '@/pages/imports/actual/utils/normalise'
 import { buildActualBudget, normaliseActualFixture } from './fixtures'
 
 const CURRENT_MONTH = '2026-09'
+const TODAY = `${CURRENT_MONTH}-26`
 
 function mapEverySource(drafts: ActualBudgetDraft[]): TransactionImportCategoryMapping[] {
   return drafts.map((draft) => ({ source: draft.categorySourceId, category_id: `lumina-${draft.categorySourceId}` }))
@@ -28,32 +41,42 @@ function getDraft(drafts: ActualBudgetDraft[], name: string) {
 describe('Actual Budget budgets', () => {
   it('keeps every figure the envelope budget showed above zero, month by month', async () => {
     const { budget, manifest } = await normaliseActualFixture('envelope')
-    const drafts = buildActualBudgetDrafts(budget, CURRENT_MONTH)
+    const drafts = buildActualBudgetDrafts(budget, TODAY)
 
     const shown = manifest.budgets.filter((figure) => !figure.isIncome && Number(figure.budgeted) > 0)
     const drafted = drafts.flatMap((draft) =>
-      draft.months.map(({ month, amount }) => [draft.name, month, formatScaledAmount(amount, budget.budgetDecimals, 2)]),
+      draft.months.map(({ month, amount }) => [
+        draft.name,
+        month,
+        formatScaledAmount(amount, budget.budgetDecimals, 2),
+      ]),
     )
     expect(drafted.sort()).toEqual(shown.map((figure) => [figure.category, figure.month, figure.budgeted]).sort())
   })
 
   it('writes yen budgets in whole yen and leaves income budgets out', async () => {
     const { budget, manifest } = await normaliseActualFixture('yen')
-    const drafts = buildActualBudgetDrafts(budget, CURRENT_MONTH)
+    const drafts = buildActualBudgetDrafts(budget, TODAY)
 
     expect(getDraft(drafts, 'Income').disabledReason).toBe(ACTUAL_INCOME_BUDGET_REASON)
     const importable = drafts.filter((draft) => !draft.disabledReason)
     const { budgets } = buildActualRunBudgets(importable, 'JPY', budget.budgetDecimals, 0, mapEverySource(importable))
 
-    const limits = budgets.flatMap((draft) => draft.limits.map((limit) => [draft.name, limit.start.slice(0, 7), limit.amount]))
+    const limits = budgets.flatMap((draft) =>
+      draft.limits.map((limit) => [draft.name, limit.start.slice(0, 7), limit.amount]),
+    )
     const shown = manifest.budgets.filter((figure) => !figure.isIncome && Number(figure.budgeted) > 0)
     expect(limits.sort()).toEqual(shown.map((figure) => [figure.category, figure.month, figure.budgeted]).sort())
-    expect(budgets.find((draft) => draft.name === 'Food')?.limits[0]).toEqual({ start: '2026-07-01', end: '2026-07-31', amount: '30000' })
+    expect(budgets.find((draft) => draft.name === 'Food')?.limits[0]).toEqual({
+      start: '2026-07-01',
+      end: '2026-07-31',
+      amount: '30000',
+    })
   })
 
   it('repeats only budgets Actual still budgets for, and archives hidden ones', async () => {
     const { budget } = await normaliseActualFixture('edges')
-    const drafts = buildActualBudgetDrafts(budget, CURRENT_MONTH)
+    const drafts = buildActualBudgetDrafts(budget, TODAY)
 
     expect(drafts.map((draft) => [draft.name, draft.recurs, draft.isArchived])).toEqual([
       ['Car', true, false],
@@ -68,20 +91,30 @@ describe('Actual Budget budgets', () => {
     const car = getDraft(drafts, 'Car')
     expect(car.categorySourceId).toBe(car.categoryId)
 
-    const { budgets, categories } = buildActualRunBudgets(drafts, 'CAD', budget.budgetDecimals, 2, mapEverySource(drafts))
+    const { budgets, categories } = buildActualRunBudgets(
+      drafts,
+      'CAD',
+      budget.budgetDecimals,
+      2,
+      mapEverySource(drafts),
+    )
     const runCar = budgets.find((draft) => draft.name === 'Car')
     expect(runCar?.recurrence).toEqual({ freq: 'monthly', instance_length: 1, weekday: null, dom: 1, month: null })
     expect(runCar?.limits.at(-1)).toEqual({ start: '2026-10-01', end: '2026-10-31', amount: '350.00' })
     expect(budgets.find((draft) => draft.name === 'Groceries')?.recurrence).toBeNull()
     expect(budgets.map((draft) => draft.category_sources)).toEqual(drafts.map((draft) => [draft.categoryId]))
-    expect(categories.map((mapping) => mapping.source).sort()).toEqual(drafts.map((draft) => draft.categorySourceId).sort())
+    expect(categories.map((mapping) => mapping.source).sort()).toEqual(
+      drafts.map((draft) => draft.categorySourceId).sort(),
+    )
   })
 
   it('refuses a budget whose category is not mapped', async () => {
     const { budget } = await normaliseActualFixture('edges')
-    const drafts = buildActualBudgetDrafts(budget, CURRENT_MONTH)
+    const drafts = buildActualBudgetDrafts(budget, TODAY)
 
-    expect(() => buildActualRunBudgets(drafts, 'CAD', budget.budgetDecimals, 2, [])).toThrow('Car: its category is not mapped')
+    expect(() => buildActualRunBudgets(drafts, 'CAD', budget.budgetDecimals, 2, [])).toThrow(
+      'Car: its category is not mapped',
+    )
   })
 
   it('says why a budget cannot be imported with the answers given', () => {
@@ -102,18 +135,26 @@ describe('Actual Budget budgets', () => {
       currencyExponent: 0,
       categoryMappings: { dining: CREATE_CATEGORY_VALUE },
       categoryCreateKinds: { dining: 'expense' } as Record<string, ImportCategoryKind>,
-      categoryById: new Map([[groupCategory.id, groupCategory], [carTransfers.id, carTransfers]]),
+      categoryById: new Map([
+        [groupCategory.id, groupCategory],
+        [carTransfers.id, carTransfers],
+      ]),
     }
 
     expect(getActualBudgetRefusal(draft, context)).toBe(getActualBudgetAmountReason('123.45', 'JPY'))
     expect(getActualBudgetRefusal(draft, { ...context, currency: 'CAD', currencyExponent: 2 })).toBeNull()
     expect(getActualBudgetRefusal(draft, { ...context, currencyExponent: null })).toBeNull()
-    expect(getActualBudgetRefusal(draft, { ...context, categoryMappings: { dining: 'family-food' } }))
-      .toBe(getActualBudgetGroupCategoryReason('Family food'))
+    expect(getActualBudgetRefusal(draft, { ...context, categoryMappings: { dining: 'family-food' } })).toBe(
+      getActualBudgetGroupCategoryReason('Family food'),
+    )
 
     // A budget tracks expenses only, as one made in the app does
-    expect(getActualBudgetRefusal(draft, { ...context, categoryCreateKinds: { dining: 'income' } })).toBe(ACTUAL_BUDGET_NOT_EXPENSE_REASON)
-    expect(getActualBudgetRefusal(draft, { ...context, categoryMappings: { dining: carTransfers.id } })).toBe(ACTUAL_BUDGET_NOT_EXPENSE_REASON)
+    expect(getActualBudgetRefusal(draft, { ...context, categoryCreateKinds: { dining: 'income' } })).toBe(
+      ACTUAL_BUDGET_NOT_EXPENSE_REASON,
+    )
+    expect(getActualBudgetRefusal(draft, { ...context, categoryMappings: { dining: carTransfers.id } })).toBe(
+      ACTUAL_BUDGET_NOT_EXPENSE_REASON,
+    )
   })
 
   it('repeats a budget last budgeted this month, and not one last budgeted the month before', () => {
@@ -128,36 +169,64 @@ describe('Actual Budget budgets', () => {
         { month: '2026-08', categoryId: 'gym', amount: 3500, carryover: false },
       ],
     })
-    const drafts = buildActualBudgetDrafts(budget, CURRENT_MONTH)
+    const drafts = buildActualBudgetDrafts(budget, TODAY)
 
-    expect(drafts.map((draft) => [draft.name, draft.recurs])).toEqual([['Car', true], ['Gym', false]])
+    expect(drafts.map((draft) => [draft.name, draft.recurs])).toEqual([
+      ['Car', true],
+      ['Gym', false],
+    ])
   })
 
   it('names budgets for payment categories sharing a name by their groups', () => {
     const payment = (id: string, account: string, payee: string, categoryId: string) => [
-      { id: `${id}-out`, accountId: 'checking', date: '2026-09-01', amount: -1000, payeeId: payee, transferredId: `${id}-in`, categoryId },
-      { id: `${id}-in`, accountId: account, date: '2026-09-01', amount: 1000, payeeId: 'to-checking', transferredId: `${id}-out` },
+      {
+        id: `${id}-out`,
+        accountId: 'checking',
+        date: '2026-09-01',
+        amount: -1000,
+        payeeId: payee,
+        transferredId: `${id}-in`,
+        categoryId,
+      },
+      {
+        id: `${id}-in`,
+        accountId: account,
+        date: '2026-09-01',
+        amount: 1000,
+        payeeId: 'to-checking',
+        transferredId: `${id}-out`,
+      },
     ]
-    const budget = buildActualBudget([...payment('car', 'loan', 'to-loan', 'car-loan'), ...payment('boat', 'boat', 'to-boat', 'boat-loan')], {
-      categories: [
-        { id: 'car-loan', name: 'Loan', groupName: 'Car', isIncome: false, hidden: false },
-        { id: 'boat-loan', name: 'Loan', groupName: 'Boat', isIncome: false, hidden: false },
-      ],
-      budgetFigures: [
-        { month: CURRENT_MONTH, categoryId: 'car-loan', amount: 1000, carryover: false },
-        { month: CURRENT_MONTH, categoryId: 'boat-loan', amount: 1000, carryover: false },
-      ],
-    })
+    const budget = buildActualBudget(
+      [...payment('car', 'loan', 'to-loan', 'car-loan'), ...payment('boat', 'boat', 'to-boat', 'boat-loan')],
+      {
+        categories: [
+          { id: 'car-loan', name: 'Loan', groupName: 'Car', isIncome: false, hidden: false },
+          { id: 'boat-loan', name: 'Loan', groupName: 'Boat', isIncome: false, hidden: false },
+        ],
+        budgetFigures: [
+          { month: CURRENT_MONTH, categoryId: 'car-loan', amount: 1000, carryover: false },
+          { month: CURRENT_MONTH, categoryId: 'boat-loan', amount: 1000, carryover: false },
+        ],
+      },
+    )
     budget.accounts.push({ id: 'boat', name: 'Boat Loan', offBudget: true, closed: false, type: null })
     budget.payees.push({ id: 'to-boat', name: '', transferAccountId: 'boat' })
-    const drafts = buildActualBudgetDrafts(budget, CURRENT_MONTH)
+    const drafts = buildActualBudgetDrafts(budget, TODAY)
 
-    expect(drafts.map((draft) => [draft.name, draft.categorySourceId])).toEqual([['Loan (Boat)', 'boat-loan'], ['Loan (Car)', 'car-loan']])
+    expect(drafts.map((draft) => [draft.name, draft.categorySourceId])).toEqual([
+      ['Loan (Boat)', 'boat-loan'],
+      ['Loan (Car)', 'car-loan'],
+    ])
 
     // A category used only on payments to off-budget accounts still has the spending source its budget tracks
     const journal = normaliseActualBudget(budget, `${CURRENT_MONTH}-26`)
-    expect(journal.categories.filter((source) => source.role === 'spending').map((source) => [source.id, source.rowCount]))
-      .toEqual([['boat-loan', 0], ['car-loan', 0]])
+    expect(
+      journal.categories.filter((source) => source.role === 'spending').map((source) => [source.id, source.rowCount]),
+    ).toEqual([
+      ['boat-loan', 0],
+      ['car-loan', 0],
+    ])
   })
 
   it('leaves out a budget whose name is longer than a budget name can be', () => {
@@ -165,8 +234,38 @@ describe('Actual Budget budgets', () => {
       categories: [{ id: 'long', name: 'L'.repeat(257), groupName: 'Bills', isIncome: false, hidden: false }],
       budgetFigures: [{ month: CURRENT_MONTH, categoryId: 'long', amount: 1000, carryover: false }],
     })
-    const drafts = buildActualBudgetDrafts(budget, CURRENT_MONTH)
+    const drafts = buildActualBudgetDrafts(budget, TODAY)
 
     expect(drafts.map((draft) => draft.disabledReason)).toEqual([ACTUAL_BUDGET_NAME_TOO_LONG_REASON])
+  })
+
+  it.each([
+    ['1899-12', 'before 1900'],
+    ['2036-09', 'ending past the last day ten years after today'],
+    ['9999-12', 'in year 9999'],
+  ])('leaves out a budget with a month in %s, %s, since the server refuses the whole import over it', (month) => {
+    const budget = buildActualBudget([], {
+      categories: [{ id: 'far', name: 'Far', groupName: 'Bills', isIncome: false, hidden: false }],
+      budgetFigures: [
+        { month: CURRENT_MONTH, categoryId: 'far', amount: 1000, carryover: false },
+        { month, categoryId: 'far', amount: 1000, carryover: false },
+      ],
+    })
+
+    expect(buildActualBudgetDrafts(budget, TODAY).map((draft) => draft.disabledReason)).toEqual([
+      ACTUAL_BUDGET_MONTH_OUTSIDE_WINDOW_REASON,
+    ])
+  })
+
+  it('keeps a budget whose months sit on the edges of the window', () => {
+    const budget = buildActualBudget([], {
+      categories: [{ id: 'edge', name: 'Edge', groupName: 'Bills', isIncome: false, hidden: false }],
+      budgetFigures: [
+        { month: '1900-01', categoryId: 'edge', amount: 1000, carryover: false },
+        { month: '2036-08', categoryId: 'edge', amount: 1000, carryover: false },
+      ],
+    })
+
+    expect(buildActualBudgetDrafts(budget, TODAY).map((draft) => draft.disabledReason)).toEqual([null])
   })
 })

@@ -243,9 +243,11 @@ async def test_a_rate_comes_back_from_the_cache_exactly_as_the_provider_gave_it(
     assert len(provider.calls) == 1
 
 
-@pytest.mark.parametrize("stored", [b"not a number", b"NaN", b"Infinity", b"0", b"-1.5", b"\xff\xfe"])
+@pytest.mark.parametrize(
+    "stored", [b"not a number", b"NaN", b"Infinity", b"0", b"-1.5", b"\xff\xfe", b"1E+999999", b"1000000001", b"0.0000000001"]
+)
 async def test_an_entry_that_is_no_valid_rate_is_fetched_again_and_repaired(published_valkey, stored):
-    """A corrupt cached value, zero or a negative rate never reaches an amount: the provider is asked and the entry fixed"""
+    """A corrupt cached value, or a rate no pair could have, never reaches an amount: the provider is asked and the entry fixed"""
     key = rate_cache._key("USD", "CAD", _DAY_1)
     await published_valkey.set_many([ValkeyEntry(key, stored, timedelta(hours=1))])
     provider = FakeProvider(_published({_DAY_1: _RATE}))

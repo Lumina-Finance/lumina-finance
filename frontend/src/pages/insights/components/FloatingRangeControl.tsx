@@ -6,7 +6,7 @@ import type { SavedInsightsRange, SavedInsightsRangeQualifier, SavedInsightsRang
 import { useFocusHeadOnClose } from '@/hooks/useFocusHeadOnClose'
 import { joinClassNames } from '@/utils/classNames'
 import type { InsightsRangePreset } from '@/pages/insights/types/range'
-import { formatResolvedRangeLabel, getRelativeRangeLabel } from '@/pages/insights/utils/range'
+import { formatResolvedRangeLabel, getRelativeRangeError, getRelativeRangeLabel } from '@/pages/insights/utils/range'
 import { RelativeRangeBuilder } from './RelativeRangeBuilder'
 import { SavedRanges } from './SavedRanges'
 
@@ -109,6 +109,7 @@ function GlassRangeSelector({
   growUp,
 }: GlassRangeSelectorProps) {
   const [open, setOpen] = useState(false)
+  const draftError = getRelativeRangeError(draftAmount, draftUnit, draftQualifier)
   const [collapsedWidth, setCollapsedWidth] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLButtonElement>(null)
@@ -196,6 +197,8 @@ function GlassRangeSelector({
    * Commits the builder draft as the applied range and collapses the panel
    */
   function handleApplyDraft() {
+    // The builder shows why, and the panel stays open for the amount to be fixed
+    if (draftError) return
     onApplyDraft()
     setOpen(false)
   }
@@ -329,6 +332,7 @@ function GlassRangeSelector({
                   savedRanges={savedRanges}
                   savedRangesError={savedRangesError}
                   savedRangesFailed={savedRangesFailed}
+                  draftRangeTooLong={draftError !== null}
                   onSaveCurrentRange={handleSaveCurrentRange}
                   onApplySavedRange={handleApplySavedRange}
                   onDeleteSavedRange={onDeleteSavedRange}

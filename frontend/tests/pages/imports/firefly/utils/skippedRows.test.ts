@@ -1,7 +1,7 @@
 /**
  * Tests Firefly III outcome prediction for skipped rows and non-blocking row guidance
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
@@ -14,6 +14,7 @@ import {
   MAX_IMPORT_NOTES_LENGTH,
   MAX_IMPORT_TAGS_PER_ROW,
   IMPORT_SAMPLE_PREVIEW_LIMIT,
+  ROW_DATE_OUTSIDE_WINDOW_REASON,
 } from '@/pages/imports/constants'
 import type { CsvRow, ImportRowProblem } from '@/pages/imports/types'
 import { getSkippedRowsDisplay } from '@/pages/imports/utils'
@@ -24,10 +25,7 @@ import {
   type FireflySkippedRowDetail,
   type FireflyRowResolutionOptions,
 } from '@/pages/imports/firefly/utils'
-import {
-  FIREFLY_GENERIC_SKIP_REASON,
-  FIREFLY_MISSING_REQUIRED_VALUES_REASON,
-} from '@/pages/imports/firefly/constants'
+import { FIREFLY_GENERIC_SKIP_REASON, FIREFLY_MISSING_REQUIRED_VALUES_REASON } from '@/pages/imports/firefly/constants'
 import { createNameKeyedAccountSources } from './fixtures'
 
 const EXPECTED_DEBT_PAYMENT_NOTE =
@@ -225,17 +223,19 @@ describe('getSkippedRowsDisplay after a Firefly III commit', () => {
       skippedRows: [{ rowNumber: 3, cells: secondRow, reason: sameAccountReason }],
     })
 
-    expect(getSkippedRowsDisplay({
-      liveForecastRows: livePrediction.skippedRows,
-      completedImport: {
-        result: importResult,
-        runId: null,
-        skippedRowsAtCommit: predictionAtCommit.skippedRows,
-        outsideRangeCountAtCommit: 0,
-        savedEarlier: false,
-        answers: {},
-      },
-    })).toEqual({
+    expect(
+      getSkippedRowsDisplay({
+        liveForecastRows: livePrediction.skippedRows,
+        completedImport: {
+          result: importResult,
+          runId: null,
+          skippedRowsAtCommit: predictionAtCommit.skippedRows,
+          outsideRangeCountAtCommit: 0,
+          savedEarlier: false,
+          answers: {},
+        },
+      }),
+    ).toEqual({
       rows: [predictionAtCommit.skippedRows[0]],
       totalCount: 1,
       title: '1 row was not imported',
@@ -320,13 +320,16 @@ describe('forecastFireflyImport', () => {
     })
     const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
 
-    expect(skipped).toEqual([{
-      id: 'transactions-file-0',
-      journalId: '1',
-      rowNumber: 2,
-      cells: row,
-      reason: 'Journal type "Liability credit" is not supported, the importer handles withdrawals, deposits, transfers, opening balances, and reconciliations',
-    }])
+    expect(skipped).toEqual([
+      {
+        id: 'transactions-file-0',
+        journalId: '1',
+        rowNumber: 2,
+        cells: row,
+        reason:
+          'Journal type "Liability credit" is not supported, the importer handles withdrawals, deposits, transfers, opening balances, and reconciliations',
+      },
+    ])
   })
 
   it('reports a missing amount in the account currency', () => {
@@ -341,10 +344,7 @@ describe('forecastFireflyImport', () => {
   })
 
   it('reports an unparseable amount with the raw value', () => {
-    const { skippedRows: skipped } = forecastFireflyImport(
-      [createFireflyRow({ amount: 'twelve' })],
-      createOptions(),
-    )
+    const { skippedRows: skipped } = forecastFireflyImport([createFireflyRow({ amount: 'twelve' })], createOptions())
 
     expect(skipped).toHaveLength(1)
     expect(skipped[0].reason).toBe('Invalid amount "twelve"')
@@ -362,10 +362,7 @@ describe('forecastFireflyImport', () => {
   it('reports non-ASCII digits, grouping and invalid controls in the selected account amount', () => {
     for (const amount of ['-١2.34', '-12.34\u001C', '-1,234.56']) {
       const { skippedRows } = forecastFireflyImport(
-        [
-          createFireflyRow(),
-          createFireflyRow({ journal_id: '2', amount }),
-        ],
+        [createFireflyRow(), createFireflyRow({ journal_id: '2', amount })],
         createOptions(),
       )
 
@@ -382,10 +379,7 @@ describe('forecastFireflyImport', () => {
       foreign_amount: amount,
       foreign_currency_code: 'CAD',
     })
-    const { skippedRows } = forecastFireflyImport(
-      [createFireflyRow(), { ...row, journal_id: '2' }],
-      createOptions(),
-    )
+    const { skippedRows } = forecastFireflyImport([createFireflyRow(), { ...row, journal_id: '2' }], createOptions())
 
     expect(skippedRows).toHaveLength(1)
     expect(skippedRows[0].journalId).toBe('2')
@@ -393,10 +387,7 @@ describe('forecastFireflyImport', () => {
   })
 
   it('reports an amount carrying more decimal places than the account currency holds', () => {
-    const { skippedRows: skipped } = forecastFireflyImport(
-      [createFireflyRow({ amount: '-12.345' })],
-      createOptions(),
-    )
+    const { skippedRows: skipped } = forecastFireflyImport([createFireflyRow({ amount: '-12.345' })], createOptions())
 
     expect(skipped).toHaveLength(1)
     expect(skipped[0].reason).toBe(
@@ -431,14 +422,16 @@ describe('forecastFireflyImport', () => {
   // carried across, and a transfer between those names has nowhere to go
   it('reports a transfer whose two names map onto one account', () => {
     const { skippedRows: skipped } = forecastFireflyImport(
-      [createFireflyRow({
-        type: 'Transfer',
-        amount: '-500.00',
-        source_name: 'Chequing (old)',
-        destination_name: 'Chequing',
-        destination_type: 'Asset account',
-        category: '',
-      })],
+      [
+        createFireflyRow({
+          type: 'Transfer',
+          amount: '-500.00',
+          source_name: 'Chequing (old)',
+          destination_name: 'Chequing',
+          destination_type: 'Asset account',
+          category: '',
+        }),
+      ],
       createOptions({ accountMappings: { Chequing: 'checking', 'Chequing (old)': 'checking' } }),
     )
 
@@ -451,14 +444,16 @@ describe('forecastFireflyImport', () => {
   it('keeps a transfer between two accounts queued for creation', () => {
     const createDetails = { accountType: 'checking', currency: 'CAD', institutionId: '' }
     const { skippedRows: skipped } = forecastFireflyImport(
-      [createFireflyRow({
-        type: 'Transfer',
-        amount: '-500.00',
-        source_name: 'Chequing',
-        destination_name: 'Savings',
-        destination_type: 'Asset account',
-        category: '',
-      })],
+      [
+        createFireflyRow({
+          type: 'Transfer',
+          amount: '-500.00',
+          source_name: 'Chequing',
+          destination_name: 'Savings',
+          destination_type: 'Asset account',
+          category: '',
+        }),
+      ],
       createOptions({
         accountMappings: { Chequing: CREATE_ACCOUNT_VALUE, Savings: CREATE_ACCOUNT_VALUE },
         accountCreateDetails: { Chequing: createDetails, Savings: createDetails },
@@ -509,13 +504,15 @@ describe('forecastFireflyImport', () => {
 
   it('reports a deposit without an imported destination account', () => {
     const { skippedRows: skipped } = forecastFireflyImport(
-      [createFireflyRow({
-        type: 'Deposit',
-        source_name: 'Employer',
-        source_type: 'Revenue account',
-        destination_name: 'Market',
-        destination_type: 'Expense account',
-      })],
+      [
+        createFireflyRow({
+          type: 'Deposit',
+          source_name: 'Employer',
+          source_type: 'Revenue account',
+          destination_name: 'Market',
+          destination_type: 'Expense account',
+        }),
+      ],
       createOptions(),
     )
 
@@ -525,11 +522,13 @@ describe('forecastFireflyImport', () => {
 
   it('reports a transfer without two imported endpoints', () => {
     const { skippedRows: skipped } = forecastFireflyImport(
-      [createFireflyRow({
-        type: 'Transfer',
-        destination_name: 'Untracked Wallet',
-        destination_type: 'Expense account',
-      })],
+      [
+        createFireflyRow({
+          type: 'Transfer',
+          destination_name: 'Untracked Wallet',
+          destination_type: 'Expense account',
+        }),
+      ],
       createOptions(),
     )
 
@@ -539,25 +538,28 @@ describe('forecastFireflyImport', () => {
 
   it('reports a balance row without an imported account side', () => {
     const { skippedRows: skipped } = forecastFireflyImport(
-      [createFireflyRow({
-        type: 'Opening balance',
-        source_name: 'Wallet initial balance',
-        source_type: 'Initial balance account',
-        destination_name: 'Cash Wallet',
-        destination_type: 'Expense account',
-      })],
+      [
+        createFireflyRow({
+          type: 'Opening balance',
+          source_name: 'Wallet initial balance',
+          source_type: 'Initial balance account',
+          destination_name: 'Cash Wallet',
+          destination_type: 'Expense account',
+        }),
+      ],
       createOptions(),
     )
 
     // Whether it imports never depends on a mapping, so it is dropped before upload
-    expect(skipped).toEqual([expect.objectContaining({ reason: 'Opening balance or reconciliation row is not attached to an imported account' })])
+    expect(skipped).toEqual([
+      expect.objectContaining({
+        reason: 'Opening balance or reconciliation row is not attached to an imported account',
+      }),
+    ])
   })
 
   it('reports rows the payload builder drops before upload', () => {
-    const { skippedRows: skipped } = forecastFireflyImport(
-      [createFireflyRow({ amount: ' ' })],
-      createOptions(),
-    )
+    const { skippedRows: skipped } = forecastFireflyImport([createFireflyRow({ amount: ' ' })], createOptions())
 
     expect(skipped).toHaveLength(1)
     expect(skipped[0].reason).toBe(`${FIREFLY_MISSING_REQUIRED_VALUES_REASON}: amount`)
@@ -623,12 +625,14 @@ describe('forecastFireflyImport', () => {
       rowCount: 1,
       transactionEstimate: 1,
       skippedRows: [],
-      rowWarnings: [{
-        id: 'transactions-file-0',
-        rowNumber: 2,
-        cells: row,
-        reason: EXPECTED_DEBT_PAYMENT_NOTE,
-      }],
+      rowWarnings: [
+        {
+          id: 'transactions-file-0',
+          rowNumber: 2,
+          cells: row,
+          reason: EXPECTED_DEBT_PAYMENT_NOTE,
+        },
+      ],
     })
   })
 
@@ -670,12 +674,14 @@ describe('forecastFireflyImport', () => {
       expect(getForecastRowWarnings(forecast)).toEqual([])
     } else {
       expect(forecast).toMatchObject({
-        rowWarnings: [{
-          id: 'transactions-file-0',
-          rowNumber: 2,
-          cells: row,
-          reason: EXPECTED_DEBT_PAYMENT_NOTE,
-        }],
+        rowWarnings: [
+          {
+            id: 'transactions-file-0',
+            rowNumber: 2,
+            cells: row,
+            reason: EXPECTED_DEBT_PAYMENT_NOTE,
+          },
+        ],
       })
     }
   })
@@ -780,11 +786,13 @@ describe('forecastFireflyImport', () => {
       name: 'Debt Payment',
       is_system: true,
     })
-    const rows = Array.from({ length: IMPORT_SAMPLE_PREVIEW_LIMIT + 2 }, (_, index) => createFireflyRow({
-      journal_id: index >= IMPORT_SAMPLE_PREVIEW_LIMIT ? 'shared-journal' : String(index + 1),
-      date: `2026-06-${String(index + 1).padStart(2, '0')} 00:00:00`,
-      category: index >= IMPORT_SAMPLE_PREVIEW_LIMIT ? 'Debt Payment' : 'Groceries',
-    }))
+    const rows = Array.from({ length: IMPORT_SAMPLE_PREVIEW_LIMIT + 2 }, (_, index) =>
+      createFireflyRow({
+        journal_id: index >= IMPORT_SAMPLE_PREVIEW_LIMIT ? 'shared-journal' : String(index + 1),
+        date: `2026-06-${String(index + 1).padStart(2, '0')} 00:00:00`,
+        category: index >= IMPORT_SAMPLE_PREVIEW_LIMIT ? 'Debt Payment' : 'Groceries',
+      }),
+    )
     const forecast = forecastFireflyImport(
       rows,
       createOptions({
@@ -827,37 +835,53 @@ describe('Firefly rows past what the import endpoint takes', () => {
   const cases: [string, string, number, (length: number) => Partial<CsvRow>][] = [
     ['journal id', 'journal id', 64, (length) => ({ journal_id: '1'.repeat(length) })],
     ['amount', 'amount', 64, (length) => ({ amount: `-${'1'.repeat(length - 4)}.00` })],
-    ['foreign amount', 'foreign amount', 64, (length) => ({ foreign_amount: `-${'1'.repeat(length - 4)}.00`, foreign_currency_code: 'USD' })],
+    [
+      'foreign amount',
+      'foreign amount',
+      64,
+      (length) => ({ foreign_amount: `-${'1'.repeat(length - 4)}.00`, foreign_currency_code: 'USD' }),
+    ],
 
     // The endpoint counts code points, so an emoji is one character to it, not two
     ['description', 'description', 1024, (length) => ({ description: '🛒'.repeat(length) })],
     ['category', 'category', 256, (length) => ({ category: 'c'.repeat(length) })],
     ['withdrawal merchant', 'merchant name', 256, (length) => ({ destination_name: 'p'.repeat(length) })],
-    ['deposit merchant', 'merchant name', 256, (length) => ({
-      type: 'Deposit',
-      amount: '2500.00',
-      source_name: 'p'.repeat(length),
-      source_type: 'Revenue account',
-      destination_name: 'Chequing',
-      destination_type: 'Asset account',
-    })],
+    [
+      'deposit merchant',
+      'merchant name',
+      256,
+      (length) => ({
+        type: 'Deposit',
+        amount: '2500.00',
+        source_name: 'p'.repeat(length),
+        source_type: 'Revenue account',
+        destination_name: 'Chequing',
+        destination_type: 'Asset account',
+      }),
+    ],
   ]
 
   // These rows may be left out for other reasons as well, which the length check is not about
-  const pastLimit = (rows: FireflySkippedRowDetail[]) => rows.filter((row) => row.reason.includes('and the importer takes up to'))
+  const pastLimit = (rows: FireflySkippedRowDetail[]) =>
+    rows.filter((row) => row.reason.includes('and the importer takes up to'))
 
-  it.each(cases)('drops a row whose %s is past its limit and uploads one at the limit', (_, field, maxLength, build) => {
-    const atLimit = createFireflyRow(build(maxLength))
-    const overLimitRow = createFireflyRow({ journal_id: '2', ...build(maxLength + 1) })
+  it.each(cases)(
+    'drops a row whose %s is past its limit and uploads one at the limit',
+    (_, field, maxLength, build) => {
+      const atLimit = createFireflyRow(build(maxLength))
+      const overLimitRow = createFireflyRow({ journal_id: '2', ...build(maxLength + 1) })
 
-    const { skippedRows: skipped } = forecastFireflyImport([atLimit, overLimitRow], createOptions())
+      const { skippedRows: skipped } = forecastFireflyImport([atLimit, overLimitRow], createOptions())
 
-    expect(isFireflyRowUploadable(atLimit, new Map())).toBe(true)
-    expect(pastLimit(skipped)).toEqual([expect.objectContaining({
-      journalId: overLimitRow.journal_id,
-      reason: `The ${field} is ${(maxLength + 1).toLocaleString()} characters, and the importer takes up to ${maxLength.toLocaleString()}.`,
-    })])
-  })
+      expect(isFireflyRowUploadable(atLimit, new Map())).toBe(true)
+      expect(pastLimit(skipped)).toEqual([
+        expect.objectContaining({
+          journalId: overLimitRow.journal_id,
+          reason: `The ${field} is ${(maxLength + 1).toLocaleString()} characters, and the importer takes up to ${maxLength.toLocaleString()}.`,
+        }),
+      ])
+    },
+  )
 
   // Only a row with a merchant is sent with its category, so a transfer's long category costs nothing
   it('uploads a transfer whose category is past the limit', () => {
@@ -874,9 +898,11 @@ describe('Firefly rows past what the import endpoint takes', () => {
   it('names a blank type among the missing values', () => {
     const { skippedRows: skipped } = forecastFireflyImport([createFireflyRow({ type: '  ' })], createOptions())
 
-    expect(skipped).toEqual([expect.objectContaining({
-      reason: 'Missing required values: type',
-    })])
+    expect(skipped).toEqual([
+      expect.objectContaining({
+        reason: 'Missing required values: type',
+      }),
+    ])
   })
 
   // Firefly III takes custom currency codes such as USDT, which no Lumina account is kept in, and
@@ -899,5 +925,43 @@ describe('Firefly rows past what the import endpoint takes', () => {
     const { skippedRows: skipped } = forecastFireflyImport([row], createOptions())
 
     expect(skipped).toEqual([expect.objectContaining({ reason: 'Missing required values: currency' })])
+  })
+})
+
+describe('Firefly III rows dated outside the window every date must sit in', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('lists a row before 1 January 1900 or past ten years from today with its reason, and keeps the rest', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-10T12:00:00Z'))
+
+    const { skippedRows: skipped, transactionEstimate } = forecastFireflyImport(
+      [
+        createFireflyRow({ journal_id: '1', date: '1900-01-01 00:00:00' }),
+        createFireflyRow({ journal_id: '2', date: '1899-12-31 00:00:00' }),
+        createFireflyRow({ journal_id: '3', date: '2036-06-10 00:00:00' }),
+        createFireflyRow({ journal_id: '4', date: '9999-12-31 00:00:00' }),
+      ],
+      createOptions(),
+    )
+
+    expect(skipped.map((row) => [row.journalId, row.reason])).toEqual([
+      ['2', ROW_DATE_OUTSIDE_WINDOW_REASON],
+      ['4', ROW_DATE_OUTSIDE_WINDOW_REASON],
+    ])
+    expect(transactionEstimate).toBe(2)
+  })
+
+  it('counts today in the profile timezone, not the browser one', () => {
+    // 30 June in Toronto, already 1 July in UTC, so the last day inside the window differs by a day
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-01T02:00:00Z'))
+    const rows = [createFireflyRow({ journal_id: '1', date: '2036-07-01 00:00:00' })]
+
+    const inToronto = forecastFireflyImport(rows, { ...createOptions(), timeZone: 'America/Toronto' })
+    const inUtc = forecastFireflyImport(rows, { ...createOptions(), timeZone: 'UTC' })
+
+    expect(inToronto.skippedRows.map((row) => row.reason)).toEqual([ROW_DATE_OUTSIDE_WINDOW_REASON])
+    expect(inUtc.skippedRows).toEqual([])
   })
 })

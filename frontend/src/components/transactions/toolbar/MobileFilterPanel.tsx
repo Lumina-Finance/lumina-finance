@@ -18,6 +18,8 @@ type MobileFilterPanelProps = {
   setFilter: TransactionFilterSetter
   // False on an account's own transaction list, where the account facet is disabled
   showAccountFilter: boolean
+  // True where a summary sits above the list, so a range over 20 years is refused
+  checksSummarySpan?: boolean
   // The account's currency on its own transaction list, which pins the amount currency
   lockedCurrency?: string
 
@@ -38,6 +40,7 @@ export function MobileFilterPanel({
   filters,
   setFilter,
   showAccountFilter,
+  checksSummarySpan,
   lockedCurrency,
   aboveDialog,
 }: MobileFilterPanelProps) {
@@ -47,6 +50,7 @@ export function MobileFilterPanel({
     accountOptions,
     categoryOptions,
     showAccountFilter,
+    checksSummarySpan,
     lockedCurrency,
     onClose,
   })

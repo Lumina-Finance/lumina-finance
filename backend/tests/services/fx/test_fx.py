@@ -1,5 +1,6 @@
 import asyncio
-from datetime import date, timedelta
+import json
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import httpx
@@ -19,6 +20,7 @@ from app.services.fx import (
 from app.services.fx.converter import RATE_LOOKBACK
 from app.services.fx.frankfurter_provider import DEFAULT_FX_PROVIDER_RETRY_DELAY_SECONDS
 from app.services.fx.lookup_budget import FxLookupBudget, use_lookup_budget
+from app.utils import date_window
 from tests.services.fx.fakes import FakeProvider
 
 
@@ -230,6 +232,55 @@ async def test_converter_clone_starts_with_its_own_status():
     assert clone.get_status() == FxStatus(state="none")
 
 
+async def test_prefetch_for_transactions_at_both_window_edges_builds_under_50000_keys(freeze_now):
+    """An account holding the earliest and the latest allowed dates cannot make a prefetch build millions of keys"""
+    freeze_now(date_window, datetime(2026, 6, 9, 23, 30, tzinfo=UTC))
+    provider = FakeProvider()
+    converter = _converter(provider)
+
+    await converter.prefetch_rates(base="USD", quote="CAD", start_date=date(1900, 1, 1), end_date=date(2036, 6, 10))
+
+    assert len(converter.rates) + len(converter.failed_rates) < 50_000
+    assert provider.calls == [("USD", "CAD", date(1900, 1, 1) - RATE_LOOKBACK, date(2026, 6, 10) + RATE_LOOKBACK)]
+
+
+async def test_prefetch_for_a_year_1_and_a_year_9999_row_stays_inside_the_dates_a_rate_can_exist_for(freeze_now):
+    """A row stored before the window existed cannot make the prefetch walk the centuries between"""
+    freeze_now(date_window, datetime(2026, 6, 9, 23, 30, tzinfo=UTC))
+    converter = _converter(FakeProvider())
+
+    await converter.prefetch_rates(base="USD", quote="CAD", start_date=date(1, 1, 3), end_date=date(9999, 12, 31))
+
+    assert len(converter.rates) + len(converter.failed_rates) < 50_000
+
+
+@pytest.mark.parametrize("rate_date", [date(1, 1, 3), date(1899, 12, 31), date(2026, 6, 18), date(9999, 12, 31)])
+async def test_converter_answers_a_date_no_rate_can_exist_for_as_unavailable_without_asking_the_provider(freeze_now, rate_date):
+    """A stored date before the window or past the last rate converts to rate unavailable, never a server error"""
+    freeze_now(date_window, datetime(2026, 6, 9, 23, 30, tzinfo=UTC))
+    provider = FakeProvider({("USD", "CAD"): {date(2026, 6, 10): Decimal("1.375")}})
+    converter = _converter(provider)
+
+    converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date)
+
+    assert converted is None
+    assert provider.calls == []
+    assert converter.get_status() == FxStatus(state="incomplete", missing_pairs=[FxRateIssue(base="USD", quote="CAD")])
+
+
+@pytest.mark.parametrize("rate_date", [date(1900, 1, 1), date(2026, 6, 17)])
+async def test_converter_asks_for_a_date_on_each_edge_of_the_dates_a_rate_can_exist_for(freeze_now, rate_date):
+    """The first day of the window, and a week after the furthest-ahead today, are looked up and converted"""
+    freeze_now(date_window, datetime(2026, 6, 9, 23, 30, tzinfo=UTC))
+    provider = FakeProvider({("USD", "CAD"): {rate_date: Decimal("1.5")}})
+    converter = _converter(provider)
+
+    converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=rate_date)
+
+    assert converted == 15_00
+    assert len(provider.calls) == 1
+
+
 def test_convert_minor_units_handles_currency_exponents_and_rounding():
     """Minor-unit conversion respects source and target currency exponents."""
     assert convert_minor_units(123, rate=Decimal("0.0091"), base_exponent=0, quote_exponent=2) == 112
@@ -355,6 +406,77 @@ async def test_frankfurter_provider_rejects_invalid_rate():
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(FxRateResponseError):
             await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rates("USD", "CAD", date(2026, 5, 30), date(2026, 5, 30))
+
+
+_SERIES_ITEM = {"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1.375}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(b"<html><body>Bad gateway</body></html>", id="html"),
+        pytest.param(b"", id="empty"),
+        pytest.param(b"\xff\xfe\x00", id="not-text"),
+        pytest.param(b"[" * 200_000, id="deeply-nested"),
+        pytest.param(b'{"rates": []}', id="not-a-list"),
+        pytest.param(b"[1]", id="record-not-an-object"),
+        pytest.param(json.dumps([{**_SERIES_ITEM, "quote": "EUR"}]).encode(), id="wrong-pair"),
+        pytest.param(json.dumps([{"date": "2026-05-30", "base": "USD", "quote": "CAD"}]).encode(), id="missing-rate"),
+        pytest.param(json.dumps([{**_SERIES_ITEM, "date": "someday"}]).encode(), id="bad-date"),
+        pytest.param(json.dumps([{**_SERIES_ITEM, "rate": "1E+999999"}]).encode(), id="quoted-huge-exponent"),
+        pytest.param(b'[{"date": "2026-05-30", "base": "USD", "quote": "CAD", "rate": 1e300}]', id="huge-number"),
+        pytest.param(json.dumps([{**_SERIES_ITEM, "rate": 0}]).encode(), id="zero"),
+        pytest.param(json.dumps([{**_SERIES_ITEM, "rate": -1.5}]).encode(), id="negative"),
+        pytest.param(json.dumps([{**_SERIES_ITEM, "rate": "cheap"}]).encode(), id="text"),
+        pytest.param(json.dumps([{**_SERIES_ITEM, "rate": 0.0000000001}]).encode(), id="below-plausible-range"),
+        pytest.param(json.dumps([{**_SERIES_ITEM, "rate": 1000000001}]).encode(), id="above-plausible-range"),
+    ],
+)
+async def test_frankfurter_provider_treats_any_malformed_reply_as_final_without_a_retry(body):
+    """A reply that cannot be read, or holds no rate a pair could have, is refused after one request"""
+    requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        return httpx.Response(200, content=body)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(FxRateResponseError):
+            await FrankfurterProvider(client=client, retry_delay_seconds=0).get_rates("USD", "CAD", date(2026, 5, 30), date(2026, 5, 30))
+
+    assert requests == 1
+
+
+@pytest.mark.parametrize("rate", [0.000000001, 0.0000001, 1.375, 1000000, 1000000000])
+async def test_frankfurter_provider_takes_a_rate_at_each_edge_of_the_plausible_range(rate):
+    """A rate from 0.000000001 to 1,000,000,000 is read as sent, including a cross rate near 0.000001 or 1,000,000"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[{**_SERIES_ITEM, "rate": rate}])
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        rates = await FrankfurterProvider(client=client).get_rates("USD", "CAD", date(2026, 5, 30), date(2026, 5, 30))
+
+    assert rates == {date(2026, 5, 30): Decimal(str(rate))}
+
+
+async def test_converter_reports_a_malformed_reply_as_unavailable_and_converts_nothing():
+    """A conversion whose rate reply is unreadable is reported as the rate being unavailable"""
+    requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        return httpx.Response(200, content=b"<html>maintenance</html>")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        converter = FxConverter(provider=FrankfurterProvider(client=client, retry_delay_seconds=0), currency_exponents={"USD": 2, "CAD": 2})
+        converted = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=date(2026, 5, 30))
+
+    assert converted is None
+    assert requests == 1
+    assert converter.get_status() == FxStatus(state="unavailable", missing_pairs=[FxRateIssue(base="USD", quote="CAD")])
 
 
 async def test_frankfurter_provider_asks_once_for_an_unknown_pair():

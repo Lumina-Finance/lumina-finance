@@ -1,7 +1,9 @@
 import type { ImportBudgetRecurrence, ImportRunBudgets } from '@/api/provider-imports'
 import type { Category } from '@/api/categories'
 import type { TransactionImportCategoryMapping } from '@/api/transaction-imports'
+import { getDateWindowError } from '@/utils/dateWindow'
 import {
+  ACTUAL_BUDGET_MONTH_OUTSIDE_WINDOW_REASON,
   ACTUAL_BUDGET_NAME_TOO_LONG_REASON,
   ACTUAL_BUDGET_NOT_EXPENSE_REASON,
   ACTUAL_INCOME_BUDGET_REASON,
@@ -59,14 +61,18 @@ export interface ActualBudgetDraft {
  * carried over between months is not a figure of its own. A budget whose last month has passed
  * keeps its months and stops, so a category the user stopped budgeting for doesn't come back
  *
- * @param currentMonth - This month in the user's own timezone, as YYYY-MM
+ * @param todayYmd - Today in the user's own timezone, as YYYY-MM-DD
  */
-export function buildActualBudgetDrafts(budget: ActualBudgetFile, currentMonth: string): ActualBudgetDraft[] {
+export function buildActualBudgetDrafts(budget: ActualBudgetFile, todayYmd: string): ActualBudgetDraft[] {
+  const currentMonth = todayYmd.slice(0, 7)
   const categoryById = new Map(budget.categories.map((category) => [category.id, category]))
   const monthsByCategory = new Map<string, { month: string; amount: number }[]>()
   for (const figure of budget.budgetFigures) {
     if (figure.amount <= 0 || !categoryById.has(figure.categoryId)) continue
-    monthsByCategory.set(figure.categoryId, [...(monthsByCategory.get(figure.categoryId) ?? []), { month: figure.month, amount: figure.amount }])
+    monthsByCategory.set(figure.categoryId, [
+      ...(monthsByCategory.get(figure.categoryId) ?? []),
+      { month: figure.month, amount: figure.amount },
+    ])
   }
 
   const drafts: ActualBudgetDraft[] = []
@@ -83,7 +89,11 @@ export function buildActualBudgetDrafts(budget: ActualBudgetFile, currentMonth: 
       isArchived: category.hidden,
       disabledReason: category.isIncome
         ? ACTUAL_INCOME_BUDGET_REASON
-        : name.length > IMPORT_BUDGET_NAME_MAX_LENGTH ? ACTUAL_BUDGET_NAME_TOO_LONG_REASON : null,
+        : name.length > IMPORT_BUDGET_NAME_MAX_LENGTH
+          ? ACTUAL_BUDGET_NAME_TOO_LONG_REASON
+          : months.some(({ month }) => isMonthOutsideWindow(month, todayYmd))
+            ? ACTUAL_BUDGET_MONTH_OUTSIDE_WINDOW_REASON
+            : null,
     })
   }
   return drafts.sort((a, b) => a.name.localeCompare(b.name))
@@ -122,8 +132,14 @@ export function getActualBudgetRefusal(
   if (kind && kind !== 'expense') return ACTUAL_BUDGET_NOT_EXPENSE_REASON
 
   if (currency && currencyExponent !== null) {
-    const month = draft.months.find(({ amount }) => formatScaledAmount(amount, budgetDecimals, currencyExponent) === null)
-    if (month) return getActualBudgetAmountReason(formatScaledAmount(month.amount, budgetDecimals, budgetDecimals) ?? '', currency)
+    const month = draft.months.find(
+      ({ amount }) => formatScaledAmount(amount, budgetDecimals, currencyExponent) === null,
+    )
+    if (month)
+      return getActualBudgetAmountReason(
+        formatScaledAmount(month.amount, budgetDecimals, budgetDecimals) ?? '',
+        currency,
+      )
   }
   return null
 }
@@ -167,6 +183,17 @@ export function buildActualRunBudgets(
   })
 
   return { categories: [...usedMappings.values()], budgets }
+}
+
+/**
+ * Whether a month's first or last day is outside the dates the app takes. The server refuses a
+ * budget period over such a day
+ */
+function isMonthOutsideWindow(month: string, todayYmd: string) {
+  return (
+    getDateWindowError(`${month}-01`, todayYmd) !== null ||
+    getDateWindowError(getLastDayOfMonth(month), todayYmd) !== null
+  )
 }
 
 function getLastDayOfMonth(month: string) {

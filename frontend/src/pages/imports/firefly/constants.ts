@@ -23,26 +23,13 @@ export const FIREFLY_TRANSACTIONS_REQUIRED_HEADERS = [
  * live one is worse than refusing the file. Both period dates are required
  * because each limit period becomes a budget period with those exact dates
  */
-export const FIREFLY_BUDGETS_REQUIRED_HEADERS = [
-  'name',
-  'active',
-  'start_date',
-  'end_date',
-  'currency_code',
-  'amount',
-]
+export const FIREFLY_BUDGETS_REQUIRED_HEADERS = ['name', 'active', 'start_date', 'end_date', 'currency_code', 'amount']
 
 /**
  * Columns the optional accounts export must contain to set account types and
  * archive inactive accounts
  */
-export const FIREFLY_ACCOUNTS_REQUIRED_HEADERS = [
-  'type',
-  'name',
-  'active',
-  'currency_code',
-  'role',
-]
+export const FIREFLY_ACCOUNTS_REQUIRED_HEADERS = ['type', 'name', 'active', 'currency_code', 'role']
 
 /**
  * Value the budgets and accounts exports carry for a record that is active,
@@ -79,6 +66,13 @@ export const FIREFLY_BUDGET_NO_LIMITS_REASON = 'The export has no limit periods 
  * than failing the whole import on the backend
  */
 export const FIREFLY_BUDGET_UNREADABLE_DATES_REASON = 'A limit period date in the export is not a real calendar date'
+
+/**
+ * Why a budget with a limit period before 1900 or over ten years ahead is never
+ * imported, since the server refuses the whole import over a date outside them
+ */
+export const FIREFLY_BUDGET_DATES_OUTSIDE_WINDOW_REASON =
+  'A limit period date in the export is before 1900 or more than ten years ahead'
 
 /**
  * Why a budget whose limit history spans currencies is never imported, since a
@@ -149,7 +143,8 @@ export function getFireflyBudgetOverLimitReason(what: string, count: number, max
  * could never continue on its own rhythm here, so it is skipped rather than
  * imported on a wrong cadence
  */
-export const FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON = 'Repeats on a period length Lumina Finance budgets do not support'
+export const FIREFLY_BUDGET_UNSUPPORTED_CADENCE_REASON =
+  'Repeats on a period length Lumina Finance budgets do not support'
 
 /**
  * Lumina account types keyed by lower-cased Firefly III liability endpoint type
@@ -200,7 +195,7 @@ const FIREFLY_JOURNAL_TYPES = [
 ] as const
 
 /** A journal type the importer handles, lowercased as the import endpoint takes it */
-export type FireflyJournalType = typeof FIREFLY_JOURNAL_TYPES[number]
+export type FireflyJournalType = (typeof FIREFLY_JOURNAL_TYPES)[number]
 
 /**
  * Whether a lowercased journal type is one the importer handles
@@ -225,14 +220,17 @@ export const FIREFLY_GENERIC_SKIP_REASON = 'Row could not be converted'
  * Reasons the backend gives for a row whose endpoints leave it nothing to write, word for word.
  * The browser drops such a row before upload, since whether it imports never depends on a mapping
  */
-export const FIREFLY_BALANCE_ROW_UNATTACHED_REASON = 'Opening balance or reconciliation row is not attached to an imported account'
+export const FIREFLY_BALANCE_ROW_UNATTACHED_REASON =
+  'Opening balance or reconciliation row is not attached to an imported account'
 export const FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON = 'Withdrawal source is not an imported account'
 export const FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON = 'Deposit destination is not an imported account'
 export const FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON = 'Transfer endpoint is not an imported account'
 
 export function getFireflyUnsupportedTypeReason(type: string) {
-  return `Journal type "${type}" is not supported, the importer handles`
-    + ' withdrawals, deposits, transfers, opening balances, and reconciliations'
+  return (
+    `Journal type "${type}" is not supported, the importer handles` +
+    ' withdrawals, deposits, transfers, opening balances, and reconciliations'
+  )
 }
 
 /**

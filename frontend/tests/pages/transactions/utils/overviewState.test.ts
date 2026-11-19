@@ -5,7 +5,10 @@
 import { describe, expect, it } from 'vitest'
 import type { TransactionsOverview } from '@/api/transactions'
 import type { FxStatus } from '@/api/shared/fx'
-import { selectTransactionOverviewState } from '@/pages/transactions/utils/overviewState'
+import {
+  OVERVIEW_RANGE_TOO_LONG_MESSAGE,
+  selectTransactionOverviewState,
+} from '@/pages/transactions/utils/overviewState'
 
 const COMPLETE_FX: FxStatus = { state: 'complete', missing_pairs: [] }
 
@@ -48,10 +51,12 @@ describe('transaction overview presentation state', () => {
   })
 
   it('reports a settled refresh failure instead of presenting cached content as current', () => {
-    expect(select({
-      data: overview({ total_inflow: 120000, total_outflow: 50000 }),
-      failed: true,
-    })).toStrictEqual({ kind: 'failed' })
+    expect(
+      select({
+        data: overview({ total_inflow: 120000, total_outflow: 50000 }),
+        failed: true,
+      }),
+    ).toStrictEqual({ kind: 'failed' })
   })
 
   it('shows loading during a retry and content after a successful result settles', () => {
@@ -73,10 +78,12 @@ describe('transaction overview presentation state', () => {
   it('preserves the no-qualifying-transactions message and its range label verbatim', () => {
     const rangeLabel = 'Another custom range label'
 
-    expect(select({
-      data: overview({ total_inflow: 0, total_outflow: 0 }),
-      rangeLabel,
-    })).toStrictEqual({
+    expect(
+      select({
+        data: overview({ total_inflow: 0, total_outflow: 0 }),
+        rangeLabel,
+      }),
+    ).toStrictEqual({
       kind: 'empty',
       message: `No qualifying transactions for ${rangeLabel}`,
     })
@@ -84,36 +91,62 @@ describe('transaction overview presentation state', () => {
 
   it.each([
     ['non-zero net flow', { total_inflow: 1, total_outflow: 0 }],
-    ['an outlier', { outliers: [{
-      id: 'transaction-1',
-      merchant_name: 'Market',
-      notes: null,
-      amount: -1000,
-      currency: 'CAD',
-      dt: '2026-06-15',
-    }] }],
-    ['a top category', { top_categories: [{
-      category_id: 'category-1',
-      category_name: 'Groceries',
-      total: -1000,
-    }] }],
-    ['non-zero daily cash flow', { daily_cash_flow: [{
-      date: '2026-06-15',
-      end_date: '2026-06-15',
-      inflow: 0,
-      outflow: 1000,
-    }] }],
+    [
+      'an outlier',
+      {
+        outliers: [
+          {
+            id: 'transaction-1',
+            merchant_name: 'Market',
+            notes: null,
+            amount: -1000,
+            currency: 'CAD',
+            dt: '2026-06-15',
+          },
+        ],
+      },
+    ],
+    [
+      'a top category',
+      {
+        top_categories: [
+          {
+            category_id: 'category-1',
+            category_name: 'Groceries',
+            total: -1000,
+          },
+        ],
+      },
+    ],
+    [
+      'non-zero daily cash flow',
+      {
+        daily_cash_flow: [
+          {
+            date: '2026-06-15',
+            end_date: '2026-06-15',
+            inflow: 0,
+            outflow: 1000,
+          },
+        ],
+      },
+    ],
   ] satisfies Array<[string, Partial<TransactionsOverview>]>)('recognizes content from %s', (_name, data) => {
     expect(select({ data: overview(data) })).toStrictEqual({ kind: 'content' })
   })
 })
 
-
 describe('overview button retry presentation', () => {
   it('keeps the failure view while an explicit retry loads', () => {
-    expect(selectTransactionOverviewState({
-      overview: undefined, loading: true, failed: false, retrying: true, rangeLabel: RANGE_LABEL,
-    })).toEqual({ kind: 'failed' })
+    expect(
+      selectTransactionOverviewState({
+        overview: undefined,
+        loading: true,
+        failed: false,
+        retrying: true,
+        rangeLabel: RANGE_LABEL,
+      }),
+    ).toEqual({ kind: 'failed' })
   })
 
   it('holds recovered data behind the failure view until the retry transition releases it', () => {
@@ -122,5 +155,22 @@ describe('overview button retry presentation', () => {
     expect(selectTransactionOverviewState({ ...input, retrying: true })).toEqual({ kind: 'failed' })
     expect(selectTransactionOverviewState({ ...input, retrying: false })).toEqual({ kind: 'content' })
     expect(selectTransactionOverviewState({ ...input, failed: true, retrying: false })).toEqual({ kind: 'failed' })
+  })
+})
+
+describe('overview band for dates that cover more than 20 years', () => {
+  it('says why instead of showing a failure Try again cannot clear, while nothing loads', () => {
+    for (const loading of [false, true]) {
+      expect(
+        selectTransactionOverviewState({
+          overview: undefined,
+          loading,
+          failed: true,
+          retrying: false,
+          rangeLabel: RANGE_LABEL,
+          rangeTooLong: true,
+        }),
+      ).toStrictEqual({ kind: 'empty', message: OVERVIEW_RANGE_TOO_LONG_MESSAGE })
+    }
   })
 })

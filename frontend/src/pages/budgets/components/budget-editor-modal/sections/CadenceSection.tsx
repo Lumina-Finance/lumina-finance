@@ -1,4 +1,9 @@
-import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
+import type {
+  BudgetEditorModalErrorGetter,
+  BudgetEditorModalFieldIds,
+  BudgetEditorModalHandlers,
+  BudgetEditorModalViewState,
+} from '@/pages/budgets/components/budget-editor-modal/types'
 import DateField from '@/components/date-field/DateField'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { budgetFieldErrorId } from '@/pages/budgets/utils/form'
@@ -34,22 +39,27 @@ export default function BudgetEditorModalCadenceSection({
 }: BudgetEditorModalCadenceSectionProps) {
   const { form } = state
   const { setField, onBlur, onRecursChange } = handlers
+  // A start date the field refuses is left out of the summary, so it never describes a budget that
+  // can't be saved
+  const summaryForm = showError('periodStart') ? { ...form, periodStart: '' } : form
 
   return (
     <div className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
       <div className="flex min-h-0 flex-col items-center">
-        <span className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none" style={{ color: 'var(--app-accent)' }} aria-hidden>
+        <span
+          className="flex h-4 shrink-0 items-center text-xs font-semibold leading-none"
+          style={{ color: 'var(--app-accent)' }}
+          aria-hidden
+        >
           02
         </span>
-        <span
-          className="mt-1 w-px flex-1"
-          style={{ backgroundColor: 'var(--app-border-strong)' }}
-          aria-hidden
-        />
+        <span className="mt-1 w-px flex-1" style={{ backgroundColor: 'var(--app-border-strong)' }} aria-hidden />
       </div>
 
       <div className="min-w-0 space-y-2.5">
-        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Cadence</p>
+        <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>
+          Cadence
+        </p>
 
         <div className="grid gap-2.5 md:grid-cols-[10rem_minmax(0,1fr)] md:items-end">
           <div>
@@ -142,7 +152,11 @@ export default function BudgetEditorModalCadenceSection({
           </div>
 
           <div className={`min-w-0 ${recurrenceControlsLocked ? 'opacity-60' : ''}`}>
-            <BudgetEditorFieldLabelRow htmlFor={ids.periodStart} label={periodStartLabel} error={showError('periodStart')} />
+            <BudgetEditorFieldLabelRow
+              htmlFor={ids.periodStart}
+              label={periodStartLabel}
+              error={showError('periodStart')}
+            />
             <DateField
               id={ids.periodStart}
               ariaLabel={periodStartLabel}
@@ -157,7 +171,7 @@ export default function BudgetEditorModalCadenceSection({
         </div>
 
         <p className="text-center text-sm leading-tight italic" style={{ color: 'var(--app-text-muted)' }}>
-          {cadenceSummaryText ?? cadenceSummary(form)}
+          {cadenceSummaryText ?? cadenceSummary(summaryForm)}
         </p>
       </div>
     </div>

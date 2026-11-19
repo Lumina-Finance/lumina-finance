@@ -5,7 +5,11 @@ import { HintButton } from '@/components/tooltips/HintButton'
 import type { SavedInsightsRange } from '@/api/insights'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
-import { getRelativeRangeLabel } from '@/pages/insights/utils/range'
+import {
+  getRelativeRangeLabel,
+  getSavedRangeApplyReason,
+  getSaveRangeBlockedReason,
+} from '@/pages/insights/utils/range'
 
 const SAVED_RANGE_NAME_MAX_LENGTH = 64
 
@@ -20,6 +24,9 @@ type SavedRangesProps = {
 
   savedRangesFailed: boolean
 
+  /** True while the builder's draft covers more than 20 years. Such a draft cannot be saved */
+  draftRangeTooLong: boolean
+
   onSaveCurrentRange: (name: string) => Promise<void>
   onApplySavedRange: (range: SavedInsightsRange) => void
   onDeleteSavedRange: (rangeId: string) => void
@@ -32,6 +39,7 @@ export function SavedRanges({
   savedRanges,
   savedRangesError,
   savedRangesFailed,
+  draftRangeTooLong,
   onSaveCurrentRange,
   onApplySavedRange,
   onDeleteSavedRange,
@@ -45,11 +53,18 @@ export function SavedRanges({
   const rowTransition = shouldReduceMotion ? { duration: 0 } : savedRangeSpring
 
   /**
+   * Says why Save is unavailable, or returns undefined while it can run
+   */
+  function getSaveBlockedReason() {
+    return getSaveRangeBlockedReason({ isSaving, draftRangeTooLong, name: trimmedName }) ?? undefined
+  }
+
+  /**
    * Saves the active relative window under the entered name, surfacing duplicate names
    */
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (trimmedName === '' || isSaving) return
+    if (trimmedName === '' || isSaving || draftRangeTooLong) return
 
     setIsSaving(true)
     setSaveError(null)
@@ -89,7 +104,7 @@ export function SavedRanges({
           type="submit"
           className="app-secondary-button flex shrink-0 items-center gap-1.5 text-sm"
           disabled={isSaving}
-          disabledReason={!isSaving && trimmedName === '' ? 'Name the range first' : undefined}
+          disabledReason={getSaveBlockedReason()}
         >
           <BookmarkPlus size={15} aria-hidden />
           Save
@@ -114,16 +129,18 @@ export function SavedRanges({
               style={{ overflow: 'hidden' }}
             >
               <div className="flex items-center gap-1 pb-1">
-                <HintButton
-                  className="app-card flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-colors hover:bg-[var(--app-accent-soft)]"
+                <DisabledReasonButton
+                  // A range too long to apply fades its text and takes no hover fill, as a held button does
+                  className="app-card app-fade-label-only flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-colors not-aria-disabled:hover:bg-[var(--app-accent-soft)] aria-disabled:cursor-not-allowed"
                   onClick={() => onApplySavedRange(range)}
                   hint={`Apply ${range.name}`}
+                  disabledReason={getSavedRangeApplyReason(range)}
                 >
                   <span className="min-w-0 truncate font-medium">{range.name}</span>
                   <span className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
                     {getRelativeRangeLabel(range.amount, range.unit, range.qualifier)}
                   </span>
-                </HintButton>
+                </DisabledReasonButton>
                 <HintButton
                   className="app-icon-button h-8 w-8 shrink-0"
                   onClick={() => onDeleteSavedRange(range.id)}
