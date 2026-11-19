@@ -84,5 +84,7 @@ class OidcAuthorizationRequest(Base):
 
     # Set only for a link roundtrip, naming the signed-in account that passed step-up for it
     user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Indexed so the scheduled cleanup finds expired roundtrips without reading every row
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

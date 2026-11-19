@@ -36,12 +36,21 @@ class AuthToken(Base):
             unique=True,
             postgresql_where=text("token_kind = 'REFRESH' AND refresh_grace_expires_at IS NOT NULL"),
         ),
+        # Holds only rotated refresh tokens, in grace order, so token issue reads the oldest few
+        # whose grace has ended and the scheduled cleanup finds all of them
+        Index(
+            "ix_auth_tokens_refresh_grace_expires_at",
+            "refresh_grace_expires_at",
+            postgresql_where=text("refresh_grace_expires_at IS NOT NULL"),
+        ),
     )
 
     jti: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("auth_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     token_kind: Mapped[AuthTokenKind] = mapped_column(nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Indexed so the scheduled cleanup finds expired tokens without reading every row
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     refresh_grace_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

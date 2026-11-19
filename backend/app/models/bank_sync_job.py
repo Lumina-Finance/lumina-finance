@@ -106,6 +106,8 @@ class BankSyncJob(Base):
         Index("uq_bank_sync_jobs_queued", "connection_id", unique=True, postgresql_where=text("status = 'queued'")),
         # Serves the claim. The claim looks for queued jobs that are due and running ones whose lease ran out
         Index("ix_bank_sync_jobs_status_run_after", "status", "run_after"),
+        # Holds only finished jobs, so the scheduled cleanup finds those past retention without reading queued ones
+        Index("ix_bank_sync_jobs_finished_at", "finished_at", postgresql_where=text("finished_at IS NOT NULL")),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

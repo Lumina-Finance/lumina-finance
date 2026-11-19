@@ -51,4 +51,6 @@ class BankAuthorization(Base):
     credentials_encrypted: Mapped[str] = mapped_column(EncryptedText, nullable=False)
     state_hash: Mapped[str] = mapped_column(VARCHAR(STATE_HASH_LENGTH), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Indexed so the scheduled cleanup finds expired sign-ins without reading every row
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
