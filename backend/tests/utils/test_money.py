@@ -1,6 +1,16 @@
-"""Decimal amount parsing tests"""
+"""Decimal amount parsing tests
+
+The properties check the law: an amount in minor units written as decimal text parses back to the same
+units, and any text is either read as exactly the amount it spells or refused, never altered. The
+examples pin the amounts a file really carries, the bounds of the stored range and the odd text that
+once got through
+"""
+
+from fractions import Fraction
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from app.utils.money import (
     MAX_MINOR_UNITS,
@@ -9,6 +19,7 @@ from app.utils.money import (
     DecimalAmountPrecisionError,
     parse_decimal_amount_to_minor_units,
 )
+from tests.routes.support.generators import INT64_MAX, INT64_MIN, currency_exponents, minor_units, write_minor_units
 
 # The largest and smallest amounts a two-decimal currency can hold, written as the decimal
 # text a file would carry. Their minor-unit values are the bounds of a signed 64-bit column
@@ -25,18 +36,76 @@ def _parse(raw_amount, minor_unit_exponent=2):
     )
 
 
+# Characters that make text almost an amount: digits, signs, separators, padding, a currency mark,
+# a Latin and an Arabic-Indic digit and the exponent letter
+_NO_BREAK_SPACE = chr(0xA0)
+_ARABIC_INDIC_DIGIT_ONE = chr(0x661)
+_LOOKALIKE_ALPHABET = "0123456789+-., _'$e" + _NO_BREAK_SPACE + _ARABIC_INDIC_DIGIT_ONE
+
+# Text of every shape the importers meet: anything at all, near misses made of the characters above,
+# and amounts written with more decimal places than the currency holds, whose extremes reach past the range
+_amount_texts = st.one_of(
+    st.text(),
+    st.text(alphabet=_LOOKALIKE_ALPHABET, max_size=12),
+    st.builds(write_minor_units, minor_units, st.integers(min_value=0, max_value=8)),
+)
+
+_ASCII_DIGITS = frozenset("0123456789")
+
+
+def _meaning(raw_amount):
+    """Return the exact amount a plain signed decimal text spells, or None for any other text"""
+    unsigned = raw_amount[1:] if raw_amount.startswith(("+", "-")) else raw_amount
+    parts = unsigned.split(".")
+    if len(parts) > 2 or not all(part and set(part) <= _ASCII_DIGITS for part in parts):
+        return None
+    whole, fraction = parts[0], "".join(parts[1:])
+    magnitude = Fraction(int(whole + fraction), 10 ** len(fraction))
+    return -magnitude if raw_amount.startswith("-") else magnitude
+
+
+@given(amount=minor_units, exponent=currency_exponents, extra_zeros=st.integers(min_value=0, max_value=3))
+def test_a_written_amount_parses_back_to_the_same_minor_units(amount, exponent, extra_zeros):
+    """Writing an amount out and parsing it back returns it, at every exponent and across the stored range
+
+    Zeros past the currency's places carry no precision, so they change nothing
+    """
+    written = write_minor_units(amount, exponent)
+    if extra_zeros:
+        written += ("." if exponent == 0 else "") + "0" * extra_zeros
+
+    assert _parse(written, exponent) == amount
+
+
+@given(raw_amount=_amount_texts, exponent=currency_exponents)
+def test_text_is_parsed_to_exactly_the_amount_it_spells_or_refused(raw_amount, exponent):
+    """Any text is refused, or parsed to exactly the amount it spells, never to another one
+
+    Text that is not a plain decimal is refused, so is one holding digits the currency lacks or an
+    amount outside the stored range, and the rest parses
+    """
+    meaning = _meaning(raw_amount)
+    if meaning is None:
+        with pytest.raises(DecimalAmountParseError):
+            _parse(raw_amount, exponent)
+        return
+
+    exact = meaning * 10**exponent
+    if exact.denominator != 1:
+        with pytest.raises(DecimalAmountPrecisionError):
+            _parse(raw_amount, exponent)
+    elif not INT64_MIN <= exact <= INT64_MAX:
+        with pytest.raises(DecimalAmountParseError):
+            _parse(raw_amount, exponent)
+    else:
+        assert _parse(raw_amount, exponent) == exact
+
+
 @pytest.mark.parametrize(
     ("raw_amount", "minor_unit_exponent", "expected_minor_units"),
     [
         ("12.34", 2, 1234),
-        ("-12.34", 2, -1234),
-        ("+1234.56", 2, 123456),
         ("-0.00", 2, 0),
-        # Trailing zeros past the currency's places carry no precision, so they are not
-        # the same thing as a digit the currency cannot hold
-        ("12.3400", 2, 1234),
-        ("1234", 0, 1234),
-        ("1.234", 3, 1234),
     ],
 )
 def test_parses_amounts_the_currency_can_hold(raw_amount, minor_unit_exponent, expected_minor_units):
@@ -53,35 +122,14 @@ def test_parses_amounts_the_currency_can_hold(raw_amount, minor_unit_exponent, e
         "12.34\n",
         "\u00a012.34",
         "12.34\ufeff",
-        "1,234.56",
-        "1.234,56",
-        "1 234.56",
-        "1'234.56",
-        "1e3",
         "12.",
         ".5",
-        "--12.34",
     ],
 )
 def test_refuses_amounts_that_are_not_normalized(raw_amount):
     """The backend accepts complete decimal text without padding or grouping"""
     with pytest.raises(DecimalAmountParseError):
         _parse(raw_amount)
-
-
-@pytest.mark.parametrize(
-    ("raw_amount", "minor_unit_exponent"),
-    [
-        ("12.345", 2),
-        ("1.005", 2),
-        ("12.34", 0),
-        ("1.2345", 3),
-    ],
-)
-def test_refuses_an_amount_carrying_more_decimal_places_than_the_currency(raw_amount, minor_unit_exponent):
-    """An amount with more decimal places than the currency holds is refused, not rounded"""
-    with pytest.raises(DecimalAmountPrecisionError):
-        _parse(raw_amount, minor_unit_exponent)
 
 
 def test_refuses_excess_precision_past_the_default_decimal_context():
@@ -116,13 +164,7 @@ def test_refuses_an_amount_past_the_range_the_column_holds(raw_amount):
 @pytest.mark.parametrize(
     "raw_amount",
     [
-        "$12.34",
-        "12,34",
-        "1.234.567",
-        "",
         " \t\ufeff",
-        "twelve",
-        "12 34",
         "\u000012.34",
         "\u180e12.34",
         "\u200b12.34",
