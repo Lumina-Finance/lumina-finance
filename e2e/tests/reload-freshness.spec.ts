@@ -1,10 +1,11 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Route } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
 import {
   logIn,
   logInViaApi,
   openPage,
+  readSavedCache,
   SAVED_QUERY_CACHE_KEY,
   waitForPageReady,
   waitForSavedCache,
@@ -13,6 +14,8 @@ import { ON_ARM64 } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what a reload restores comes from browser storage, the same at every size
+
+const ROTATED_PASSWORD = 'R0tatedE2ePassw0rd!'
 
 // The fake clock holds the browser's own fades, so an element leaving would never go
 test.use({ reducedMotion: 'reduce' })
@@ -31,10 +34,7 @@ async function reload(page: Page) {
  * inside that second. Only the save on hiding or unloading the page can then keep the copy current
  */
 async function holdTimedSaves(page: Page) {
-  const savedAt = await page.evaluate((key) => {
-    const saved = JSON.parse(localStorage.getItem(key) ?? 'null') as { timestamp?: number } | null
-    return saved?.timestamp
-  }, SAVED_QUERY_CACHE_KEY)
+  const savedAt = (await readSavedCache(page))?.entry.savedAt
   expect(savedAt).toEqual(expect.any(Number))
   await page.clock.setFixedTime(savedAt!)
 }
@@ -48,6 +48,22 @@ async function setVisibility(page: Page, state: 'visible' | 'hidden') {
     return document.visibilityState
   }, state)
   expect(shown).toBe(state)
+}
+
+/**
+ * Hide the page and wait for the save that starts then to reach local storage
+ *
+ * Encryption is asynchronous, so a reload straight after a change can't be counted on to find it
+ * saved, and leaving the page removes a copy that lacks a change. A reload that has to find the change
+ * waits here first
+ */
+async function hideAndWaitForSave(page: Page) {
+  const before = (await readSavedCache(page))?.entry.nonce
+  await setVisibility(page, 'hidden')
+  await expect.poll(async () => {
+    const nonce = (await readSavedCache(page))?.entry.nonce
+    return nonce !== undefined && nonce !== before
+  }).toBe(true)
 }
 
 // The arm64 test of Caddy, a binary the image adds for the processor type. Each reload of the deep
@@ -77,6 +93,7 @@ test('keeps a transaction recorded elsewhere through two quick reloads, in an un
   await reload(page)
   await expect(addedRow).toBeVisible()
 
+  await hideAndWaitForSave(page)
   await reload(page)
   await expect(rows).toHaveCount(3)
   await expect(addedRow).toBeVisible()
@@ -136,10 +153,9 @@ test('signs a tab out when its renewal returns a user signed in since in another
   await expect(other.getByTestId(`transaction-row-${secondRow}`)).toBeVisible()
   await setVisibility(other, 'hidden')
   await waitForSavedCache(other, [secondRow])
-  const readStored = () => page.evaluate((key) =>
-    [localStorage.getItem('lumina:has_session'), localStorage.getItem(key)], SAVED_QUERY_CACHE_KEY)
-  const storedBySecond = await readStored()
-  expect(storedBySecond[0]).not.toBeNull()
+  const readFlag = () => page.evaluate(() => localStorage.getItem('lumina:has_session'))
+  const flagBySecond = await readFlag()
+  expect(flagBySecond).not.toBeNull()
 
   // The first tab's next request is refused as expired, so it renews through the shared cookie
   const renewed = page.waitForResponse(`${API_BASE_URL}/auth/refresh`)
@@ -168,17 +184,17 @@ test('signs a tab out when its renewal returns a user signed in since in another
   expect(sentWith).not.toContain(`Bearer ${secondToken}`)
 
   // The second tab may save again meanwhile, so the copy is checked for whose it is rather than
-  // for being the same text
-  const [flag, copy] = await readStored()
-  expect(flag).toBe(storedBySecond[0])
-  expect(copy).toMatch(new RegExp(`"buster":"[^"]*:${flag}"`))
-  expect(copy).toContain(secondRow)
-  expect(copy).not.toContain(firstRow)
+  // for being the same text. Only the tab that saved it can say what it holds
+  expect(await readFlag()).toBe(flagBySecond)
+  const copy = await readSavedCache(other)
+  expect(copy?.entry.userId).toBe(flagBySecond)
+  expect(copy?.text).toContain(secondRow)
+  expect(copy?.text).not.toContain(firstRow)
 })
 
-// A load restores the copy of the user the flag names, then waits on its session. Another user
-// signing in in a second tab meanwhile makes that session theirs, so the restored copy must not
-// show under it
+// A load waits on its session before restoring the saved copy, and opens it only for the user that
+// session belongs to. Another user signing in in a second tab meanwhile makes that session theirs, so
+// the first user's copy must not show under it
 test('drops a restored copy when the session that arrives belongs to another user', async ({ page, context, request }) => {
   const first = await signUpUser(request)
   const firstAccount = await createAccount(request, first, { name: 'First user chequing' })
@@ -231,4 +247,132 @@ test('drops a restored copy when the session that arrives belongs to another use
   await waitForPageReady(page)
   await expect(page.getByTestId(`transaction-row-${secondRow}`)).toBeVisible()
   expect(await page.evaluate(() => 'sawFirstUserRow' in window)).toBe(false)
+})
+
+// Changing the password ends the user's other sessions and raises their key number, while this
+// browser keeps its own. Its next renewal returns the new number. The copy it saved under the
+// old one no longer matches, so the copy is dropped unread rather than shown as fresh
+test('drops the saved copy once the key number rises, and saves again under the new one', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Rotating Key Savings' })
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+  const main = page.locator('#app-page-content')
+  await expect(main.getByText('Rotating Key Savings').first()).toBeVisible()
+  await waitForSavedCache(page, ['Rotating Key Savings'])
+  const before = (await readSavedCache(page))!.entry
+  expect(before.keyNumber).toBe(0)
+
+  await openPage(page, '/settings')
+  const security = page.locator('#security')
+  await security.getByLabel('Current password', { exact: true }).fill(user.password)
+  await security.getByLabel('New password', { exact: true }).fill(ROTATED_PASSWORD)
+  await security.getByLabel('Confirm new password', { exact: true }).fill(ROTATED_PASSWORD)
+  const changed = page.waitForResponse((response) =>
+    response.url() === `${API_BASE_URL}/auth/password` && response.request().method() === 'PATCH')
+  await security.getByRole('button', { name: 'Save', exact: true }).click()
+  expect((await changed).ok()).toBe(true)
+
+  // The accounts request is held, so anything on screen from it can only have come from the copy
+  let release!: () => void
+  const released = new Promise<void>((resolve) => { release = resolve })
+  let isHeld = false
+  await page.route(`${API_BASE_URL}/accounts`, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+    isHeld = true
+    await released
+    return route.fallback()
+  })
+  await page.goto('/accounts')
+  await expect.poll(() => isHeld).toBe(true)
+  await expect(main.getByText('Rotating Key Savings')).toHaveCount(0)
+  expect((await readSavedCache(page))?.entry.nonce).not.toBe(before.nonce)
+
+  release()
+  await expect(main.getByText('Rotating Key Savings').first()).toBeVisible()
+  await waitForSavedCache(page, ['Rotating Key Savings'])
+  expect((await readSavedCache(page))!.entry.keyNumber).toBe(1)
+})
+
+/** Answer a request with a status the browser can read, as a server that is up and refusing does */
+function answerWith(status: number) {
+  return (route: Route) => route.fulfill({
+    status,
+    headers: {
+      'Access-Control-Allow-Origin': route.request().headers()['origin'],
+      'Access-Control-Allow-Credentials': 'true',
+    },
+    body: '',
+  })
+}
+
+test('settles the restore and shows the reload screen when the renewal is unavailable', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Unavailable Renewal Savings' })
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+  await waitForSavedCache(page, ['Unavailable Renewal Savings'])
+
+  // A copy in the plain-text form an earlier version saved needs no key to be removed
+  await page.evaluate(([storageKey]) => localStorage.setItem(storageKey, '{"buster":"old","clientState":{}}'), [SAVED_QUERY_CACHE_KEY])
+  await page.route('**/auth/refresh', answerWith(503))
+  await page.route('**/version', answerWith(503))
+  await page.goto('/accounts')
+
+  await expect(page.getByRole('button', { name: 'Reload', exact: true })).toBeVisible()
+  expect(await page.evaluate((storageKey) => localStorage.getItem(storageKey), SAVED_QUERY_CACHE_KEY)).toBeNull()
+  await expect(page.getByRole('status', { name: /^Loading/ })).toHaveCount(0)
+  expect(await page.evaluate(() => localStorage.getItem('lumina:has_session'))).not.toBeNull()
+})
+
+test('settles the restore and shows the login page when the renewal is refused', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Refused Renewal Savings' })
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+  await waitForSavedCache(page, ['Refused Renewal Savings'])
+
+  await page.route('**/auth/refresh', answerWith(401))
+  await page.goto('/accounts')
+
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+  await expect(page.getByRole('status', { name: /^Loading/ })).toHaveCount(0)
+  expect(await page.evaluate((storageKey) => localStorage.getItem(storageKey), SAVED_QUERY_CACHE_KEY)).toBeNull()
+})
+
+test('opens the login page at once on a load with no session', async ({ page }) => {
+  let renewals = 0
+  await page.route('**/auth/refresh', (route) => {
+    renewals += 1
+    return route.fallback()
+  })
+  await page.goto('/accounts')
+
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+  await expect(page.getByRole('status', { name: /^Loading/ })).toHaveCount(0)
+  expect(renewals).toBe(0)
+})
+
+test('settles the restore when the renewal lost a rotation to another tab', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await createAccount(request, user, { name: 'Rotated Renewal Savings' })
+  await logInViaApi(page, user)
+  await openPage(page, '/accounts')
+  await waitForSavedCache(page, ['Rotated Renewal Savings'])
+
+  await page.route('**/auth/refresh', (route) => route.fulfill({
+    status: 409,
+    contentType: 'application/json',
+    headers: {
+      'Access-Control-Allow-Origin': route.request().headers()['origin'],
+      'Access-Control-Allow-Credentials': 'true',
+    },
+    body: JSON.stringify({ detail: 'Refresh token was already rotated' }),
+  }))
+  await page.goto('/accounts')
+
+  await expect(page.getByRole('status', { name: /^Loading/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
 })

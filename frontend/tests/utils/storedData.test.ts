@@ -6,12 +6,14 @@ import { QueryClient } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import { SESSION_KEY } from '@/api/auth'
 import {
-  createQueryCachePersistOptions,
+  discardSavedCopy,
   QUERY_CACHE_STORAGE_KEY,
-  saveQueryCacheOnPageHide,
   setQueryCacheUser,
+  startSavingQueryCache,
+  takeSavedCopyKey,
 } from '@/api/cache/persistence'
 import { clearStoredData } from '@/utils/storedData'
+import { savedCopySession } from '@tests/api/cache/fixtures'
 
 /** A local storage stand-in backed by a map */
 function createStorage(items: Map<string, string>) {
@@ -28,10 +30,12 @@ function createStorage(items: Map<string, string>) {
 }
 
 afterEach(() => {
+  discardSavedCopy()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
-it('leaves only the session flag behind through the reload after clearing stored data', () => {
+it('leaves only the session flag behind through the reload after clearing stored data', async () => {
   // Vitest runs without a DOM, so the window and document the save listens to are stand-ins
   const stored = new Map([[SESSION_KEY, 'user-a']])
   const page = Object.assign(new EventTarget(), {
@@ -46,20 +50,28 @@ it('leaves only the session flag behind through the reload after clearing stored
     document.dispatchEvent(new Event('visibilitychange'))
   }
   const client = new QueryClient()
-  createQueryCachePersistOptions()
+  takeSavedCopyKey(savedCopySession())
   setQueryCacheUser('user-a')
-  saveQueryCacheOnPageHide(client)
+  const stopSaving = startSavingQueryCache(client)
 
   // Hiding the page saves a change until stored data is cleared
   client.setQueryData(['accounts'], [{ id: 'account-before-the-crash' }])
   hide()
-  expect(stored.get(QUERY_CACHE_STORAGE_KEY)).toContain('account-before-the-crash')
+  await vi.waitFor(() => expect(stored.get(QUERY_CACHE_STORAGE_KEY)).toBeDefined())
 
+  // A save of the crashed state is under way as the storage is cleared
+  const encrypt = vi.spyOn(crypto.subtle, 'encrypt')
   client.setQueryData(['accounts'], [{ id: 'account-from-the-crash' }])
+  hide()
   clearStoredData()
   hide()
   page.dispatchEvent(new Event('pagehide'))
+  // The fence: the save's encryption has finished, and a turn later its write would have landed
+  await vi.waitFor(() => expect(encrypt).toHaveBeenCalledOnce())
+  await Promise.all(encrypt.mock.results.map((result) => result.value))
+  await new Promise((resolve) => setTimeout(resolve, 0))
 
   expect([...stored]).toEqual([[SESSION_KEY, 'user-a']])
+  stopSaving()
   client.clear()
 })

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { IsRestoringProvider, useQueryClient } from '@tanstack/react-query'
 import * as authApi from '@/api/auth'
 import type {
   AuthResponse,
@@ -12,7 +12,14 @@ import type {
   User,
 } from '@/api/auth'
 import { registerAuthBindings } from '@/api/client'
-import { isRestoredCacheFor, setQueryCacheUser } from '@/api/cache/persistence'
+import {
+  discardSavedCopy,
+  removeUnreadableSavedCopy,
+  restoreSavedQueryCache,
+  setQueryCacheUser,
+  startSavingQueryCache,
+  takeSavedCopyKey,
+} from '@/api/cache/persistence'
 import { clearUserScopedCache } from '@/api/cache/session'
 import { AuthContext, type AuthContextValue, type AuthState } from '@/contexts/AuthContext'
 import { takeRenewedSession } from '@/contexts/sessionRenewal'
@@ -48,6 +55,10 @@ function getSessionRestoreDelayMs(): number {
  * fails for any other reason keeps the session flag and reports the error, so the app can offer a
  * reload rather than the login page. Starting a new session clears user queries
  * and mutations while retaining public currency metadata. Ending a session clears both caches fully
+ *
+ * The saved query cache is restored here, once the renewal has answered with the key that opens it,
+ * and every query waits until that settles, whether it restored a copy, found none, or had no session
+ * to restore for. Saving starts then too, so a save can't put an empty cache over the stored copy
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Check once on mount — not reactive to later changes. A browser that blocks storage reads as one
@@ -60,6 +71,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     accessToken: null,
     loading: hadSession,
   })
+
+  // Whether the saved query cache is still to be restored. Every query waits while it is. Without a
+  // session there is nothing to restore, so nothing waits
+  const [isRestoring, setIsRestoring] = useState(hadSession)
+  const isSavingStartedRef = useRef(false)
+  const startSaving = useCallback(() => {
+    if (isSavingStartedRef.current) return
+    isSavingStartedRef.current = true
+    startSavingQueryCache(queryClient)
+  }, [queryClient])
+  const settleRestore = useCallback(() => {
+    startSaving()
+    setIsRestoring(false)
+  }, [startSaving])
 
   // Ref mirrors state so the auth bindings' getAccessToken closure always
   // reads the latest token without re-registering bindings on every change
@@ -99,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       onSessionRefreshed: (res) => takeRenewedSession(stateRef.current, res, queryClient, applyState),
       onSessionLost: () => {
         removeStoredValue(authApi.SESSION_KEY)
+        discardSavedCopy()
         applyState({ user: null, accessToken: null, loading: false })
         queryClient.clear()
       },
@@ -107,7 +133,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Attempt refresh only on initial mount if a prior session existed
   useEffect(() => {
-    if (!hadSession) return
+    if (!hadSession) {
+      // A copy stored with no session to open it, such as one left by a version that kept no flag, is
+      // of no use to anyone, so it goes rather than waiting to be tried
+      discardSavedCopy()
+      startSaving()
+      return
+    }
+
+    // A copy in the form earlier versions wrote needs no key to be recognised, so a load whose renewal
+    // is refused or can't be answered clears it too
+    removeUnreadableSavedCopy()
 
     let cancelled = false
     let restoreTimer: ReturnType<typeof setTimeout> | null = null
@@ -115,21 +151,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const runRestore = () => {
       authApi
         .restoreSession()
-        .then((res) => {
-          if (!cancelled) {
-            // A copy restored for anyone else, such as under a flag from before it held the user, or
-            // one another tab replaced while this load waited, never shows. The flag then names
-            // this user, so the tab can save again
-            if (!isRestoredCacheFor(res.user.id)) clearUserScopedCache(queryClient)
-            writeStoredValue(authApi.SESSION_KEY, res.user.id)
-            applyState({ user: res.user, accessToken: res.access_token, loading: false })
-          }
+        .then(async (res) => {
+          if (cancelled) return
+          takeSavedCopyKey(res)
+          await restoreSavedQueryCache(queryClient, res.user.id)
+          if (cancelled) return
+          writeStoredValue(authApi.SESSION_KEY, res.user.id)
+          applyState({ user: res.user, accessToken: res.access_token, loading: false })
+          settleRestore()
         })
         .catch((error) => {
           const failure = authApi.getSessionRestoreFailure(error)
           if (failure === 'rotated') {
             if (!cancelled) {
               setState((prev) => ({ ...prev, loading: false }))
+              settleRestore()
             }
             return
           }
@@ -139,14 +175,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (failure === 'unavailable') {
             if (!cancelled) {
               applyState({ user: null, accessToken: null, loading: false, sessionRestoreError: error })
+              settleRestore()
             }
             return
           }
 
           removeStoredValue(authApi.SESSION_KEY)
+          discardSavedCopy()
           queryClient.clear()
           if (!cancelled) {
             applyState({ user: null, accessToken: null, loading: false })
+            settleRestore()
           }
         })
     }
@@ -162,7 +201,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true
       if (restoreTimer) clearTimeout(restoreTimer)
     }
-  }, [hadSession, queryClient, applyState])
+  }, [hadSession, queryClient, applyState, startSaving, settleRestore])
+
+  // Marks a new session in this browser: drops any prior user's cache, sets the session flag and takes
+  // the key its saved copy is sealed with. Taking the same key again changes nothing
+  const markSession = useCallback(
+    (res: AuthResponse) => {
+      clearUserScopedCache(queryClient)
+      writeStoredValue(authApi.SESSION_KEY, res.user.id)
+      takeSavedCopyKey(res)
+    },
+    [queryClient],
+  )
 
   // Call the API and set the session flag, but don't update React state yet
   // The caller controls when to commit via setSession()
@@ -175,21 +225,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return res
       }
 
-      clearUserScopedCache(queryClient)
-      writeStoredValue(authApi.SESSION_KEY, res.user.id)
+      markSession(res)
       return res
     },
-    [queryClient],
+    [markSession],
   )
 
   const verifyMfa = useCallback(
     async (payload: MfaVerifyPayload) => {
       const res = await authApi.verifyMfa(payload)
-      clearUserScopedCache(queryClient)
-      writeStoredValue(authApi.SESSION_KEY, res.user.id)
+      markSession(res)
       return res
     },
-    [queryClient],
+    [markSession],
   )
 
   const signup = useCallback((payload: SignupPayload) => authApi.signup(payload), [])
@@ -197,24 +245,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const confirmSignup = useCallback(
     async (payload: ConfirmSignupPayload) => {
       const res = await authApi.confirmSignup(payload)
-      clearUserScopedCache(queryClient)
-      writeStoredValue(authApi.SESSION_KEY, res.user.id)
+      markSession(res)
       return res
     },
-    [queryClient],
+    [markSession],
   )
 
   const setSession = useCallback(
     (res: AuthResponse) => {
-      // Persist the session flag and drop any prior user's cache at the single commit point, so a passkey
-      // sign-in and the passkey second factor behave like the password and code paths. Those paths reach
-      // this commit without going through login/verifyMfa, so without this a reload finds no flag, skips
-      // the silent refresh, and signs the user out despite a valid refresh cookie
-      writeStoredValue(authApi.SESSION_KEY, res.user.id)
-      clearUserScopedCache(queryClient)
+      // Mark the session at the single commit point, so a passkey sign-in and the passkey second factor
+      // behave like the password and code paths. Those paths reach this commit without going through
+      // login/verifyMfa, so without this a reload finds no flag, skips the silent refresh, and signs the
+      // user out despite a valid refresh cookie
+      markSession(res)
       applyState({ user: res.user, accessToken: res.access_token, loading: false })
     },
-    [queryClient, applyState],
+    [markSession, applyState],
   )
 
   const primeAccessToken = useCallback(
@@ -238,10 +284,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.logout(state.accessToken).catch(() => {})
     }
     removeStoredValue(authApi.SESSION_KEY)
+    // Removes the saved copy at once and forgets the key, so a save still being encrypted finds no
+    // session and leaves nothing
+    discardSavedCopy()
     applyState({ user: null, accessToken: null, loading: false })
     // Wipe every cached query so the next user can't see the previous user's
-    // data (accounts, transactions, etc.). With the session flag gone, the next
-    // save, timed or on hiding the page, removes the localStorage copy instead
+    // data (accounts, transactions, etc.)
     queryClient.clear()
   }, [state.accessToken, queryClient, applyState])
 
@@ -250,5 +298,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [state, login, verifyMfa, signup, confirmSignup, setSession, primeAccessToken, setUser, logout],
   )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <IsRestoringProvider value={isRestoring}>
+      <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    </IsRestoringProvider>
+  )
 }

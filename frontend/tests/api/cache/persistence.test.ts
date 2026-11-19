@@ -1,25 +1,35 @@
 /**
- * Guards the saved copy of the query cache that every tab shares: a tab with nothing new must not put
- * its older copy over another tab's, a tab saves only while the session flag names its own user, a
- * load restores only the copy of the user the flag names, a save that fails must not leave an older
+ * Guards the saved copy of the query cache that every tab shares: it holds nothing readable without
+ * the key the session renewal returns, and a load opens it only with that key, removing unread a
+ * copy of another key number, another user, another shape or the old plain-text form. A late or
+ * older write can never leave a copy behind that the session no longer allows, a tab with nothing
+ * new must not put its older copy over another tab's, hiding the page never removes the copy while
+ * leaving it does when it can't be brought up to date, a save that fails must not leave an older
  * copy behind for the next load to restore as fresh, and no save may write a request held while
  * offline along with what it sends, such as both passwords of a password change, the authenticator
  * secret and setup link of a setup in progress, or an emailed reset token
  */
 import { focusManager, MutationObserver, onlineManager, QueryClient } from '@tanstack/react-query'
-import { persistQueryClientRestore, persistQueryClientSubscribe } from '@tanstack/react-query-persist-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SESSION_KEY } from '@/api/auth'
 import {
-  createQueryCachePersistOptions,
-  isRestoredCacheFor,
+  discardSavedCopy,
+  dropSavedCopyKey,
   QUERY_CACHE_STORAGE_KEY,
-  saveQueryCacheOnPageHide,
+  removeUnreadableSavedCopy,
+  restoreSavedQueryCache,
   setQueryCacheUser,
+  startSavingQueryCache,
+  takeSavedCopyKey,
 } from '@/api/cache/persistence'
 import { authKeys, twoFactorKeys } from '@/api/cache/queryKeys'
+import { importSavedCopyKey, openSavedCopy, sealSavedCopy } from '@/api/cache/savedCopyCipher'
 import type { TotpSetupResponse } from '@/api/two-factor'
 import { changePassword, type ChangePasswordPayload } from '@/api/user'
+import { KEY_FILL, OTHER_KEY_FILL, savedCopySession } from '@tests/api/cache/fixtures'
+
+// A session response that carries no key, as a native app's does
+const WITHOUT_KEY = { user: { id: 'user-a' } }
 
 const { authenticatedFetchMock } = vi.hoisted(() => ({
   authenticatedFetchMock: vi.fn(),
@@ -32,11 +42,18 @@ vi.mock('@/api/client', async (importOriginal) => ({
 
 const USER_A = 'user-a'
 const USER_C = 'user-c'
-const OLDER_COPY = JSON.stringify({ clientState: { queries: [{ queryKey: ['accounts'], state: { data: [] } }] } })
-const OTHER_TAB_COPY = JSON.stringify({ clientState: { queries: [{ queryKey: ['tags'], state: { data: [] } }] } })
+const DAY_MS = 24 * 60 * 60 * 1000
+const SIX_MONTHS_MS = 180 * DAY_MS
+
+// A copy as versions before encryption stored it, holding the data itself
+const OLD_PLAIN_TEXT_COPY = JSON.stringify({
+  buster: '9:user-a',
+  timestamp: 1,
+  clientState: { queries: [{ queryKey: ['accounts'], state: { data: [{ id: 'plain-text-account' }] } }] },
+})
 
 const clients: QueryClient[] = []
-const unsubscribes: (() => void)[] = []
+const stops: (() => void)[] = []
 
 /** A local storage stand-in backed by a map, whose writes a test can make fail */
 class FakeStorage {
@@ -62,27 +79,32 @@ class FakeStorage {
  * saving as the page does once its restore settles
  *
  * @param stored - What local storage holds as the page loads
- * @param user - The user the tab is signed in as, by default the one the stored flag names
- * @param withTimedSave - Whether the persister's own timed save runs too, as in the app
- * @returns The page's local storage and query client, ways to hide and show the page as a tab switch
- * does, and the restore the page runs on loading
+ * @param options.user - The user the tab is signed in as, by default the one the stored flag names
+ * @param options.session - The key fields the session came with, the first key unless given
+ * @returns The page's local storage and query client, ways to hide, show and leave the page, and the
+ * restore the page runs on loading
  */
 function loadPage(
   stored: Record<string, string>,
-  { user = stored[SESSION_KEY] ?? null, withTimedSave = false }: { user?: string | null; withTimedSave?: boolean } = {},
+  {
+    user = stored[SESSION_KEY] ?? null,
+    session = savedCopySession(),
+  }: { user?: string | null; session?: Parameters<typeof takeSavedCopyKey>[0] } = {},
 ) {
   const localStorage = new FakeStorage()
   for (const [key, value] of Object.entries(stored)) localStorage.setItem(key, value)
   const document = Object.assign(new EventTarget(), { visibilityState: 'visible' })
-  vi.stubGlobal('window', Object.assign(new EventTarget(), { localStorage }))
+  const window = Object.assign(new EventTarget(), { localStorage })
+  vi.stubGlobal('window', window)
   vi.stubGlobal('document', document)
 
   const client = new QueryClient()
   clients.push(client)
-  const options = createQueryCachePersistOptions()
+  // A page that loads holds no key yet, where a tab already holding one for the same user and number keeps it
+  dropSavedCopyKey()
+  takeSavedCopyKey(session)
   setQueryCacheUser(user)
-  saveQueryCacheOnPageHide(client)
-  if (withTimedSave) unsubscribes.push(persistQueryClientSubscribe({ ...options, queryClient: client }))
+  stops.push(startSavingQueryCache(client))
 
   const hide = () => {
     document.visibilityState = 'hidden'
@@ -92,192 +114,443 @@ function loadPage(
     document.visibilityState = 'visible'
     document.dispatchEvent(new Event('visibilitychange'))
   }
-  const restore = () => persistQueryClientRestore({ ...options, queryClient: client })
-  return { localStorage, client, hide, show, restore }
+  const leave = () => window.dispatchEvent(new Event('pagehide'))
+  const restore = (userId = USER_A) => restoreSavedQueryCache(client, userId)
+  return { localStorage, client, hide, show, leave, restore }
 }
 
-// The persister's default wait between timed writes
+/** Every encryption the page started, so a test can wait for the writes they lead to */
+let sealing: Promise<unknown>[] = []
+
+/** Lets every save started so far finish encrypting and reach its write */
+async function settleSaves() {
+  // A save reaches its encryption a step after starting, and a write follows the encryption
+  let started: number
+  do {
+    await vi.advanceTimersByTimeAsync(0)
+    started = sealing.length
+    await Promise.all(sealing)
+    await vi.advanceTimersByTimeAsync(0)
+  } while (sealing.length !== started)
+}
+
+// The wait between timed saves
 const TIMED_SAVE_INTERVAL_MS = 1000
 
-/** Lets a write the timed save started, a few promise steps away, reach storage */
-async function settleTimedSave() {
-  await vi.advanceTimersByTimeAsync(0)
-}
-
-/**
- * Lets the timed save's waiting write run. Its first write on a load goes at once, when a new query
- * is added and before its data is set, so the data reaches storage on the next one
- */
+/** Lets a timed save that has waited its interval start, and finish */
 async function runTimedSave() {
   await vi.advanceTimersByTimeAsync(TIMED_SAVE_INTERVAL_MS)
+  await settleSaves()
+}
+
+/** The text the stored copy holds once opened, as the page that saved it could read it */
+async function readSavedCopy(page: { localStorage: FakeStorage }, session = savedCopySession()) {
+  const stored = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)
+  if (stored === null) return null
+  const entry = JSON.parse(stored) as { nonce: string; ciphertext: string }
+  return openSavedCopy(await importSavedCopyKey(session.saved_copy_key!), entry)
+}
+
+/** The stored copy as a person with the browser profile sees it */
+function readStoredEntry(page: { localStorage: FakeStorage }) {
+  return JSON.parse(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)!) as Record<string, unknown>
 }
 
 beforeEach(() => {
   // The timed save waits a second between writes, so a write it holds stays held for the whole test
   vi.useFakeTimers()
+  const encrypt = crypto.subtle.encrypt.bind(crypto.subtle)
+  sealing = []
+  vi.spyOn(crypto.subtle, 'encrypt').mockImplementation((...args) => {
+    const sealed = encrypt(...args)
+    sealing.push(sealed)
+    return sealed
+  })
 })
 
 afterEach(() => {
-  for (const unsubscribe of unsubscribes.splice(0)) unsubscribe()
+  for (const stop of stops.splice(0)) stop()
   for (const client of clients.splice(0)) client.clear()
+  discardSavedCopy()
   onlineManager.setOnline(true)
   focusManager.setFocused(undefined)
   authenticatedFetchMock.mockReset()
+  vi.restoreAllMocks()
   vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
-describe('saving the query cache', () => {
-  it("leaves another tab's copy alone when this tab has changed nothing since its last save", () => {
-    const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: OTHER_TAB_COPY })
-
+describe('what is stored', () => {
+  it('holds nothing readable, a fresh nonce on every save, and gives the data back to the key that saved it', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.client.setQueryData(['accounts'], [{ id: 'first-user-account', name: 'Offshore Holdings' }])
     page.hide()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OTHER_TAB_COPY)
+    await settleSaves()
 
-    page.client.setQueryData(['accounts'], [{ id: 'changed-account' }])
-    page.hide()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('changed-account')
+    const first = readStoredEntry(page)
+    const storedText = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)!
+    expect(storedText).not.toContain('first-user-account')
+    expect(storedText).not.toContain('Offshore Holdings')
+    expect(Object.keys(first).toSorted()).toEqual(['ciphertext', 'keyNumber', 'nonce', 'savedAt', 'shape', 'userId'])
+    expect(first).toMatchObject({ userId: USER_A, keyNumber: 0 })
+    await expect(readSavedCopy(page)).resolves.toContain('Offshore Holdings')
 
-    page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, OTHER_TAB_COPY)
+    page.client.setQueryData(['tags'], [{ id: 'second-save-tag' }])
     page.hide()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OTHER_TAB_COPY)
+    await settleSaves()
+    const second = readStoredEntry(page)
+    expect(second.nonce).not.toBe(first.nonce)
+    expect(second.ciphertext).not.toBe(first.ciphertext)
+    await expect(readSavedCopy(page)).resolves.toContain('second-save-tag')
   })
 
-  it("counts a timed save as this tab's save", async () => {
-    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true })
-    page.client.setQueryData(['accounts'], [{ id: 'changed-account' }])
-    await runTimedSave()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('changed-account')
-
-    page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, OTHER_TAB_COPY)
-    page.hide()
-
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OTHER_TAB_COPY)
-  })
-
-  it('saves on hiding a change whose timed save is still waiting', async () => {
-    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true })
-    page.client.setQueryData(['accounts'], [{ id: 'first-account' }])
-    await runTimedSave()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('first-account')
-    page.client.setQueryData(['accounts'], [{ id: 'second-account' }])
-    await settleTimedSave()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).not.toContain('second-account')
-
-    page.hide()
-
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('second-account')
-  })
-
-  it("saves nothing for this tab's user once another user signs in in another tab, until this tab signs in as them", async () => {
-    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true })
-    page.localStorage.setItem(SESSION_KEY, USER_C)
-    page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, OTHER_TAB_COPY)
-
+  it('is no copy at all without the key the renewal returned', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A }, { session: WITHOUT_KEY })
     page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
-    await runTimedSave()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OTHER_TAB_COPY)
     page.hide()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OTHER_TAB_COPY)
+    await settleSaves()
 
-    setQueryCacheUser(USER_C)
-    page.client.setQueryData(['accounts'], [{ id: 'next-user-account' }])
-    page.hide()
-
-    expect(page.localStorage.getItem(SESSION_KEY)).toBe(USER_C)
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('next-user-account')
+    expect(sealing).toEqual([])
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
   })
+})
 
-  it('restores a saved copy under the user who saved it', async () => {
-    const saving = loadPage({ [SESSION_KEY]: USER_A })
-    saving.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
-    saving.hide()
+/** What local storage holds once a page of the first user has saved a copy of the cache */
+async function savedCopyOf(
+  setUp: (client: QueryClient) => void = (client) => {
+    client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
+  },
+) {
+  const saving = loadPage({ [SESSION_KEY]: USER_A })
+  setUp(saving.client)
+  saving.hide()
+  await settleSaves()
+  return Object.fromEntries(saving.localStorage.items)
+}
 
-    const reloaded = loadPage(Object.fromEntries(saving.localStorage.items))
+/**
+ * Holds the next encryption until the returned function is called, so a save stays under way
+ * while the test changes what it was started for
+ */
+function holdNextEncryption() {
+  const encrypt = crypto.subtle.encrypt.bind(crypto.subtle)
+  let release!: () => void
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let sealed!: Promise<ArrayBuffer>
+  vi.spyOn(crypto.subtle, 'encrypt').mockImplementationOnce((...args) => {
+    sealed = released.then(() => encrypt(...args))
+    return sealed
+  })
+  return {
+    release: async () => {
+      release()
+      await sealed
+      await vi.advanceTimersByTimeAsync(0)
+    },
+  }
+}
+
+describe('restoring the saved copy', () => {
+  it('restores a saved copy for the user and key number that saved it', async () => {
+    const stored = await savedCopyOf()
+
+    const reloaded = loadPage(stored)
     await reloaded.restore()
 
     expect(reloaded.client.getQueryData(['accounts'])).toEqual([{ id: 'first-user-account' }])
-    expect(isRestoredCacheFor(USER_A)).toBe(true)
+    expect(reloaded.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(stored[QUERY_CACHE_STORAGE_KEY])
   })
 
-  it("restores no copy saved before bank holds carried their provider and the bank's note and merchant", async () => {
-    const saving = loadPage({ [SESSION_KEY]: USER_A })
-    saving.client.setQueryData(['bank-sync', 'holds'], [{ id: 'saved-before-the-hold-card' }])
-    saving.hide()
-    const stored = Object.fromEntries(saving.localStorage.items)
-    // The shape that was current before. This copy then reads it as saved by
-    stored[QUERY_CACHE_STORAGE_KEY] = stored[QUERY_CACHE_STORAGE_KEY].replace(`"buster":"9:`, `"buster":"8:`)
-    expect(stored[QUERY_CACHE_STORAGE_KEY]).toContain('"buster":"8:')
+  it('removes a copy saved under another key number without opening it', async () => {
+    const stored = await savedCopyOf()
+    const decrypt = vi.spyOn(crypto.subtle, 'decrypt')
+
+    const reloaded = loadPage(stored, { session: savedCopySession(1) })
+    await reloaded.restore()
+
+    expect(decrypt).not.toHaveBeenCalled()
+    expect(reloaded.client.getQueryData(['accounts'])).toBeUndefined()
+    expect(reloaded.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('removes a copy the key cannot open, such as one a different key sealed under the same number', async () => {
+    const stored = await savedCopyOf()
+
+    const reloaded = loadPage(stored, { session: savedCopySession(0, OTHER_KEY_FILL) })
+    await reloaded.restore()
+
+    expect(reloaded.client.getQueryData(['accounts'])).toBeUndefined()
+    expect(reloaded.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('removes a copy in the old plain-text form unread, showing nothing of it', async () => {
+    const reloaded = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: OLD_PLAIN_TEXT_COPY })
+    const decrypt = vi.spyOn(crypto.subtle, 'decrypt')
+
+    await reloaded.restore()
+
+    expect(decrypt).not.toHaveBeenCalled()
+    expect(reloaded.client.getQueryData(['accounts'])).toBeUndefined()
+    expect(reloaded.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('removes a copy of another user without opening it', async () => {
+    const stored = await savedCopyOf()
+    const decrypt = vi.spyOn(crypto.subtle, 'decrypt')
+
+    const otherLoad = loadPage({ ...stored, [SESSION_KEY]: USER_C })
+    await otherLoad.restore(USER_C)
+
+    expect(decrypt).not.toHaveBeenCalled()
+    expect(otherLoad.client.getQueryData(['accounts'])).toBeUndefined()
+    expect(otherLoad.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it("removes a copy saved before bank holds carried their provider and the bank's note and merchant", async () => {
+    const stored = await savedCopyOf((client) =>
+      client.setQueryData(['bank-sync', 'holds'], [{ id: 'saved-before-the-hold-card' }]),
+    )
+    // The shape that was current before. This copy then reads as saved by it
+    stored[QUERY_CACHE_STORAGE_KEY] = JSON.stringify({ ...JSON.parse(stored[QUERY_CACHE_STORAGE_KEY]), shape: '8' })
 
     const reloaded = loadPage(stored)
     await reloaded.restore()
 
     expect(reloaded.client.getQueryData(['bank-sync', 'holds'])).toBeUndefined()
+    expect(reloaded.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
   })
 
-  it.each([
-    ['another user is signed in', USER_C],
-    ['no one is signed in', null],
-  ])('restores no copy and removes it when %s', async (_label, flag) => {
-    const saving = loadPage({ [SESSION_KEY]: USER_A })
-    saving.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
-    saving.hide()
-    const stored = Object.fromEntries(saving.localStorage.items)
-    expect(stored[QUERY_CACHE_STORAGE_KEY]).toContain('first-user-account')
-    if (flag === null) delete stored[SESSION_KEY]
-    else stored[SESSION_KEY] = flag
+  it('keeps a copy for six months and removes one a moment older', async () => {
+    const stored = await savedCopyOf()
+    const savedAt = (JSON.parse(stored[QUERY_CACHE_STORAGE_KEY]) as { savedAt: number }).savedAt
 
-    const otherLoad = loadPage(stored)
-    await otherLoad.restore()
+    vi.setSystemTime(savedAt + SIX_MONTHS_MS)
+    const onTheLastDay = loadPage(stored)
+    await onTheLastDay.restore()
+    expect(onTheLastDay.client.getQueryData(['accounts'])).toEqual([{ id: 'first-user-account' }])
 
-    expect(otherLoad.client.getQueryData(['accounts'])).toBeUndefined()
-    expect(otherLoad.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
-    expect(isRestoredCacheFor(USER_A)).toBe(false)
+    vi.setSystemTime(savedAt + SIX_MONTHS_MS + 1)
+    const afterwards = loadPage(stored)
+    await afterwards.restore()
+    expect(afterwards.client.getQueryData(['accounts'])).toBeUndefined()
+    expect(afterwards.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('settles with nothing to restore, and removes what no key is held to open', async () => {
+    const empty = loadPage({ [SESSION_KEY]: USER_A })
+    await expect(empty.restore()).resolves.toBeUndefined()
+    expect(empty.client.getQueryCache().getAll()).toEqual([])
+
+    const stored = await savedCopyOf()
+    const withoutKey = loadPage(stored, { session: WITHOUT_KEY })
+    await expect(withoutKey.restore()).resolves.toBeUndefined()
+    expect(withoutKey.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+})
+
+describe('saving the query cache', () => {
+  it("leaves another tab's copy alone when this tab has changed nothing since its last save", async () => {
+    const other = loadPage({ [SESSION_KEY]: USER_A })
+    other.client.setQueryData(['tags'], [{ id: 'other-tab-tag' }])
+    other.hide()
+    await settleSaves()
+    const otherTabCopy = other.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)!
+
+    const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: otherTabCopy })
+    page.hide()
+    await settleSaves()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(otherTabCopy)
+
+    page.client.setQueryData(['accounts'], [{ id: 'changed-account' }])
+    page.hide()
+    await settleSaves()
+    await expect(readSavedCopy(page)).resolves.toContain('changed-account')
+
+    page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, otherTabCopy)
+    page.hide()
+    await settleSaves()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(otherTabCopy)
+  })
+
+  it("counts a timed save as this tab's save", async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.client.setQueryData(['accounts'], [{ id: 'changed-account' }])
+    await runTimedSave()
+    await expect(readSavedCopy(page)).resolves.toContain('changed-account')
+
+    page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, 'another tab saved this')
+    page.hide()
+    await settleSaves()
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe('another tab saved this')
+  })
+
+  it('saves on hiding a change whose timed save is still waiting', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.client.setQueryData(['accounts'], [{ id: 'first-account' }])
+    await runTimedSave()
+    await expect(readSavedCopy(page)).resolves.toContain('first-account')
+    page.client.setQueryData(['accounts'], [{ id: 'second-account' }])
+    await vi.advanceTimersByTimeAsync(0)
+    await expect(readSavedCopy(page)).resolves.not.toContain('second-account')
+
+    page.hide()
+    await settleSaves()
+
+    await expect(readSavedCopy(page)).resolves.toContain('second-account')
+  })
+
+  it("saves nothing for this tab's user once another user signs in in another tab, until this tab signs in as them", async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.localStorage.setItem(SESSION_KEY, USER_C)
+    page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, 'the other tab saved this')
+
+    page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
+    await runTimedSave()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe('the other tab saved this')
+    page.hide()
+    await settleSaves()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe('the other tab saved this')
+
+    setQueryCacheUser(USER_C)
+    page.client.setQueryData(['accounts'], [{ id: 'next-user-account' }])
+    page.hide()
+    await settleSaves()
+
+    expect(page.localStorage.getItem(SESSION_KEY)).toBe(USER_C)
+    await expect(readSavedCopy(page)).resolves.toContain('next-user-account')
+    expect(readStoredEntry(page).userId).toBe(USER_C)
   })
 
   it('stamps a timed save with the user this tab signed in as after loading', async () => {
-    const signingIn = loadPage({}, { withTimedSave: true })
+    const signingIn = loadPage({})
     signingIn.localStorage.setItem(SESSION_KEY, USER_C)
     setQueryCacheUser(USER_C)
     signingIn.client.setQueryData(['accounts'], [{ id: 'next-user-account' }])
     await runTimedSave()
-    expect(signingIn.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('next-user-account')
+    expect(readStoredEntry(signingIn).userId).toBe(USER_C)
 
     const reloaded = loadPage(Object.fromEntries(signingIn.localStorage.items))
-    await reloaded.restore()
+    await reloaded.restore(USER_C)
 
     expect(reloaded.client.getQueryData(['accounts'])).toEqual([{ id: 'next-user-account' }])
   })
 
-  it('removes the saved copy instead of saving it once the session has ended', () => {
-    const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: OLDER_COPY })
+  it('leaves nothing when a save is still encrypting as the session ends', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
     page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
-    page.localStorage.removeItem(SESSION_KEY)
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OLDER_COPY)
 
     page.hide()
+    // Signing out, as the provider does, while the encryption is under way
+    page.localStorage.removeItem(SESSION_KEY)
+    discardSavedCopy()
+    await settleSaves()
+
+    expect(sealing).toHaveLength(1)
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('writes nothing sealed under a key the tab has since replaced, and removes the copy of the old number', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
+    page.hide()
+    await settleSaves()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).not.toBeNull()
+
+    page.client.setQueryData(['accounts'], [{ id: 'second-user-account' }])
+    page.hide()
+    // A renewal brings the next key number while the encryption is under way
+    takeSavedCopyKey(savedCopySession(1))
+    await settleSaves()
 
     expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
   })
 
-  it('removes the older saved copy when saving the newer one fails', () => {
-    const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: OLDER_COPY })
-    page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
-    page.localStorage.failWrites = true
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(OLDER_COPY)
+  it('never lets an older save finish after a newer one and overwrite it', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    const encrypt = crypto.subtle.encrypt.bind(crypto.subtle)
+    let releaseFirst!: () => void
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    let firstSealed!: Promise<ArrayBuffer>
+    vi.spyOn(crypto.subtle, 'encrypt').mockImplementationOnce((...args) => {
+      firstSealed = firstHeld.then(() => encrypt(...args))
+      return firstSealed
+    })
 
+    page.client.setQueryData(['accounts'], [{ id: 'older-account' }])
     page.hide()
+    page.client.setQueryData(['accounts'], [{ id: 'newer-account' }])
+    page.hide()
+    await settleSaves()
+    await expect(readSavedCopy(page)).resolves.toContain('newer-account')
+
+    // The older save finishes encrypting last
+    releaseFirst()
+    await firstSealed
+    await vi.advanceTimersByTimeAsync(0)
+
+    await expect(readSavedCopy(page)).resolves.toContain('newer-account')
+    expect(await readSavedCopy(page)).not.toContain('older-account')
+  })
+
+  it('never removes the stored copy when the page is hidden, whatever has changed', async () => {
+    const older = loadPage({ [SESSION_KEY]: USER_A })
+    older.client.setQueryData(['accounts'], [{ id: 'older-account' }])
+    older.hide()
+    await settleSaves()
+    const olderCopy = older.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)!
+
+    const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: olderCopy })
+    page.client.setQueryData(['accounts'], [{ id: 'changed-account' }])
+    page.hide()
+    // The encryption has not finished, so the stored copy is still the older one
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(olderCopy)
+
+    await settleSaves()
+    await expect(readSavedCopy(page)).resolves.toContain('changed-account')
+  })
+
+  it('removes a copy that does not reflect every change when the page is left, and keeps one that does', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.client.setQueryData(['accounts'], [{ id: 'first-account' }])
+    page.hide()
+    await settleSaves()
+    page.show()
+
+    page.leave()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).not.toBeNull()
+
+    page.client.setQueryData(['accounts'], [{ id: 'unsaved-account' }])
+    page.leave()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('removes the older saved copy when saving the newer one fails', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
+    page.hide()
+    await settleSaves()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).not.toBeNull()
+
+    page.client.setQueryData(['accounts'], [{ id: 'second-user-account' }])
+    page.localStorage.failWrites = true
+    page.hide()
+    await settleSaves()
 
     expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
     expect(page.localStorage.getItem(SESSION_KEY)).toBe(USER_A)
   })
 
   it('keeps query data but not a password change held while offline, and sends the change once back online', async () => {
-    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true })
+    const page = loadPage({ [SESSION_KEY]: USER_A })
     // Mounted as the app's provider mounts it, since only a mounted client sends held requests once
     // the connection returns
     page.client.mount()
-    unsubscribes.push(() => page.client.unmount())
+    stops.push(() => page.client.unmount())
     authenticatedFetchMock.mockResolvedValue(undefined)
     page.client.setQueryData(['accounts'], [{ id: 'account-kept' }])
 
@@ -291,21 +564,22 @@ describe('saving the query cache', () => {
     void passwordChange.mutate(payload).catch(() => {})
     expect(passwordChange.getCurrentResult().isPaused).toBe(true)
 
-    const expectNoHeldChangeStored = () => {
-      const stored = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY) ?? ''
-      expect(JSON.parse(stored).clientState.mutations).toEqual([])
-      for (const secret of Object.values(payload)) expect(stored).not.toContain(secret)
+    const expectNoHeldChangeSaved = async () => {
+      const saved = (await readSavedCopy(page)) ?? ''
+      expect(JSON.parse(saved).mutations).toEqual([])
+      for (const secret of Object.values(payload)) expect(saved).not.toContain(secret)
     }
 
     // The timed save and the save on hiding the page each write the copy
     await runTimedSave()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('account-kept')
-    expectNoHeldChangeStored()
+    await expect(readSavedCopy(page)).resolves.toContain('account-kept')
+    await expectNoHeldChangeSaved()
 
     page.client.setQueryData(['tags'], [{ id: 'tag-kept' }])
     page.hide()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('tag-kept')
-    expectNoHeldChangeStored()
+    await settleSaves()
+    await expect(readSavedCopy(page)).resolves.toContain('tag-kept')
+    await expectNoHeldChangeSaved()
 
     // A held request also waits while the page is hidden, so it goes once the user is back on it
     page.show()
@@ -318,7 +592,7 @@ describe('saving the query cache', () => {
   })
 
   it('keeps query data but not an authenticator setup in progress, through a restart that mints a new secret', async () => {
-    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true })
+    const page = loadPage({ [SESSION_KEY]: USER_A })
     const firstSetup: TotpSetupResponse = {
       secret: 'JBSWY3DPEHPK3PXP',
       provisioning_uri: 'otpauth://totp/Lumina:a%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Lumina',
@@ -328,44 +602,238 @@ describe('saving the query cache', () => {
       provisioning_uri: 'otpauth://totp/Lumina:a%40example.com?secret=KRSXG5CTMVRXEZLU&issuer=Lumina',
     }
     const setups = [firstSetup, restartedSetup]
-    const expectNoSetupStored = () => {
-      const stored = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY) ?? ''
+    const expectNoSetupSaved = async () => {
+      const saved = (await readSavedCopy(page)) ?? ''
       for (const setup of setups) {
-        expect(stored).not.toContain(setup.secret)
-        expect(stored).not.toContain(setup.provisioning_uri)
+        expect(saved).not.toContain(setup.secret)
+        expect(saved).not.toContain(setup.provisioning_uri)
       }
     }
     page.client.setQueryData(['accounts'], [{ id: 'account-kept' }])
     page.client.setQueryData(twoFactorKeys.setup(), firstSetup)
 
     await runTimedSave()
-    const timedCopy = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)
+    const timedCopy = await readSavedCopy(page)
     expect(timedCopy).toContain('account-kept')
-    expectNoSetupStored()
+    await expectNoSetupSaved()
 
     // Starting setup over mints a new secret under the same key, which the save on hiding the page writes
     page.client.setQueryData(twoFactorKeys.setup(), restartedSetup)
     page.client.setQueryData(['tags'], [{ id: 'tag-kept' }])
     page.hide()
-    const hiddenCopy = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)
+    await settleSaves()
+    const hiddenCopy = await readSavedCopy(page)
     expect(hiddenCopy).not.toBe(timedCopy)
     expect(hiddenCopy).toContain('account-kept')
     expect(hiddenCopy).toContain('tag-kept')
-    expectNoSetupStored()
+    await expectNoSetupSaved()
   })
 
   it('never saves a reset link check, since its key holds a working reset token', async () => {
-    const page = loadPage({ [SESSION_KEY]: USER_A }, { withTimedSave: true })
+    const page = loadPage({ [SESSION_KEY]: USER_A })
     const resetToken = 'emailed-reset-token-value'
     page.client.setQueryData(['accounts'], [{ id: 'account-kept' }])
     page.client.setQueryData(authKeys.resetLink(resetToken), { sign_in_providers_linked: 1 })
 
     await runTimedSave()
-    const timedCopy = page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY) ?? ''
+    const timedCopy = (await readSavedCopy(page)) ?? ''
     expect(timedCopy).toContain('account-kept')
     expect(timedCopy).not.toContain(resetToken)
 
     page.hide()
-    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY) ?? '').not.toContain(resetToken)
+    await settleSaves()
+    expect((await readSavedCopy(page)) ?? '').not.toContain(resetToken)
+  })
+})
+
+describe('what each guard on writing and leaving stops', () => {
+  /** A page of the first user whose first change is already saved, the older copy a later save replaces */
+  async function pageWithSavedCopy() {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.client.setQueryData(['accounts'], [{ id: 'older-account' }])
+    page.hide()
+    await settleSaves()
+    expect(await readSavedCopy(page)).toContain('older-account')
+    return page
+  }
+
+  it('removes the copy when the session flag was removed in another tab while this tab still holds the key', async () => {
+    const page = await pageWithSavedCopy()
+    page.client.setQueryData(['accounts'], [{ id: 'newer-account' }])
+    page.hide()
+    page.localStorage.removeItem(SESSION_KEY)
+    await settleSaves()
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('leaves the older copy when this tab changes user while a save for the first user encrypts', async () => {
+    const page = await pageWithSavedCopy()
+    page.client.setQueryData(['accounts'], [{ id: 'newer-account' }])
+    page.hide()
+    setQueryCacheUser(USER_C)
+    await settleSaves()
+
+    expect(await readSavedCopy(page)).toContain('older-account')
+  })
+
+  it('writes a save whose key was taken again for the same user and number, and drops one for another user', async () => {
+    const page = await pageWithSavedCopy()
+    page.client.setQueryData(['accounts'], [{ id: 'second-account' }])
+    page.hide()
+    takeSavedCopyKey(savedCopySession())
+    await settleSaves()
+    expect(await readSavedCopy(page)).toContain('second-account')
+
+    page.client.setQueryData(['accounts'], [{ id: 'third-account' }])
+    page.hide()
+    takeSavedCopyKey(savedCopySession(0, KEY_FILL, USER_C))
+    await settleSaves()
+    expect(await readSavedCopy(page)).toContain('second-account')
+  })
+
+  it('removes the older copy when sealing the newer one fails', async () => {
+    const page = await pageWithSavedCopy()
+    page.client.setQueryData(['accounts'], [{ id: 'newer-account' }])
+    vi.spyOn(crypto.subtle, 'encrypt').mockImplementationOnce(() => Promise.reject(new Error('not sealed')))
+    page.hide()
+    await settleSaves()
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('writes nothing for a tab with no user, and starts no encryption for it', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A }, { user: null })
+    page.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
+    page.hide()
+    await settleSaves()
+
+    expect(sealing).toEqual([])
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it.each([
+    ['holds no key', { session: WITHOUT_KEY }],
+    ['has no user', { user: null }],
+  ])('leaves the stored copy alone on leaving the page when the tab %s', (_label, options) => {
+    const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: 'a copy saved elsewhere' }, options)
+    page.client.setQueryData(['accounts'], [{ id: 'unsaved-account' }])
+
+    page.leave()
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe('a copy saved elsewhere')
+  })
+
+  it('never writes back an older copy from a save still encrypting when the page is left', async () => {
+    const page = await pageWithSavedCopy()
+    const held = holdNextEncryption()
+    page.client.setQueryData(['accounts'], [{ id: 'newer-account' }])
+    page.hide()
+    // The held encryption has started, so it is the save still running when the page is left
+    await vi.advanceTimersByTimeAsync(0)
+    page.client.setQueryData(['accounts'], [{ id: 'newest-account' }])
+    page.leave()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+
+    await held.release()
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('never writes back an older copy from a save still encrypting when a newer one fails', async () => {
+    const page = await pageWithSavedCopy()
+    const held = holdNextEncryption()
+    page.client.setQueryData(['accounts'], [{ id: 'newer-account' }])
+    page.hide()
+    page.client.setQueryData(['accounts'], [{ id: 'newest-account' }])
+    vi.spyOn(crypto.subtle, 'encrypt').mockImplementationOnce(() => Promise.reject(new Error('not sealed')))
+    page.hide()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+
+    await held.release()
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('still writes a save still encrypting when the page is left with no change since it started', async () => {
+    const page = await pageWithSavedCopy()
+    const held = holdNextEncryption()
+    page.client.setQueryData(['accounts'], [{ id: 'newer-account' }])
+    page.hide()
+    await vi.advanceTimersByTimeAsync(0)
+    page.leave()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+
+    // The save holds every change made, so it is current and nothing newer is lost by writing it
+    await held.release()
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).not.toBeNull()
+  })
+
+  it("keeps another tab's newer copy when the copy it read could not be opened", async () => {
+    const stored = await savedCopyOf()
+    const reloaded = loadPage(stored)
+    vi.spyOn(crypto.subtle, 'decrypt').mockImplementationOnce(() => {
+      reloaded.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, 'a newer copy from another tab')
+      return Promise.reject(new Error('not opened'))
+    })
+
+    await reloaded.restore()
+
+    expect(reloaded.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe('a newer copy from another tab')
+  })
+})
+
+describe('a restore that fails', () => {
+  /** An entry for the first user and key number, sealing this text as the cache it holds */
+  async function entryHolding(text: string) {
+    const key = await importSavedCopyKey(savedCopySession().saved_copy_key!)
+    const entry = { shape: '9', userId: USER_A, keyNumber: 0, savedAt: Date.now(), ...(await sealSavedCopy(key, text)) }
+    sealing = []
+    return JSON.stringify(entry)
+  }
+
+  it('drops a key that is no key without throwing, and removes the copy it can not open', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: await entryHolding('{"queries":[]}') })
+
+    dropSavedCopyKey()
+    expect(() =>
+      takeSavedCopyKey({ user: { id: USER_A }, saved_copy_key: '!!! not a key', saved_copy_key_version: 0 }),
+    ).not.toThrow()
+    await expect(page.restore()).resolves.toBeUndefined()
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('removes a copy that opens but is no cache, and settles', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: await entryHolding('{"queries":5}') })
+
+    await expect(page.restore()).resolves.toBeUndefined()
+
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+    expect(page.client.getQueryCache().getAll()).toEqual([])
+  })
+})
+
+describe('removing a copy in the old form as the app starts', () => {
+  it('removes a plain-text copy, and text that is no entry, with no key held, and keeps a copy that is an entry', async () => {
+    const stored = await savedCopyOf()
+    const entry = stored[QUERY_CACHE_STORAGE_KEY]
+    const page = loadPage(
+      { [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: OLD_PLAIN_TEXT_COPY },
+      { session: WITHOUT_KEY },
+    )
+
+    removeUnreadableSavedCopy()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+
+    page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, 'not json at all')
+    removeUnreadableSavedCopy()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+
+    page.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, entry)
+    removeUnreadableSavedCopy()
+    expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(entry)
   })
 })
