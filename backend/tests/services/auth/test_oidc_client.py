@@ -145,9 +145,7 @@ async def test_discovery_returns_and_caches_document(fake_provider):
 async def test_discovery_accepts_trailing_slash_issuer(fake_provider):
     """An issuer published with a trailing slash, as Authentik does, discovers and matches"""
     slash_issuer = f"{ISSUER}/"
-    fake_provider.responses["/.well-known/openid-configuration"] = lambda: httpx.Response(
-        200, json={**_metadata(), "issuer": slash_issuer}
-    )
+    fake_provider.responses["/.well-known/openid-configuration"] = lambda: httpx.Response(200, json={**_metadata(), "issuer": slash_issuer})
 
     metadata = await get_provider_metadata(slash_issuer)
 
@@ -174,9 +172,7 @@ async def test_exchange_rejection_is_unauthorized(fake_provider):
     fake_provider.responses["/token"] = lambda: httpx.Response(400, json={"error": "invalid_grant"})
 
     with pytest.raises(HTTPException) as excinfo:
-        await exchange_authorization_code(
-            _metadata(), CLIENT_ID, "secret", code="bad", code_verifier="v", redirect_uri="https://app.test/cb"
-        )
+        await exchange_authorization_code(_metadata(), CLIENT_ID, "secret", code="bad", code_verifier="v", redirect_uri="https://app.test/cb")
     assert excinfo.value.status_code == 401
 
 
@@ -185,9 +181,7 @@ async def test_exchange_requires_id_token(fake_provider):
     fake_provider.responses["/token"] = lambda: httpx.Response(200, json={"access_token": "at"})
 
     with pytest.raises(HTTPException) as excinfo:
-        await exchange_authorization_code(
-            _metadata(), CLIENT_ID, "secret", code="c", code_verifier="v", redirect_uri="https://app.test/cb"
-        )
+        await exchange_authorization_code(_metadata(), CLIENT_ID, "secret", code="c", code_verifier="v", redirect_uri="https://app.test/cb")
     assert excinfo.value.status_code == 401
 
 
@@ -288,9 +282,7 @@ async def test_verify_id_token_requires_auth_time_when_max_age_set(fake_provider
 
 async def test_userinfo_rejects_subject_mismatch(fake_provider):
     """A userinfo answer for a different subject is treated as a substitution and refused"""
-    fake_provider.responses["/userinfo"] = lambda: httpx.Response(
-        200, json={"sub": "someone-else", "email": "user@example.com"}
-    )
+    fake_provider.responses["/userinfo"] = lambda: httpx.Response(200, json={"sub": "someone-else", "email": "user@example.com"})
 
     with pytest.raises(HTTPException) as excinfo:
         await fetch_userinfo(_metadata(), "access-token", expected_subject="subject-1")

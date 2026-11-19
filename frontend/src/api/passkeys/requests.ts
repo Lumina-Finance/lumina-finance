@@ -1,15 +1,15 @@
-import { startAuthentication } from '@simplewebauthn/browser';
+import { startAuthentication } from '@simplewebauthn/browser'
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
-} from '@simplewebauthn/browser';
-import { buildApiError } from '@/api/auth/errors';
-import type { AuthResponse } from '@/api/auth/types';
-import { authenticatedFetch } from '@/api/client';
-import { fetchFromServer } from '@/api/server';
-import type { Passkey, PasskeyConfig, RegisterPasskeyPayload, RegisterPasskeyResult } from '@/api/passkeys/types';
-import type { StepUpPayload } from '@/api/two-factor/types';
+} from '@simplewebauthn/browser'
+import { buildApiError } from '@/api/auth/errors'
+import type { AuthResponse } from '@/api/auth/types'
+import { authenticatedFetch } from '@/api/client'
+import { fetchFromServer } from '@/api/server'
+import type { Passkey, PasskeyConfig, RegisterPasskeyPayload, RegisterPasskeyResult } from '@/api/passkeys/types'
+import type { StepUpPayload } from '@/api/two-factor/types'
 
 /**
  * Reads the relying party id from the public config endpoint
@@ -20,11 +20,11 @@ import type { StepUpPayload } from '@/api/two-factor/types';
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export async function fetchPasskeyConfig(signal?: AbortSignal): Promise<PasskeyConfig> {
-  const response = await fetchFromServer('/auth/passkeys/config', { signal });
+  const response = await fetchFromServer('/auth/passkeys/config', { signal })
   if (!response.ok) {
-    throw buildApiError(response.status, await response.json().catch(() => null));
+    throw buildApiError(response.status, await response.json().catch(() => null))
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -37,11 +37,11 @@ export async function fetchPasskeyAuthenticationOptions(): Promise<PublicKeyCred
   const response = await fetchFromServer('/auth/passkeys/authenticate/options', {
     method: 'POST',
     credentials: 'include',
-  });
+  })
   if (!response.ok) {
-    throw buildApiError(response.status, await response.json().catch(() => null));
+    throw buildApiError(response.status, await response.json().catch(() => null))
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -53,11 +53,11 @@ export async function authenticatePasskey(credential: AuthenticationResponseJSON
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ credential }),
-  });
+  })
   if (!response.ok) {
-    throw buildApiError(response.status, await response.json().catch(() => null));
+    throw buildApiError(response.status, await response.json().catch(() => null))
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -66,7 +66,7 @@ export async function authenticatePasskey(credential: AuthenticationResponseJSON
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchPasskeys(signal?: AbortSignal) {
-  return authenticatedFetch<Passkey[]>('/auth/passkeys', { signal });
+  return authenticatedFetch<Passkey[]>('/auth/passkeys', { signal })
 }
 
 /**
@@ -78,7 +78,7 @@ export function fetchPasskeyRegistrationOptions(stepUp?: StepUpPayload) {
   return authenticatedFetch<PublicKeyCredentialCreationOptionsJSON>('/auth/passkeys/register/options', {
     method: 'POST',
     body: JSON.stringify({ step_up: stepUp }),
-  });
+  })
 }
 
 /**
@@ -90,11 +90,11 @@ export async function fetchPasskeyMfaOptions(mfaToken: string): Promise<PublicKe
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mfa_token: mfaToken }),
-  });
+  })
   if (!response.ok) {
-    throw buildApiError(response.status, await response.json().catch(() => null));
+    throw buildApiError(response.status, await response.json().catch(() => null))
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -109,11 +109,11 @@ export async function verifyPasskeyMfa(
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mfa_token: mfaToken, credential }),
-  });
+  })
   if (!response.ok) {
-    throw buildApiError(response.status, await response.json().catch(() => null));
+    throw buildApiError(response.status, await response.json().catch(() => null))
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -125,11 +125,11 @@ export async function fetchPasskeyResetOptions(mfaToken: string): Promise<Public
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mfa_token: mfaToken }),
-  });
+  })
   if (!response.ok) {
-    throw buildApiError(response.status, await response.json().catch(() => null));
+    throw buildApiError(response.status, await response.json().catch(() => null))
   }
-  return response.json();
+  return response.json()
 }
 
 /**
@@ -144,9 +144,9 @@ export async function verifyPasskeyReset(
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...payload, credential }),
-  });
+  })
   if (!response.ok) {
-    throw buildApiError(response.status, await response.json().catch(() => null));
+    throw buildApiError(response.status, await response.json().catch(() => null))
   }
 }
 
@@ -158,7 +158,7 @@ export async function verifyPasskeyReset(
 export function fetchPasskeyStepUpOptions() {
   return authenticatedFetch<PublicKeyCredentialRequestOptionsJSON>('/auth/passkeys/step-up/options', {
     method: 'POST',
-  });
+  })
 }
 
 /**
@@ -168,8 +168,8 @@ export function fetchPasskeyStepUpOptions() {
  * challenge this server issued
  */
 export async function requestPasskeyStepUpAssertion(): Promise<AuthenticationResponseJSON> {
-  const optionsJSON = await fetchPasskeyStepUpOptions();
-  return startAuthentication({ optionsJSON });
+  const optionsJSON = await fetchPasskeyStepUpOptions()
+  return startAuthentication({ optionsJSON })
 }
 
 /**
@@ -182,14 +182,14 @@ export function registerPasskey(payload: RegisterPasskeyPayload) {
   return authenticatedFetch<RegisterPasskeyResult>('/auth/passkeys/register', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
  * Activates a staged first passkey after its recovery codes have been saved
  */
 export function confirmPasskeyRegistration() {
-  return authenticatedFetch<void>('/auth/passkeys/register/confirm', { method: 'POST' });
+  return authenticatedFetch<void>('/auth/passkeys/register/confirm', { method: 'POST' })
 }
 
 /**
@@ -199,7 +199,7 @@ export function renamePasskey(passkeyId: string, name: string) {
   return authenticatedFetch<Passkey>(`/auth/passkeys/${passkeyId}`, {
     method: 'PATCH',
     body: JSON.stringify({ name }),
-  });
+  })
 }
 
 /**
@@ -209,5 +209,5 @@ export function removePasskey(passkeyId: string, payload: StepUpPayload) {
   return authenticatedFetch<void>(`/auth/passkeys/${passkeyId}/remove`, {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }

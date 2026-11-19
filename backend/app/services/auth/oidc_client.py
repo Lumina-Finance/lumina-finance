@@ -53,9 +53,7 @@ async def _fetch_json(url: str) -> dict[str, Any]:
             response.raise_for_status()
             return response.json()
     except (httpx.HTTPError, ValueError) as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable"
-        ) from error
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable") from error
 
 
 async def get_provider_metadata(issuer: str) -> dict[str, Any]:
@@ -201,9 +199,7 @@ async def exchange_authorization_code(
                 },
             )
     except httpx.HTTPError as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable"
-        ) from error
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable") from error
 
     # A rejected exchange means the code was invalid, expired, or replayed, so the sign-in
     # fails as unauthorized rather than as a provider outage
@@ -371,9 +367,7 @@ async def fetch_userinfo(metadata: dict[str, Any], access_token: str, expected_s
             response.raise_for_status()
             claims = response.json()
     except (httpx.HTTPError, ValueError) as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable"
-        ) from error
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Identity provider unavailable") from error
 
     # A userinfo answer for a different subject than the verified token is a token
     # substitution, so it must not enrich this sign-in

@@ -52,8 +52,7 @@ const ResetPasswordPage = () => {
   const canSubmit = !submitting && isNewPasswordValid(newPassword) && confirmPassword === newPassword
 
   // The passkey option only shows where a ceremony can actually run, matching the login screen
-  const canUsePasskeys =
-    passkeyConfig.data !== undefined && assessPasskeySupport(passkeyConfig.data.rp_id).supported
+  const canUsePasskeys = passkeyConfig.data !== undefined && assessPasskeySupport(passkeyConfig.data.rp_id).supported
 
   /**
    * Maps a reset failure to a friendly message, treating a dead link as its own case
