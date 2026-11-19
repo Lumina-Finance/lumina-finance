@@ -1,4 +1,5 @@
 """Transaction overview outlier conversion"""
+
 import uuid
 
 from app.models.account import Account

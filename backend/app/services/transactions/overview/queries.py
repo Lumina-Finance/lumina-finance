@@ -71,15 +71,11 @@ async def get_overview_cash_flow_rows(db: AsyncSession, transaction_filters):
             )
             .join(Category, Transaction.category_id == Category.id)
             .where(transaction_filters)
-
             # Real transfers affect cash flow, but synthetic balance adjustments should not
             .where(
                 sa.or_(
                     Category.kind.in_([CategoryKind.EXPENSE, CategoryKind.INCOME]),
-                    (
-                        (Category.kind == CategoryKind.TRANSFER)
-                        & (Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME)
-                    ),
+                    ((Category.kind == CategoryKind.TRANSFER) & (Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME)),
                 ),
             )
             .group_by(Transaction.dt, Transaction.account_id),
@@ -112,7 +108,6 @@ async def get_overview_category_total_rows(db: AsyncSession, transaction_filters
             )
             .join(Category, Transaction.category_id == Category.id)
             .where(transaction_filters)
-
             # Spending is what an expense category nets once its refunds are taken off, so an
             # income category stays out even when a reversal leaves it negative for the period
             .where(Category.kind == CategoryKind.EXPENSE)
