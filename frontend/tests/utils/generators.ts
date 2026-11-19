@@ -74,3 +74,32 @@ export function dateRangesNearSpan(years: number): fc.Arbitrary<DateRange> {
       return { from, to: { year: edge.getUTCFullYear(), month: edge.getUTCMonth() + 1, day: edge.getUTCDate() } }
     })
 }
+
+export type TypedAmount = { minorUnits: number; text: string }
+
+// How many zeros a person may type before an amount or past its last decimal place
+const MAX_EXTRA_ZEROS = 2
+
+/**
+ * Draws text a person may type for an amount in minor units in a currency with the given decimal
+ * places, with leading zeros, and its decimal places cut back to the last nonzero one or padded with
+ * zeros past the currency's, all of which spell the same amount
+ */
+export function typedSpellings(minorUnits: number, exponent: number): fc.Arbitrary<string> {
+  return fc.tuple(fc.nat(MAX_EXTRA_ZEROS), fc.nat(exponent + MAX_EXTRA_ZEROS)).map(([leadingZeros, decimalPlaces]) => {
+    const digits = String(minorUnits).padStart(exponent + 1, '0')
+    const pointAt = digits.length - exponent
+    const fraction = digits.slice(pointAt).replace(/0+$/, '').padEnd(decimalPlaces, '0')
+
+    return `${'0'.repeat(leadingZeros)}${digits.slice(0, pointAt)}${fraction ? `.${fraction}` : ''}`
+  })
+}
+
+/**
+ * Draws a non-negative amount in minor units with text a person may type for it
+ */
+export function typedAmounts(exponent: number): fc.Arbitrary<TypedAmount> {
+  return nonNegativeMinorUnits.chain((minorUnits) =>
+    typedSpellings(minorUnits, exponent).map((text) => ({ minorUnits, text })),
+  )
+}
