@@ -33,24 +33,18 @@ class OidcProvider(Base):
     # identities keep their provider row and re-enabling later needs no migration
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
 
 class OidcIdentity(Base):
     """Links a user to one subject at an OIDC provider, the pair that identifies a returning sign-in"""
 
     __tablename__ = "oidc_identities"
-    __table_args__ = (
-        UniqueConstraint("provider_id", "subject", name="uq_oidc_identity_provider_subject"),
-    )
+    __table_args__ = (UniqueConstraint("provider_id", "subject", name="uq_oidc_identity_provider_subject"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    provider_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("oidc_providers.id", ondelete="CASCADE"), nullable=False
-    )
+    provider_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("oidc_providers.id", ondelete="CASCADE"), nullable=False)
 
     # The subject claim is the provider's permanent identifier for the user, matched before any email fallback
     subject: Mapped[str] = mapped_column(Text, nullable=False)
@@ -82,9 +76,7 @@ class OidcAuthorizationRequest(Base):
 
     # The PKCE verifier is revealed to the provider at the token exchange, so it must be stored raw
     code_verifier: Mapped[str] = mapped_column(Text, nullable=False)
-    provider_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("oidc_providers.id", ondelete="CASCADE"), nullable=False
-    )
+    provider_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("oidc_providers.id", ondelete="CASCADE"), nullable=False)
 
     # The purpose scopes a roundtrip to the flow that started it, so a link roundtrip can
     # never complete a login and vice versa
