@@ -15,6 +15,7 @@ from app.utils.money import (
 LARGEST_STORABLE_TEXT = "92233720368547758.07"
 SMALLEST_STORABLE_TEXT = "-92233720368547758.08"
 
+
 def _parse(raw_amount, minor_unit_exponent=2):
     """Parse an amount against a currency with the given number of decimal places"""
     return parse_decimal_amount_to_minor_units(
@@ -43,10 +44,25 @@ def test_parses_amounts_the_currency_can_hold(raw_amount, minor_unit_exponent, e
     assert _parse(raw_amount, minor_unit_exponent) == expected_minor_units
 
 
-@pytest.mark.parametrize("raw_amount", [
-    " 12.34", "12.34 ", "\t12.34", "12.34\n", "\u00a012.34", "12.34\ufeff",
-    "1,234.56", "1.234,56", "1 234.56", "1'234.56", "1e3", "12.", ".5", "--12.34",
-])
+@pytest.mark.parametrize(
+    "raw_amount",
+    [
+        " 12.34",
+        "12.34 ",
+        "\t12.34",
+        "12.34\n",
+        "\u00a012.34",
+        "12.34\ufeff",
+        "1,234.56",
+        "1.234,56",
+        "1 234.56",
+        "1'234.56",
+        "1e3",
+        "12.",
+        ".5",
+        "--12.34",
+    ],
+)
 def test_refuses_amounts_that_are_not_normalized(raw_amount):
     """The backend accepts complete decimal text without padding or grouping"""
     with pytest.raises(DecimalAmountParseError):
