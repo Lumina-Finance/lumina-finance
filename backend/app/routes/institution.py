@@ -149,10 +149,7 @@ async def update_institution(
     # The form resends every field it holds rather than the edited ones, so what the user
     # actually changed is whatever differs from the stored row
     updates = data.model_dump(exclude_unset=True)
-    changes = {
-        field: value for field, value in updates.items()
-        if getattr(institution, field) != value
-    }
+    changes = {field: value for field, value in updates.items() if getattr(institution, field) != value}
     if not changes:
         return institution
 
