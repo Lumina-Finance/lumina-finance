@@ -70,15 +70,12 @@ def get_oidc_redirect_uri() -> str:
 
 
 async def delete_expired_oidc_authorization_requests(db: AsyncSession) -> None:
-    """Delete pending sign-in roundtrips whose expiry has passed
+    """Delete every pending sign-in roundtrip whose expiry has passed, for the scheduled cleanup
 
     Args:
         db: Active database session
     """
-    expired_delete_query = delete(OidcAuthorizationRequest).where(OidcAuthorizationRequest.expires_at < sa_func.now())
-
-    # The scheduled cleanup prunes these too
-    await db.execute(expired_delete_query)
+    await db.execute(delete(OidcAuthorizationRequest).where(OidcAuthorizationRequest.expires_at < sa_func.now()))
 
 
 async def begin_oidc_sign_in(db: AsyncSession, provider: OidcProvider) -> tuple[str, str]:
@@ -134,7 +131,6 @@ async def _begin_authorization(
     nonce = secrets.token_urlsafe(32)
     code_verifier, code_challenge = generate_pkce_pair()
 
-    await delete_expired_oidc_authorization_requests(db)
     db.add(
         OidcAuthorizationRequest(
             state_hash=hash_token(state),

@@ -13,7 +13,7 @@ from sqlalchemy.sql import func as sa_func
 from app.models.auth import MfaChallenge
 from app.models.auth_session import AuthSession
 from app.models.user import User
-from app.services.auth.mfa_challenge import consume_mfa_challenge, delete_expired_mfa_challenges
+from app.services.auth.mfa_challenge import consume_mfa_challenge
 from app.services.auth.sessions import delete_auth_session
 from app.services.auth.tokens import create_native_handoff_token
 
@@ -41,7 +41,6 @@ async def issue_native_handoff_code(db: AsyncSession, user_id: uuid.UUID, sessio
     if signed_in_at is None or datetime.now(UTC) - signed_in_at > HANDOFF_WINDOW:
         return None
 
-    await delete_expired_mfa_challenges(db)
     code, jti, expires_at = create_native_handoff_token(user_id, session_id, code_challenge)
     db.add(MfaChallenge(jti=jti, user_id=user_id, purpose=NATIVE_HANDOFF_PURPOSE, expires_at=expires_at))
     await db.commit()

@@ -13,7 +13,8 @@ from app.models.tag import TransactionTag
 from app.services.accounts.snapshots import recompute_account_snapshots
 from app.services.cache_state import mark_user_cache_changed
 from app.services.importers.shared import run_history as run_history_module
-from tests.conftest import TestSession
+from app.services.maintenance.expired_records import prune_expired_records
+from tests.conftest import ScopedSession, TestSession
 from tests.routes.support import _create_account, _create_user, _get_auth_header, _wait_until_blocked
 from tests.routes.transactions._helpers import _create_transaction, _get_system_category_id, _setup_user_with_deps
 from tests.routes.transactions._import_helpers import (
@@ -503,8 +504,7 @@ async def test_an_import_past_the_undo_window_is_refused_then_deleted_with_its_l
     refused = await _undo(client, headers, run_id)
     assert (refused.status_code, refused.json()["detail"]) == (409, "This import can no longer be undone")
 
-    # Opening the next upload clears what has expired
-    await _open_run(client, headers)
+    await prune_expired_records(ScopedSession)
     assert await _count("import_runs", run_id) == 0
     assert await _count_unlinked_rows(summary["created_account_ids"][0]) == 3
 
@@ -517,7 +517,7 @@ async def test_an_import_a_change_made_permanent_is_kept_for_the_undo_window(cli
     assert resp.status_code == 201, resp.text
     await _age_commit(run_id, _SHORT_OF_UNDO_WINDOW)
 
-    await _open_run(client, headers)
+    await prune_expired_records(ScopedSession)
     assert await _count("import_runs", run_id) == 1
 
 

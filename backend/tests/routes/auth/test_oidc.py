@@ -519,19 +519,22 @@ async def test_callback_rejects_wrong_binding_cookie(client, provider_protocol):
 
 
 async def test_callback_rejects_expired_state(client, provider_protocol):
-    """A roundtrip past its expiry no longer completes"""
+    """A roundtrip past its expiry no longer completes, even while starting another sign-in leaves its row"""
     provider = await _seed_provider()
+    stale = OidcAuthorizationRequest(
+        state_hash=hash_token("stale-state"),
+        nonce="n",
+        code_verifier="v",
+        provider_id=provider.id,
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),
+    )
     async with TestSession() as session:
-        session.add(
-            OidcAuthorizationRequest(
-                state_hash=hash_token("stale-state"),
-                nonce="n",
-                code_verifier="v",
-                provider_id=provider.id,
-                expires_at=datetime.now(UTC) - timedelta(minutes=1),
-            )
-        )
+        session.add(stale)
         await session.commit()
+
+    await _start_sign_in(client)
+    async with TestSession() as session:
+        assert await session.get(OidcAuthorizationRequest, stale.id) is not None, "the row is left to the scheduled cleanup"
 
     resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": "stale-state"})
 

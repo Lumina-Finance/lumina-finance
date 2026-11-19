@@ -5,15 +5,13 @@ transaction currency and any foreign amount as the export states them, and every
 account named by its mapping source
 """
 
-import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
 
-from app.routes.auth import token_helpers
 from tests.conftest import TestSession
-from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 from tests.routes.transactions._helpers import _create_account, _seed_usd_currency, _setup_user_with_deps
 from tests.routes.transactions._import_helpers import (
     _GROCERIES,
@@ -382,91 +380,32 @@ async def _count_run_rows(run_id):
     return runs, staged
 
 
-async def test_opening_a_run_deletes_abandoned_runs_and_keeps_committed_and_recent_ones(client):
-    """A run left uncommitted goes once the user imports again, and a committed one still answers its commit."""
-    headers = _get_auth_header(await _create_user(client))
-    other_headers, _, _ = await _setup_user_with_deps(client, email="other@example.com", name_prefix="Other")
-    others = await _open_staged_run(client, other_headers, _firefly_batch(1), "firefly")
-    await _age_run(others, _PAST_ABANDONMENT)
+async def test_an_abandoned_run_outlasts_new_imports_and_sign_ins_and_is_still_refused(client):
+    """Opening, signing in and renewing delete no run, and one left past the cutoff never lands, so nothing doubles."""
+    signup = await _create_user(client)
+    headers = _get_auth_header(signup)
     committed = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
     summary = (await client.post(f"/transactions/import/runs/{committed}/journal/commit", headers=headers)).json()
-    abandoned = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
+    before = await _snapshot(client, headers)
+    run_id = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
     recent = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
     await _age_run(committed, _PAST_ABANDONMENT)
-    await _age_run(abandoned, _PAST_ABANDONMENT)
-    # Just short of the cutoff, so a cutoff set too short would delete it
+    await _age_run(run_id, _PAST_ABANDONMENT)
+    # Just short of the cutoff, so a cutoff set too short would refuse it
     await _age_run(recent, _SHORT_OF_ABANDONMENT)
 
     await _open_run(client, headers, 1, "firefly")
-
-    replayed, gone, fresh = [
-        await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers) for run_id in (committed, abandoned, recent)
-    ]
-    assert (replayed.status_code, replayed.json()) == (201, summary)
-    assert (gone.status_code, gone.json()["detail"]) == (404, "Import run not found")
-    assert fresh.status_code == 201, fresh.text
-    assert await _count_run_rows(abandoned) == (0, 0)
-
-    # Every user's abandoned runs go, since the cleanup sweeps the whole table
-    assert await _count_run_rows(others) == (0, 0)
-
-
-async def test_opening_a_run_passes_over_an_abandoned_run_another_request_holds(client):
-    """A run a commit still holds is left for that commit to settle, rather than waited on or deleted."""
-    headers = _get_auth_header(await _create_user(client))
-    held = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
-    await _age_run(held, _PAST_ABANDONMENT)
-
-    # Bounded so that waiting on the held run fails this test rather than hanging it
-    async with TestSession() as holder:
-        await holder.execute(text("SELECT id FROM import_runs WHERE id = :id FOR UPDATE"), {"id": held})
-        async with asyncio.timeout(5):
-            await _open_run(client, headers, 1, "firefly")
-        await holder.rollback()
-
-    assert await _count_run_rows(held) == (1, 1)
-
-
-async def test_an_abandoned_run_is_refused_rather_than_saved(client):
-    """A run left uncommitted past the cutoff never lands, so an import brought in again since cannot double."""
-    headers = _get_auth_header(await _create_user(client))
-    before = await _snapshot(client, headers)
-    run_id = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
-    await _age_run(run_id, _PAST_ABANDONMENT)
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
+    assert login.status_code == 200, login.text
+    client.cookies.set("refresh_token", login.cookies["refresh_token"])
+    assert (await client.post("/auth/refresh")).status_code == 200
+    assert await _count_run_rows(run_id) == (1, 1), "the run is left to the scheduled cleanup"
 
     resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
 
     assert (resp.status_code, resp.json()["detail"]) == (422, "This import expired before it was saved")
-    assert await _snapshot(client, headers) == before
-
-
-async def test_renewing_a_sign_in_deletes_the_users_abandoned_runs(client):
-    """A run left uncommitted goes even when its user never imports again, so nothing is kept for good."""
-    signup = await _create_user(client)
-    abandoned = await _open_staged_run(client, _get_auth_header(signup), _firefly_batch(1), "firefly")
-    await _age_run(abandoned, _PAST_ABANDONMENT)
-    client.cookies.set("refresh_token", signup.cookies["refresh_token"])
-
-    resp = await client.post("/auth/refresh")
-
-    assert resp.status_code == 200, resp.text
-    assert await _count_run_rows(abandoned) == (0, 0)
-
-
-async def test_renewing_a_sign_in_succeeds_when_its_import_cleanup_fails(client, monkeypatch):
-    """The cleanup is only housekeeping, so its failure leaves the user signed in."""
-    signup = await _create_user(client)
-
-    async def fail_cleanup(db):
-        # A real failure comes mid-statement, so the cleanup has a transaction open to roll back
-        await db.execute(text("SELECT 1"))
-        raise RuntimeError("cleanup failed")
-
-    monkeypatch.setattr(token_helpers, "delete_expired_import_runs", fail_cleanup)
-    client.cookies.set("refresh_token", signup.cookies["refresh_token"])
-
-    resp = await client.post("/auth/refresh")
-
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["user"]["id"] == signup.json()["user"]["id"]
-    assert "refresh_token" in resp.cookies
+    assert await _snapshot(client, headers) == before, "the refused run writes nothing"
+    replayed = await client.post(f"/transactions/import/runs/{committed}/journal/commit", headers=headers)
+    assert (replayed.status_code, replayed.json()) == (201, summary), "a saved run still answers its commit"
+    fresh = await client.post(f"/transactions/import/runs/{recent}/journal/commit", headers=headers)
+    assert fresh.status_code == 201, fresh.text
