@@ -73,7 +73,10 @@ describe('reading an amount in a selected format', () => {
     { name: 'fullwidth hyphen-minus', dash: '－' },
   ])('reads a leading $name as a minus', ({ dash }) => {
     expect(readImportAmount(`${dash}10,00`, DECIMAL_COMMA)).toMatchObject({ normalized: '-10.00', sign: 'negative' })
-    expect(readImportAmount(`CHF${dash}100,99`, DECIMAL_COMMA)).toMatchObject({ normalized: '-100.99', sign: 'negative' })
+    expect(readImportAmount(`CHF${dash}100,99`, DECIMAL_COMMA)).toMatchObject({
+      normalized: '-100.99',
+      sign: 'negative',
+    })
     expect(isBareImportAmount(`${dash}10.00`)).toBe(true)
     expect(readImportAmount(`100,99${dash}`, DECIMAL_COMMA)).toBeNull()
     expect(readImportAmount(`${dash}-100,99`, DECIMAL_COMMA)).toBeNull()
@@ -123,7 +126,6 @@ describe('reading an amount in a selected format', () => {
 
   it('retains every decimal digit for exact minor-unit conversion', () => {
     expect(readImportAmount('12,3400', DECIMAL_COMMA)?.normalized).toBe('12.3400')
-    expect(readImportAmount('92.233.720.368.547.758,07', DECIMAL_COMMA)?.normalized)
-      .toBe('92233720368547758.07')
+    expect(readImportAmount('92.233.720.368.547.758,07', DECIMAL_COMMA)?.normalized).toBe('92233720368547758.07')
   })
 })
