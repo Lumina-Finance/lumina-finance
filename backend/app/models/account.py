@@ -12,9 +12,11 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     SmallInteger,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,10 +33,14 @@ class Account(Base):
             "(owner_id IS NOT NULL AND group_id IS NULL) OR (owner_id IS NULL AND group_id IS NOT NULL)",
             name="ck_accounts_owner_xor_group",
         ),
+        # The read rule looks up a group admin's accounts here, and only group accounts have a group
+        Index("ix_accounts_group_id", "group_id", postgresql_where=text("group_id IS NOT NULL")),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+
+    # Indexed so the read rule and the account helpers find a user's accounts without reading everyone's
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     account_kind: Mapped[AccountKind] = mapped_column(nullable=False)
     account_type: Mapped[AccountType] = mapped_column(nullable=False)
@@ -68,7 +74,8 @@ class AccountPermission(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # Indexed so the account helpers find a user's grants without reading everyone's
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
     level: Mapped[PermissionLevel] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -93,9 +100,15 @@ class TaxAdvantagedCategory(Base):
     """Represent an individual-owned tax-advantaged category"""
 
     __tablename__ = "tax_advantaged_categories"
+    __table_args__ = (
+        # The read rule looks up the categories of the user's groups here, and few categories have a group
+        Index("ix_tax_advantaged_categories_group_id", "group_id", postgresql_where=text("group_id IS NOT NULL")),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    category_owner_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    # Indexed so the read rule finds a user's categories without reading everyone's
+    category_owner_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     tax_treatment: Mapped[TaxTreatment] = mapped_column(nullable=False)

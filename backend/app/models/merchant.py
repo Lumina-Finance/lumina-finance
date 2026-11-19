@@ -60,12 +60,17 @@ class Merchant(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))  # Null on system merchants
+
+    # Null on system merchants. Indexed so the read rule finds a user's merchants without reading everyone's
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
 
     # Ships with the app and belongs to everyone, so it cannot be renamed, deleted, or given a
     # default category, which lives on the merchant and would otherwise be shared by every user
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
-    default_category_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categories.id"))  # Auto-categorization hint
+
+    # Auto-categorization hint. Indexed so deleting a category checks for the merchants naming it
+    # without reading every user's
+    default_category_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categories.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

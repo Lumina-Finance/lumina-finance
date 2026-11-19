@@ -53,10 +53,14 @@ class BaseBudget(Base):
             "recurrence_month IS NULL OR (recurrence_month >= 1 AND recurrence_month <= 12)",
             name="ck_base_budgets_month_range",
         ),
+        # The read rule looks up a group admin's budgets here, and only group budgets have a group
+        Index("ix_base_budgets_group_id", "group_id", postgresql_where=text("group_id IS NOT NULL")),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+
+    # Indexed so the read rule and the budget helpers find a user's budgets without reading everyone's
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
@@ -123,11 +127,17 @@ class BudgetTrackedCategory(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    # Indexed so the read rule and budget spending find a budget's categories without reading every
+    # user's, since the unique index above leaves out categories no longer tracked
     base_budget_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("base_budgets.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
-    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False)
+
+    # Indexed so deleting a category checks for the budgets tracking it without reading every
+    # user's, since the unique index above leaves out categories no longer tracked
+    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"), nullable=False, index=True)
     added_at: Mapped[date] = mapped_column(Date, nullable=False)
     removed_at: Mapped[date | None] = mapped_column(Date)
 
@@ -147,7 +157,8 @@ class BudgetPermission(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # Indexed so the budget helpers find a user's grants without reading everyone's
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     base_budget_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("base_budgets.id", ondelete="CASCADE"),
         nullable=False,
