@@ -1,7 +1,11 @@
 /**
  * Tests the money input layer, which takes an amount in one written form and refuses anything else
  * outright, where the field used to reformat as the user typed and silently change the value
+ *
+ * The properties check every stored amount up to the largest safe integer, where a field showing a
+ * large stored amount used to round away its last digit, so saving the form unchanged altered it
  */
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
 import {
@@ -20,6 +24,46 @@ import {
 const CENTS = 2
 const WHOLE_UNITS = 0
 const MILS = 3
+
+// One more decimal place than any seeded currency uses, so a currency added later stays covered
+const MAX_EXPONENT = 4
+
+// An amount up to which the old division was exact at every exponent, so the new conversion must
+// give the same text up to this bound
+const DIVISION_EXACT_LIMIT = 10 ** 15
+
+const exponents = fc.integer({ min: 0, max: MAX_EXPONENT })
+
+/**
+ * Replays showing a stored amount in a field and settling it when the field is left, returning the
+ * minor units the form would then save
+ */
+function showAndSettle(minorUnits: number, exponent: number): number | null {
+  return toMinorUnits(normalizeMoneyInput(fromMinorUnits(minorUnits, exponent), exponent), exponent)
+}
+
+/**
+ * Builds text the field takes: whole digits, then optionally a decimal point and at most as many
+ * digits as the currency holds, bounded to amounts that stay within the largest safe integer
+ */
+const acceptedTyping = exponents.chain((exponent) =>
+  fc
+    .record({
+      whole: fc.stringMatching(/^\d{0,16}$/),
+      fraction:
+        exponent === 0
+          ? fc.constant(undefined)
+          : fc.option(fc.stringMatching(new RegExp(`^\\d{0,${exponent}}$`)), { nil: undefined }),
+    })
+    .filter(({ whole, fraction }) => {
+      const minorDigits = `${whole || '0'}${(fraction ?? '').padEnd(exponent, '0')}`
+      return BigInt(minorDigits) <= BigInt(Number.MAX_SAFE_INTEGER)
+    })
+    .map(({ whole, fraction }) => ({
+      typed: fraction === undefined ? whole : `${whole}.${fraction}`,
+      exponent,
+    })),
+)
 
 /**
  * Replays typing the given characters one at a time at the end of the field, keeping whatever the
@@ -141,6 +185,50 @@ describe('converting to and from stored minor units', () => {
     expect(normalizeMoneyInput('.99', CENTS)).toBe('0.99')
     expect(normalizeMoneyInput('007', CENTS)).toBe('7.00')
     expect(normalizeMoneyInput('', CENTS)).toBe('')
+  })
+
+  it('shows a large stored amount with every digit, so settling it saves the same amount', () => {
+    expect(fromMinorUnits(5843628871256092, 1)).toBe('584362887125609.2')
+    expect(showAndSettle(5843628871256092, 1)).toBe(5843628871256092)
+    expect(fromMinorUnits(Number.MAX_SAFE_INTEGER, CENTS)).toBe('90071992547409.91')
+  })
+
+  it('keeps the sign and pads small amounts out to the currency precision', () => {
+    expect(fromMinorUnits(-150, CENTS)).toBe('-1.50')
+    expect(fromMinorUnits(-150, WHOLE_UNITS)).toBe('-150')
+    expect(fromMinorUnits(5, CENTS)).toBe('0.05')
+    expect(fromMinorUnits(-5, MILS)).toBe('-0.005')
+    expect(fromMinorUnits(-0, CENTS)).toBe('0.00')
+  })
+
+  it('gives back every stored amount up to the largest safe integer once shown and settled', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER }), exponents, (minorUnits, exponent) => {
+        expect(showAndSettle(minorUnits, exponent)).toBe(minorUnits)
+      }),
+    )
+  })
+
+  it('shows the same text the division did wherever the division was exact', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: -DIVISION_EXACT_LIMIT, max: DIVISION_EXACT_LIMIT }),
+        exponents,
+        (minorUnits, exponent) => {
+          expect(fromMinorUnits(minorUnits, exponent)).toBe((minorUnits / 10 ** exponent).toFixed(exponent))
+        },
+      ),
+    )
+  })
+
+  it('settles typed text the same way a second time as the first', () => {
+    fc.assert(
+      fc.property(acceptedTyping, ({ typed, exponent }) => {
+        expect(isAcceptedMoneyInput(typed, exponent)).toBe(true)
+        const settled = normalizeMoneyInput(typed, exponent)
+        expect(normalizeMoneyInput(settled, exponent)).toBe(settled)
+      }),
+    )
   })
 })
 
