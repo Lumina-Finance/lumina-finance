@@ -10,7 +10,7 @@ import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import type { RunwayResult } from '@/api/user'
 import { getRunwaySegments } from '@/pages/dashboard/utils/getRunwaySegments'
-import { nonNegativeMinorUnits } from '@tests/utils/generators'
+import { signedMinorUnits } from '@tests/utils/generators'
 import { createAccount, runway } from './fixtures'
 
 // Widths are floating-point percentages, so their sum may sit a rounding error away from 100
@@ -19,9 +19,12 @@ const PERCENT_DIGITS_THAT_MUST_MATCH = 9
 // Enough accounts to sort and split several ways, with room for some to be left out
 const MAX_ACCOUNTS = 12
 
+// Balances on both sides of zero and at zero itself, since only a balance above zero gets a bar
+const runwayBalances = fc.oneof(fc.constant(0), signedMinorUnits)
+
 // Any mix of accounts the runway could be asked about: picked or not, archived or not, with or without a balance
 const runwayAccounts = fc.array(
-  fc.record({ balance: nonNegativeMinorUnits, isSelected: fc.boolean(), isArchived: fc.boolean() }),
+  fc.record({ balance: runwayBalances, isSelected: fc.boolean(), isArchived: fc.boolean() }),
   { maxLength: MAX_ACCOUNTS },
 )
 
