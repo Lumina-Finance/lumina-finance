@@ -109,8 +109,8 @@ export function usePasskeyManagement() {
     reuseReminder: reuseReminderVisible,
     dismissReuseReminder: () => setReuseReminderVisible(false),
 
-    // Dismissing without acknowledging leaves the passkey staged, a later login prunes it, so it also
-    // drops out of the visible list here
+    // Dismissing without acknowledging leaves the passkey staged until the scheduled cleanup or the next
+    // passkey registration removes it, so it also drops out of the visible list here
     dismissRecoveryCodes: () => {
       setPendingRecoveryCodes(null)
       setStagedPasskey(null)
