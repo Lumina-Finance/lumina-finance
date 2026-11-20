@@ -187,7 +187,8 @@ async def test_patch_account_empty_body_returns_unchanged(client):
     account_id = create_resp.json()["id"]
 
     before = await client.get(f"/accounts/{account_id}", headers=headers)
-    resp = await client.patch(f"/accounts/{account_id}", json={}, headers=headers)
+    with client.expecting_no_change():
+        resp = await client.patch(f"/accounts/{account_id}", json={}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json() == before.json()
@@ -273,11 +274,12 @@ async def test_patch_account_immutable_fields_ignored(client):
     create_resp = await _create_account(client, headers)
     account_id = create_resp.json()["id"]
 
-    resp = await client.patch(
-        f"/accounts/{account_id}",
-        json={"account_kind": "revolving", "account_type": "credit_card", "currency": "USD"},
-        headers=headers,
-    )
+    with client.expecting_no_change():
+        resp = await client.patch(
+            f"/accounts/{account_id}",
+            json={"account_kind": "revolving", "account_type": "credit_card", "currency": "USD"},
+            headers=headers,
+        )
 
     assert resp.status_code == 200
     data = resp.json()

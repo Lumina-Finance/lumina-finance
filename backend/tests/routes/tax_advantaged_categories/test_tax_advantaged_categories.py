@@ -572,7 +572,8 @@ async def test_update_with_an_empty_body_still_returns_the_metrics(client):
     headers = _get_auth_header(signup_resp)
     category_id = (await _create_tax_advantaged_category(client, headers)).json()["id"]
 
-    resp = await client.patch(f"/tax-advantaged-categories/{category_id}", json={}, headers=headers)
+    with client.expecting_no_change():
+        resp = await client.patch(f"/tax-advantaged-categories/{category_id}", json={}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["name"] == "TFSA"

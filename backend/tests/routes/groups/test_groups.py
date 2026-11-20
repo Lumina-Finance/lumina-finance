@@ -283,7 +283,8 @@ async def test_update_group_empty_body_returns_unchanged(client):
     create_resp = await _create_group(client, headers)
     group_id = create_resp.json()["id"]
 
-    resp = await client.patch(f"/groups/{group_id}", json={}, headers=headers)
+    with client.expecting_no_change():
+        resp = await client.patch(f"/groups/{group_id}", json={}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["name"] == "Smith Family"

@@ -49,6 +49,15 @@ class CacheStatus(BaseModel):
     next_calculation_boundary_at: datetime
     personal: CacheScopeStatus
     groups: dict[uuid.UUID, CacheScopeStatus] = Field(default_factory=dict)
+    shared_changed_at: datetime | None
+    server_version: str
+
+
+class RatesStatus(BaseModel):
+    """Digest of the recent exchange rates behind the converted figures the user has seen"""
+
+    # None when the rates can't be read now, and the browser then treats them as changed
+    digest: str | None
 
 
 class UpdateProfileRequest(BaseModel):

@@ -1446,7 +1446,8 @@ async def test_committing_twice_answers_from_the_first_commit(client):
     await client.post(f"/transactions/import/runs/{run_id}/rows", json=_batch(account_id, category_id, ["-1.00"]), headers=headers)
 
     first = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
-    second = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+    with client.expecting_no_change():
+        second = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
 
     assert (first.status_code, second.status_code) == (201, 201)
     assert second.json() == first.json()

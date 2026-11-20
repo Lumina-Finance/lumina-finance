@@ -73,6 +73,8 @@ SECURED_TABLES = (
     ("budget_permissions", f"{CAN_ACCESS_BASE_BUDGET}(base_budget_id)", f"{CAN_ACCESS_BASE_BUDGET}(base_budget_id)"),
     ("group_members", f"{CAN_ACCESS_GROUP}(group_id)", f"{CAN_ACCESS_GROUP}(group_id)"),
     ("group_cache_states", f"{CAN_ACCESS_GROUP}(group_id)", f"{CAN_ACCESS_GROUP}(group_id)"),
+    # The one row is every user's to read and move, but never without a signed-in identity
+    ("shared_cache_state", f"{CURRENT_USER_ID}() IS NOT NULL", f"{CURRENT_USER_ID}() IS NOT NULL"),
     ("user_cache_states", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}()"),
     ("user_runway_accounts", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)"),
     ("user_credit_excluded_accounts", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)"),

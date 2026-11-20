@@ -370,7 +370,8 @@ async def test_patch_merchant_empty_body_returns_unchanged(client):
     merchant_id = create_resp.json()["id"]
 
     before = await client.get(f"/merchants/{merchant_id}", headers=headers)
-    resp = await client.patch(f"/merchants/{merchant_id}", json={}, headers=headers)
+    with client.expecting_no_change():
+        resp = await client.patch(f"/merchants/{merchant_id}", json={}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json() == before.json()

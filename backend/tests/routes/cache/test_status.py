@@ -2,6 +2,7 @@ import importlib
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
+from app.config.runtime import APP_VERSION
 from tests.routes.support import _create_account, _create_user, _get_auth_header, sign_up_confirmed
 
 
@@ -76,6 +77,8 @@ async def test_cache_status_initially_null(client):
             "last_change_from_current_session": False,
         },
         "groups": {},
+        "shared_changed_at": None,
+        "server_version": APP_VERSION,
     }
 
 
@@ -216,6 +219,8 @@ async def test_group_write_updates_member_cache_status(client):
             "last_change_from_current_session": False,
         },
         "groups": {},
+        "shared_changed_at": None,
+        "server_version": APP_VERSION,
     }
     assert group_resp.status_code == 201
     assert add_member_resp.status_code == 201

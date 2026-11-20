@@ -189,7 +189,8 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
 
     # A commit whose response was lost is answered from the first, writing nothing again
     before = await _snapshot(client, headers)
-    repeat = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
+    with client.expecting_no_change():
+        repeat = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
     assert repeat.status_code == 201
     assert repeat.json() == summary
     assert await _snapshot(client, headers) == before
@@ -405,7 +406,8 @@ async def test_an_abandoned_run_outlasts_new_imports_and_sign_ins_and_is_still_r
 
     assert (resp.status_code, resp.json()["detail"]) == (422, "This import expired before it was saved")
     assert await _snapshot(client, headers) == before, "the refused run writes nothing"
-    replayed = await client.post(f"/transactions/import/runs/{committed}/journal/commit", headers=headers)
+    with client.expecting_no_change():
+        replayed = await client.post(f"/transactions/import/runs/{committed}/journal/commit", headers=headers)
     assert (replayed.status_code, replayed.json()) == (201, summary), "a saved run still answers its commit"
     fresh = await client.post(f"/transactions/import/runs/{recent}/journal/commit", headers=headers)
     assert fresh.status_code == 201, fresh.text

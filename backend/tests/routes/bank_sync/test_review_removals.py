@@ -484,7 +484,8 @@ async def test_removing_a_transaction_with_no_removal_waiting_is_refused_and_kee
     removal = await _removal_waiting(client, **item_values)
 
     refused = await _decide(client, removal, "remove-from-ledger")
-    kept = await _decide(client, removal, "keep-transaction")
+    with client.expecting_no_change():
+        kept = await _decide(client, removal, "keep-transaction")
 
     assert (refused.status_code, refused.json()["detail"]) == (409, _NO_REMOVAL)
     assert kept.status_code == 200, kept.text

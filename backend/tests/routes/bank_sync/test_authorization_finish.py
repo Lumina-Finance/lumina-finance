@@ -156,7 +156,8 @@ async def test_finish_with_the_banks_error_adds_nothing_and_says_where_to_return
     account_id = await _new_account(client, headers, "Everyday")
     state = await _started_state(client, headers, authorizing_provider, return_account_id=account_id)
 
-    cancelled = await _finish(client, headers, state, error="access_denied")
+    with client.expecting_no_change():
+        cancelled = await _finish(client, headers, state, error="access_denied")
 
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json() == {"outcome": "cancelled", "return_account_id": account_id, "connection": None, "reconnection": None}
@@ -170,7 +171,8 @@ async def test_finish_with_both_a_code_and_the_banks_error_believes_the_error_an
     headers, _ = await _sign_up(client)
     state = await _started_state(client, headers, authorizing_provider)
 
-    cancelled = await _finish(client, headers, state, code=CODE, error="access_denied")
+    with client.expecting_no_change():
+        cancelled = await _finish(client, headers, state, code=CODE, error="access_denied")
 
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["outcome"] == "cancelled"

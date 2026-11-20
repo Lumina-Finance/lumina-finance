@@ -9,6 +9,7 @@ from app.services.fx.errors import FxProviderUnavailableError, FxRateNotFoundErr
 from app.services.fx.frankfurter_provider import FrankfurterProvider
 from app.services.fx.provider import FxRateProvider
 from app.services.fx.rate_cache import CachedFxRateProvider
+from app.services.fx.used_pairs import record_used_pair
 from app.utils.date_window import EARLIEST_ALLOWED_DATE, get_latest_calendar_today
 from app.utils.dates import get_dates_in_range
 from app.utils.money import convert_minor_units_between_currencies as convert_minor_units
@@ -62,6 +63,9 @@ class FxConverter:
         self.success_count = 0
         self.missing_pairs: list[FxRateIssue] = []
 
+        # Pairs already recorded as in use, so a request's many conversions of one pair record it once
+        self.recorded_pairs: set[tuple[str, str]] = set()
+
     def clone(self) -> FxConverter:
         """Return an independent converter that starts with this one's loaded rates and failures
 
@@ -70,6 +74,7 @@ class FxConverter:
         cloned = FxConverter(provider=self.provider, currency_exponents=self.currency_exponents)
         cloned.rates = self.rates.copy()
         cloned.failed_rates = self.failed_rates.copy()
+        cloned.recorded_pairs = self.recorded_pairs
         return cloned
 
     async def convert_minor_units(
@@ -99,6 +104,7 @@ class FxConverter:
             return 0
 
         self.used_fx = True
+        await self._record_pair(normalized_base, normalized_quote)
         key = FxRateKey(rate_date, normalized_base, normalized_quote)
         if key in self.failed_rates:
             self._record_missing_pair(key, self.failed_rates[key])
@@ -139,6 +145,7 @@ class FxConverter:
         if normalized_base == normalized_quote or start_date > end_date:
             return
 
+        await self._record_pair(normalized_base, normalized_quote)
         dates = get_dates_in_range(start_date, end_date)
         try:
             rates = await self._fetch_latest_rates(normalized_base, normalized_quote, start_date, end_date)
@@ -225,6 +232,17 @@ class FxConverter:
             if rate_date >= start_date and latest_date is not None and rate_date - latest_date <= RATE_LOOKBACK:
                 rates[rate_date] = published[latest_date]
         return rates
+
+    async def _record_pair(self, base: str, quote: str) -> None:
+        """Record a pair the signed-in user's request converts, once for this converter and its clones
+
+        Args:
+            base: Normalized source currency code
+            quote: Normalized target currency code
+        """
+        if (base, quote) not in self.recorded_pairs:
+            self.recorded_pairs.add((base, quote))
+            await record_used_pair(base, quote)
 
     def _record_missing_pair(self, key: FxRateKey, reason: FxIssueReason) -> None:
         """Record a failed currency pair once for the converter status

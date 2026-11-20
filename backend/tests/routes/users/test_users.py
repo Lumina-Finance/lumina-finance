@@ -123,7 +123,8 @@ async def test_patch_empty_body_returns_unchanged_profile(client):
     headers = _get_auth_header(signup_resp)
 
     before = await client.get("/me", headers=headers)
-    resp = await client.patch("/me", json={}, headers=headers)
+    with client.expecting_no_change():
+        resp = await client.patch("/me", json={}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json() == before.json()
@@ -209,7 +210,8 @@ async def test_patch_extra_fields_are_ignored(client):
     headers = _get_auth_header(signup_resp)
 
     before = await client.get("/me", headers=headers)
-    resp = await client.patch("/me", json={"foo": "bar"}, headers=headers)
+    with client.expecting_no_change():
+        resp = await client.patch("/me", json={"foo": "bar"}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json() == before.json()
@@ -220,7 +222,8 @@ async def test_patch_email_is_ignored(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.patch("/me", json={"email": "hacker@evil.com"}, headers=headers)
+    with client.expecting_no_change():
+        resp = await client.patch("/me", json={"email": "hacker@evil.com"}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["email"] == SIGNUP_PAYLOAD["email"]

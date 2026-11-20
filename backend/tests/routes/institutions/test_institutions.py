@@ -3,6 +3,7 @@ from app.models.institution import Institution
 from app.routes import institution as institution_routes
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support.authorization_helpers import _sign_up_other_user
 
 # --- Helpers ---
 
@@ -465,18 +466,21 @@ async def test_update_institution_with_unchanged_values_changes_nothing(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.patch(
-        f"/institutions/{inst.id}",
-        json={
-            "name": "Test Bank",
-            "country_code": "CA",
-            "website": "https://testbank.example.com",
-        },
-        headers=headers,
-    )
+    with client.expecting_no_change():
+        resp = await client.patch(
+            f"/institutions/{inst.id}",
+            json={
+                "name": "Test Bank",
+                "country_code": "CA",
+                "website": "https://testbank.example.com",
+            },
+            headers=headers,
+        )
 
     assert resp.status_code == 200
     assert resp.json()["status"] == "canonical"
+    status = await client.get("/me/cache-status", headers=headers)
+    assert status.json()["shared_changed_at"] is None, "a save that changes no value moves no marker"
 
 
 async def test_update_institution_losing_a_name_race_returns_409(client, monkeypatch):
@@ -485,14 +489,14 @@ async def test_update_institution_losing_a_name_race_returns_409(client, monkeyp
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    real_mark_user_cache_changed = institution_routes.mark_user_cache_changed
+    real_mark_shared_cache_changed = institution_routes.mark_shared_cache_changed
 
-    async def claim_the_pair_first(db, user_id):
+    async def claim_the_pair_first(db):
         """Take the requested pair from another session, the way a concurrent write would"""
         await _seed_institution(name="Alpha Bank", country_code="CA")
-        await real_mark_user_cache_changed(db, user_id)
+        await real_mark_shared_cache_changed(db)
 
-    monkeypatch.setattr(institution_routes, "mark_user_cache_changed", claim_the_pair_first)
+    monkeypatch.setattr(institution_routes, "mark_shared_cache_changed", claim_the_pair_first)
 
     resp = await client.patch(
         f"/institutions/{inst.id}",
@@ -509,14 +513,14 @@ async def test_create_institution_losing_a_name_race_returns_409(client, monkeyp
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    real_mark_user_cache_changed = institution_routes.mark_user_cache_changed
+    real_mark_shared_cache_changed = institution_routes.mark_shared_cache_changed
 
-    async def claim_the_pair_first(db, user_id):
+    async def claim_the_pair_first(db):
         """Take the requested pair from another session, the way a concurrent write would"""
         await _seed_institution(name="Test Bank", country_code="CA")
-        await real_mark_user_cache_changed(db, user_id)
+        await real_mark_shared_cache_changed(db)
 
-    monkeypatch.setattr(institution_routes, "mark_user_cache_changed", claim_the_pair_first)
+    monkeypatch.setattr(institution_routes, "mark_shared_cache_changed", claim_the_pair_first)
 
     resp = await client.post("/institutions", json=INSTITUTION_PAYLOAD, headers=headers)
 
@@ -530,12 +534,15 @@ async def test_update_institution_with_no_fields_changes_nothing(client):
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    resp = await client.patch(f"/institutions/{inst.id}", json={}, headers=headers)
+    with client.expecting_no_change():
+        resp = await client.patch(f"/institutions/{inst.id}", json={}, headers=headers)
 
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "canonical"
     assert data["website"] == "https://testbank.example.com"
+    status = await client.get("/me/cache-status", headers=headers)
+    assert status.json()["shared_changed_at"] is None, "a request with no fields moves no marker"
 
 
 async def test_update_institution_not_found_returns_404(client):
@@ -595,22 +602,49 @@ async def test_update_institution_without_auth_returns_401(client):
     assert resp.status_code == 401
 
 
-async def test_update_institution_updates_cache_status(client):
-    """A correction marks app data changed for the submitting user's cache validation."""
+async def test_institution_changes_move_the_shared_marker_other_users_check(client):
+    """Another user's change check sees an institution created or corrected, which their own marker cannot carry."""
     inst = await _seed_institution()
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
+    writer_headers = _get_auth_header(await _create_user(client))
+    other_headers, _other_id = await _sign_up_other_user(client)
 
-    before_resp = await client.get("/me/cache-status", headers=headers)
-    resp = await client.patch(
-        f"/institutions/{inst.id}",
-        json={"website": "https://newbank.example.com"},
-        headers=headers,
-    )
-    after_resp = await client.get("/me/cache-status", headers=headers)
+    async def shared_marker():
+        resp = await client.get("/me/cache-status", headers=other_headers)
+        assert resp.status_code == 200, resp.text
+        return resp.json()["shared_changed_at"]
 
-    assert resp.status_code == 200
-    before_changed_at = before_resp.json()["personal"]["changed_at"]
-    after_changed_at = after_resp.json()["personal"]["changed_at"]
-    assert after_changed_at is not None
-    assert after_changed_at != before_changed_at
+    unmarked = await shared_marker()
+    assert unmarked is None, "a fresh database has recorded no shared change"
+
+    created = await client.post("/institutions", json={**INSTITUTION_PAYLOAD, "name": "New Bank"}, headers=writer_headers)
+    assert created.status_code == 201, created.text
+    after_create = await shared_marker()
+    assert after_create is not None, "creating an institution moves the shared marker"
+
+    corrected = await client.patch(f"/institutions/{inst.id}", json={"website": "https://newbank.example.com"}, headers=writer_headers)
+    assert corrected.status_code == 200, corrected.text
+    after_edit = await shared_marker()
+    assert after_edit != after_create, "correcting an institution moves the shared marker"
+
+
+async def test_institution_changes_move_the_editors_own_marker_too(client):
+    """The browser compares only the personal marker for now, so the editor's other tabs need it to move"""
+    inst = await _seed_institution()
+    headers = _get_auth_header(await _create_user(client))
+
+    async def personal_marker():
+        resp = await client.get("/me/cache-status", headers=headers)
+        assert resp.status_code == 200, resp.text
+        return resp.json()["personal"]["changed_at"]
+
+    before = await personal_marker()
+
+    created = await client.post("/institutions", json={**INSTITUTION_PAYLOAD, "name": "New Bank"}, headers=headers)
+    assert created.status_code == 201, created.text
+    after_create = await personal_marker()
+    assert after_create is not None, "creating an institution sets the editor's own marker"
+    assert before is None or after_create > before, "creating an institution moves the editor's own marker"
+
+    corrected = await client.patch(f"/institutions/{inst.id}", json={"website": "https://newbank.example.com"}, headers=headers)
+    assert corrected.status_code == 200, corrected.text
+    assert await personal_marker() > after_create, "correcting an institution moves the editor's own marker"

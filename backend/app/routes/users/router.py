@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.runtime import APP_VERSION
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import TaxAdvantagedCategory
@@ -17,10 +18,12 @@ from app.models.user import User
 from app.schemas.user import (
     CacheScopeStatus,
     CacheStatus,
+    RatesStatus,
     UpdateProfileRequest,
     UserProfile,
 )
-from app.services.cache_state import get_visible_cache_status, mark_user_cache_changed, select_user_group_ids
+from app.services.cache_state import get_shared_cache_changed_at, get_visible_cache_status, mark_user_cache_changed, select_user_group_ids
+from app.services.fx.rates_status import get_rates_digest, holds_other_currencies
 from app.services.tax_advantaged_categories import get_category_owner_timezones
 from app.utils.dates import resolve_timezone
 
@@ -60,8 +63,20 @@ async def get_cache_status(
             )
             for group_id, group_status in status.groups.items()
         },
+        shared_changed_at=await get_shared_cache_changed_at(db),
+        server_version=APP_VERSION,
     )
     return cache_status
+
+
+@router.get("/rates-status", response_model=RatesStatus)
+async def get_rates_status(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return a digest of the recent exchange rates behind the user's converted figures"""
+    other_currencies = await holds_other_currencies(db, user.base_currency)
+    return RatesStatus(digest=await get_rates_digest(user.id, holds_other_currencies=other_currencies))
 
 
 async def _get_calculation_date_boundary(db: AsyncSession, user: User) -> tuple[date, str, datetime]:

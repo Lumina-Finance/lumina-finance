@@ -19,7 +19,8 @@ from tests.routes.transactions._import_helpers import _build_reference_batch, _o
 # Reference acquisition must remain bounded independently of necessary snapshot and write work
 COMMIT_REFERENCE_SELECT_LIMIT = 16
 REFERENCE_TABLES = re.compile(
-    r"\b(?:FROM|JOIN) (?:accounts|account_permissions|group_members|categories|currencies|institutions)\b", re.IGNORECASE,
+    r"\b(?:FROM|JOIN) (?:accounts|account_permissions|group_members|categories|currencies|institutions)\b",
+    re.IGNORECASE,
 )
 
 
@@ -75,15 +76,23 @@ async def test_commit_reference_reads_are_bounded_with_exact_financial_rows_and_
     assert summary["transactions_created"] == count
     assert summary["accounts_created"] == (count if mode == "create_accounts" else 0)
     assert summary["categories_created"] == ((count + 1) // 2 if mode == "new_category_names" else 0)
-    replay, replay_counts = await _commit_with_reference_count(client, headers, run_id)
+    with client.expecting_no_change():
+        replay, replay_counts = await _commit_with_reference_count(client, headers, run_id)
     assert replay.status_code == 201, replay.text
     assert replay.json() == summary
     async with TestSession() as session:
-
         # Read the actual durable ledger to prove every source survived resolution and replay
-        transactions = (await session.execute(select(Transaction).where(
-            Transaction.account_id.in_([uuid.UUID(value) for value in summary["account_source_ids"].values()]),
-        ))).scalars().all()
+        transactions = (
+            (
+                await session.execute(
+                    select(Transaction).where(
+                        Transaction.account_id.in_([uuid.UUID(value) for value in summary["account_source_ids"].values()]),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
     assert len(transactions) == count
     by_notes = {transaction.notes: transaction for transaction in transactions}
     assert set(by_notes) == {f"Reference row {index}" for index in range(count)}
@@ -108,9 +117,17 @@ async def test_commit_batched_group_access_keeps_admin_and_explicit_write_succes
         "start_row_index": 0,
         "accounts": [{"source": f"Account {index}", "account_id": account_id} for index in range(10)],
         "categories": [{"source": f"Category {index}", "category_id": category_id} for index in range(10)],
-        "rows": [{"account_source": f"Account {index}", "category_source": f"Category {index}",
-                  "dt": "2026-04-10", "amount": "-1.23", "notes": f"Group row {index}", "tag_names": []}
-                 for index in range(10)],
+        "rows": [
+            {
+                "account_source": f"Account {index}",
+                "category_source": f"Category {index}",
+                "dt": "2026-04-10",
+                "amount": "-1.23",
+                "notes": f"Group row {index}",
+                "tag_names": [],
+            }
+            for index in range(10)
+        ],
     }
     run_id = await _open_run(client, headers, 10)
     staged = await client.post(f"/transactions/import/runs/{run_id}/rows", headers=headers, json=batch)
@@ -130,14 +147,18 @@ async def test_commit_category_name_candidates_keep_personal_precedence_and_data
     headers, batch = await _build_reference_batch(client, 2, "aliases")
     account_id = uuid.UUID(batch["accounts"][0]["account_id"])
     async with TestSession() as session:
-
         # Use the synthetic owner and the database's actual locale rather than a Python case oracle
         owner_id = (await session.execute(select(Account.owner_id).where(Account.id == account_id))).scalar_one()
         if name_case == "personal_precedence":
             requested_name = "GROCERIES"
-            system = (await session.execute(select(Category).where(
-                Category.is_system.is_(True), func.lower(Category.name) == func.lower(literal(requested_name)),
-            ))).scalar_one()
+            system = (
+                await session.execute(
+                    select(Category).where(
+                        Category.is_system.is_(True),
+                        func.lower(Category.name) == func.lower(literal(requested_name)),
+                    )
+                )
+            ).scalar_one()
             existing_name = system.name
         else:
             requested_name = "Database İ category"
@@ -171,7 +192,6 @@ async def test_commit_category_collision_rereads_real_row_and_updates_later_sour
     headers, batch = await _build_reference_batch(client, 2, "aliases")
     account_id = uuid.UUID(batch["accounts"][0]["account_id"])
     async with TestSession() as session:
-
         # Stamp the independent writer's category with the same real synthetic owner
         owner_id = (await session.execute(select(Account.owner_id).where(Account.id == account_id))).scalar_one()
     for index, mapping in enumerate(batch["categories"]):
@@ -186,8 +206,7 @@ async def test_commit_category_collision_rereads_real_row_and_updates_later_sour
         """Pause after the real preload and commit a real independent conflicting category"""
         facts = await original_loader(db, user_id, names)
         async with TestSession() as writer:
-            category = Category(id=uuid.uuid4(), owner_id=owner_id, name="Concurrent category",
-                                kind=CategoryKind(collision_kind))
+            category = Category(id=uuid.uuid4(), owner_id=owner_id, name="Concurrent category", kind=CategoryKind(collision_kind))
             writer.add(category)
             await writer.commit()
             created_ids.append(str(category.id))
