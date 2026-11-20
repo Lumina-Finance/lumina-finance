@@ -67,6 +67,7 @@ describe('the account step table rows', () => {
       accountType: 'checking',
       accountCurrency: 'CAD',
       accountInstitution: 'bank',
+      accountInstitutionRecord: { id: 'bank', name: 'Bank' },
     })
   })
 

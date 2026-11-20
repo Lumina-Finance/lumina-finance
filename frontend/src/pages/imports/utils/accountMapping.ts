@@ -617,6 +617,7 @@ export function buildImportAccountMappingRows(
       accountType: account?.account_type ?? '',
       accountCurrency: account?.currency ?? '',
       accountInstitution: account?.institution?.id ?? '',
+      accountInstitutionRecord: account?.institution ?? null,
       createType: createDetails?.accountType ?? '',
       createCurrency: createDetails?.currency ?? '',
       createInstitution: createDetails?.institutionId ?? '',

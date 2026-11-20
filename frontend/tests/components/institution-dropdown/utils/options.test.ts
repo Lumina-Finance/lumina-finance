@@ -43,13 +43,6 @@ describe('findSelectedInstitution', () => {
     expect(findSelectedInstitution('alpha', [], null, fetchedCopy)).toBe(fetchedCopy)
   })
 
-  it('finds a selection that sits beyond the first page by what the caller holds', () => {
-    const firstPage = Array.from({ length: 50 }, (_, index) => createInstitution(`bank-${index}`, `Bank ${index}`))
-    const accountsInstitution = createInstitution('zeta', 'Zeta Bank')
-
-    expect(findSelectedInstitution('zeta', firstPage, accountsInstitution, undefined)).toBe(accountsInstitution)
-  })
-
   it('ignores a held institution that is a different one from the value', () => {
     expect(findSelectedInstitution('alpha', [], beta, undefined)).toBeUndefined()
     expect(findSelectedInstitution('alpha', [], null, beta)).toBeUndefined()

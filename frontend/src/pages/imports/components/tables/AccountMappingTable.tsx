@@ -1,4 +1,5 @@
 import { useEffect, useId, type Dispatch, type SetStateAction } from 'react'
+import type { Institution } from '@/api/institutions'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
 import { InstitutionDropdown } from '@/components/institution-dropdown/InstitutionDropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE, UNSET_BATCH_INSTITUTION } from '@/pages/imports/constants'
@@ -64,6 +65,9 @@ export function ImportAccountMappingTable({
     accountType: string
     accountCurrency: string
     accountInstitution: string
+
+    /** The institution the matched account carries, so its row names it without a request */
+    accountInstitutionRecord: Institution | null
     createType: string
     createCurrency: string
     createInstitution: string
@@ -259,6 +263,7 @@ export function ImportAccountMappingTable({
           <InstitutionDropdown
             labelledBy={`${institutionHeadingId} ${sourceLabelId}`}
             value={creating ? row.createInstitution : row.accountInstitution}
+            selectedInstitution={row.accountInstitutionRecord}
             onChange={row.onCreateInstitutionChange}
             // The institution list spends the empty string on "None", so without this an unanswered
             // row reads as having been given one, and its tooltip repeats the claim
