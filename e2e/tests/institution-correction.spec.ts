@@ -53,8 +53,8 @@ test('corrects the highlighted institution by keyboard and the original inline a
   await expect(correction).toBeHidden()
   await expect(picker).toHaveText('None')
 
+  // With nothing typed the highlighted option is None, and it has nothing to correct
   await picker.click()
-  await search.fill('None')
   await expect(create.getByRole('option', { name: 'None', exact: true })).toBeVisible()
   await search.press('Alt+Enter')
   await expect(correction).toBeHidden()
