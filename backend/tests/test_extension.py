@@ -1,0 +1,108 @@
+"""Supported points tests: a rename or a changed call signature of a point fails here, naming the point
+
+Code outside the app builds on the names in app.extension, so moving one is a decision to make in
+the same change as its entry in the table below, never a side effect of a refactor
+"""
+
+import inspect
+import re
+import subprocess
+import sys
+import typing
+from pathlib import Path
+
+import pytest
+from fastapi import FastAPI
+
+from app import extension
+from app.extension import SUPPORTED_POINTS
+
+BACKEND_DIRECTORY = Path(__file__).resolve().parents[1]
+
+
+class _Text(str):
+    """Text that shows as itself in a signature, where a plain string would show quoted"""
+
+    __repr__ = str.__str__
+
+
+def _type_text(annotation) -> str:
+    """Name an annotation without its modules or its Annotated metadata, so a library moving a class changes nothing"""
+    if typing.get_origin(annotation) is typing.Annotated:
+        annotation = typing.get_args(annotation)[0]
+    return re.sub(r"\b[a-z_][a-z0-9_]*\.", "", inspect.formatannotation(annotation))
+
+
+def _describe(label: str, callable_) -> str:
+    """Write a callable as one line, such as `async run_jobs(max_jobs: int) -> int`, hiding default values"""
+    signature = inspect.signature(callable_)
+    parameters = [
+        parameter.replace(
+            annotation=_Text(_type_text(parameter.annotation)) if parameter.annotation is not parameter.empty else parameter.empty,
+            default=_Text("...") if parameter.default is not parameter.empty else parameter.empty,
+        )
+        for parameter in signature.parameters.values()
+    ]
+    # A class's signature is its constructor's, whose None return says nothing a caller relies on
+    has_return = signature.return_annotation is not signature.empty and not inspect.isclass(callable_)
+    returns = _Text(_type_text(signature.return_annotation)) if has_return else signature.empty
+    prefix = "async " if inspect.iscoroutinefunction(callable_) else ""
+    return f"{prefix}{label}{signature.replace(parameters=parameters, return_annotation=returns)}"
+
+
+# What each point promises to code calling it. A line changes only together with a change to the
+# design page that describes the point
+EXPECTED_SHAPES: dict[str, str] = {
+    "observe_requests": "observe_requests(observer: Callable[[RequestRecord], None]) -> None",
+    "RequestRecord": "RequestRecord(scope: Mapping[str, Any], method: str, route: str, status: int, duration_seconds: float)",
+    "get_authenticated_user": "async get_authenticated_user(credentials: HTTPAuthorizationCredentials, db: AsyncSession) -> User",
+    "set_email_sender": "set_email_sender(sender: EmailSender) -> None",
+    "EmailSender": "async EmailSender.send(self, recipient: str, message: RenderedEmail) -> None",
+    "RenderedEmail": "RenderedEmail(subject: str, text_body: str, html_body: str | None = ...)",
+    "enqueue_due_work": "async enqueue_due_work() -> None",
+    "run_jobs": "async run_jobs(max_jobs: int, deadline: datetime | None = ...) -> int",
+    "prune_expired_records": "async prune_expired_records(session_factory: async_sessionmaker[AsyncSession] = ...) -> None",
+}
+
+
+def test_every_supported_point_has_its_shape_pinned():
+    """Listing a point in the module means writing down the shape it promises, and the reverse"""
+    assert set(SUPPORTED_POINTS) == {"app", *EXPECTED_SHAPES}
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED_SHAPES))
+def test_a_point_keeps_its_name_and_call_signature(name):
+    """Renaming a point, or changing its arguments, their kinds, their types or which have defaults, fails naming it"""
+    point = getattr(extension, name)
+    described = _describe("EmailSender.send" if name == "EmailSender" else name, point.send if name == "EmailSender" else point)
+
+    assert described == EXPECTED_SHAPES[name], f"supported point {name} changed shape"
+
+
+def test_the_email_sender_point_stays_a_protocol_any_class_can_satisfy():
+    """A sender is any object with the right send method, so it never has to inherit from the app's class"""
+    assert typing.is_protocol(extension.EmailSender), "supported point EmailSender is no longer a protocol"
+
+
+def test_the_app_point_is_an_application_taking_dependency_overrides():
+    """Code outside the app serves this object and replaces its dependencies through the override table"""
+    assert isinstance(extension.app, FastAPI), "supported point app is no longer a FastAPI application"
+
+
+def test_a_name_that_is_not_a_point_is_not_there():
+    """Only the listed points are supported, so another name of the app is not reachable through the module"""
+    with pytest.raises(AttributeError):
+        extension.get_db  # noqa: B018
+
+
+def test_importing_the_module_needs_no_settings_and_loads_no_heavy_module():
+    """The signing keys and the database password are only read when a point that needs them is asked for"""
+    heavy = ("app.dependencies", "app.database", "app.main", "app.config.jwt")
+    program = f"import sys, app.extension; print([name for name in {heavy!r} if name in sys.modules])"
+
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", program], cwd=BACKEND_DIRECTORY, env={}, capture_output=True, text=True, check=False
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "[]"
