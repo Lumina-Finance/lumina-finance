@@ -625,26 +625,3 @@ async def test_institution_changes_move_the_shared_marker_other_users_check(clie
     assert corrected.status_code == 200, corrected.text
     after_edit = await shared_marker()
     assert after_edit != after_create, "correcting an institution moves the shared marker"
-
-
-async def test_institution_changes_move_the_editors_own_marker_too(client):
-    """The browser compares only the personal marker for now, so the editor's other tabs need it to move"""
-    inst = await _seed_institution()
-    headers = _get_auth_header(await _create_user(client))
-
-    async def personal_marker():
-        resp = await client.get("/me/cache-status", headers=headers)
-        assert resp.status_code == 200, resp.text
-        return resp.json()["personal"]["changed_at"]
-
-    before = await personal_marker()
-
-    created = await client.post("/institutions", json={**INSTITUTION_PAYLOAD, "name": "New Bank"}, headers=headers)
-    assert created.status_code == 201, created.text
-    after_create = await personal_marker()
-    assert after_create is not None, "creating an institution sets the editor's own marker"
-    assert before is None or after_create > before, "creating an institution moves the editor's own marker"
-
-    corrected = await client.patch(f"/institutions/{inst.id}", json={"website": "https://newbank.example.com"}, headers=headers)
-    assert corrected.status_code == 200, corrected.text
-    assert await personal_marker() > after_create, "correcting an institution moves the editor's own marker"

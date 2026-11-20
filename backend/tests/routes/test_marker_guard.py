@@ -22,7 +22,6 @@ async def test_a_write_route_that_forgets_to_mark_fails_the_guard(client, monkey
         """Do what the writer did before it marked"""
 
     monkeypatch.setattr(institution_routes, "mark_shared_cache_changed", forget_to_mark)
-    monkeypatch.setattr(institution_routes, "mark_user_cache_changed", forget_to_mark)
 
     with pytest.raises(AssertionError, match="POST /institutions answered 201"):
         await client.post("/institutions", json=_INSTITUTION, headers=headers)
@@ -52,7 +51,6 @@ async def test_the_opt_out_ends_with_its_block(client, monkeypatch):
         """Do what the writer did before it marked"""
 
     monkeypatch.setattr(institution_routes, "mark_shared_cache_changed", forget_to_mark)
-    monkeypatch.setattr(institution_routes, "mark_user_cache_changed", forget_to_mark)
 
     with client.expecting_no_change():
         inside = await client.post("/institutions", json=_INSTITUTION, headers=headers)
