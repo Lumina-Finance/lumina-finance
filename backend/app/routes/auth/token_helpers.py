@@ -475,6 +475,34 @@ async def get_active_token_by_jti(
     return active_token
 
 
+async def get_refresh_token_session_id(db: AsyncSession, refresh_token: str) -> uuid.UUID | None:
+    """Return the session id from a valid refresh token
+
+    The stored row, not only the token's own claims, has to agree on the session, so a token that is
+    revoked, expired or spent resolves to nothing
+
+    Args:
+        db: Active database session
+        refresh_token: Refresh token from the refresh cookie
+
+    Returns:
+        Session identifier when the token is active
+    """
+    try:
+        payload = decode_refresh_token(refresh_token)
+        token_id = uuid.UUID(str(payload.get("jti")))
+        session_id = uuid.UUID(str(payload.get("sid")))
+        user_id = uuid.UUID(str(payload.get("sub")))
+    except TypeError, ValueError, jwt.PyJWTError:
+        return None
+
+    active_token = await get_active_token_by_jti(db, token_id, user_id, AuthTokenKind.REFRESH)
+    if not active_token or active_token.session_id != session_id:
+        return None
+
+    return session_id
+
+
 async def get_token_by_jti(
     db: AsyncSession,
     token_jti: uuid.UUID,

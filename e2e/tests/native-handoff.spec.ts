@@ -42,10 +42,15 @@ async function openNativeSignIn(page: Page, challenge: string) {
   await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
 }
 
-/** Signs a new user in on the server and returns the response, which a provider sign-in answers with too */
-async function serverSignIn(request: APIRequestContext): Promise<{ access_token: string; user: { email: string } }> {
+/**
+ * Signs a new user in on the server and returns the response a provider sign-in answers with too
+ *
+ * The sign-in goes through the page's own context, so the page holds the refresh cookie the handoff
+ * asks for, as it does after a real provider sign-in
+ */
+async function serverSignIn(page: Page, request: APIRequestContext): Promise<{ access_token: string; user: { email: string } }> {
   const user = await signUpUser(request)
-  const response = await request.post(`${API_BASE_URL}/auth/login`, { data: { email: user.email, password: user.password } })
+  const response = await page.request.post(`${API_BASE_URL}/auth/login`, { data: { email: user.email, password: user.password } })
   expect(response.status()).toBe(200)
   return response.json()
 }
@@ -117,7 +122,7 @@ test('hands a sign-in finished with a passkey second factor to the app', async (
 // No identity provider runs beside the suite, so the provider's verdict is answered with a session
 // the server really started, and the page's handoff and the exchange then run for real
 test('hands a single sign-on to the app', async ({ page, request }) => {
-  const signIn = await serverSignIn(request)
+  const signIn = await serverSignIn(page, request)
   const { verifier, challenge } = pkcePair()
   await page.route(`${API_BASE_URL}/auth/oidc/callback`, (route) => route.fulfill({ json: signIn }))
 
@@ -129,7 +134,7 @@ test('hands a single sign-on to the app', async ({ page, request }) => {
 })
 
 test('hands a first single sign-on to the app once its account is created', async ({ page, request }) => {
-  const signIn = await serverSignIn(request)
+  const signIn = await serverSignIn(page, request)
   const { verifier, challenge } = pkcePair()
   await page.route(`${API_BASE_URL}/auth/oidc/callback`, (route) => route.fulfill({
     json: { onboarding_required: true, onboarding_token: 'onboarding', email: signIn.user.email, first_name: 'Test', last_name: null },
