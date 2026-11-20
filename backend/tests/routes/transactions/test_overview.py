@@ -1,13 +1,19 @@
+import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
+import pytest
+
+import app.services.transactions.overview as overview_service
 from app.models.currency import Currency
+from app.models.transaction import Transaction
 from tests.conftest import TestSession
 from tests.routes.transactions._helpers import (
     _create_account,
     _create_category,
     _create_transaction,
     _get_system_category_id,
+    _seed_jpy_currency,
     _seed_usd_currency,
     _setup_user_with_deps,
 )
@@ -1005,3 +1011,212 @@ async def test_transactions_overview_outliers_report_incomplete_fx(client, monke
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
     }
+
+
+async def _seed_outflows(anchor_id, account_id, *, currency, day, amounts, ids=None):
+    """Insert outflows straight into the database, in the category and for the user of an API-made anchor transaction
+
+    The route would take a request per row, which is too slow for the volumes the cap is about. Pass ids
+    to fix the identifiers that break ties
+    """
+    amounts = list(amounts)
+    async with TestSession() as session:
+        anchor = await session.get(Transaction, uuid.UUID(anchor_id))
+        session.add_all(
+            Transaction(
+                **({"id": row_id} if ids else {}),
+                created_by_user_id=anchor.created_by_user_id,
+                account_id=uuid.UUID(account_id),
+                category_id=anchor.category_id,
+                dt=day,
+                amount=amount,
+                currency=currency,
+            )
+            for amount, row_id in zip(amounts, ids or [None] * len(amounts), strict=True)
+        )
+        await session.commit()
+
+
+async def test_transactions_overview_outliers_read_a_bounded_number_of_candidates(client, monkeypatch):
+    """Rows beyond the few that can reach the panel are left in the database, whatever their number."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 3, 15): Decimal("1.5")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+    read_counts = []
+    get_candidate_rows = overview_service.get_overview_outlier_candidate_rows
+
+    async def count_candidate_rows(*args, **kwargs):
+        rows = await get_candidate_rows(*args, **kwargs)
+        read_counts.append(len(rows))
+
+        # The merchant name and notes of a row are read only once it is on the panel
+        assert not {"notes", "merchant_name"} & set(rows[0]._fields)
+        return rows
+
+    monkeypatch.setattr(overview_service, "get_overview_outlier_candidate_rows", count_candidate_rows)
+
+    await _seed_usd_currency()
+    headers, cad_account_id, category_id = await _setup_user_with_deps(client)
+    usd_account_id = (await _create_account(client, headers, name="USD Chequing", currency="USD")).json()["id"]
+    anchor = await _create_transaction(client, headers, cad_account_id, category_id, amount=-100)
+    day = date(2026, 3, 15)
+    await _seed_outflows(anchor.json()["id"], cad_account_id, currency="CAD", day=day, amounts=range(-1_000, -1_200, -1))
+    await _seed_outflows(anchor.json()["id"], usd_account_id, currency="USD", day=day, amounts=range(-700, -900, -1))
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert read_counts == [6], "three candidates for each of the two currencies on the one date"
+    assert [(row["amount"], row["currency"]) for row in data["outliers"]] == [(-899, "USD"), (-898, "USD"), (-897, "USD")]
+
+
+async def test_transactions_overview_outliers_rank_amounts_converted_at_each_dates_own_rate(client, monkeypatch):
+    """A smaller amount on a day of a stronger rate outranks a larger one on a day of a weaker rate."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 3, 14): Decimal("0.5"), date(2026, 3, 15): Decimal("2")}
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    await _seed_usd_currency()
+    headers, _, category_id = await _setup_user_with_deps(client)
+    usd_account_id = (await _create_account(client, headers, name="USD Chequing", currency="USD")).json()["id"]
+    for amount in (-9_000, -8_000, -7_000, -6_000):
+        await _create_transaction(client, headers, usd_account_id, category_id, dt="2026-03-14", amount=amount, currency="USD")
+    for amount in (-3_000, -2_900, -2_800):
+        await _create_transaction(client, headers, usd_account_id, category_id, dt="2026-03-15", amount=amount, currency="USD")
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    # -3,000 USD is -6,000 CAD at 2, while the larger -9,000 USD is only -4,500 CAD at 0.5
+    assert [(row["dt"], row["amount"]) for row in resp.json()["outliers"]] == [
+        ("2026-03-15", -3_000),
+        ("2026-03-15", -2_900),
+        ("2026-03-15", -2_800),
+    ]
+
+
+def _yen_rates_at_half_a_cent(start_date, end_date):
+    """Return a rate of half a Canadian cent a yen for every date from start to end, the rate at which neighbouring yen amounts collide"""
+    return {start_date + timedelta(days=offset): Decimal("0.005") for offset in range((end_date - start_date).days + 1)}
+
+
+@pytest.mark.parametrize(
+    ("rows", "expected_ids"),
+    [
+        pytest.param(
+            # A keeps the third place of the query's numbering and the largest identifier, yet B3 outranks it
+            [(-1_002, 0xFF), (-1_001, 1), (-1_001, 3), (-1_001, 5)],
+            [1, 3, 5],
+            id="earlier-candidate-of-another-amount",
+        ),
+        pytest.param(
+            [(-2_000, 0xA0), (-1_500, 0xA1), (-1_002, 0xFF), *[(-1_001, number) for number in range(1, 16)]],
+            [0xA0, 0xA1, 1],
+            id="left-out-larger-amount",
+        ),
+    ],
+)
+async def test_transactions_overview_outliers_rank_rounded_ties_across_a_cut_group_by_identifier(client, monkeypatch, rows, expected_ids):
+    """Yen that convert to one Canadian outflow rank by identifier, whichever of them the query numbered first."""
+    from app.services.fx import FrankfurterProvider
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return _yen_rates_at_half_a_cent(start_date, end_date)
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    await _seed_jpy_currency()
+    headers, cad_account_id, category_id = await _setup_user_with_deps(client)
+    jpy_account_id = (await _create_account(client, headers, name="JPY Chequing", currency="JPY")).json()["id"]
+    anchor = await _create_transaction(client, headers, cad_account_id, category_id, dt="2026-03-10", amount=-100)
+
+    # At half a Canadian cent a yen, -1,002 and -1,001 both convert to -501 cents
+    await _seed_outflows(
+        anchor.json()["id"],
+        jpy_account_id,
+        currency="JPY",
+        day=date(2026, 3, 15),
+        amounts=[amount for amount, _ in rows],
+        ids=[uuid.UUID(int=number) for _, number in rows],
+    )
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    assert [row["id"] for row in resp.json()["outliers"]] == [str(uuid.UUID(int=number)) for number in expected_ids]
+
+
+async def test_transactions_overview_outliers_match_a_full_ranking_of_colliding_amounts(client, monkeypatch):
+    """Rows crowded onto few amounts that convert to few outflows show what ranking every row would."""
+    from app.services.fx import FrankfurterProvider
+    from app.utils.money import convert_minor_units_between_currencies
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return _yen_rates_at_half_a_cent(start_date, end_date)
+
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    await _seed_jpy_currency()
+    headers, cad_account_id, category_id = await _setup_user_with_deps(client)
+    jpy_account_id = (await _create_account(client, headers, name="JPY Chequing", currency="JPY")).json()["id"]
+    anchor = await _create_transaction(client, headers, cad_account_id, category_id, dt="2026-02-01", amount=-100)
+
+    # Each round fills one date with four to fourteen rows on eleven amounts, so several rows share an amount
+    # and neighbouring amounts share an outflow. The amounts and identifiers follow from the date and position
+    for day_number in range(1, 13):
+        day = date(2026, 3, day_number)
+        rows = [
+            (-(1_000 + (position * 7 + day_number * 3) % 11), uuid.uuid5(uuid.NAMESPACE_URL, f"{day}/{position}"))
+            for position in range(4 + (day_number * 5) % 11)
+        ]
+        await _seed_outflows(
+            anchor.json()["id"],
+            jpy_account_id,
+            currency="JPY",
+            day=day,
+            amounts=[amount for amount, _ in rows],
+            ids=[row_id for _, row_id in rows],
+        )
+
+        resp = await client.get("/transactions/overview", params={"from_date": day.isoformat(), "to_date": day.isoformat()}, headers=headers)
+
+        converted = sorted(
+            (convert_minor_units_between_currencies(amount, rate=Decimal("0.005"), base_exponent=0, quote_exponent=2), str(row_id))
+            for amount, row_id in rows
+        )
+        assert resp.status_code == 200
+        assert [row["id"] for row in resp.json()["outliers"]] == [row_id for _, row_id in converted[:3]], f"rows of {day}: {rows}"
+
+
+async def test_transactions_overview_outliers_load_notes_only_for_the_transactions_shown(client, monkeypatch):
+    """Notes of the transactions that miss the panel are never read."""
+    read_ids = []
+    get_details = overview_service.outliers.get_overview_outlier_details
+
+    async def record_detail_ids(db, transaction_ids):
+        read_ids.append({str(transaction_id) for transaction_id in transaction_ids})
+        return await get_details(db, transaction_ids)
+
+    monkeypatch.setattr(overview_service.outliers, "get_overview_outlier_details", record_detail_ids)
+
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    for amount in (-1_000, -2_000, -3_000, -4_000, -5_000):
+        await _create_transaction(client, headers, account_id, category_id, amount=amount, notes=f"Note for {amount}")
+
+    resp = await client.get("/transactions/overview", headers=headers)
+
+    assert resp.status_code == 200
+    shown = resp.json()["outliers"]
+    assert [(row["amount"], row["notes"]) for row in shown] == [
+        (-5_000, "Note for -5000"),
+        (-4_000, "Note for -4000"),
+        (-3_000, "Note for -3000"),
+    ]
+    assert read_ids == [{row["id"] for row in shown}]
