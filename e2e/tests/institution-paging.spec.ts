@@ -47,6 +47,7 @@ test('the institution picker pages at fifty, searches by name and names a select
   // Scrolling to the end of the list reads the next page
   await create.getByRole('listbox').evaluate((list) => { list.scrollTop = list.scrollHeight })
   await expect.poll(() => options.count()).toBeGreaterThan(51)
+  expect(listRequests.some((query) => new URLSearchParams(query).get('offset') === '50')).toBe(true)
 
   // Typing filters by name on the server, and reaches an institution far past the first page
   const search = create.getByPlaceholder('Search institutions...', { exact: true })
