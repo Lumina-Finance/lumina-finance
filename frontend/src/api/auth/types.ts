@@ -17,6 +17,10 @@ export interface AuthResponse {
   user: User
   access_token: string
   token_type: string
+  // The key for the saved copy of the user's data, as unpadded base64url, and the number it belongs
+  // to. Sent to browsers only, left out of a native app's response
+  saved_copy_key?: string
+  saved_copy_key_version?: number
 }
 
 export interface LoginPayload {

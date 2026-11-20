@@ -5,7 +5,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 
 import { createAccount, createMonthlyBudget, createTransaction, signUpUser, type TestUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { logInViaApi, openPage, readSavedCache, waitForSavedCache } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: whether a page has anything to show doesn't depend on its size
@@ -204,4 +204,25 @@ test('shows the loading animation until a first visit with no budgets has settle
   definitions.release()
   await expect(empty).toBeVisible()
   await expect(loading).toHaveCount(0)
+})
+
+test('shows saved data on a reload from a copy that holds nothing readable', async ({ page, request }) => {
+  const { accountId } = await seedSignedInUser(page, request)
+  const main = page.locator('#app-page-content')
+  await openPage(page, '/accounts')
+  await expect(main.getByText('Everyday Chequing').first()).toBeVisible()
+  await waitForSavedCache(page, ['Everyday Chequing', accountId])
+
+  // Local storage holds the entry's plain-text parts and nothing the user saw
+  const stored = await page.evaluate(() => JSON.stringify(Object.entries(localStorage)))
+  expect(stored).not.toContain('Everyday Chequing')
+  expect(stored).not.toContain(accountId)
+  const saved = (await readSavedCache(page))!
+  expect(Object.keys(saved.entry).toSorted()).toEqual(['ciphertext', 'keyNumber', 'nonce', 'savedAt', 'shape', 'userId'])
+
+  // The accounts request is held, so what shows after the reload can only have come from the copy
+  const accounts = await holdRequest(page, '/accounts')
+  await page.reload()
+  await expect(main.getByText('Everyday Chequing').first()).toBeVisible()
+  accounts.release()
 })

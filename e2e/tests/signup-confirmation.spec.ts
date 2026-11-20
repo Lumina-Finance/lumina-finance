@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { signUpUser, TEST_PASSWORD } from '../support/api'
-import { expectSignedIn, requestSignUpThroughTheForm, signUpThroughTheForm } from '../support/app'
+import { expectSavedCacheEntry, expectSignedIn, requestSignUpThroughTheForm, signUpThroughTheForm } from '../support/app'
 import { countEmailsTo, waitForConfirmationLink } from '../support/mail'
 import { API_BASE_URL } from '../support/target'
 
@@ -36,6 +36,7 @@ test('creates the account and signs in once the emailed link is used', async ({ 
   await page.getByRole('button', { name: 'Skip for now' }).click()
   await page.getByRole('button', { name: 'I still want to skip' }).click()
   await expectSignedIn(page)
+  await expectSavedCacheEntry(page)
 
   const login = await request.post(`${API_BASE_URL}/auth/login`, { data: { email, password: TEST_PASSWORD } })
   expect(login.status()).toBe(200)

@@ -125,6 +125,7 @@ export function fact(container: Locator, label: string | RegExp): Locator {
  * @param user - Credentials to sign in with
  */
 export async function logIn(page: Page, user: TestUser): Promise<void> {
+  await recordSavedCopies(page)
   await page.goto('/login')
   await page.getByLabel('Email').fill(user.email)
   await page.getByLabel('Password', { exact: true }).fill(user.password)
@@ -184,6 +185,7 @@ export async function signUpThroughTheForm(page: Page): Promise<string> {
 
 /** Start a separate real browser session so its rotation cannot invalidate API fixture credentials */
 export async function logInViaApi(page: Page, user: TestUser): Promise<void> {
+  await recordSavedCopies(page)
   const response = await page.request.post(`${API_BASE_URL}/auth/login`, {
     data: { email: user.email, password: user.password },
   })
@@ -224,6 +226,66 @@ export async function waitForPageReady(page: Page): Promise<void> {
 // package, with none of the frontend's source beside it
 export const SAVED_QUERY_CACHE_KEY = 'lumina:query-cache'
 
+/** What a saved cache holds in plain text, the rest being ciphertext */
+export type SavedCacheEntry = {
+  shape: string
+  userId: string
+  keyNumber: number
+  savedAt: number
+  nonce: string
+  ciphertext: string
+}
+
+/**
+ * Make every document this page loads from now on note the text the app encrypts for its saved
+ * cache, under the nonce it used
+ *
+ * The saved cache is encrypted under a key only the page holds, so a spec cannot open it from
+ * local storage. What it can do is match the nonce in the stored entry to the text the app
+ * encrypted under it. That text is exactly what was stored
+ */
+export async function recordSavedCopies(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const state = window as unknown as { savedCopyTexts?: Record<string, string> }
+    if (state.savedCopyTexts) return
+    const texts: Record<string, string> = {}
+    state.savedCopyTexts = texts
+    const encrypt = crypto.subtle.encrypt.bind(crypto.subtle)
+    crypto.subtle.encrypt = async (algorithm, key, data) => {
+      const sealed = await encrypt(algorithm, key, data)
+      const nonce = new Uint8Array((algorithm as AesGcmParams).iv as ArrayBuffer)
+      texts[btoa(String.fromCharCode(...nonce))] = new TextDecoder().decode(data as ArrayBuffer)
+      return sealed
+    }
+  })
+}
+
+/**
+ * The saved cache this browser holds: its plain-text entry, and the text it was encrypted from when
+ * this page loaded after `recordSavedCopies`, or null when nothing is saved
+ */
+export async function readSavedCache(page: Page): Promise<{ entry: SavedCacheEntry; text: string | undefined } | null> {
+  return page.evaluate((key) => {
+    const stored = localStorage.getItem(key)
+    if (stored === null) return null
+    const entry = JSON.parse(stored) as SavedCacheEntry
+    const texts = (window as unknown as { savedCopyTexts?: Record<string, string> }).savedCopyTexts
+    return { entry, text: texts?.[entry.nonce] }
+  }, SAVED_QUERY_CACHE_KEY)
+}
+
+/**
+ * Wait until this browser holds a saved cache entry, sealed under the first key number
+ *
+ * A sign-in route that handed the page no key would leave the app with nothing to seal a save with,
+ * and no entry would ever appear
+ *
+ * @param page - Page that has just signed in
+ */
+export async function expectSavedCacheEntry(page: Page): Promise<void> {
+  await expect.poll(async () => (await readSavedCache(page))?.entry.keyNumber).toBe(0)
+}
+
 /**
  * Wait until the query cache the app saves in this browser holds every one of these texts
  *
@@ -234,10 +296,10 @@ export const SAVED_QUERY_CACHE_KEY = 'lumina:query-cache'
  * @param texts - Texts the saved cache must contain, such as a record's id
  */
 export async function waitForSavedCache(page: Page, texts: string[]): Promise<void> {
-  await expect.poll(() => page.evaluate(({ key, wanted }) => {
-    const saved = localStorage.getItem(key) ?? ''
-    return wanted.every((text) => saved.includes(text))
-  }, { key: SAVED_QUERY_CACHE_KEY, wanted: texts })).toBe(true)
+  await expect.poll(async () => {
+    const saved = (await readSavedCache(page))?.text ?? ''
+    return texts.every((text) => saved.includes(text))
+  }).toBe(true)
 }
 
 /** Navigate to an authenticated page and wait for its actual route readiness signal */

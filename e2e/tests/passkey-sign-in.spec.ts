@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
-import { addPasskeyAuthenticator, expectSignedIn, registerPasskeyOverApi } from '../support/app'
+import { addPasskeyAuthenticator, expectSavedCacheEntry, expectSignedIn, registerPasskeyOverApi } from '../support/app'
 import { ON_ARM64 } from '../support/sizes'
 import { API_BASE_URL } from '../support/target'
 
@@ -24,4 +24,5 @@ test("signs in with the login page's passkey button", ON_ARM64, async ({ page, r
   expect((await signedIn).status()).toBe(200)
 
   await expectSignedIn(page)
+  await expectSavedCacheEntry(page)
 })
