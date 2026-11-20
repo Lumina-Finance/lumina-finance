@@ -29,7 +29,7 @@ from app.services.auth.password_reset import (
     request_password_reset,
 )
 from app.services.auth.registration import is_registration_open
-from app.services.auth.sessions import delete_expired_auth_sessions, delete_expired_auth_tokens
+from app.services.auth.sessions import delete_expired_auth_sessions, delete_expired_auth_tokens, end_other_sessions
 from app.services.auth.set_password import set_first_password
 from app.services.auth.signup import confirm_signup, request_signup
 from app.services.auth.step_up import authorize_factor_addition
@@ -96,6 +96,7 @@ __all__ = [
     "delete_expired_auth_sessions",
     "delete_expired_auth_tokens",
     "disable_two_factor",
+    "end_other_sessions",
     "ensure_reset_token_active",
     "get_enabled_oidc_provider_by_slug",
     "is_oidc_provider_linked",

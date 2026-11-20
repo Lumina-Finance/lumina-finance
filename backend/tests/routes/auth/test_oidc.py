@@ -1475,6 +1475,26 @@ async def test_passwordless_unlink_signs_out_other_sessions(client, provider_pro
     await _assert_other_sessions_ended(client, caller, other)
 
 
+async def test_passwordless_end_others_after_reauth_signs_out_other_sessions(client, provider_protocol):
+    """A passwordless account signs out its other devices with a fresh reauth, and without one is refused"""
+    await _seed_currency()
+    await _seed_provider()
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+    caller = (auth, client.cookies["refresh_token"])
+    other = await _sign_in_through_provider(client, provider_protocol)
+
+    refused = await client.post("/auth/sessions/end-others", headers=auth)
+    assert refused.status_code == 401
+    await _assert_session_works(client, other)
+
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    resp = await client.post("/auth/sessions/end-others", headers=auth)
+    assert resp.status_code == 204
+    assert _clears_cookie(resp, "oidc_reauth_stepup")
+
+    await _assert_other_sessions_ended(client, caller, other)
+
+
 async def test_passwordless_unlink_refused_keeps_other_sessions(client, provider_protocol):
     """Removing the only provider is refused, and the reauth that authorized it signs nobody out"""
     await _seed_currency()

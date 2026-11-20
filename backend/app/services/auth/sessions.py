@@ -154,6 +154,20 @@ async def delete_other_user_auth_sessions(
     await _rotate_saved_copy_key(db, user_id)
 
 
+async def end_other_sessions(db: AsyncSession, user_id: uuid.UUID, current_session_id: uuid.UUID) -> None:
+    """Sign a user out of every device but the one asking, as its own unit of work
+
+    The caller authorizes the request first
+
+    Args:
+        db: Active database session
+        user_id: User whose other sessions end
+        current_session_id: Session that made the request and stays signed in
+    """
+    await delete_other_user_auth_sessions(db, user_id, current_session_id)
+    await db.commit()
+
+
 async def delete_all_user_auth_sessions(db: AsyncSession, user_id: uuid.UUID) -> None:
     """Delete every auth session for a user, and rotate their saved copy key
 
