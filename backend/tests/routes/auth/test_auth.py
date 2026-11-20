@@ -1027,7 +1027,7 @@ async def test_set_password_grant_rejected_as_access_token(client):
     from app.services.auth.tokens import create_oidc_reauth_stepup_token
 
     await _create_user(client)
-    grant = create_oidc_reauth_stepup_token(uuid4())
+    grant, _, _ = create_oidc_reauth_stepup_token(uuid4())
 
     resp = await client.get("/test/me", headers={"Authorization": f"Bearer {grant}"})
 

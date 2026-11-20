@@ -11,7 +11,7 @@ from app.config.oidc import (
     OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,
 )
 
-_COOKIE_KEY = "refresh_token"
+REFRESH_COOKIE_KEY = "refresh_token"
 _COOKIE_PATH = "/"
 _COOKIE_MAX_AGE = JWT_REFRESH_TOKEN_EXPIRE_SECONDS
 
@@ -64,7 +64,7 @@ def set_refresh_cookie(request: Request, response: Response, token: str) -> None
         token: Encoded refresh JWT string
     """
     response.set_cookie(
-        key=_COOKIE_KEY,
+        key=REFRESH_COOKIE_KEY,
         value=token,
         httponly=True,
         secure=request_is_https(request),
@@ -80,7 +80,7 @@ def clear_refresh_cookie(response: Response) -> None:
     Args:
         response: FastAPI response object
     """
-    response.delete_cookie(key=_COOKIE_KEY, path=_COOKIE_PATH)
+    response.delete_cookie(key=REFRESH_COOKIE_KEY, path=_COOKIE_PATH)
 
 
 def set_oidc_login_binding_cookie(request: Request, response: Response, binding_token: str) -> None:

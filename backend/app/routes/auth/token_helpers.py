@@ -32,12 +32,14 @@ from app.routes.auth.cookie_helpers import (
 )
 from app.schemas.auth import AuthResponse, UserInfo
 from app.services.auth.account_lockout import (
+    claim_attempt,
+    confirm_failed_attempt,
     get_password_credential,
     is_email_locked,
-    record_failed_attempt,
+    release_attempt,
     reset_failed_attempts,
 )
-from app.services.auth.mfa_challenge import consume_mfa_challenge, is_mfa_challenge_active
+from app.services.auth.mfa_challenge import REAUTH_STEP_UP_PURPOSE, consume_mfa_challenge, is_mfa_challenge_active
 from app.services.auth.saved_copy_key import derive_saved_copy_key
 from app.services.auth.sessions import (
     create_auth_session,
@@ -216,8 +218,8 @@ def decode_oidc_reauth_stepup_token(stepup_token: str) -> dict[str, Any]:
     return payload
 
 
-def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> None:
-    """Raise unless a reauth step-up proof authorizes an action for the given account
+def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> uuid.UUID:
+    """Return the identifier of a reauth step-up proof, raising unless it authorizes an action for the account
 
     The proof is minted after a fresh provider reauth and bound to the account, so it cannot authorize
     an action on another account even if presented on a different session
@@ -226,18 +228,24 @@ def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> None:
         user_id: Account the action is for
         proof: Encoded reauth step-up token read from the cookie
 
+    Returns:
+        The identifier the server recorded when it issued the proof
+
     Raises:
         HTTPException: The proof is invalid, expired, or for another account
     """
     try:
         payload = decode_oidc_reauth_stepup_token(proof)
-    except jwt.PyJWTError:
+        proof_id = uuid.UUID(str(payload["jti"]))
+    except jwt.PyJWTError, KeyError, ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required") from None
     if payload["sub"] != str(user_id):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
+    return proof_id
 
 
 async def spend_reauth_stepup_proof[T](
+    db: AsyncSession,
     user_id: uuid.UUID,
     response: Response,
     proof: str | None,
@@ -249,6 +257,7 @@ async def spend_reauth_stepup_proof[T](
     is refused, so a spent proof never stays in the browser
 
     Args:
+        db: Active database session
         user_id: Account the action is for
         response: FastAPI response object for removing the proof cookie on success
         proof: Encoded reauth step-up token read from the cookie, if any
@@ -258,13 +267,19 @@ async def spend_reauth_stepup_proof[T](
         Whatever the action returns
 
     Raises:
-        HTTPException: The proof is missing, invalid or for another account, or the action failed
+        HTTPException: The proof is missing, invalid, spent or for another account, or the action failed
     """
     clear_oidc_reauth_stepup_cookie(response)
     with removing_cookie_on_failure(clear_oidc_reauth_stepup_cookie):
         if proof is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
-        verify_reauth_stepup_proof(user_id, proof)
+        proof_id = verify_reauth_stepup_proof(user_id, proof)
+
+        # Spent and committed before the action runs, so a copy of the cookie replayed at once, or
+        # after the action failed, finds nothing to spend
+        if not await consume_mfa_challenge(db, proof_id, user_id, REAUTH_STEP_UP_PURPOSE):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
+        await db.commit()
         return await action()
 
 
@@ -366,7 +381,8 @@ async def _complete_mfa_challenge(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
-    # The lockout counter is shared with the password step, so a factor grind trips the same lock
+    # The lockout counter is shared with the password step, so a factor grind trips the same lock. A locked
+    # account is refused here without spending the challenge
     credential = await get_password_credential(db, user_id)
     if credential is not None and await is_email_locked(db, user.email):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
@@ -377,14 +393,22 @@ async def _complete_mfa_challenge(
     if not challenge_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
+    # The attempt is counted only once its challenge is spent, so a replayed or expired challenge never
+    # counts, and before the factor is checked, so simultaneous attempts cannot check more factors than
+    # the lock allows
+    remaining = await claim_attempt(db, user.email) if credential is not None else None
+
     try:
         factor_kind = await verify_second_factor(user_id)
     except HTTPException as error:
         # A wrong factor counts toward the lockout, but a passkey protocol error such as an expired or
         # malformed challenge (400) does not, so a slow or fumbled ceremony cannot lock the account. A
         # typed code only ever fails with a 401, so it still counts
-        if credential is not None and error.status_code == status.HTTP_401_UNAUTHORIZED:
-            await record_failed_attempt(db, user.email, user_id)
+        if remaining is not None:
+            if error.status_code == status.HTTP_401_UNAUTHORIZED:
+                await confirm_failed_attempt(db, user_id, remaining)
+            else:
+                await release_attempt(db, user.email)
         raise
 
     await reset_failed_attempts(db, user.email)
@@ -462,6 +486,34 @@ async def get_active_token_by_jti(
     result = await db.execute(active_token_query)
     active_token = result.scalar_one_or_none()
     return active_token
+
+
+async def get_refresh_token_session_id(db: AsyncSession, refresh_token: str) -> uuid.UUID | None:
+    """Return the session id from a valid refresh token
+
+    The stored row, not only the token's own claims, has to agree on the session, so a token that is
+    revoked, expired or spent resolves to nothing
+
+    Args:
+        db: Active database session
+        refresh_token: Refresh token from the refresh cookie
+
+    Returns:
+        Session identifier when the token is active
+    """
+    try:
+        payload = decode_refresh_token(refresh_token)
+        token_id = uuid.UUID(str(payload.get("jti")))
+        session_id = uuid.UUID(str(payload.get("sid")))
+        user_id = uuid.UUID(str(payload.get("sub")))
+    except TypeError, ValueError, jwt.PyJWTError:
+        return None
+
+    active_token = await get_active_token_by_jti(db, token_id, user_id, AuthTokenKind.REFRESH)
+    if not active_token or active_token.session_id != session_id:
+        return None
+
+    return session_id
 
 
 async def get_token_by_jti(

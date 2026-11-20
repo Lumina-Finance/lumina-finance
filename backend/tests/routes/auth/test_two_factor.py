@@ -7,11 +7,12 @@ from types import SimpleNamespace
 
 import pyotp
 import pytest
-from sqlalchemy import func, select, text, update
+from sqlalchemy import delete, func, select, text, update
 
-from app.models.auth import MfaChallenge, RecoveryCode, TotpCredential
+from app.models.auth import LoginLockout, MfaChallenge, PasswordCredential, RecoveryCode, TotpCredential
 from app.routes.auth.router import login_route
 from app.services.auth import recovery_codes, two_factor
+from app.services.auth.login_email_hash import seal_login_email
 from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from app.services.auth.recovery_codes import generate_recovery_codes
 from app.services.auth.two_factor import prune_stale_factor_staging
@@ -708,6 +709,24 @@ async def test_correct_2fa_clears_the_lockout_counter(client):
     assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None
 
 
+async def test_correct_password_before_the_second_factor_does_not_use_up_an_attempt(client):
+    """A right password that still needs a second factor leaves the full allowance, so four typos then a sign-in do not lock the fifth"""
+    await _enroll(client)
+    for _ in range(4):
+        wrong = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": "wrong-password"})
+        assert wrong.status_code == 401
+
+    right = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert right.status_code == 200
+    assert right.json()["mfa_required"] is True
+    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).locked_until is None
+
+    fifth = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": "wrong-password"})
+    assert fifth.status_code == 401
+    sixth = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": "wrong-password"})
+    assert sixth.status_code == 423
+
+
 async def test_correct_step_up_clears_earlier_wrong_attempts(client):
     """A correct step-up code forgets the earlier wrong ones, so typos do not pile up towards the lockout"""
     auth, secret, _ = await _enroll(client)
@@ -769,6 +788,62 @@ async def test_verify_burns_the_challenge_on_a_wrong_code(client):
 
     retry = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": pyotp.TOTP(secret).now()})
     assert retry.status_code == 401
+
+
+async def test_verify_accepts_an_authenticator_code_typed_in_two_groups(client):
+    """A code written as the app shows it, with a space in the middle, completes the sign-in"""
+    _, secret, user_id = await _enroll_with_id(client)
+    mfa_token = await _issue_challenge(user_id)
+    code = _fresh_totp_code(secret)
+
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": f"{code[:3]} {code[3:]}"})
+
+    assert verify.status_code == 200
+
+
+async def test_verify_answers_a_code_of_the_wrong_shape_as_a_wrong_code_and_counts_it(client):
+    """Text that cannot be a code is the ordinary wrong code, not a server error, and it counts toward the lockout"""
+    _, _, user_id = await _enroll_with_id(client)
+    mfa_token = await _issue_challenge(user_id)
+
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": "\N{LATIN SMALL LETTER E WITH ACUTE}12345"})
+
+    assert (verify.status_code, verify.json()["detail"]) == (401, "Invalid code")
+    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 1
+
+
+async def test_wrong_authenticator_code_at_sign_in_costs_no_recovery_code_hashing(client, monkeypatch):
+    """A mistyped six-digit code is not tried against the recovery codes, while a wrong recovery code is tried against each"""
+    _, _, recovery_batch = await _enroll(client)
+    hashes = []
+    real = recovery_codes.is_secret_valid
+    monkeypatch.setattr(recovery_codes, "is_secret_valid", lambda secret, secret_hash: hashes.append(secret) or real(secret, secret_hash))
+
+    assert (await _login_with_code(client, "000000")).status_code == 401
+    assert hashes == []
+
+    wrong_recovery_code = "able-acid-also-army-042"
+    assert (await _login_with_code(client, wrong_recovery_code)).status_code == 401
+    assert len(hashes) == len(recovery_batch)
+
+
+async def test_step_up_answers_a_code_of_the_wrong_shape_as_a_wrong_code(client):
+    """The step-up check refuses non-ASCII text as a wrong code too"""
+    auth, _, _ = await _enroll(client)
+
+    rejected = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": "é12345"})
+
+    assert (rejected.status_code, rejected.json()["detail"]) == (401, "Invalid two-factor code")
+
+
+async def test_confirm_answers_a_code_of_the_wrong_shape_as_a_wrong_code(client):
+    """Confirming an authenticator with non-ASCII text is refused like any wrong code"""
+    auth = _get_auth_header(await _create_user(client))
+    await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})
+
+    confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": "é12345"})
+
+    assert (confirm.status_code, confirm.json()["detail"]) == (400, "Invalid or expired code")
 
 
 async def test_verify_rejects_a_forged_token(client):
@@ -927,3 +1002,79 @@ async def test_login_after_recovery_reports_recovery_only(client):
     body = login.json()
     assert body["mfa_required"] is True
     assert body["recovery_only"] is True
+
+
+async def _lock_email(email: str) -> None:
+    """Store a lockout that is already holding the email, as five wrong answers would leave it"""
+    now = datetime.now(UTC)
+    async with TestSession() as db:
+        db.add(
+            LoginLockout(
+                email_hash=seal_login_email(email),
+                failed_attempt_count=5,
+                locked_until=now + timedelta(minutes=30),
+                last_failed_at=now,
+            )
+        )
+        await db.commit()
+
+
+async def _live_challenges(user_id: str) -> int:
+    """Count the unspent sign-in challenges of an account"""
+    async with TestSession() as db:
+        return await db.scalar(
+            select(func.count())
+            .select_from(MfaChallenge)
+            .where(MfaChallenge.user_id == uuid.UUID(user_id), MfaChallenge.purpose == MFA_PURPOSE_LOGIN)
+        )
+
+
+async def test_replayed_challenge_does_not_count_toward_the_lockout(client):
+    """A challenge that is already spent is refused before any attempt is counted"""
+    _, _, user_id = await _enroll_with_id(client)
+    token = await _issue_challenge(user_id)
+    spent = await client.post("/auth/2fa/verify", json={"mfa_token": token, "code": "000000"})
+    assert (spent.status_code, spent.json()["detail"]) == (401, "Invalid code")
+    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 1
+
+    replayed = await client.post("/auth/2fa/verify", json={"mfa_token": token, "code": "000000"})
+
+    assert (replayed.status_code, replayed.json()["detail"]) == (401, "Invalid or expired challenge")
+    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 1
+
+
+async def test_verify_while_the_email_is_locked_is_refused_and_keeps_the_challenge(client):
+    """A locked email is refused before the challenge is spent, so the challenge is still there for after the lock"""
+    _, secret, user_id = await _enroll_with_id(client)
+    token = await _issue_challenge(user_id)
+    await _lock_email(SIGNUP_PAYLOAD["email"])
+
+    response = await client.post("/auth/2fa/verify", json={"mfa_token": token, "code": _fresh_totp_code(secret)})
+
+    assert (response.status_code, response.json()["detail"]) == (423, "Account temporarily locked")
+    assert await _live_challenges(user_id) == 1
+
+
+async def test_second_factor_wrong_codes_never_lock_an_account_without_a_password(client):
+    """An account that signs in through a provider is outside the lockout, so repeated wrong codes stay plain refusals"""
+    auth, _, user_id = await _enroll_with_id(client)
+    async with TestSession() as db:
+        await db.execute(delete(PasswordCredential).where(PasswordCredential.user_id == uuid.UUID(user_id)))
+        await db.commit()
+
+    for _ in range(6):
+        response = await client.post("/auth/2fa/verify", json={"mfa_token": await _issue_challenge(user_id), "code": "000000"})
+        assert (response.status_code, response.json()["detail"]) == (401, "Invalid code")
+
+    assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None
+    assert (await client.get("/auth/2fa/status", headers=auth)).status_code == 200
+
+
+async def test_step_up_without_a_second_factor_is_refused_before_it_counts(client):
+    """A request that names no factor says so without using up an attempt"""
+    auth, _, _ = await _enroll(client)
+
+    response = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD})
+
+    assert (response.status_code, response.json()["detail"]) == (400, "A second factor is required")
+    assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None

@@ -11,15 +11,17 @@ from urllib.parse import parse_qs, urlsplit
 import jwt
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from app.main import app
 from app.models.auth import MfaChallenge
 from app.models.auth_session import AuthSession
+from app.models.auth_token import AuthToken
+from app.models.base import AuthTokenKind
 from app.services.auth import native_handoff as native_handoff_service
 from app.services.auth import tokens
 from tests.conftest import TestSession
-from tests.routes.support import _create_user
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user
 
 
 def _clock_set_back(age: timedelta) -> type[datetime]:
@@ -80,6 +82,49 @@ async def test_handoff_with_invalid_access_token_tells_app_it_failed(client):
     _, challenge = _pkce_pair()
 
     query = await _hand_off(client, "not-a-token", challenge)
+
+    assert query == {"error": "handoff_failed"}
+
+
+@pytest.mark.parametrize("cookie", [None, "not-a-token"], ids=["missing", "not-a-token"])
+async def test_handoff_without_a_usable_session_cookie_is_refused_and_leaves_the_web_session(client, cookie):
+    """An access token taken from the page is not enough, and the refusal signs nobody out"""
+    signup = await _create_user(client)
+    web_cookie = signup.cookies["refresh_token"]
+    client.cookies.clear()
+    if cookie is not None:
+        client.cookies.set("refresh_token", cookie)
+    _, challenge = _pkce_pair()
+
+    query = await _hand_off(client, signup.json()["access_token"], challenge)
+
+    assert query == {"error": "handoff_failed"}
+    client.cookies.set("refresh_token", web_cookie)
+    assert (await client.post("/auth/refresh")).status_code == 200
+
+
+async def test_handoff_with_the_cookie_of_another_session_is_refused(client):
+    """A cookie from one of the account's other sessions can't stand in for the session the access token belongs to"""
+    first = await _create_user(client)
+    first_cookie = first.cookies["refresh_token"]
+    second = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]})
+    client.cookies.set("refresh_token", first_cookie)
+    _, challenge = _pkce_pair()
+
+    query = await _hand_off(client, second.json()["access_token"], challenge)
+
+    assert query == {"error": "handoff_failed"}
+
+
+async def test_handoff_with_a_cookie_that_is_no_longer_active_is_refused(client):
+    """A refresh cookie whose token has been revoked can't back a handoff, even beside a live access token"""
+    signup = await _create_user(client)
+    async with TestSession() as session:
+        await session.execute(delete(AuthToken).where(AuthToken.token_kind == AuthTokenKind.REFRESH))
+        await session.commit()
+    _, challenge = _pkce_pair()
+
+    query = await _hand_off(client, signup.json()["access_token"], challenge)
 
     assert query == {"error": "handoff_failed"}
 

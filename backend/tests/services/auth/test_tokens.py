@@ -35,24 +35,34 @@ def test_token_issuers_reuse_validated_signing_keys(monkeypatch, token_use):
     user_id, session_id = uuid4(), uuid4()
     issuers = {
         "access": (
-            lambda: create_access_token(user_id, session_id)[0], decode_access_token,
-            JWT_ACCESS_KID, JWT_ACCESS_TOKEN_EXPIRE_SECONDS,
+            lambda: create_access_token(user_id, session_id)[0],
+            decode_access_token,
+            JWT_ACCESS_KID,
+            JWT_ACCESS_TOKEN_EXPIRE_SECONDS,
         ),
         "refresh": (
-            lambda: create_refresh_token(user_id, session_id)[0], decode_refresh_token,
-            JWT_REFRESH_KID, JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
+            lambda: create_refresh_token(user_id, session_id)[0],
+            decode_refresh_token,
+            JWT_REFRESH_KID,
+            JWT_REFRESH_TOKEN_EXPIRE_SECONDS,
         ),
         "mfa_challenge": (
-            lambda: create_mfa_challenge_token(user_id)[0], decode_mfa_challenge_token,
-            JWT_ACCESS_KID, MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS,
+            lambda: create_mfa_challenge_token(user_id)[0],
+            decode_mfa_challenge_token,
+            JWT_ACCESS_KID,
+            MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS,
         ),
         "oidc_onboarding": (
             lambda: create_oidc_onboarding_token("provider", "external-subject", "test@example.com", True, "Test", None),
-            decode_oidc_onboarding_token, JWT_ACCESS_KID, OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS,
+            decode_oidc_onboarding_token,
+            JWT_ACCESS_KID,
+            OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS,
         ),
         "oidc_reauth_stepup": (
-            lambda: create_oidc_reauth_stepup_token(user_id), decode_oidc_reauth_stepup_token,
-            JWT_ACCESS_KID, OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,
+            lambda: create_oidc_reauth_stepup_token(user_id)[0],
+            decode_oidc_reauth_stepup_token,
+            JWT_ACCESS_KID,
+            OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,
         ),
     }
 

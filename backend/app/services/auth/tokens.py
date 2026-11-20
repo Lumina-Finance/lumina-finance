@@ -233,32 +233,28 @@ def decode_signup_confirmation_token(confirmation_token: str) -> SignupConfirmat
         raise jwt.InvalidTokenError("Incomplete confirmation token") from missing
 
 
-def create_oidc_reauth_stepup_token(user_id: uuid.UUID) -> str:
+def create_oidc_reauth_stepup_token(user_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
     """Create a short-lived token authorizing a sensitive action for a passwordless account
 
     Issued only after a provider reauth, it bridges that step-up and the request that follows,
     setting a first password or managing providers, so the request proves a fresh re-authentication
-    rather than just a live session
+    rather than just a live session. Its identifier is what the server records so the proof works once
 
     Args:
         user_id: Account the reauth verified
 
     Returns:
-        Encoded JWT for the reauth step-up
+        Encoded JWT for the reauth step-up, its identifier and its expiration timestamp
     """
-    issued_at = datetime.now(UTC)
-
     # The audience segregates this grant from the other token types so jwt.decode rejects, say, an
     # access token presented in its place
-    payload = {
-        "sub": str(user_id),
-        "token_use": OIDC_REAUTH_STEPUP_TOKEN_USE,
-        "aud": OIDC_REAUTH_STEPUP_TOKEN_USE,
-        "iat": issued_at,
-        "exp": issued_at + timedelta(seconds=OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS),
-        "iss": JWT_ISSUER,
-    }
-    return jwt.encode(payload, _ACCESS_SIGNING_KEY, algorithm=JWT_ALGORITHM, headers={"kid": JWT_ACCESS_KID})
+    return _create_signed_token(
+        user_id,
+        expires_in_seconds=OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,
+        private_key=_ACCESS_SIGNING_KEY,
+        key_id=JWT_ACCESS_KID,
+        token_use=OIDC_REAUTH_STEPUP_TOKEN_USE,
+    )
 
 
 def create_native_handoff_token(

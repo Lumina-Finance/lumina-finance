@@ -21,8 +21,8 @@ import pytest
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import HTTPException
-from sqlalchemy import select, update
-from webauthn.helpers import bytes_to_base64url
+from sqlalchemy import func, select, text, update
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
 import app.services.auth.webauthn as webauthn_service
 from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
@@ -38,6 +38,7 @@ from tests.routes.support import (
     _count_sign_in_provider_links,
     _create_user,
     _get_auth_header,
+    _get_login_lockout,
     _link_sign_in_providers,
     _saved_copy_key,
     _seed_reset_token,
@@ -103,6 +104,27 @@ async def _seed_passkey(user_id: str, credential_id: bytes, name: str = "Seeded 
             db.add(AuthIdentity(user_id=uuid.UUID(user_id), auth_provider=AuthProvider.WEBAUTHN))
         await db.commit()
         return passkey.id
+
+
+async def _seed_passkeys(user_id: str, count: int, *, confirmed: bool = True) -> None:
+    """Insert the given number of passkeys at once, confirmed or staged, with ids no other test uses"""
+    async with TestSession() as db:
+        db.add_all(
+            WebauthnCredential(
+                user_id=uuid.UUID(user_id),
+                credential_id=f"bulk-{confirmed}-{index}".encode(),
+                public_key=b"public-key-bytes",
+                sign_count=0,
+                name=f"Bulk key {index}",
+                confirmed_at=datetime.now(UTC) if confirmed else None,
+            )
+            for index in range(count)
+        )
+        if confirmed:
+            # A confirmed passkey comes with the identity and recovery codes the first one stages
+            db.add(AuthIdentity(user_id=uuid.UUID(user_id), auth_provider=AuthProvider.WEBAUTHN))
+            db.add(RecoveryCode(user_id=uuid.UUID(user_id), code_hash="seeded-active-code", pending=False))
+        await db.commit()
 
 
 def _build_credential(challenge: str, credential_id: bytes) -> dict:
@@ -179,15 +201,18 @@ async def test_registration_options_exclude_existing_passkeys(client, monkeypatc
     assert bytes_to_base64url(credential_id) in excluded
 
 
-async def _register_passkey(client, auth, monkeypatch, credential_id: bytes, name: str, *, step_up=None):
+async def _register_passkey(client, auth, monkeypatch, credential_id: bytes, name: str, *, step_up=None, transports=None):
     """Run a stubbed registration ceremony and return the register response
 
     The step-up now gates the options call so it runs before the ceremony, so the first passkey defaults
-    to a password-only reauthorization and a later one passes an explicit step_up carrying a current factor
+    to a password-only reauthorization and a later one passes an explicit step_up carrying a current factor.
+    The transports the browser reports default to two known ones
     """
     options_body = {"step_up": step_up or {"password": SIGNUP_PAYLOAD["password"]}}
     options = (await client.post("/auth/passkeys/register/options", headers=auth, json=options_body)).json()
     credential = _build_credential(options["challenge"], credential_id)
+    if transports is not None:
+        credential["response"]["transports"] = transports
 
     # The attestation crypto is the library's responsibility, so only its verdict is stubbed
     monkeypatch.setattr(
@@ -376,6 +401,189 @@ async def test_register_rejects_malformed_response(client):
     # is what fails here
     response = await client.post("/auth/passkeys/register", headers=auth, json={"name": "Key", "credential": {"id": "x"}})
     assert response.status_code == 400
+
+
+_MALFORMED_DETAIL = "This passkey sent details we couldn't read"
+_LIMIT_DETAIL = "You've reached the limit of 20 passkeys"
+_CONFIRMED_LIMIT = 20
+_EIGHT_TRANSPORTS = ["usb", "nfc", "ble", "hybrid", "internal", "usb", "nfc", "ble"]
+
+
+async def test_register_keeps_the_known_transports_and_drops_the_rest(client, monkeypatch):
+    """A browser that reports a transport the library doesn't know yet still registers, and only the known ones are kept"""
+    auth = _get_auth_header(await _create_user(client))
+
+    registered = await _register_passkey(client, auth, monkeypatch, b"transport-key", "Phone", transports=["internal", "teleport", "hybrid"])
+
+    assert registered.status_code == 201
+    assert (await _read_passkey(b"transport-key")).transports == "internal,hybrid"
+
+
+async def test_register_accepts_eight_transports(client, monkeypatch):
+    """Eight transport hints, the most one authenticator reports, are stored"""
+    auth = _get_auth_header(await _create_user(client))
+
+    registered = await _register_passkey(client, auth, monkeypatch, b"eight-key", "Phone", transports=_EIGHT_TRANSPORTS)
+
+    assert registered.status_code == 201
+    assert (await _read_passkey(b"eight-key")).transports == ",".join(_EIGHT_TRANSPORTS)
+
+
+@pytest.mark.parametrize(
+    "transports",
+    [[*_EIGHT_TRANSPORTS, "usb"], ["usb"] * 1000, [1, 2], "internal", {"internal": True}, ["internal", None]],
+    ids=["nine", "a-thousand", "numbers", "text-not-a-list", "object", "null-entry"],
+)
+async def test_register_refuses_transports_that_are_not_a_short_list_of_text(client, monkeypatch, transports):
+    """Nine or more hints, or hints that are not text, are refused as unreadable and nothing is stored"""
+    auth = _get_auth_header(await _create_user(client))
+
+    registered = await _register_passkey(client, auth, monkeypatch, b"bad-transport-key", "Phone", transports=transports)
+
+    assert (registered.status_code, registered.json()["detail"]) == (400, _MALFORMED_DETAIL)
+    assert await _read_passkey(b"bad-transport-key") is None
+
+
+@pytest.mark.parametrize(("size", "status"), [(1023, 201), (1024, 400)])
+async def test_register_refuses_a_credential_id_over_1023_bytes(client, monkeypatch, size, status):
+    """A credential id is at most 1023 bytes, so 1023 registers and 1024 is refused as unreadable"""
+    auth = _get_auth_header(await _create_user(client))
+    credential_id = b"k" * size
+
+    registered = await _register_passkey(client, auth, monkeypatch, credential_id, "Long id")
+
+    assert registered.status_code == status
+    if status == 400:
+        assert registered.json()["detail"] == _MALFORMED_DETAIL
+        assert await _read_passkey(credential_id) is None
+
+
+async def test_register_refuses_a_credential_another_account_already_holds(client, monkeypatch):
+    """A credential id already stored is answered as already registered, not as a server error"""
+    first = await _create_user(client)
+    await _seed_passkey(first.json()["user"]["id"], b"shared-credential")
+    second = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "second@example.com"})
+    assert second.status_code == 201
+
+    registered = await _register_passkey(client, _get_auth_header(second), monkeypatch, b"shared-credential", "Copy")
+
+    assert (registered.status_code, registered.json()["detail"]) == (400, "This passkey is already registered")
+
+
+async def test_register_refuses_a_passkey_added_after_its_options_brought_the_account_to_the_limit(client, monkeypatch):
+    """Nineteen passkeys beside a staged one leave room for one more, and the register step refuses it once the account holds twenty"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    await _seed_passkeys(user_id, _CONFIRMED_LIMIT - 1)
+    await _seed_passkeys(user_id, 1, confirmed=False)
+
+    # A staged passkey is not usable yet, so it does not count against the limit
+    step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, b"bulk-True-0")
+    options = await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": step_up})
+    assert options.status_code == 200
+    credential = _build_credential(options.json()["challenge"], b"twentieth-key")
+    await _seed_passkey(user_id, b"extra-key")
+
+    # The twentieth was added behind this ceremony's back, so the register step is where it is refused
+    monkeypatch.setattr(
+        webauthn_service,
+        "verify_registration_response",
+        lambda **_: SimpleNamespace(credential_id=b"twentieth-key", credential_public_key=b"verified-public-key", sign_count=1),
+    )
+    late = await client.post("/auth/passkeys/register", headers=auth, json={"name": "Late", "credential": credential})
+    assert (late.status_code, late.json()["detail"]) == (422, _LIMIT_DETAIL)
+    assert await _read_passkey(b"twentieth-key") is None
+
+
+async def test_twentieth_passkey_registers_and_the_next_is_refused(client, monkeypatch):
+    """The twentieth passkey is stored, and a twenty-first ceremony is refused before it starts"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    await _seed_passkeys(user_id, _CONFIRMED_LIMIT - 1)
+
+    step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, b"bulk-True-0")
+    twentieth = await _register_passkey(client, auth, monkeypatch, b"twentieth-key", "Twentieth", step_up=step_up)
+    assert twentieth.status_code == 201
+
+    step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, b"bulk-True-0")
+    refused = await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": step_up})
+    assert (refused.status_code, refused.json()["detail"]) == (422, _LIMIT_DETAIL)
+
+
+async def test_two_registrations_at_nineteen_passkeys_store_only_one(client, monkeypatch):
+    """Two ceremonies finishing together with room for one more can't both be stored"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    await _seed_passkeys(user_id, _CONFIRMED_LIMIT - 1)
+
+    ceremonies = []
+    for credential_id in (b"racing-key-one", b"racing-key-two"):
+        step_up = await _step_up_with_passkey(client, auth, monkeypatch, user_id, b"bulk-True-0")
+        options = (await client.post("/auth/passkeys/register/options", headers=auth, json={"step_up": step_up})).json()
+        ceremonies.append(_build_credential(options["challenge"], credential_id))
+    monkeypatch.setattr(
+        webauthn_service,
+        "verify_registration_response",
+        lambda **kwargs: SimpleNamespace(
+            credential_id=base64url_to_bytes(kwargs["credential"]["rawId"]), credential_public_key=b"verified-public-key", sign_count=1
+        ),
+    )
+
+    # The first registration waits after counting, and the second sets off while it does
+    first_held = asyncio.Event()
+    release = asyncio.Event()
+    claims = []
+    claim_challenge = webauthn_service._claim_registration_challenge
+
+    async def hold_the_first(*args, **kwargs):
+        """Park the first registration to finish, once it holds whatever the count relied on"""
+        claims.append(None)
+        if len(claims) == 1:
+            first_held.set()
+            await release.wait()
+        return await claim_challenge(*args, **kwargs)
+
+    monkeypatch.setattr(webauthn_service, "_claim_registration_challenge", hold_the_first)
+
+    async def register(credential: dict):
+        """Finish one registration ceremony"""
+        return await client.post("/auth/passkeys/register", headers=auth, json={"name": "Racing", "credential": credential})
+
+    requests = [asyncio.create_task(register(ceremonies[0]))]
+    try:
+        async with asyncio.timeout(10):
+            await first_held.wait()
+            requests.append(asyncio.create_task(register(ceremonies[1])))
+
+            # The second either queues behind the first's lock on the account or, with no lock, carries on to its own claim
+            while len(claims) < 2 and not await _any_backend_waiting_for_a_lock():
+                await asyncio.sleep(0.02)
+            release.set()
+            responses = await asyncio.gather(*requests)
+    finally:
+        release.set()
+        await asyncio.gather(*requests, return_exceptions=True)
+
+    assert sorted(response.status_code for response in responses) == [201, 422]
+    async with TestSession() as db:
+        held = await db.scalar(select(func.count()).select_from(WebauthnCredential).where(WebauthnCredential.confirmed_at.is_not(None)))
+    assert held == _CONFIRMED_LIMIT
+
+
+async def _any_backend_waiting_for_a_lock() -> bool:
+    """Return whether a request of this test's database is waiting on a row lock"""
+    async with TestSession() as observer:
+        # The wait columns of pg_stat_activity are hidden from another role, but the lock table is not
+        waiting = await observer.scalar(
+            text(
+                "SELECT count(*) FROM pg_locks WHERE NOT granted "
+                "AND pid IN (SELECT pid FROM pg_stat_activity WHERE datname = current_database())"
+            )
+        )
+    return waiting > 0
 
 
 async def test_registration_options_without_reauthentication_is_rejected(client):
@@ -805,6 +1013,37 @@ async def test_login_requires_passkey_second_factor(client):
     assert body["passkey_available"] is True
     assert body["totp_enabled"] is False
     assert body["recovery_only"] is False
+
+
+async def test_passkey_ceremony_that_never_started_does_not_use_up_an_attempt(client):
+    """A passkey answer to a challenge the server never issued is a protocol error, so it leaves the lockout allowance whole"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    await _seed_passkey(user_id, b"unstarted-key")
+    mfa_token = (await _login(client)).json()["mfa_token"]
+
+    stale = _build_assertion("never-issued-challenge", b"unstarted-key", user_id)
+    verified = await client.post("/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": stale})
+
+    assert verified.status_code == 400
+    lockout = await _get_login_lockout(SIGNUP_PAYLOAD["email"])
+    assert lockout is None or lockout.failed_attempt_count == 0
+
+
+async def test_step_up_with_a_passkey_ceremony_that_never_started_does_not_use_up_an_attempt(client):
+    """A step-up whose passkey answers a challenge the server never issued is refused as a protocol error without counting"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    await _seed_passkey(user_id, b"unstarted-step-up-key")
+    stale = _build_assertion("never-issued-challenge", b"unstarted-step-up-key", user_id)
+
+    refused = await client.post(
+        "/auth/2fa/recovery-codes", headers=_get_auth_header(signup), json={"password": SIGNUP_PAYLOAD["password"], "passkey": stale}
+    )
+
+    assert refused.status_code == 400
+    lockout = await _get_login_lockout(SIGNUP_PAYLOAD["email"])
+    assert lockout is None or lockout.failed_attempt_count == 0
 
 
 async def test_passkey_second_factor_completes_login(client, monkeypatch):

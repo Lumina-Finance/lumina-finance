@@ -18,7 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import current_session_id_ctx, current_user_id_ctx, get_db
 from app.dependencies import get_authenticated_user
-from app.routes.auth.token_helpers import decode_native_handoff_token, issue_and_store_tokens
+from app.routes.auth.cookie_helpers import REFRESH_COOKIE_KEY
+from app.routes.auth.token_helpers import (
+    decode_native_handoff_token,
+    get_refresh_token_session_id,
+    issue_and_store_tokens,
+)
 from app.schemas.auth import AuthResponse, NativeExchangeRequest
 from app.services.auth.native_handoff import issue_native_handoff_code, redeem_native_handoff_code
 
@@ -58,7 +63,7 @@ async def native_handoff_route(request: Request, db: Annotated[AsyncSession, Dep
     except HTTPException:
         return _redirect_to_app(error="handoff_failed")
     session_id = current_session_id_ctx.get()
-    if session_id is None:
+    if session_id is None or not await _holds_session_cookie(request, db, session_id):
         return _redirect_to_app(error="handoff_failed")
 
     code = await issue_native_handoff_code(db, user.id, session_id, code_challenge)
@@ -111,6 +116,25 @@ async def native_exchange_route(
 
     auth_response = await issue_and_store_tokens(db, request, response, user, refresh_in_body=True)
     return auth_response
+
+
+async def _holds_session_cookie(request: Request, db: AsyncSession, session_id: uuid.UUID) -> bool:
+    """Return whether the browser sent the active refresh cookie of the very session the access token belongs to
+
+    The page's access token sits where page script can read it, but the httpOnly refresh cookie never
+    does, and the browser sends it with this same-site form post. Asking for both means a token taken
+    from the page cannot be handed off from anywhere else
+
+    Args:
+        request: The form submission
+        db: Active database session
+        session_id: The session the access token belongs to
+
+    Returns:
+        Whether the cookie is an active refresh token of that session
+    """
+    cookie = request.cookies.get(REFRESH_COOKIE_KEY)
+    return bool(cookie) and await get_refresh_token_session_id(db, cookie) == session_id
 
 
 def _read_form_fields(body: bytes) -> dict[str, str]:

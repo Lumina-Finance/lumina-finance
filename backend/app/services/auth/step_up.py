@@ -9,9 +9,10 @@ from starlette.concurrency import run_in_threadpool
 from app.models.user import User
 from app.schemas.auth import StepUpRequest
 from app.services.auth.account_lockout import (
+    claim_attempt,
+    confirm_failed_attempt,
     get_password_credential,
-    is_email_locked,
-    record_failed_attempt,
+    release_attempt,
     reset_failed_attempts,
 )
 from app.services.auth.password_helpers import is_password_valid
@@ -23,21 +24,22 @@ from app.services.auth.webauthn import is_passkey_registered, verify_passkey_sec
 ATTEMPTS_REMAINING_HEADER = "X-Auth-Attempts-Remaining"
 
 
-async def _reject_failed_step_up(db: AsyncSession, user: User, detail: str) -> NoReturn:
-    """Record a failed step-up attempt and reject it, reporting the remaining allowance to the client
+async def _reject_failed_step_up(db: AsyncSession, user: User, remaining: int, detail: str) -> NoReturn:
+    """Finish a claimed step-up attempt as failed and reject it, reporting the remaining allowance
 
     The header lets the caller show how close the account is to the lockout that signs every session
     out, so a fumbling owner is warned before the last try rather than logged out with no notice
 
     Args:
         db: Active database session
-        user: User whose email receives the failed attempt
+        user: User whose email the attempt was claimed against
+        remaining: What claim_attempt returned for this attempt
         detail: Message naming which part of the step-up failed
 
     Raises:
         HTTPException: Always, a 401 carrying the attempts-remaining header
     """
-    remaining = await record_failed_attempt(db, user.email, user.id)
+    await confirm_failed_attempt(db, user.id, remaining)
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail=detail,
@@ -73,13 +75,17 @@ async def verify_step_up(
             supplied factor does not verify
     """
     credential = await get_password_credential(db, user.id)
-    if credential is not None and await is_email_locked(db, user.email):
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
-
     if credential is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    # A missing factor depends on the request alone, so it is refused before an attempt is counted
+    if passkey is None and code is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A second factor is required")
+
+    # One attempt covers the password and the factor, counted before either is checked
+    remaining = await claim_attempt(db, user.email)
     if not await run_in_threadpool(is_password_valid, password, credential.password_hash):
-        await _reject_failed_step_up(db, user, "Invalid credentials")
+        await _reject_failed_step_up(db, user, remaining, "Invalid credentials")
 
     if passkey is not None:
         try:
@@ -89,14 +95,13 @@ async def verify_step_up(
             # such as an expired or malformed challenge (400) does not, so a slow or fumbled ceremony
             # cannot lock the account
             if error.status_code == status.HTTP_401_UNAUTHORIZED:
-                remaining = await record_failed_attempt(db, user.email, user.id)
+                await confirm_failed_attempt(db, user.id, remaining)
                 error.headers = {**(error.headers or {}), ATTEMPTS_REMAINING_HEADER: str(remaining)}
+            else:
+                await release_attempt(db, user.email)
             raise
-    elif code is not None:
-        if not await is_user_totp_code_valid(db, user.id, code):
-            await _reject_failed_step_up(db, user, "Invalid two-factor code")
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A second factor is required")
+    elif not await is_user_totp_code_valid(db, user.id, code):
+        await _reject_failed_step_up(db, user, remaining, "Invalid two-factor code")
 
     await reset_failed_attempts(db, user.email)
     await db.commit()
@@ -135,10 +140,9 @@ async def verify_sensitive_action_step_up(
     credential = await get_password_credential(db, user.id)
     if credential is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    if await is_email_locked(db, user.email):
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
+    remaining = await claim_attempt(db, user.email)
     if not await run_in_threadpool(is_password_valid, password, credential.password_hash):
-        await _reject_failed_step_up(db, user, "Invalid credentials")
+        await _reject_failed_step_up(db, user, remaining, "Invalid credentials")
     await reset_failed_attempts(db, user.email)
     await db.commit()
 

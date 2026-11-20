@@ -269,7 +269,8 @@ async def passkey_registration_options_route(
         WebAuthn registration options as raw JSON
 
     Raises:
-        HTTPException: Reauthentication is required and missing or fails
+        HTTPException: Reauthentication is required and missing or fails, or the account already holds
+            the most passkeys it may
     """
     await authorize_factor_addition(db, user, data.step_up)
     options_json = await build_passkey_registration_options(db, user.id, user.email)
@@ -299,7 +300,9 @@ async def register_passkey_route(
         The stored passkey and, for a first passkey, the recovery codes to save
 
     Raises:
-        HTTPException: The challenge is unknown or expired, or the attestation fails to verify
+        HTTPException: The challenge is unknown or expired, the attestation fails to verify or sends
+            details that cannot be stored, the passkey is already registered, or the account already
+            holds the most passkeys it may
     """
     passkey, recovery_codes = await register_passkey(db, user.id, data.credential, data.name)
     return PasskeyRegisterResponse(passkey=PasskeySummary.model_validate(passkey), recovery_codes=recovery_codes)

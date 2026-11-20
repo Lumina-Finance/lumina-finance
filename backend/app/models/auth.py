@@ -48,10 +48,11 @@ class PasswordCredential(Base):
 
 
 class LoginLockout(Base):
-    """Counts failed sign-ins per email, whether or not an account has that email
+    """Counts sign-in attempts per email, whether or not an account has that email
 
-    The email is kept only as a keyed hash, so the records of addresses nobody registered hold no
-    personal data. A row exists from the first failure until a completed sign-in, a password change or
+    Each attempt is counted before it is checked and a right answer gives its place back, so what
+    remains is the wrong answers. The email is kept only as a keyed hash, so the records of addresses
+    nobody registered hold no personal data. A row exists from the first attempt until a completed sign-in, a password change or
     reset, or the scheduled cleanup removes it
     """
 

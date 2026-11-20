@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
 from app.models.auth import RecoveryCode
+from app.services.auth.code_shape import normalize_recovery_code
 from app.services.auth.secret_hashing import hash_secret, is_secret_valid
 
 # BIP-39 English wordlist, vendored from bitcoin/bips bip-0039/english.txt
@@ -108,12 +109,8 @@ async def activate_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) 
     Returns:
         The number of pending codes promoted, so the caller can reject a confirm whose batch has vanished
     """
-    await db.execute(
-        delete(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False))
-    )
-    result = await db.execute(
-        update(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)).values(pending=False)
-    )
+    await db.execute(delete(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False)))
+    result = await db.execute(update(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)).values(pending=False))
     return result.rowcount
 
 
@@ -131,9 +128,7 @@ async def has_active_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> boo
         Whether at least one active recovery code exists
     """
     # Probe for a single row rather than counting the whole batch
-    result = await db.execute(
-        select(RecoveryCode.id).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False)).limit(1)
-    )
+    result = await db.execute(select(RecoveryCode.id).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False)).limit(1))
     return result.first() is not None
 
 
@@ -172,11 +167,15 @@ async def consume_recovery_code(db: AsyncSession, user_id: uuid.UUID, code: str)
         code: Submitted recovery code
 
     Returns:
-        Whether a matching active code existed and was claimed
+        Whether a matching active code existed and was claimed, false at once for text of any other shape
     """
-    active_codes_query = select(RecoveryCode).where(
-        RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False)
-    )
+    # Each check below is a slow hash, so text that cannot be a recovery code, such as a mistyped
+    # authenticator code, is refused before any code is read or hashed
+    code = normalize_recovery_code(code)
+    if code is None:
+        return False
+
+    active_codes_query = select(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False))
     result = await db.execute(active_codes_query)
     for recovery_code in result.scalars():
         if await run_in_threadpool(is_secret_valid, code, recovery_code.code_hash):

@@ -21,7 +21,7 @@ from app.log_setup import configure_logging
 from app.null_characters import refuse_null_characters
 from app.request_hook import RequestObserverMiddleware, observe_requests
 from app.request_log import log_request
-from app.request_security import RequestBodySizeLimitMiddleware
+from app.request_security import RequestBodySizeLimitMiddleware, SignInNoStoreMiddleware
 from app.request_validation import handle_request_validation_error
 from app.routes.accounts import router as account_router
 from app.routes.app_version import router as app_version_router
@@ -129,6 +129,9 @@ app.add_exception_handler(DBAPIError, handle_statement_timeout)
 # of addition and a rejected oversized body still has to carry its CORS headers
 app.add_middleware(RequestBodySizeLimitMiddleware)
 app.add_middleware(FxLookupBudgetMiddleware)
+
+# Outside the body size guard, so even its refusal of a sign-in request carries the header
+app.add_middleware(SignInNoStoreMiddleware)
 
 
 # Without a configured origin the CORS layer is left out, so no response carries CORS headers
