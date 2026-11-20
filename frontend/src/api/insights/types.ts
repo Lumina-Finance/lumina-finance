@@ -89,6 +89,9 @@ export interface InsightsMerchantsResponse {
   fx_status: FxStatus
 }
 
+/** How many saved ranges one request reads. It is also the most the server returns */
+export const SAVED_INSIGHTS_RANGES_PAGE_SIZE = 50
+
 export interface SavedInsightsRange {
   id: string
   name: string

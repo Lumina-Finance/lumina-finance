@@ -24,6 +24,11 @@ type SavedRangesProps = {
 
   savedRangesFailed: boolean
 
+  /** Whether the server holds saved ranges beyond the ones listed */
+  hasMore: boolean
+  loadingMore: boolean
+  onLoadMore: () => void
+
   /** True while the builder's draft covers more than 20 years. Such a draft cannot be saved */
   draftRangeTooLong: boolean
 
@@ -39,6 +44,9 @@ export function SavedRanges({
   savedRanges,
   savedRangesError,
   savedRangesFailed,
+  hasMore,
+  loadingMore,
+  onLoadMore,
   draftRangeTooLong,
   onSaveCurrentRange,
   onApplySavedRange,
@@ -154,6 +162,17 @@ export function SavedRanges({
           ))}
         </AnimatePresence>
       </ul>
+
+      {hasMore && (
+        <button
+          type="button"
+          className="app-secondary-button mt-1 w-full text-sm"
+          disabled={loadingMore}
+          onClick={onLoadMore}
+        >
+          {loadingMore ? 'Loading…' : 'Show more'}
+        </button>
+      )}
     </div>
   )
 }

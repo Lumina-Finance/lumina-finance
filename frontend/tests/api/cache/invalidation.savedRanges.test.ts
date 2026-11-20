@@ -10,12 +10,13 @@ import { insightsKeys } from '@/api/cache/queryKeys'
 describe('app data invalidation', () => {
   it('marks the saved Insights ranges stale so another tab refetches them', () => {
     const client = new QueryClient()
-    client.setQueryData(insightsKeys.savedRanges(), [{ id: 'range-1', name: 'Alpha range' }])
-    expect(client.getQueryState(insightsKeys.savedRanges())?.isInvalidated).toBe(false)
+    const pagesKey = insightsKeys.savedRangesPages(50)
+    client.setQueryData(pagesKey, { pages: [[{ id: 'range-1', name: 'Alpha range' }]], pageParams: [0] })
+    expect(client.getQueryState(pagesKey)?.isInvalidated).toBe(false)
 
     invalidateAppData(client)
 
-    expect(client.getQueryState(insightsKeys.savedRanges())?.isInvalidated).toBe(true)
+    expect(client.getQueryState(pagesKey)?.isInvalidated).toBe(true)
     client.clear()
   })
 })

@@ -23,6 +23,8 @@ export type {
   SavedInsightsRangeUnit,
 } from '@/api/insights/types'
 
+export { SAVED_INSIGHTS_RANGES_PAGE_SIZE } from '@/api/insights/types'
+
 export {
   createSavedInsightsRange,
   deleteSavedInsightsRange,

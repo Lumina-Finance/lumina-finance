@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createSavedInsightsRange,
   deleteSavedInsightsRange,
@@ -14,7 +14,8 @@ import {
 import { insightsKeys } from '@/api/cache/queryKeys'
 import { getFxAwareStaleTime } from '@/api/shared/fxCache'
 import { useAuth } from '@/hooks/useAuth'
-import type { InsightsComparisonPeriod, SavedInsightsRange } from '@/api/insights/types'
+import { addCachedSavedRange, removeCachedSavedRange } from '@/api/cache/updates/savedRanges'
+import { SAVED_INSIGHTS_RANGES_PAGE_SIZE, type InsightsComparisonPeriod } from '@/api/insights/types'
 
 const INSIGHTS_FX_STALE_TIME_MS = 5 * 60 * 1000
 
@@ -127,48 +128,45 @@ export function useInsightsMerchants(
 }
 
 /**
- * Reads the user's saved relative insights ranges
+ * Reads the user's saved relative insights ranges, newest first, one page at a time
  */
-export function useSavedInsightsRanges(enabled = true) {
+export function useSavedInsightsRanges(enabled = true, pageSize = SAVED_INSIGHTS_RANGES_PAGE_SIZE) {
   const { accessToken } = useAuth()
   // Left at the default stale time, like the app's other lists. A range saved or deleted in another
   // session marks the cache changed, and the app's cache check then invalidates this list
-  return useQuery({
-    queryKey: insightsKeys.savedRanges(),
-    queryFn: ({ signal }) => fetchSavedInsightsRanges(signal),
+  return useInfiniteQuery({
+    queryKey: insightsKeys.savedRangesPages(pageSize),
+    queryFn: ({ pageParam, signal }) => fetchSavedInsightsRanges(pageSize, pageParam, signal),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => (lastPage.length < pageSize ? undefined : allPages.length * pageSize),
     enabled: !!accessToken && enabled,
   })
 }
 
 /**
- * Saves a named relative range and prepends it to the cached saved range list
+ * Saves a named relative range and puts it at the head of the cached saved ranges
  */
 export function useSaveInsightsRange() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: createSavedInsightsRange,
     onSuccess: (savedRange) => {
-      // Prepend the new range so the list stays newest-first without a refetch round-trip
-      queryClient.setQueryData<SavedInsightsRange[]>(insightsKeys.savedRanges(), (ranges) =>
-        ranges ? [savedRange, ...ranges] : [savedRange],
-      )
+      // Prepend the new range so the list stays newest-first without waiting on the pages to be read again
+      addCachedSavedRange(queryClient, savedRange)
     },
   })
 }
 
 /**
- * Deletes a saved relative range and drops it from the cached saved range list
+ * Deletes a saved relative range and drops it from the cached saved ranges
  */
 export function useDeleteSavedInsightsRange() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: deleteSavedInsightsRange,
     onSuccess: (_, rangeId) => {
-      // Remove the deleted range in place so the exit animation plays without a refetch round-trip
-      queryClient.setQueryData<SavedInsightsRange[]>(
-        insightsKeys.savedRanges(),
-        (ranges) => ranges?.filter((range) => range.id !== rangeId) ?? ranges,
-      )
+      // Remove the deleted range in place so the exit animation plays without waiting on the pages to be read again
+      removeCachedSavedRange(queryClient, rangeId)
     },
   })
 }

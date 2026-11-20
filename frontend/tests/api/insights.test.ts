@@ -101,10 +101,16 @@ describe('insights fetch functions', () => {
 })
 
 describe('saved insights range functions', () => {
-  it('lists saved ranges from the saved-ranges endpoint', async () => {
+  it('lists the first fifty saved ranges when no page is given, never the whole list', async () => {
     await fetchSavedInsightsRanges()
 
-    expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/saved-ranges', expect.anything())
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/saved-ranges?limit=50&offset=0', expect.anything())
+  })
+
+  it('asks for the page after the ones already read', async () => {
+    await fetchSavedInsightsRanges(50, 100)
+
+    expect(authenticatedFetchMock).toHaveBeenCalledWith('/insights/saved-ranges?limit=50&offset=100', expect.anything())
   })
 
   it('creates a saved range with the name, amount, unit, and qualifier', async () => {
