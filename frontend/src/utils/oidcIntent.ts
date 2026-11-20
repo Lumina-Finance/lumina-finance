@@ -4,9 +4,7 @@ const OIDC_INTENT_KEY = 'oidc-signed-in-intent'
 
 /** What a passwordless account resumes once its reauth step-up completes */
 export type OidcReauthAction =
-  | { kind: 'set-password' }
-  | { kind: 'link'; slug: string }
-  | { kind: 'unlink'; identityId: string }
+  { kind: 'set-password' } | { kind: 'link'; slug: string } | { kind: 'unlink'; identityId: string }
 
 /**
  * Why a signed-in provider roundtrip was started, so the callback page knows how to finish it. A link

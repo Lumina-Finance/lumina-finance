@@ -58,7 +58,14 @@ export default function SecuritySection({
             </div>
 
             <SettingsField label="Email" htmlFor="security-email" hint="Planned, currently not supported to change">
-              <input id="security-email" className="app-input" type="email" value={email} disabled style={DISABLED_INPUT_STYLE} />
+              <input
+                id="security-email"
+                className="app-input"
+                type="email"
+                value={email}
+                disabled
+                style={DISABLED_INPUT_STYLE}
+              />
             </SettingsField>
 
             {hasPassword ? (
