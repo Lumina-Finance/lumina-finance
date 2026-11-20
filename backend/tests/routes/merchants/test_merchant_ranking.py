@@ -39,12 +39,16 @@ async def _create_checking_account(client, headers):
     Returns:
         The created account's ID
     """
-    resp = await client.post("/accounts", json={
-        "account_kind": "asset",
-        "account_type": "checking",
-        "name": "Chequing",
-        "currency": "CAD",
-    }, headers=headers)
+    resp = await client.post(
+        "/accounts",
+        json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": "Chequing",
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
     return resp.json()["id"]
 
 
@@ -61,14 +65,18 @@ async def _record_merchant_transactions(client, headers, account_id, category_id
         dt: Transaction date applied to every recorded row
     """
     for _ in range(count):
-        resp = await client.post("/transactions", json={
-            "account_id": account_id,
-            "category_id": category_id,
-            "merchant_id": merchant_id,
-            "dt": dt.isoformat(),
-            "amount": -5000,
-            "currency": "CAD",
-        }, headers=headers)
+        resp = await client.post(
+            "/transactions",
+            json={
+                "account_id": account_id,
+                "category_id": category_id,
+                "merchant_id": merchant_id,
+                "dt": dt.isoformat(),
+                "amount": -5000,
+                "currency": "CAD",
+            },
+            headers=headers,
+        )
         # Every merchant scores zero when nothing is recorded, which several of these tests would
         # read as the order they expect, so a refused create has to fail here rather than there
         assert resp.status_code == 201, resp.text
@@ -81,13 +89,17 @@ async def test_list_merchants_ignores_the_balance_adjustments_the_app_writes(cli
 
     # Each account written with a starting balance produces a balance adjustment carrying Myself
     for name in ("Chequing", "Savings", "Vacation"):
-        await client.post("/accounts", json={
-            "account_kind": "asset",
-            "account_type": "checking",
-            "name": name,
-            "currency": "CAD",
-            "starting_balance": 100_00,
-        }, headers=headers)
+        await client.post(
+            "/accounts",
+            json={
+                "account_kind": "asset",
+                "account_type": "checking",
+                "name": name,
+                "currency": "CAD",
+                "starting_balance": 100_00,
+            },
+            headers=headers,
+        )
 
     account_id = await _create_checking_account(client, headers)
     category_id = await _get_system_category_id(client, headers)
