@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useState, type RefObject } from 'react'
 import { isTopMostModal } from '@/components/modal/stack'
 import { isFloatingLayerOpen, isInsideFloatingLayer } from '@/utils/floatingLayer'
 
@@ -85,6 +85,13 @@ export function requestInitialModalFocus(panel: HTMLElement) {
   })
 }
 
+// Read during render as well as in the effect, so a render with no document, as in a static markup test,
+// reads no control
+function readFocusedControl() {
+  if (typeof document === 'undefined') return null
+  return document.activeElement instanceof HTMLElement ? document.activeElement : null
+}
+
 /**
  * Keeps keyboard focus and Escape handling on the top dialog, including the full-screen filter sheet
  */
@@ -99,11 +106,21 @@ export function useDialogFocus(
   const returnFocusOpener = returnFocus?.opener
   const fallbackRef = returnFocus?.fallbackRef
 
-  // Capture the opener before moving focus into the dialog
+  // The control focused as the dialogue opens is read while rendering, because a field in the panel that
+  // takes focus as it mounts has done so by the time an effect runs, and would be taken for the opener
+  const [wasOpen, setWasOpen] = useState(open)
+  // A dialogue mounted already open, such as one remounted through its key, reads it on its first render
+  const [focusedOnOpen, setFocusedOnOpen] = useState<HTMLElement | null>(() => (open ? readFocusedControl() : null))
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    setFocusedOnOpen(open ? readFocusedControl() : null)
+  }
+
+  // Return focus to the opener once the dialogue closes, or to the fallback if the opener has gone
   useEffect(() => {
     if (!open) return
 
-    const opener = returnFocusOpener ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
+    const opener = returnFocusOpener ?? focusedOnOpen ?? readFocusedControl()
     const fallback = fallbackRef?.current
 
     return () => {
@@ -113,7 +130,7 @@ export function useDialogFocus(
         if (target?.isConnected) target.focus({ preventScroll: true })
       })
     }
-  }, [open, returnFocusOpener, fallbackRef])
+  }, [open, returnFocusOpener, focusedOnOpen, fallbackRef])
 
   useEffect(() => {
     if (!open) return
