@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
         with:
           # The same uv as UV_VERSION in docker/Dockerfile
           version: "0.13.7"
