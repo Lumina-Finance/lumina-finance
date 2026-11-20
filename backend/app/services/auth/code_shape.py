@@ -22,3 +22,21 @@ def normalize_authenticator_code(code: str) -> str | None:
     """
     match = _AUTHENTICATOR_CODE.fullmatch(code.strip())
     return match.group(1) + match.group(2) if match else None
+
+
+# Four lower-case words and three digits, the form recovery codes are issued in. People also copy them
+# with spaces in place of the hyphens
+_RECOVERY_CODE = re.compile(r"[a-z]+(?:[- ][a-z]+){3}[- ][0-9]{3}")
+
+
+def normalize_recovery_code(code: str) -> str | None:
+    """Return a recovery code in the hyphenated form it was issued in, or None when the text is not one
+
+    Args:
+        code: Text the user submitted
+
+    Returns:
+        The code with hyphens between its parts, or None when the text has any other shape
+    """
+    trimmed = code.strip()
+    return trimmed.replace(" ", "-") if _RECOVERY_CODE.fullmatch(trimmed) else None

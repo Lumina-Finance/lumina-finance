@@ -3,11 +3,13 @@
 import asyncio
 import uuid
 
+import pytest
 from sqlalchemy import select
 
 from app.models.auth import RecoveryCode
 from app.models.currency import Currency
 from app.models.user import User
+from app.services.auth import recovery_codes
 from app.services.auth.recovery_codes import consume_recovery_code, generate_recovery_codes
 from tests.conftest import TestSession
 
@@ -29,6 +31,52 @@ async def _create_user_with_recovery_codes() -> tuple[uuid.UUID, list[str]]:
         codes = await generate_recovery_codes(db, user.id)
         await db.commit()
         return user.id, codes
+
+
+@pytest.fixture
+def hash_calls(monkeypatch) -> list[str]:
+    """Record every submitted code a recovery code redemption runs through a slow hash"""
+    calls: list[str] = []
+    real = recovery_codes.is_secret_valid
+
+    def counting(secret: str, secret_hash: str) -> bool:
+        """Count one slow hash and run it for real"""
+        calls.append(secret)
+        return real(secret, secret_hash)
+
+    monkeypatch.setattr(recovery_codes, "is_secret_valid", counting)
+    return calls
+
+
+async def test_text_that_cannot_be_a_recovery_code_is_refused_without_any_hash(hash_calls):
+    """A mistyped authenticator code costs no hashing, so it cannot be used to make the server work"""
+    user_id, _ = await _create_user_with_recovery_codes()
+
+    async with TestSession() as db:
+        assert await consume_recovery_code(db, user_id, "000000") is False
+
+    assert hash_calls == []
+
+
+async def test_wrong_recovery_code_of_the_right_shape_is_checked_against_each_active_code(hash_calls):
+    """A well-formed code that matches nothing is still compared with every active code, one hash each"""
+    user_id, codes = await _create_user_with_recovery_codes()
+
+    async with TestSession() as db:
+        assert await consume_recovery_code(db, user_id, "able-acid-also-army-042") is False
+
+    assert len(hash_calls) == len(codes)
+
+
+async def test_recovery_code_typed_with_spaces_redeems_once():
+    """The code typed with spaces for its hyphens is the same code, and it is spent like any other"""
+    user_id, codes = await _create_user_with_recovery_codes()
+
+    async with TestSession() as db:
+        assert await consume_recovery_code(db, user_id, codes[0].replace("-", " ")) is True
+        await db.commit()
+    async with TestSession() as db:
+        assert await consume_recovery_code(db, user_id, codes[0]) is False
 
 
 async def test_concurrent_redemption_of_one_recovery_code_claims_it_once():

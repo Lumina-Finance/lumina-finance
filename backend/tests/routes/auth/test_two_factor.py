@@ -812,6 +812,21 @@ async def test_verify_answers_a_code_of_the_wrong_shape_as_a_wrong_code_and_coun
     assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 1
 
 
+async def test_wrong_authenticator_code_at_sign_in_costs_no_recovery_code_hashing(client, monkeypatch):
+    """A mistyped six-digit code is not tried against the recovery codes, while a wrong recovery code is tried against each"""
+    _, _, recovery_batch = await _enroll(client)
+    hashes = []
+    real = recovery_codes.is_secret_valid
+    monkeypatch.setattr(recovery_codes, "is_secret_valid", lambda secret, secret_hash: hashes.append(secret) or real(secret, secret_hash))
+
+    assert (await _login_with_code(client, "000000")).status_code == 401
+    assert hashes == []
+
+    wrong_recovery_code = "able-acid-also-army-042"
+    assert (await _login_with_code(client, wrong_recovery_code)).status_code == 401
+    assert len(hashes) == len(recovery_batch)
+
+
 async def test_step_up_answers_a_code_of_the_wrong_shape_as_a_wrong_code(client):
     """The step-up check refuses non-ASCII text as a wrong code too"""
     auth, _, _ = await _enroll(client)

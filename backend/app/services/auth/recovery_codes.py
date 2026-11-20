@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
 from app.models.auth import RecoveryCode
+from app.services.auth.code_shape import normalize_recovery_code
 from app.services.auth.secret_hashing import hash_secret, is_secret_valid
 
 # BIP-39 English wordlist, vendored from bitcoin/bips bip-0039/english.txt
@@ -166,8 +167,14 @@ async def consume_recovery_code(db: AsyncSession, user_id: uuid.UUID, code: str)
         code: Submitted recovery code
 
     Returns:
-        Whether a matching active code existed and was claimed
+        Whether a matching active code existed and was claimed, false at once for text of any other shape
     """
+    # Each check below is a slow hash, so text that cannot be a recovery code, such as a mistyped
+    # authenticator code, is refused before any code is read or hashed
+    code = normalize_recovery_code(code)
+    if code is None:
+        return False
+
     active_codes_query = select(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False))
     result = await db.execute(active_codes_query)
     for recovery_code in result.scalars():
