@@ -1,4 +1,4 @@
-"""Date limits on the report endpoints: the window every date sits in and the longest range covered"""
+"""Date limits on the report endpoints and the transaction filters: the window every date sits in and the longest range a report covers"""
 
 from datetime import UTC, datetime
 
@@ -125,6 +125,61 @@ async def test_account_snapshots_take_the_whole_window_with_no_length_limit(clie
     response = await client.get(
         f"/accounts/{account_id}/snapshots", params={"from_date": "1900-01-01", "to_date": "2036-06-10"}, headers=headers
     )
+
+    assert response.status_code == 200
+
+
+# The routes that filter transactions by date, besides the list that carries every case. A filter only
+# narrows a query, so any range inside the window is taken. Each needs only to show that it runs the check
+OTHER_TRANSACTION_FILTER_PATHS = [
+    "/transactions/export",
+    "/transactions/11111111-1111-4111-8111-111111111111/refund-link-candidates",
+]
+BEFORE_WINDOW_MESSAGE = "Date must be on or after 1 January 1900"
+AFTER_WINDOW_MESSAGE = "Date must be within ten years of today"
+
+
+async def _refused_date(client, headers, path, params):
+    """Get a path with a date outside the window and return the one error it names, with the status checked"""
+    response = await client.get(path, params=params, headers=headers)
+
+    assert response.status_code == 422
+    [error] = response.json()["detail"]
+    return error
+
+
+@pytest.mark.parametrize(
+    ("params", "message"),
+    [
+        ({"from_date": "0001-01-01"}, BEFORE_WINDOW_MESSAGE),
+        ({"from_date": "1899-12-31"}, BEFORE_WINDOW_MESSAGE),
+        ({"to_date": "2036-06-11"}, AFTER_WINDOW_MESSAGE),
+        ({"to_date": "9999-12-31"}, AFTER_WINDOW_MESSAGE),
+    ],
+)
+async def test_transaction_list_refuses_a_date_outside_the_window_on_that_field(client, headers, params, message):
+    """A date a day outside the window or far outside it is a 422 naming the field, with the reason"""
+    error = await _refused_date(client, headers, "/transactions", params)
+
+    assert error["loc"] == ["query", next(iter(params))]
+    assert error["msg"] == message
+
+
+@pytest.mark.parametrize("path", OTHER_TRANSACTION_FILTER_PATHS)
+@pytest.mark.parametrize(
+    ("params", "message"), [({"from_date": "0001-01-01"}, BEFORE_WINDOW_MESSAGE), ({"to_date": "9999-12-31"}, AFTER_WINDOW_MESSAGE)]
+)
+async def test_transaction_export_and_link_candidates_refuse_a_date_outside_the_window(client, headers, path, params, message):
+    """The export and the refund-link candidates run the same check on each of their two dates"""
+    error = await _refused_date(client, headers, path, params)
+
+    assert error["loc"] == ["query", next(iter(params))]
+    assert error["msg"] == message
+
+
+async def test_transaction_list_takes_a_range_from_the_first_to_the_last_day_of_the_window(client, headers):
+    """A range over far more than 20 years is still answered, since a filter only narrows what is listed"""
+    response = await client.get("/transactions", params={"from_date": "1900-01-01", "to_date": "2036-06-10"}, headers=headers)
 
     assert response.status_code == 200
 

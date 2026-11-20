@@ -12,6 +12,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.import_run import ImportRunSource
 from app.models.user import User
+from app.routes.transactions.query_types import DateFilter
 from app.schemas.import_run import (
     AccountImportSourceResponse,
     CheckHeldBankTransactionsRequest,
@@ -116,8 +117,8 @@ async def list_transactions(
     min_amount: Annotated[int | None, Query(ge=0)] = None,
     max_amount: Annotated[int | None, Query(ge=0)] = None,
     amount_currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
-    from_date: Annotated[date | None, Query()] = None,
-    to_date: Annotated[date | None, Query()] = None,
+    from_date: DateFilter = None,
+    to_date: DateFilter = None,
     search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
     sort_by: Annotated[str, Query()] = "dt",
     sort_order: Annotated[str, Query()] = "desc",
@@ -189,8 +190,8 @@ async def list_refund_link_candidates_route(
     min_amount: Annotated[int | None, Query(ge=0)] = None,
     max_amount: Annotated[int | None, Query(ge=0)] = None,
     amount_currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
-    from_date: Annotated[date | None, Query()] = None,
-    to_date: Annotated[date | None, Query()] = None,
+    from_date: DateFilter = None,
+    to_date: DateFilter = None,
     search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
     unlinked_id: Annotated[list[uuid.UUID] | None, Query()] = None,
 ):
@@ -247,8 +248,8 @@ async def export_transactions(
     min_amount: Annotated[int | None, Query(ge=0)] = None,
     max_amount: Annotated[int | None, Query(ge=0)] = None,
     amount_currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
-    from_date: Annotated[date | None, Query()] = None,
-    to_date: Annotated[date | None, Query()] = None,
+    from_date: DateFilter = None,
+    to_date: DateFilter = None,
     search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
 ):
     """Stream every transaction matching the list's filters as a CSV file, newest first
