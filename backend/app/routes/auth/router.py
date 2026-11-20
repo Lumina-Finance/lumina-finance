@@ -438,8 +438,8 @@ async def complete_totp_route(
 ):
     """Turn on two-factor after the user has saved their recovery codes
 
-    The permissive resolver lets a recovery-code login finish re-enrolment here, which also lifts the
-    restriction
+    Every other session is signed out as it turns on. The permissive resolver lets a recovery-code
+    login finish re-enrolment here, which also lifts the restriction
 
     Args:
         user: Authenticated user resolved from the access token
@@ -448,7 +448,8 @@ async def complete_totp_route(
     Raises:
         HTTPException: Enrolment was not confirmed first, or there is no pending setup
     """
-    await complete_totp_enrollment(db, user.id)
+    # get_authenticated_user has already resolved, so the session id is set for this request
+    await complete_totp_enrollment(db, user.id, current_session_id_ctx.get())
 
 
 @router.post("/2fa/disable", status_code=status.HTTP_204_NO_CONTENT)

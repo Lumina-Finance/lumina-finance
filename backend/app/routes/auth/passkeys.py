@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.webauthn import WEBAUTHN_RP_ID
-from app.database import get_db
+from app.database import current_session_id_ctx, get_db
 from app.dependencies import get_authenticated_user, get_current_user
 from app.models.user import User
 from app.routes.auth.password_reset_helpers import answer_completed_reset
@@ -315,8 +315,8 @@ async def confirm_passkey_registration_route(
 ):
     """Activate a staged first passkey after its recovery codes have been saved
 
-    Uses the permissive resolver so a recovery-code login that re-establishes with a passkey can finish
-    here, which also lifts the restriction
+    Every other session is signed out as it turns on. Uses the permissive resolver so a recovery-code
+    login that re-establishes with a passkey can finish here, which also lifts the restriction
 
     Args:
         user: Authenticated user resolved from the access token
@@ -325,7 +325,8 @@ async def confirm_passkey_registration_route(
     Raises:
         HTTPException: No staged passkey with pending recovery codes is awaiting confirmation
     """
-    await confirm_passkey_registration(db, user.id)
+    # get_authenticated_user has already resolved, so the session id is set for this request
+    await confirm_passkey_registration(db, user.id, current_session_id_ctx.get())
 
 
 @router.patch("/{passkey_id}", response_model=PasskeySummary)
@@ -361,6 +362,8 @@ async def remove_passkey_route(
 ):
     """Delete one of the authenticated user's passkeys after step-up reauthentication
 
+    Every other session is signed out with it
+
     Args:
         passkey_id: Passkey to delete
         data: Password and a current second factor, a passkey assertion or a TOTP code
@@ -370,4 +373,5 @@ async def remove_passkey_route(
     Raises:
         HTTPException: The passkey does not exist, or the step-up check fails
     """
-    await remove_passkey_with_step_up(db, user, passkey_id, data.password, code=data.code, passkey=data.passkey)
+    # get_current_user has already resolved, so the session id is set for this request
+    await remove_passkey_with_step_up(db, user, current_session_id_ctx.get(), passkey_id, data.password, code=data.code, passkey=data.passkey)

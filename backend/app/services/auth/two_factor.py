@@ -17,7 +17,7 @@ from app.services.auth.recovery_codes import (
     has_pending_recovery_codes,
     staging_cutoff,
 )
-from app.services.auth.sessions import delete_all_user_auth_sessions
+from app.services.auth.sessions import delete_all_user_auth_sessions, delete_other_user_auth_sessions
 from app.services.auth.step_up import verify_step_up
 from app.services.auth.totp import (
     disable_totp,
@@ -143,18 +143,20 @@ async def confirm_totp_enrollment(db: AsyncSession, user_id: uuid.UUID, code: st
     return codes
 
 
-async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None:
+async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID, current_session_id: uuid.UUID) -> None:
     """Turn on two-factor once the user has acknowledged their staged recovery code batch
 
     The staged codes are promoted and any re-enrolment restriction lifted in the same commit as
-    enabling, never leaving it half on. When this finishes a forced re-enrol it also signs out every
-    session, so the recovery path ends in a fresh login rather than promoting its restricted session. A
-    staged batch only exists after a confirmed code, so requiring it keeps two-factor from being enabled
-    around an unverified secret
+    enabling, never leaving it half on. Every other session is signed out in that commit too, so a
+    device that signed in before the second factor existed cannot keep its access. When this finishes
+    a forced re-enrol it signs out every session, so the recovery path ends in a fresh login rather
+    than promoting its restricted session. A staged batch only exists after a confirmed code, so
+    requiring it keeps two-factor from being enabled around an unverified secret
 
     Args:
         db: Active database session
         user_id: User finishing enrolment
+        current_session_id: Session that made the request and stays signed in, except after a forced re-enrol
 
     Raises:
         HTTPException: Enrolment was not confirmed first, or there is no pending setup
@@ -176,6 +178,8 @@ async def complete_totp_enrollment(db: AsyncSession, user_id: uuid.UUID) -> None
     # the user back to a fresh login with the new factor
     if was_forced_reenrollment:
         await delete_all_user_auth_sessions(db, user_id)
+    else:
+        await delete_other_user_auth_sessions(db, user_id, current_session_id)
 
     await db.commit()
 
@@ -208,17 +212,22 @@ async def disable_two_factor(db: AsyncSession, user: User, password: str, *, cod
 async def remove_passkey_with_step_up(
     db: AsyncSession,
     user: User,
+    current_session_id: uuid.UUID,
     passkey_id: uuid.UUID,
     password: str,
     *,
     code: str | None = None,
     passkey: dict | None = None,
 ) -> None:
-    """Remove a passkey after step-up, clearing the recovery codes only when no factor survives
+    """Remove a passkey after step-up and sign out every other session
+
+    The recovery codes go too, but only when no factor survives. The removal, that drop and the
+    sign-outs commit together, so a failure keeps the passkey and every session
 
     Args:
         db: Active database session
         user: Authenticated user removing the passkey
+        current_session_id: Session that made the request and stays signed in
         passkey_id: Passkey to remove
         password: Account password
         code: A current TOTP code, when stepping up by authenticator
@@ -233,7 +242,10 @@ async def remove_passkey_with_step_up(
     # The recovery batch is shared, so drop it only once removal leaves no second factor at all
     if not await is_totp_enabled(db, user.id) and not await is_passkey_registered(db, user.id):
         await delete_recovery_codes(db, user.id)
-        await db.commit()
+
+    # A device that signed in with the removed passkey, or one an attacker holds, must not stay signed in
+    await delete_other_user_auth_sessions(db, user.id, current_session_id)
+    await db.commit()
 
 
 async def regenerate_recovery_codes(

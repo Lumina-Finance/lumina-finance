@@ -22,19 +22,25 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import HTTPException
 from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import DBAPIError
 from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
 import app.services.auth.webauthn as webauthn_service
 from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
 from app.config.webauthn import WEBAUTHN_ORIGINS, WEBAUTHN_RP_ID
 from app.models.auth import AuthIdentity, RecoveryCode, WebauthnChallenge, WebauthnCredential
+from app.models.auth_session import AuthSession
 from app.models.base import AuthProvider
 from app.models.user import User
+from app.services.auth import two_factor
 from app.services.auth.recovery_codes import generate_recovery_codes
 from app.services.auth.saved_copy_key import derive_saved_copy_key
 from tests.conftest import TestSession
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
+    _assert_other_sessions_ended,
+    _assert_other_sessions_kept,
+    _assert_session_works,
     _count_sign_in_provider_links,
     _create_user,
     _get_auth_header,
@@ -42,6 +48,7 @@ from tests.routes.support import (
     _link_sign_in_providers,
     _saved_copy_key,
     _seed_reset_token,
+    _sign_in_again,
     sign_up_confirmed,
 )
 
@@ -357,6 +364,49 @@ async def test_second_passkey_activates_without_new_codes(client, monkeypatch):
 
     names = {p["name"] for p in (await client.get("/auth/passkeys", headers=auth)).json()}
     assert names == {"First", "Second"}
+
+
+async def test_first_passkey_confirmed_signs_out_other_sessions(client, monkeypatch):
+    """Turning on a first passkey signs out every other device and keeps the one that turned it on"""
+    signup = await _create_user(client)
+    caller = (_get_auth_header(signup), signup.cookies["refresh_token"])
+    other = await _sign_in_again(client)
+    await _assert_session_works(client, caller)
+    await _assert_session_works(client, other)
+
+    await _register_passkey(client, caller[0], monkeypatch, b"first-key", "First")
+    confirmed = await client.post("/auth/passkeys/register/confirm", headers=caller[0])
+    assert confirmed.status_code == 204
+
+    await _assert_other_sessions_ended(client, caller, other)
+
+
+async def test_passkey_confirmation_refused_keeps_other_sessions(client):
+    """Confirming with no staged passkey is refused and signs nobody out"""
+    signup = await _create_user(client)
+    caller = (_get_auth_header(signup), signup.cookies["refresh_token"])
+    other = await _sign_in_again(client)
+
+    confirmed = await client.post("/auth/passkeys/register/confirm", headers=caller[0])
+    assert confirmed.status_code == 400
+
+    await _assert_other_sessions_kept(client, caller, other)
+
+
+async def test_later_passkey_added_keeps_other_sessions(client, monkeypatch):
+    """A second passkey is a stronger account, not a credential change, so other devices stay signed in"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    caller = (_get_auth_header(signup), signup.cookies["refresh_token"])
+    other = await _sign_in_again(client)
+
+    # Seeded directly, since once a passkey is confirmed the account challenges at sign-in
+    await _seed_passkeys(user_id, 1)
+    step_up = await _step_up_with_passkey(client, caller[0], monkeypatch, user_id, b"bulk-True-0")
+    second = await _register_passkey(client, caller[0], monkeypatch, b"second-key", "Second", step_up=step_up)
+    assert second.status_code == 201
+
+    await _assert_other_sessions_kept(client, caller, other)
 
 
 async def test_passkey_after_existing_codes_reuses_them(client, monkeypatch):
@@ -676,6 +726,72 @@ async def test_remove_keeps_identity_while_passkeys_remain(client, monkeypatch):
     assert await _has_webauthn_identity(user_id) is True
 
 
+async def test_passkey_removed_signs_out_other_sessions(client, monkeypatch):
+    """Removing a passkey signs out every other device and keeps the one that removed it"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    caller = (_get_auth_header(signup), signup.cookies["refresh_token"])
+    other = await _sign_in_again(client)
+    first = await _seed_passkey(user_id, b"first-credential")
+    await _seed_passkey(user_id, b"second-credential")
+    await _assert_session_works(client, caller)
+    await _assert_session_works(client, other)
+
+    body = await _step_up_with_passkey(client, caller[0], monkeypatch, user_id, b"second-credential")
+    removed = await client.post(f"/auth/passkeys/{first}/remove", headers=caller[0], json=body)
+    assert removed.status_code == 204
+
+    await _assert_other_sessions_ended(client, caller, other)
+
+
+async def test_passkey_removal_refused_keeps_other_sessions(client, monkeypatch):
+    """A wrong password, or a passkey that is not the user's, is refused and signs nobody out"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    caller = (_get_auth_header(signup), signup.cookies["refresh_token"])
+    other = await _sign_in_again(client)
+    passkey_id = await _seed_passkey(user_id, b"protected-credential")
+
+    wrong_password = await client.post(
+        f"/auth/passkeys/{passkey_id}/remove", headers=caller[0], json={"password": "WrongPass123!", "code": "000000"}
+    )
+    assert wrong_password.status_code == 401
+
+    body = await _step_up_with_passkey(client, caller[0], monkeypatch, user_id, b"protected-credential")
+    unknown = await client.post(f"/auth/passkeys/{uuid.uuid4()}/remove", headers=caller[0], json=body)
+    assert unknown.status_code == 404
+
+    await _assert_other_sessions_kept(client, caller, other)
+
+
+async def test_passkey_removal_failing_while_ending_sessions_keeps_passkey_and_codes(client, monkeypatch):
+    """The removal, the recovery code drop and the sign-outs land together or not at all"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    caller = (_get_auth_header(signup), signup.cookies["refresh_token"])
+    other = await _sign_in_again(client)
+
+    # One passkey with its recovery batch, so removing it would also drop the identity and the codes
+    await _seed_passkeys(user_id, 1)
+    passkey_id = (await client.get("/auth/passkeys", headers=caller[0])).json()[0]["id"]
+    body = await _step_up_with_passkey(client, caller[0], monkeypatch, user_id, b"bulk-True-0")
+
+    async def fail_ending_sessions(db, ending_user_id, keep_session_id):
+        """Fail inside the database, so the transaction is really broken"""
+        await db.execute(text("SELECT 1 / 0"))
+
+    monkeypatch.setattr(two_factor, "delete_other_user_auth_sessions", fail_ending_sessions)
+    with pytest.raises(DBAPIError, match="division by zero"):
+        await client.post(f"/auth/passkeys/{passkey_id}/remove", headers=caller[0], json=body)
+
+    async with TestSession() as db:
+        assert await db.get(WebauthnCredential, uuid.UUID(passkey_id)) is not None, "the passkey is still there"
+        codes = await db.scalar(select(func.count()).select_from(RecoveryCode).where(RecoveryCode.user_id == uuid.UUID(user_id)))
+        assert codes == 1, "the recovery codes are still there"
+    assert await _has_webauthn_identity(user_id) is True
+    await _assert_other_sessions_kept(client, caller, other)
+
+
 async def test_remove_passkey_rejects_a_wrong_password(client):
     """Passkey removal refuses a wrong password and leaves the passkey in place"""
     signup = await _create_user(client)
@@ -925,10 +1041,13 @@ async def test_concurrent_passkey_confirmation_keeps_the_recovery_codes(client):
     await _stage_passkey_with_pending_codes(user_id, b"race-staged-key")
     user_uuid = uuid.UUID(user_id)
 
+    async with TestSession() as db:
+        session_id = await db.scalar(select(AuthSession.id).where(AuthSession.user_id == user_uuid))
+
     async with TestSession() as first, TestSession() as second:
         results = await asyncio.gather(
-            webauthn_service.confirm_passkey_registration(first, user_uuid),
-            webauthn_service.confirm_passkey_registration(second, user_uuid),
+            webauthn_service.confirm_passkey_registration(first, user_uuid, session_id),
+            webauthn_service.confirm_passkey_registration(second, user_uuid, session_id),
             return_exceptions=True,
         )
 

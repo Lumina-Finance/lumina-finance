@@ -199,6 +199,47 @@ async def _enroll(client):
     return auth, secret, confirm.json()["recovery_codes"]
 
 
+async def _sign_in_again(client, email: str = SIGNUP_PAYLOAD["email"]) -> tuple[dict, str]:
+    """Sign a password user in on another device, returning that session's auth header and refresh cookie
+
+    A user with a second factor on is challenged at sign-in, so a test opens its second session before
+    turning one on
+    """
+    login = await client.post("/auth/login", json={"email": email, "password": SIGNUP_PAYLOAD["password"]})
+    assert login.status_code == 200, login.text
+    return _get_auth_header(login), login.cookies["refresh_token"]
+
+
+async def _refresh_session(client, refresh_cookie: str):
+    """Renew a session from its refresh cookie, the way that device's browser does"""
+    client.cookies.clear()
+    client.cookies.set("refresh_token", refresh_cookie)
+    return await client.post("/auth/refresh")
+
+
+async def _assert_session_works(client, session: tuple[dict, str]) -> None:
+    """Assert a session's access token is accepted, which a test uses to check the state it starts from"""
+    assert (await client.get("/auth/2fa/status", headers=session[0])).status_code == 200
+
+
+async def _assert_other_sessions_ended(client, caller: tuple[dict, str], other: tuple[dict, str]) -> None:
+    """Assert another device is signed out at both its access token and refresh, and the caller's is not
+
+    The caller's refresh comes last, since renewing a session retires its old access token
+    """
+    assert (await client.get("/auth/2fa/status", headers=other[0])).status_code == 401, "the other device's access token is refused"
+    assert (await _refresh_session(client, other[1])).status_code == 401, "the other device cannot refresh"
+    assert (await client.get("/auth/2fa/status", headers=caller[0])).status_code == 200, "the caller's access token still works"
+    assert (await _refresh_session(client, caller[1])).status_code == 200, "the caller can still refresh"
+
+
+async def _assert_other_sessions_kept(client, caller: tuple[dict, str], other: tuple[dict, str]) -> None:
+    """Assert both devices still work at their access tokens and refresh"""
+    for device in (other, caller):
+        assert (await client.get("/auth/2fa/status", headers=device[0])).status_code == 200
+        assert (await _refresh_session(client, device[1])).status_code == 200
+
+
 def _clears_cookie(resp, key: str) -> bool:
     """Return whether a response tells the browser to remove a cookie
 

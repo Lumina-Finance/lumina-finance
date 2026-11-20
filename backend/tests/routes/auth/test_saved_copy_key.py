@@ -78,7 +78,10 @@ async def test_a_browser_gets_the_key_on_every_way_of_signing_in_and_on_renewal(
     challenge = await _login(client)
     assert "saved_copy_key" not in challenge.json(), "the first step of a two-step sign-in hands out no key"
     verify = await client.post("/auth/2fa/verify", json={"mfa_token": challenge.json()["mfa_token"], "code": _fresh_totp_code(secret)})
-    assert _saved_copy_key(verify) == (key, version), "the second step returns the same key"
+
+    # Turning on two-factor signed the other sessions out and moved the key number on
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    assert _saved_copy_key(verify) == (derive_saved_copy_key(user_id, version + 1), version + 1), "the second step returns the moved-on key"
 
 
 async def test_a_native_app_gets_no_key(client):
@@ -188,14 +191,16 @@ async def test_a_recovery_code_sign_in_answers_with_the_new_key_and_completing_r
     _, _, codes = await _enroll(client)
     async with TestSession() as session:
         user_id = await session.scalar(select(User.id).where(User.email == SIGNUP_PAYLOAD["email"]))
-    start_key = derive_saved_copy_key(user_id, 0)
+
+    # Enrolling signed the other sessions out and moved the number from 0 to 1
+    start_key = derive_saved_copy_key(user_id, 1)
 
     verify = await _recovery_code_login(client, codes[0])
     assert verify.status_code == 200
     recovered_key, recovered_version = _saved_copy_key(verify)
-    assert recovered_version == 1, "the rotating response carries the new number"
+    assert recovered_version == 2, "the rotating response carries the new number"
     assert recovered_key != start_key
-    assert recovered_key == derive_saved_copy_key(user_id, 1)
+    assert recovered_key == derive_saved_copy_key(user_id, 2)
 
     restricted = {"Authorization": f"Bearer {verify.json()['access_token']}"}
     secret = (await client.post("/auth/2fa/setup", headers=restricted, json={})).json()["secret"]
@@ -206,7 +211,7 @@ async def test_a_recovery_code_sign_in_answers_with_the_new_key_and_completing_r
     relogin = await _login(client)
     final = await client.post("/auth/2fa/verify", json={"mfa_token": relogin.json()["mfa_token"], "code": _fresh_totp_code(secret)})
     final_key, final_version = _saved_copy_key(final)
-    assert final_version == 2
+    assert final_version == 3
     assert final_key not in (start_key, recovered_key)
 
 
