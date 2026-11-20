@@ -277,15 +277,17 @@ export async function readSavedCache(page: Page): Promise<{ entry: SavedCacheEnt
 }
 
 /**
- * Wait until this browser holds a saved cache entry, sealed under the first key number
+ * Wait until this browser holds a saved cache entry, sealed under the account's current key number
  *
  * A sign-in route that handed the page no key would leave the app with nothing to seal a save with,
  * and no entry would ever appear
  *
  * @param page - Page that has just signed in
+ * @param keyNumber - The account's current key number: 0 for a new account, and one more for each
+ *   change that ended its other sessions, such as turning on two-factor
  */
-export async function expectSavedCacheEntry(page: Page): Promise<void> {
-  await expect.poll(async () => (await readSavedCache(page))?.entry.keyNumber).toBe(0)
+export async function expectSavedCacheEntry(page: Page, keyNumber = 0): Promise<void> {
+  await expect.poll(async () => (await readSavedCache(page))?.entry.keyNumber).toBe(keyNumber)
 }
 
 /**

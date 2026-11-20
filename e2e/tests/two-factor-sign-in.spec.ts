@@ -28,7 +28,8 @@ test('refuses a wrong authenticator code and signs in once the right one is ente
   await reachTwoFactorChallenge(page, user)
   await page.getByLabel('One-time code').fill(currentTotp(secret))
   await expectSignedIn(page)
-  await expectSavedCacheEntry(page)
+  // Turning on two-factor moved the key on once
+  await expectSavedCacheEntry(page, 1)
 })
 
 test('spends a recovery code on sign-in, asks for a new second factor and refuses the code a second time', async ({ page, browser, request }) => {

@@ -24,5 +24,6 @@ test("signs in with the login page's passkey button", ON_ARM64, async ({ page, r
   expect((await signedIn).status()).toBe(200)
 
   await expectSignedIn(page)
-  await expectSavedCacheEntry(page)
+  // Confirming the first passkey turned on two-factor and so moved the key on once
+  await expectSavedCacheEntry(page, 1)
 })
