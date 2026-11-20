@@ -153,12 +153,10 @@ export function useFireflyImportWorkflow() {
     categoriesResolved,
     refetchAccounts,
     refetchCategories,
-    institutionsLoading,
     categoriesLoading,
     selectableAccounts,
     accountOptions,
     currencyOptions,
-    institutionOptions,
     categoryMatchOptions,
     accountById,
     categoryById,
@@ -170,6 +168,7 @@ export function useFireflyImportWorkflow() {
   } = useProviderImportReferenceData({
     transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME,
     isImportFinished: run.workflow.importResult !== null,
+    institutionIds: Object.values(accountCreateInstitutions),
   })
 
   // A finished import is a record of what it did, so its answers are guessed without what it created
@@ -653,11 +652,9 @@ export function useFireflyImportWorkflow() {
     accountsLoading,
     currenciesLoading,
     uploadBlockReason: getImportUploadBlockReason(currencies, currenciesError),
-    institutionsLoading,
     categoriesLoading,
     accountOptions,
     currencyOptions,
-    institutionOptions,
     categoryMatchOptions,
     accountById,
     categoryById,

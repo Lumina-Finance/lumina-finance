@@ -247,7 +247,7 @@ export default function ImportsPage() {
   useEffect(() => {
     void queryClient.invalidateQueries({ queryKey: accountKeys.list(), exact: true })
     void queryClient.invalidateQueries({ queryKey: categoryKeys.list(), exact: true })
-    void queryClient.invalidateQueries({ queryKey: institutionKeys.list(), exact: true })
+    void queryClient.invalidateQueries({ queryKey: institutionKeys.infiniteAll })
 
     // Asked again rather than read back, since a merchant created in another tab would otherwise
     // leave a merchant name reading as one with no merchant yet

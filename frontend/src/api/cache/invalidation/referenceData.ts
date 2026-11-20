@@ -7,7 +7,7 @@ export const referenceDataTargets: InvalidationTarget[] = [
   { queryKey: categoryKeys.list(), exact: true },
   { queryKey: merchantKeys.all },
   { queryKey: tagKeys.all },
-  { queryKey: institutionKeys.list(), exact: true },
+  { queryKey: institutionKeys.all },
 ]
 
 /**
@@ -34,6 +34,20 @@ export function invalidateMerchantLookupPages(queryClient: QueryClient) {
  */
 export function invalidateMerchantNameMatches(queryClient: QueryClient) {
   invalidateTargets(queryClient, [{ queryKey: merchantKeys.nameMatchesAll }])
+}
+
+/**
+ * Refreshes the pages of institutions the pickers hold, leaving each institution's own record alone
+ *
+ * A new institution or a rename moves rows between pages and between searches, so a page cannot be
+ * patched in place the way a single record can
+ */
+export function invalidateInstitutionPages(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({
+    queryKey: institutionKeys.all,
+    predicate: (query) => isInfiniteReferenceLookupQueryKey(query.queryKey, 'institutions'),
+    refetchType: 'active',
+  })
 }
 
 /**

@@ -1,4 +1,3 @@
-import type { Institution } from '@/api/institutions'
 import type { Currency } from '@/api/currency'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
@@ -12,16 +11,6 @@ export function buildCreateAccountCurrencyOptions(currencies: Currency[]): Dropd
     value: currency.id,
     label: formatCurrencyLabel(currency),
   }))
-}
-
-/**
- * Adds the explicit empty institution option before user-created institutions
- */
-export function buildCreateAccountInstitutionOptions(institutions: Institution[]): DropdownOption[] {
-  return [
-    { value: '', label: 'None' },
-    ...institutions.map((institution) => ({ value: institution.id, label: institution.name })),
-  ]
 }
 
 /**

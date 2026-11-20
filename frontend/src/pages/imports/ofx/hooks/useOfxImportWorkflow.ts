@@ -170,16 +170,15 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     accountsResolved,
     accountsCurrent,
     refetchAccounts,
-    institutionsLoading,
     selectableAccounts,
     accountOptions,
     currencyOptions,
-    institutionOptions,
     accountById,
     institutionById,
   } = useProviderImportReferenceData({
     transferCategoryName: IMPORT_TRANSFER_CATEGORY_NAME,
     isImportFinished: run.workflow.importResult !== null,
+    institutionIds: Object.values(accountCreateInstitutions),
   })
 
   const statements = useMemo(() => (ofxFile ? getOfxStatementsToImport(ofxFile) : []), [ofxFile])
@@ -488,10 +487,8 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     accountsLoading,
     currenciesLoading,
     uploadBlockReason,
-    institutionsLoading,
     accountOptions,
     currencyOptions,
-    institutionOptions,
     accountById,
     setAccountCreateTypes,
     setAccountCreateCurrencies,

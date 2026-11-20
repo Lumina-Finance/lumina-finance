@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import type { Institution } from '@/api/institutions'
 import {
   AMOUNT_ARRANGEMENT_CLASH_ERROR,
   COLUMN_TARGETS,
@@ -18,7 +17,6 @@ import {
   getRowSignDisagreesWithCategoryReason,
   IMPORT_LAYOUTS_LOADING_UPLOAD_BLOCK,
   MISSING_AMOUNT_COLUMN_LABEL,
-  UNSET_BATCH_INSTITUTION,
 } from '@/pages/imports/constants'
 import type { ImportFileDraft } from '@/pages/imports/types'
 import {
@@ -27,7 +25,6 @@ import {
   buildImportAccountOptions,
   buildImportCategoryMatchOptions,
   buildImportCurrencyOptions,
-  buildImportInstitutionOptions,
   getAmountArrangementClashError,
   getArchivedAccountMatches,
   getImportedCategories,
@@ -100,9 +97,6 @@ function createFile(overrides: Partial<ImportFileDraft> = {}): ImportFileDraft {
 describe('import workflow option helpers', () => {
   it('builds dropdown options with action and none choices pinned first', () => {
     const currencies: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
-    const institutions: Institution[] = [
-      { id: 'bank', status: 'active', name: 'Bank', country_code: 'CA', website: '', logo_url: null },
-    ]
 
     expect(buildImportAccountOptions([createAccount({ id: 'visa', name: 'Visa', account_kind: 'revolving' })])).toEqual(
       [
@@ -111,18 +105,6 @@ describe('import workflow option helpers', () => {
       ],
     )
     expect(buildImportCurrencyOptions(currencies)).toEqual([{ value: 'CAD', label: 'CAD' }])
-    expect(buildImportInstitutionOptions(institutions)).toEqual([
-      { value: '', label: 'None' },
-      { value: 'bank', label: 'Bank' },
-    ])
-  })
-
-  // The batch bar shows its placeholder by holding a value no option carries, so the moment one
-  // does, the resting control reads as an answer the user never gave
-  it('offers no institution option matching the unset value the batch bar holds', () => {
-    const options = buildImportInstitutionOptions([{ id: 'bank', name: 'Bank' } as Institution])
-
-    expect(options.some((option) => option.value === UNSET_BATCH_INSTITUTION)).toBe(false)
   })
 
   it('sorts category match options by kind and name after the create action', () => {

@@ -1,7 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
-import type { Institution } from '@/api/institutions'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import {
   ACCOUNT_KIND_LABELS,
@@ -121,19 +120,6 @@ export function buildImportCurrencyOptions(currencies: Currency[]): DropdownOpti
     value: currency.id,
     label: currency.id,
   }))
-}
-
-/**
- * Builds institution dropdown options with the explicit none option first
- */
-export function buildImportInstitutionOptions(institutions: Institution[]): DropdownOption[] {
-  return [
-    { value: '', label: 'None' },
-    ...institutions.map((institution) => ({
-      value: institution.id,
-      label: institution.name,
-    })),
-  ]
 }
 
 /**

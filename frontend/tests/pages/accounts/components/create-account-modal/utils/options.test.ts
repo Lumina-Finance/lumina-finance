@@ -1,31 +1,18 @@
 /**
- * Tests the dropdown options the create-account modal offers, so which currencies, institutions and
+ * Tests the dropdown options the create-account modal offers, so which currencies and
  * tax-advantaged plans appear cannot drift from the ownership scope and currency they are filtered by
  */
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
-import type { Institution } from '@/api/institutions'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import {
   buildCreateAccountCurrencyOptions,
-  buildCreateAccountInstitutionOptions,
   buildCreateAccountTaxPlanOptions,
 } from '@/pages/accounts/components/create-account-modal/utils/options'
 
 const currencies: Currency[] = [
   { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
   { id: 'JPY', name: 'Japanese Yen', symbol: '¥', minor_unit_exponent: 0 },
-]
-
-const institutions: Institution[] = [
-  {
-    id: 'td',
-    status: 'active',
-    name: 'TD',
-    country_code: 'CA',
-    website: 'https://td.com',
-    logo_url: null,
-  },
 ]
 
 const taxAdvantagedCategories: TaxAdvantagedCategory[] = [
@@ -75,10 +62,6 @@ describe('create account option helpers', () => {
       value: 'CAD',
       label: 'CAD · Canadian Dollar (CA$)',
     })
-    expect(buildCreateAccountInstitutionOptions(institutions)).toEqual([
-      { value: '', label: 'None' },
-      { value: 'td', label: 'TD' },
-    ])
     expect(buildCreateAccountTaxPlanOptions(taxAdvantagedCategories, 'CAD')).toEqual([
       { value: '', label: 'None' },
       { value: 'tfsa', label: 'TFSA' },

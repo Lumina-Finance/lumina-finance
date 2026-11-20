@@ -5,7 +5,14 @@
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// The institution picker reads the user's session and the query cache. This table-only render has
+// neither, so a stand-in keeps the class the table gives it and nothing else
+vi.mock('@/components/institution-dropdown/InstitutionDropdown', () => ({
+  InstitutionDropdown: ({ className }: { className?: string }) => createElement('span', { className }),
+}))
+
 import { ImportAccountMappingTable } from '@/pages/imports/components/tables/AccountMappingTable'
 import { ImportDirectionValueTable } from '@/pages/imports/components/tables/DirectionValueTable'
 import { ImportHeaderMappingTable } from '@/pages/imports/components/tables/HeaderMappingTable'
@@ -88,10 +95,8 @@ function renderAccounts(disabled: boolean) {
       options: [],
       accountTypeOptions: [],
       currencyOptions: [],
-      institutionOptions: [],
       disabled,
       currenciesDisabled: false,
-      institutionsDisabled: false,
       selectedRowIds: new Set<string>(),
       batchAccountType: '',
       batchAccountCurrency: '',

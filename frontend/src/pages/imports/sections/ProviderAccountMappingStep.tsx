@@ -47,12 +47,10 @@ export interface ProviderAccountMappingStepProps {
   setAccountCreateInstitutions: RecordSetter
   accountOptions: DropdownOption[]
   currencyOptions: DropdownOption[]
-  institutionOptions: DropdownOption[]
   accountsLoading: boolean
   accountsFailed: boolean
   refetchAccounts: () => unknown
   currenciesLoading: boolean
-  institutionsLoading: boolean
   selectedAccountRows: Set<string>
   batchAccountType: string
   batchAccountCurrency: string
@@ -88,12 +86,10 @@ export function ProviderAccountMappingStep({
   setAccountCreateInstitutions,
   accountOptions,
   currencyOptions,
-  institutionOptions,
   accountsLoading,
   accountsFailed,
   refetchAccounts,
   currenciesLoading,
-  institutionsLoading,
   selectedAccountRows,
   batchAccountType,
   batchAccountCurrency,
@@ -147,10 +143,8 @@ export function ProviderAccountMappingStep({
             options={accountOptions}
             accountTypeOptions={ACCOUNT_TYPE_OPTIONS}
             currencyOptions={currencyOptions}
-            institutionOptions={institutionOptions}
             disabled={accountsLoading || isImportFinished}
             currenciesDisabled={currenciesLoading}
-            institutionsDisabled={institutionsLoading}
             selectedRowIds={selectedAccountRows}
             batchAccountType={batchAccountType}
             batchAccountCurrency={batchAccountCurrency}

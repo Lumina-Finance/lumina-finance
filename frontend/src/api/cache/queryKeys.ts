@@ -139,7 +139,13 @@ export const tagKeys = {
 }
 
 export const institutionKeys = {
-  list: () => ['institutions'] as const,
+  all: ['institutions'] as const,
+  detail: (institutionId: string | null | undefined) => ['institutions', institutionId] as const,
+
+  /** Every page the pickers hold, whatever search and page size it was read with */
+  infiniteAll: ['institutions', 'infinite'] as const,
+  infinite: (filters: Record<string, unknown>, pageSize: number) =>
+    ['institutions', 'infinite', filters, pageSize] as const,
 }
 
 export const currencyKeys = {

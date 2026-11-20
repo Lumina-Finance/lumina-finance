@@ -1,5 +1,6 @@
 import { useEffect, useId, type Dispatch, type SetStateAction } from 'react'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
+import { InstitutionDropdown } from '@/components/institution-dropdown/InstitutionDropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE, UNSET_BATCH_INSTITUTION } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { canApplyBatchEditToRow, countImportAccountRowStates } from '@/pages/imports/utils'
@@ -20,10 +21,8 @@ export function ImportAccountMappingTable({
   options,
   accountTypeOptions,
   currencyOptions,
-  institutionOptions,
   disabled,
   currenciesDisabled,
-  institutionsDisabled,
   selectedRowIds,
   batchAccountType,
   batchAccountCurrency,
@@ -76,12 +75,10 @@ export function ImportAccountMappingTable({
   options: DropdownOption[]
   accountTypeOptions: DropdownOption[]
   currencyOptions: DropdownOption[]
-  institutionOptions: DropdownOption[]
 
   /** Holds every answer in the table and its batch bar, such as while the accounts list loads */
   disabled: boolean
   currenciesDisabled: boolean
-  institutionsDisabled: boolean
   selectedRowIds: Set<string>
   batchAccountType: string
   batchAccountCurrency: string
@@ -259,21 +256,18 @@ export function ImportAccountMappingTable({
           />
         </td>
         <td className="py-3 pl-4 pr-0 align-middle">
-          <Dropdown
+          <InstitutionDropdown
             labelledBy={`${institutionHeadingId} ${sourceLabelId}`}
-            options={institutionOptions}
             value={creating ? row.createInstitution : row.accountInstitution}
             onChange={row.onCreateInstitutionChange}
-            searchable
             // The institution list spends the empty string on "None", so without this an unanswered
             // row reads as having been given one, and its tooltip repeats the claim
             blankWhenEmpty={!creating}
             placeholder="Institution"
             size="compact"
             className={!disabled && row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
-            disabled={disabled || !creating || institutionsDisabled}
-            onCreateNew={(query) => onCreateInstitution(query, row.id)}
-            createNewLabel={(query) => (query ? `Create institution "${query}"` : 'Create institution')}
+            disabled={disabled || !creating}
+            onCreate={(query) => onCreateInstitution(query, row.id)}
           />
         </td>
       </tr>
@@ -321,17 +315,14 @@ export function ImportAccountMappingTable({
           </div>
           <div className="flex min-w-0 items-center gap-3 px-4">
             <div className="min-w-0 flex-1">
-              <Dropdown
+              <InstitutionDropdown
                 labelledBy={`${batchHeadingId} ${institutionHeadingId}`}
-                options={institutionOptions}
-                value={batchAccountInstitution}
+                value={hasBatchInstitutionSet ? batchAccountInstitution : null}
                 onChange={onBatchAccountInstitutionChange}
-                searchable
                 placeholder="Institution"
                 size="field"
-                disabled={disabled || institutionsDisabled}
-                onCreateNew={onBatchCreateInstitution}
-                createNewLabel={(query) => (query ? `Create institution "${query}"` : 'Create institution')}
+                disabled={disabled}
+                onCreate={onBatchCreateInstitution}
               />
             </div>
             <DisabledReasonButton
