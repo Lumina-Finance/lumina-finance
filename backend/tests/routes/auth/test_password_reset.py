@@ -15,6 +15,7 @@ from app.main import app
 from app.models.auth import AuthIdentity, PasswordCredential, PasswordResetToken
 from app.models.base import AuthProvider
 from app.services.auth import password_reset, reset_send_limit, send_backoff
+from app.services.auth.saved_copy_key import derive_saved_copy_key
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession, scoped_engine
 from tests.routes.support import (
@@ -24,6 +25,7 @@ from tests.routes.support import (
     _fresh_totp_code,
     _get_auth_header,
     _link_sign_in_providers,
+    _saved_copy_key,
     _seed_reset_token,
     sign_up_confirmed,
 )
@@ -650,6 +652,9 @@ async def test_reset_verify_with_recovery_code_wipes_factors_and_grants_restrict
     )
     assert verify.status_code == 200
     assert verify.json()["access_token"]
+    assert _saved_copy_key(verify) == (derive_saved_copy_key(user_id, 2), 2), (
+        "the reset and then the wipe each ended every session, so the response carries the second new key"
+    )
 
     # The wiped account forces re-enrolment at the next login, with only a recovery code usable
     login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _NEW_PASSWORD})

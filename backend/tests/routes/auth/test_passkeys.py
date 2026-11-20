@@ -31,6 +31,7 @@ from app.models.auth import AuthIdentity, RecoveryCode, WebauthnChallenge, Webau
 from app.models.base import AuthProvider
 from app.models.user import User
 from app.services.auth.recovery_codes import generate_recovery_codes
+from app.services.auth.saved_copy_key import derive_saved_copy_key
 from tests.conftest import TestSession
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
@@ -38,6 +39,7 @@ from tests.routes.support import (
     _create_user,
     _get_auth_header,
     _link_sign_in_providers,
+    _saved_copy_key,
     _seed_reset_token,
     sign_up_confirmed,
 )
@@ -827,6 +829,7 @@ async def test_passkey_second_factor_completes_login(client, monkeypatch):
     verified = await client.post("/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": assertion})
     assert verified.status_code == 200
     assert verified.json()["user"]["id"] == user_id
+    assert _saved_copy_key(verified) == (derive_saved_copy_key(uuid.UUID(user_id), 0), 0)
 
     stored = await _read_passkey(credential_id)
     assert stored.sign_count == 9
@@ -1059,6 +1062,40 @@ async def test_restricted_session_reestablishes_with_passkey(client, monkeypatch
             .all()
         )
     assert [passkey.name for passkey in active] == ["Recovery key"]
+
+
+async def test_passkey_sign_in_carries_the_saved_copy_key_and_re_establishing_a_passkey_changes_it(client, monkeypatch):
+    """A passkey sign-in and the renewal after it return the user's key, and the re-enrol that signs out everywhere replaces it"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    old_key, old_version = _saved_copy_key(signup)
+
+    # The assertion crypto is the library's responsibility, so only its verdict is stubbed
+    monkeypatch.setattr(webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=7))
+    credential_id = b"key-credential"
+    await _seed_passkey(user_id, credential_id)
+
+    async def sign_in_with_passkey():
+        options = (await client.post("/auth/passkeys/authenticate/options")).json()
+        assertion = _build_assertion(options["challenge"], credential_id, user_id)
+        return await client.post("/auth/passkeys/authenticate", json={"credential": assertion})
+
+    signed_in = await sign_in_with_passkey()
+    assert _saved_copy_key(signed_in) == (old_key, old_version), "a passkey sign-in returns the user's key"
+    client.cookies.set("refresh_token", signed_in.cookies["refresh_token"])
+    assert _saved_copy_key(await client.post("/auth/refresh")) == (old_key, old_version), "so does the renewal"
+
+    await _seed_active_recovery_code(user_id)
+    await _set_reenrollment_required(user_id)
+    assert (await _register_passkey(client, auth, monkeypatch, b"replacement-key", "Replacement")).status_code == 201
+    assert (await client.post("/auth/passkeys/register/confirm", headers=auth)).status_code == 204
+
+    # The registration stubbed the assertion check for the new passkey, so restore the sign-in stub
+    monkeypatch.setattr(webauthn_service, "verify_authentication_response", lambda **_: SimpleNamespace(new_sign_count=8))
+    new_key, new_version = _saved_copy_key(await sign_in_with_passkey())
+    assert new_version == old_version + 1
+    assert new_key != old_key
 
 
 async def test_recovery_code_login_wipes_all_passkeys(client, monkeypatch):

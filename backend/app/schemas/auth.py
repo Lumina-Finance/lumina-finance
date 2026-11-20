@@ -161,6 +161,12 @@ class AuthResponse(BaseModel):
     # Set only for a native app, which keeps it in its own credential store. A browser gets it as an
     # httpOnly cookie instead, so it is left out of the body entirely rather than sent as null
     refresh_token: str | None = Field(default=None, exclude_if=lambda token: token is None)
+    # Set only for a browser, since only a browser encrypts a saved copy of the user's data with the key.
+    # A native app keeps no such copy, so both are left out of its body. A browser holding a copy saved
+    # under another number drops it unread. The number names the key only while the app encryption key
+    # is unchanged, since rotating that key changes every key at the same number
+    saved_copy_key: str | None = Field(default=None, exclude_if=lambda key: key is None)
+    saved_copy_key_version: int | None = Field(default=None, exclude_if=lambda version: version is None)
 
 
 class NativeRefreshTokenRequest(BaseModel):

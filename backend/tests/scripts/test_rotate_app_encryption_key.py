@@ -40,10 +40,10 @@ def current_key(key_file, monkeypatch):
     key_file.write_text(key)
     monkeypatch.delenv(encryption.KEY_ENV_VAR, raising=False)
 
-    # The cached Fernet outlives a single test, so clear it whenever the key moves
-    encryption._fernet.cache_clear()
+    # The cached key outlives a single test, so clear it whenever the key moves
+    encryption._app_key.cache_clear()
     yield key
-    encryption._fernet.cache_clear()
+    encryption._app_key.cache_clear()
 
 
 async def _store_secrets(key: str) -> None:
@@ -207,14 +207,14 @@ async def test_rotation_refuses_when_the_current_key_reads_nothing(key_file, mon
     # Resolve a third key, which is neither the one the data is under nor the target
     key_file.write_text(generate_encryption_key())
     monkeypatch.delenv(encryption.KEY_ENV_VAR, raising=False)
-    encryption._fernet.cache_clear()
+    encryption._app_key.cache_clear()
     stored_before = await _read_stored("totp_credentials", "secret_encrypted")
 
     with pytest.raises(RotationError, match="does not decrypt the stored secrets"):
         await rotate_encryption_key(engine, generate_encryption_key())
 
     assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
-    encryption._fernet.cache_clear()
+    encryption._app_key.cache_clear()
 
 
 async def test_rotation_refuses_while_the_app_role_is_connected(current_key):
@@ -261,7 +261,7 @@ async def test_rotation_refuses_a_key_that_only_differs_by_whitespace(key_file, 
     """
     key = generate_encryption_key()
     monkeypatch.setenv(encryption.KEY_ENV_VAR, f"{key}\n")
-    encryption._fernet.cache_clear()
+    encryption._app_key.cache_clear()
     await _store_secrets(key)
     stored_before = await _read_stored("totp_credentials", "secret_encrypted")
 
@@ -269,7 +269,7 @@ async def test_rotation_refuses_a_key_that_only_differs_by_whitespace(key_file, 
         await rotate_encryption_key(engine, key)
 
     assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
-    encryption._fernet.cache_clear()
+    encryption._app_key.cache_clear()
 
 
 async def test_rotation_rewrites_nothing_on_an_empty_database(current_key):
@@ -450,7 +450,7 @@ async def test_rotation_finishes_an_interrupted_run_after_the_new_key_is_set(key
 
     key_file.write_text(generate_encryption_key())
     monkeypatch.setenv(encryption.KEY_ENV_VAR, new_key)
-    encryption._fernet.cache_clear()
+    encryption._app_key.cache_clear()
     stored_before = await _read_stored("totp_credentials", "secret_encrypted")
 
     rewritten = await rotate_encryption_key(engine, new_key)
@@ -458,7 +458,7 @@ async def test_rotation_finishes_an_interrupted_run_after_the_new_key_is_set(key
     assert rewritten is None
     assert not key_file.exists()
     assert await _read_stored("totp_credentials", "secret_encrypted") == stored_before
-    encryption._fernet.cache_clear()
+    encryption._app_key.cache_clear()
 
 
 async def test_rotation_refuses_a_schema_missing_an_encrypted_table(current_key):

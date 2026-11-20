@@ -3,13 +3,15 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
+from app.db.rls.functions import ROTATE_SAVED_COPY_KEY
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
+from app.models.user import User
 
 # The most rotated refresh tokens one token issue removes, so a backlog never slows a sign-in. Each
 # refresh leaves one and every refresh issues tokens, so ordinary traffic clears them all as they end
@@ -93,12 +95,30 @@ async def delete_auth_session(db: AsyncSession, session_id: uuid.UUID) -> None:
     await db.execute(session_delete_query)
 
 
+async def _rotate_saved_copy_key(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Raise the user's saved copy key number in the unit of work that ends their sessions
+
+    Every browser holding the old key then loses its saved copy. The key number is read again for
+    a user already loaded in this unit of work, so the response of the rotating request carries
+    the new key. An account locked out before sign-in has no loaded user, since the users policy
+    hides the row until an identity is set
+
+    Args:
+        db: Active database session
+        user_id: User whose saved copies stop being readable
+    """
+    await db.execute(text(f"SELECT {ROTATE_SAVED_COPY_KEY}(:user_id)"), {"user_id": user_id})
+    user = await db.get(User, user_id)
+    if user is not None:
+        await db.refresh(user, ["saved_copy_key_version"])
+
+
 async def delete_other_user_auth_sessions(
     db: AsyncSession,
     user_id: uuid.UUID,
     keep_session_id: uuid.UUID,
 ) -> None:
-    """Delete a user's auth sessions except the one to keep
+    """Delete a user's auth sessions except the one to keep, and rotate their saved copy key
 
     Args:
         db: Active database session
@@ -115,10 +135,11 @@ async def delete_other_user_auth_sessions(
 
     # Removing the sessions cascades to their token allowlist rows
     await db.execute(other_sessions_delete_query)
+    await _rotate_saved_copy_key(db, user_id)
 
 
 async def delete_all_user_auth_sessions(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Delete every auth session for a user
+    """Delete every auth session for a user, and rotate their saved copy key
 
     Args:
         db: Active database session
@@ -131,6 +152,7 @@ async def delete_all_user_auth_sessions(db: AsyncSession, user_id: uuid.UUID) ->
 
     # Removing the sessions cascades to their token allowlist rows
     await db.execute(sessions_delete_query)
+    await _rotate_saved_copy_key(db, user_id)
 
 
 async def rotate_auth_session_tokens(

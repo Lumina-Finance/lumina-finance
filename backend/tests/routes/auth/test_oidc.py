@@ -16,9 +16,10 @@ from app.models.base import AuthProvider
 from app.models.oidc import OidcAuthorizationRequest, OidcIdentity, OidcProvider
 from app.models.user import User
 from app.services.auth import oidc_login, registration
+from app.services.auth.saved_copy_key import derive_saved_copy_key
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _seed_currency, _seed_reset_token, sign_up_confirmed
+from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _saved_copy_key, _seed_currency, _seed_reset_token, sign_up_confirmed
 
 ISSUER = "https://idp.test"
 CLIENT_ID = "client-123"
@@ -156,6 +157,7 @@ async def test_callback_signs_in_linked_identity(client, provider_protocol):
     body = resp.json()
     assert body["user"]["id"] == str(user_id)
     assert "access_token" in body
+    assert _saved_copy_key(resp) == (derive_saved_copy_key(user_id, 0), 0)
     assert _clears_cookie(resp, "oidc_login_binding")
 
     async with TestSession() as session:
@@ -620,6 +622,7 @@ async def test_signup_creates_user_with_linked_identity(client, provider_protoco
     body = resp.json()
     assert body["user"]["email"] == "sso-user@example.com"
     assert "access_token" in body
+    assert _saved_copy_key(resp) == (derive_saved_copy_key(uuid.UUID(body["user"]["id"]), 0), 0)
 
     async with TestSession() as session:
         identity = (await session.execute(select(OidcIdentity))).scalar_one()
@@ -1492,3 +1495,18 @@ async def test_set_password_after_reauth(client, provider_protocol):
     assert login.status_code == 200
     again = await client.post("/auth/oidc/reauth", headers=auth, json={"slug": "test-idp"})
     assert again.status_code == 409
+
+
+async def test_setting_a_first_password_gives_the_account_a_new_saved_copy_key(client, provider_protocol):
+    """Setting a password signs out the other sessions, so the next sign-in carries a key their copies can't open"""
+    await _seed_currency()
+    await _seed_provider()
+    auth, user_id = await _create_passwordless_user(client, provider_protocol)
+
+    state = await _start_reauth(client, auth)
+    provider_protocol["claims"] = _claims()
+    await client.post("/auth/oidc/reauth/callback", headers=auth, json={"code": "any", "state": state})
+    assert (await client.post("/auth/password/set", headers=auth, json={"new_password": _NEW_PASSWORD})).status_code == 204
+
+    login = await client.post("/auth/login", json={"email": "sso-user@example.com", "password": _NEW_PASSWORD})
+    assert _saved_copy_key(login) == (derive_saved_copy_key(uuid.UUID(user_id), 1), 1)
