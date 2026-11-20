@@ -17,8 +17,19 @@ const WIDTH_TOLERANCE = 1
 // Half a pixel of slack for a box measured in fractions of a pixel
 const PADDING_TOLERANCE = 0.5
 
+// How many points of each change the sampler reads by seeking its animations, so the in-between states are
+// recorded however few frames a busy page draws. A button that snaps has no animation to seek
+const SEEK_STEPS = 20
+
+// The shortest time the width may spend between its two ends. The 300ms ease spends about half of it there on
+// its ease-out curve, and an ease cut to a few milliseconds spends about that long, however finely it is seeked
+const MIN_EASING_MS = 100
+
 /** One frame of the button as the sampler saw it */
 export interface ButtonFrame {
+  /** When the frame shows, in milliseconds on the page's animation clock, the seeked time for a seeked frame */
+  time: number
+
   width: number
 
   /** The label's opacity as a viewer sees it, or null while no label is drawn */
@@ -38,9 +49,21 @@ export interface ButtonFrame {
   footerHeight: number
 }
 
-/** Record the button on every frame until `stopSampling` is called */
+/** The last frame the sampler recorded, rounded to whole pixels, or null before the first */
+function lastFrame(page: Page): Promise<{ width: number; label: number | null; spinner: number | null } | null> {
+  return page.evaluate(() => {
+    const frame = (window as unknown as { __frames: ButtonFrame[] }).__frames.at(-1)
+    return frame ? { width: Math.round(frame.width), label: frame.label, spinner: frame.spinner } : null
+  })
+}
+
+/**
+ * Record the button on every frame until `stopSampling` is called, and at evenly spaced points of each change
+ * its animations make, read by seeking them. The seeked points are added after the frame that saw the change
+ * begin, so the recording keeps its first and last frames in order but not the ones between
+ */
 export async function startSampling(button: Locator, label: string): Promise<void> {
-  await button.evaluate((node, text) => {
+  await button.evaluate((node, { text, steps }) => {
     const opacityWithin = (element: Element): number => {
       let opacity = 1
       for (let current: Element | null = element; current && current !== node; current = current.parentElement) {
@@ -52,7 +75,7 @@ export async function startSampling(button: Locator, label: string): Promise<voi
     const holder = window as unknown as { __frames: ButtonFrame[]; __sampling: boolean }
     holder.__frames = frames
     holder.__sampling = true
-    const tick = () => {
+    const read = (time: number): ButtonFrame => {
       const footer = node.parentElement!.getBoundingClientRect()
       // The label is a text node, bare in the button or inside a layer of its own
       const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT)
@@ -89,18 +112,55 @@ export async function startSampling(button: Locator, label: string): Promise<voi
         const innerRight = box.right - padding
         labelPastPadding = Math.max(0, innerLeft - left, right - innerRight)
       }
-      frames.push({
+      return {
+        time,
         labelPastPadding,
         width: node.getBoundingClientRect().width,
         label: labelNode ? opacityWithin(labelNode) : null,
         spinner: spinnerNode ? opacityWithin(spinnerNode) : null,
         footerTop: footer.top,
         footerHeight: footer.height,
+      }
+    }
+
+    // Seeks the running animations of the button and its content together from the earliest start to the last
+    // end, reading each point, then sets each back where it was, all inside one task so the page never draws a
+    // seeked state. The seek runs again whenever an animation joins, since a fade can start a frame after the
+    // width. Each start is read from the current time rather than the start time. An animation gets a start time
+    // only once the frame after it was made is drawn. The spinner's endless turn has no end to seek to
+    const seen = new WeakSet<Animation>()
+    const seekThrough = () => {
+      const running = node.getAnimations({ subtree: true }).filter((animation) =>
+        animation.playState === 'running' && Number.isFinite(Number(animation.effect?.getComputedTiming().endTime)))
+      if (running.every((animation) => seen.has(animation))) return
+      const now = Number(document.timeline.currentTime)
+      const starts = running.map((animation) => now - Number(animation.currentTime))
+      const lengths = running.map((animation) => Number(animation.effect!.getComputedTiming().endTime))
+      const from = Math.min(...starts)
+      const to = Math.max(...starts.map((start, index) => start + lengths[index]))
+      const resting = running.map((animation) => animation.currentTime)
+      for (let step = 0; step <= steps; step++) {
+        const at = from + ((to - from) * step) / steps
+        // An animation seeked past its end draws what follows it. Its finish waits for a microtask that does
+        // nothing once the animation is set back below, so no end handler runs
+        running.forEach((animation, index) => {
+          animation.currentTime = at - starts[index]
+        })
+        frames.push(read(at))
+      }
+      running.forEach((animation, index) => {
+        animation.currentTime = resting[index]
+        seen.add(animation)
       })
+    }
+
+    const tick = () => {
+      frames.push(read(Number(document.timeline.currentTime)))
+      seekThrough()
       if (holder.__sampling) requestAnimationFrame(tick)
     }
     tick()
-  }, label)
+  }, { text: label, steps: SEEK_STEPS })
 }
 
 /** Stop recording and return every frame since `startSampling` */
@@ -114,7 +174,8 @@ export async function stopSampling(page: Page): Promise<ButtonFrame[]> {
 
 /**
  * Check the frames of one change between the label and the spinner. With motion, the width passes through
- * widths between the two and the label and spinner are drawn together; under reduced motion neither happens
+ * widths between the two for a time a viewer sees, and the label and spinner are drawn together. Under reduced
+ * motion neither happens
  */
 export function expectEased(frames: ButtonFrame[], restingWidth: number, reducedMotion: boolean): void {
   const between = frames.filter((frame) => frame.width > CIRCLE_WIDTH + WIDTH_TOLERANCE && frame.width < restingWidth - WIDTH_TOLERANCE)
@@ -129,6 +190,9 @@ export function expectEased(frames: ButtonFrame[], restingWidth: number, reduced
     expect(bothDrawn, `the label and spinner swap in one frame, ${layers}`).toHaveLength(0)
   } else {
     expect(between.length, `the width eases through frames between the two, ${widths}`).toBeGreaterThanOrEqual(2)
+    const times = between.map((frame) => frame.time)
+    expect(Math.max(...times) - Math.min(...times), `ms the width spends between the two, ${widths}`)
+      .toBeGreaterThanOrEqual(MIN_EASING_MS)
     expect(bothDrawn.length, `the label and spinner are drawn together, ${layers}`).toBeGreaterThanOrEqual(2)
   }
 }
@@ -152,12 +216,23 @@ export async function holdThenRefuse(
   return { release, sent }
 }
 
-/** Wait until the button has stopped moving, since a dialog scales in as it opens */
+/**
+ * Wait until the button has stopped moving and nothing around it is scaled, since a dialogue scales in as
+ * it opens. Two equal reads alone can both come before the scale begins on a busy page
+ */
 export async function settledWidth(button: Locator): Promise<number> {
   let previous = -1
   await expect.poll(async () => {
-    const width = (await button.boundingBox())!.width
-    const settled = Math.abs(width - previous) < 0.01
+    const { width, isScaled } = await button.evaluate((node) => {
+      let scaled = false
+      for (let current: Element | null = node; current; current = current.parentElement) {
+        const transform = getComputedStyle(current).transform
+        const matrix = new DOMMatrix(transform === 'none' ? undefined : transform)
+        if (matrix.a !== 1 || matrix.d !== 1) scaled = true
+      }
+      return { width: node.getBoundingClientRect().width, isScaled: scaled }
+    })
+    const settled = !isScaled && Math.abs(width - previous) < 0.01
     previous = width
     return settled
   }).toBe(true)
@@ -180,19 +255,22 @@ export async function checkSubmitTransition(
 ): Promise<void> {
   const { returns = true, motions = ['no-preference', 'reduce'] } = options
   const restingWidth = await settledWidth(button)
-  expect(restingWidth).toBeGreaterThan(CIRCLE_WIDTH + 10)
+  // A change of 20px or more spends the shortest easing time between its ends. A smaller one ends too close
+  // to its start for that time to tell an ease from a snap
+  expect(restingWidth).toBeGreaterThan(CIRCLE_WIDTH + 20)
 
   for (const reducedMotion of motions) {
     await page.emulateMedia({ reducedMotion })
     const held = await holdThenRefuse(page, request.method, request.path)
 
-    // The button turns pending
+    // The button turns pending. The wait for the change's end checks what only the end draws, since a busy
+    // page can hold the old width for several reads before the change begins
     await startSampling(button, label)
     await press()
     await held.sent
     await expect(button).toBeDisabled()
     await expect(button).toHaveAccessibleName(label)
-    expect(await settledWidth(button)).toBeCloseTo(CIRCLE_WIDTH, 0)
+    await expect.poll(() => lastFrame(page)).toEqual({ width: CIRCLE_WIDTH, label: null, spinner: 1 })
     const pending = await stopSampling(page)
     expect(pending[0].label, 'the label is drawn before the press').toBe(1)
     expect(pending.at(-1)!.label, 'the label is gone once the spinner has settled').toBeNull()
@@ -215,9 +293,10 @@ export async function checkSubmitTransition(
     await startSampling(button, label)
     held.release()
     await expect(button).toBeEnabled()
-    expect(await settledWidth(button)).toBeCloseTo(restingWidth, 0)
+    await expect.poll(() => lastFrame(page)).toEqual({ width: Math.round(restingWidth), label: 1, spinner: null })
     await expect(button).toHaveAccessibleName(label)
     const returning = await stopSampling(page)
+    expect(returning.at(-1)!.width).toBeCloseTo(restingWidth, 0)
     expect(returning.at(-1)!.spinner).toBeNull()
     expect(returning.at(-1)!.label).toBe(1)
     expectEased(returning, restingWidth, reducedMotion === 'reduce')
