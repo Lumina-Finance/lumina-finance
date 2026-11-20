@@ -108,12 +108,8 @@ async def activate_pending_recovery_codes(db: AsyncSession, user_id: uuid.UUID) 
     Returns:
         The number of pending codes promoted, so the caller can reject a confirm whose batch has vanished
     """
-    await db.execute(
-        delete(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False))
-    )
-    result = await db.execute(
-        update(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)).values(pending=False)
-    )
+    await db.execute(delete(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False)))
+    result = await db.execute(update(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(True)).values(pending=False))
     return result.rowcount
 
 
@@ -131,9 +127,7 @@ async def has_active_recovery_codes(db: AsyncSession, user_id: uuid.UUID) -> boo
         Whether at least one active recovery code exists
     """
     # Probe for a single row rather than counting the whole batch
-    result = await db.execute(
-        select(RecoveryCode.id).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False)).limit(1)
-    )
+    result = await db.execute(select(RecoveryCode.id).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False)).limit(1))
     return result.first() is not None
 
 
@@ -174,9 +168,7 @@ async def consume_recovery_code(db: AsyncSession, user_id: uuid.UUID, code: str)
     Returns:
         Whether a matching active code existed and was claimed
     """
-    active_codes_query = select(RecoveryCode).where(
-        RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False)
-    )
+    active_codes_query = select(RecoveryCode).where(RecoveryCode.user_id == user_id, RecoveryCode.pending.is_(False))
     result = await db.execute(active_codes_query)
     for recovery_code in result.scalars():
         if await run_in_threadpool(is_secret_valid, code, recovery_code.code_hash):
