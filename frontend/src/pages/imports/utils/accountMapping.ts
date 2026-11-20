@@ -1,6 +1,11 @@
 import type { AccountsOverview } from '@/api/accounts'
 import { CREATE_ACCOUNT_VALUE } from '@/pages/imports/constants'
-import type { ImportAccountCreateDetails, ImportAccountSource, ImportFileDraft, ImportRowFilter } from '@/pages/imports/types'
+import type {
+  ImportAccountCreateDetails,
+  ImportAccountSource,
+  ImportFileDraft,
+  ImportRowFilter,
+} from '@/pages/imports/types'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { isImportableAccount } from '@/utils/importableAccount'
 import { includeEveryImportRow } from './common'
@@ -89,11 +94,7 @@ export function isCreatingImportAccount(rows: Array<{ value: string }>): boolean
  * @param isHandAnswered - Whether this source's answer came from the user rather than a default
  * @param isCounterpartyOnly - Whether no row is written to this source
  */
-export function canApplyBatchEditToRow(
-  value: string,
-  isHandAnswered: boolean,
-  isCounterpartyOnly: boolean,
-): boolean {
+export function canApplyBatchEditToRow(value: string, isHandAnswered: boolean, isCounterpartyOnly: boolean): boolean {
   if (value === OUTSIDE_ACCOUNT_VALUE) return !isHandAnswered || !isCounterpartyOnly
   return !value || value === CREATE_ACCOUNT_VALUE
 }
@@ -182,7 +183,10 @@ export function inferAccountMappingsWithCollisions(
   const sourceIdsByCandidate = new Map<string, Set<string>>()
 
   for (const source of sources) {
-    const match = findBestAccountNameMatch(source.matchText, source.isCounterpartyOnly ? counterpartyAccounts : rowAccounts)
+    const match = findBestAccountNameMatch(
+      source.matchText,
+      source.isCounterpartyOnly ? counterpartyAccounts : rowAccounts,
+    )
     if (!match) continue
 
     candidateBySourceId.set(source.id, match.id)
@@ -295,29 +299,26 @@ export function resolveImportAccountMappings(
   const answered = applyFixedImportAccount(options.sources, options.liveMappings, options.fixedAccountId)
   const inferred = options.canInfer
     ? inferAccountMappingsWithCollisions(options.sources, answered, {
-      rowAccounts: options.rowAccounts,
-      counterpartyAccounts: options.counterpartyAccounts,
-      excludedAutomaticSourceIds: options.clearedSourceIds,
-    })
+        rowAccounts: options.rowAccounts,
+        counterpartyAccounts: options.counterpartyAccounts,
+        excludedAutomaticSourceIds: options.clearedSourceIds,
+      })
     : { mappings: { ...answered }, collidingSourceIds: new Set<string>() }
   const matchedMappings = inferred.mappings
 
   for (const source of answerableSources) {
-    if (
-      source.isCounterpartyOnly
-      && !inferred.collidingSourceIds.has(source.id)
-      && !matchedMappings[source.id]
-    ) {
+    if (source.isCounterpartyOnly && !inferred.collidingSourceIds.has(source.id) && !matchedMappings[source.id]) {
       matchedMappings[source.id] = OUTSIDE_ACCOUNT_VALUE
     }
   }
 
-  const resolvedMappings = options.accountsCurrent && options.canInfer
-    ? applyCreateAccountFallback(
-      options.sources.filter((source) => !inferred.collidingSourceIds.has(source.id)),
-      matchedMappings,
-    )
-    : matchedMappings
+  const resolvedMappings =
+    options.accountsCurrent && options.canInfer
+      ? applyCreateAccountFallback(
+          options.sources.filter((source) => !inferred.collidingSourceIds.has(source.id)),
+          matchedMappings,
+        )
+      : matchedMappings
 
   return { matchedMappings, resolvedMappings }
 }
@@ -422,7 +423,7 @@ export function getStatedCurrencyByAccountSource(
     for (const row of file.rows.filter(isRowIncluded)) {
       // The same source id `buildImportAccountMappingSources` builds, which is the files' shared
       // account rather than a cell value when no account column is mapped
-      const source = accountHeader ? row[accountHeader]?.trim() ?? '' : getFileAccountSourceId(files)
+      const source = accountHeader ? (row[accountHeader]?.trim() ?? '') : getFileAccountSourceId(files)
       if (!source) continue
 
       const code = (row[currencyHeader]?.trim() ?? '').toUpperCase()
@@ -621,8 +622,10 @@ export function buildImportAccountMappingRows(
       createInstitution: createDetails?.institutionId ?? '',
       onChange: (nextValue: string) => onAccountMappingChange(id, nextValue),
       onCreateTypeChange: (nextValue: string) => setAccountCreateTypes((current) => ({ ...current, [id]: nextValue })),
-      onCreateCurrencyChange: (nextValue: string) => setAccountCreateCurrencies((current) => ({ ...current, [id]: nextValue })),
-      onCreateInstitutionChange: (nextValue: string) => setAccountCreateInstitutions((current) => ({ ...current, [id]: nextValue })),
+      onCreateCurrencyChange: (nextValue: string) =>
+        setAccountCreateCurrencies((current) => ({ ...current, [id]: nextValue })),
+      onCreateInstitutionChange: (nextValue: string) =>
+        setAccountCreateInstitutions((current) => ({ ...current, [id]: nextValue })),
     }
   })
 }

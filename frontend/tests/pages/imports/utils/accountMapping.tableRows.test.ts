@@ -82,16 +82,18 @@ describe('the account step table rows', () => {
   })
 
   it('shows what was chosen for a new account and leaves an unanswered row blank', () => {
-    const rows = buildRows([
-      { id: 'Visa', label: 'Visa' },
-      { id: 'Unanswered', label: 'Unanswered' },
-    ], {
-      accountMappings: { Visa: CREATE_ACCOUNT_VALUE },
-      handAnsweredAccountSources: new Set(['Visa']),
-      getCreateDetails: (source) => (source === 'Visa'
-        ? { accountType: 'credit_card', currency: 'USD', institutionId: 'bank' }
-        : undefined),
-    })
+    const rows = buildRows(
+      [
+        { id: 'Visa', label: 'Visa' },
+        { id: 'Unanswered', label: 'Unanswered' },
+      ],
+      {
+        accountMappings: { Visa: CREATE_ACCOUNT_VALUE },
+        handAnsweredAccountSources: new Set(['Visa']),
+        getCreateDetails: (source) =>
+          source === 'Visa' ? { accountType: 'credit_card', currency: 'USD', institutionId: 'bank' } : undefined,
+      },
+    )
 
     expect(rows[0]).toMatchObject({
       value: CREATE_ACCOUNT_VALUE,
@@ -104,7 +106,7 @@ describe('the account step table rows', () => {
     expect(rows[1]).toMatchObject({ value: '', createType: '', createCurrency: '', createInstitution: '' })
   })
 
-  it('changes only its own source\'s answers', () => {
+  it("changes only its own source's answers", () => {
     const onAccountMappingChange = vi.fn()
     const setAccountCreateTypes = vi.fn()
     const setAccountCreateCurrencies = vi.fn()
