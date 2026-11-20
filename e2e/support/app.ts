@@ -232,6 +232,8 @@ export type SavedCacheEntry = {
   userId: string
   keyNumber: number
   savedAt: number
+  // When a change check last found a difference, absent until the first check of the session answers
+  observedAt?: number
   nonce: string
   ciphertext: string
 }

@@ -23,6 +23,7 @@ import {
 import { clearUserScopedCache } from '@/api/cache/session'
 import { AuthContext, type AuthContextValue, type AuthState } from '@/contexts/AuthContext'
 import { takeRenewedSession } from '@/contexts/sessionRenewal'
+import { runOpeningCacheCheck } from '@/hooks/useCacheValidation'
 import { readStoredValue, removeStoredValue, writeStoredValue } from '@/utils/browserStorage'
 
 const RELOAD_SESSION_RESTORE_DELAY_MS = 750
@@ -157,6 +158,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await restoreSavedQueryCache(queryClient, res.user.id)
           if (cancelled) return
           writeStoredValue(authApi.SESSION_KEY, res.user.id)
+
+          // The change check is asked before any screen shows the restored answers, and it needs the
+          // token the renewal returned, so the token is usable now and the user is set after
+          noteAccessToken(res.access_token)
+          stateRef.current = { ...stateRef.current, accessToken: res.access_token }
+          await runOpeningCacheCheck(queryClient, res.user.id)
+          if (cancelled) return
           applyState({ user: res.user, accessToken: res.access_token, loading: false })
           settleRestore()
         })
@@ -201,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true
       if (restoreTimer) clearTimeout(restoreTimer)
     }
-  }, [hadSession, queryClient, applyState, startSaving, settleRestore])
+  }, [hadSession, queryClient, applyState, noteAccessToken, startSaving, settleRestore])
 
   // Marks a new session in this browser: drops any prior user's cache, sets the session flag and takes
   // the key its saved copy is sealed with. Taking the same key again changes nothing

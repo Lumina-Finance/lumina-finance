@@ -1,15 +1,47 @@
 import { useEffect, useRef } from 'react'
 import { focusManager, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { User } from '@/api/auth'
-import { fetchCacheStatus, fetchProfile } from '@/api/user'
-import { invalidateAppData, invalidateFxData } from '@/api/cache/invalidation'
-import { readStoredValue, writeStoredValue } from '@/utils/browserStorage'
+import { fetchCacheStatus, fetchProfile, fetchRatesStatus } from '@/api/user'
+import { applyCheckAnswer, applyRatesDigest, getCheckRecord, toCheckAnswer } from '@/api/cache/cacheCheck'
+import { QUERY_CACHE_STORAGE_KEY, readEntryObservedAt } from '@/api/cache/persistence'
 
-const PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX = 'lumina:personal-cache-changed-at'
-const CALCULATION_DATE_TOKEN_KEY_PREFIX = 'lumina:calculation-date-token'
-const FX_REFRESHED_AT_KEY_PREFIX = 'lumina:fx-refreshed-at'
-const FX_REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000
+const RATES_RECHECK_INTERVAL_MS = 12 * 60 * 60 * 1000
 const CACHE_STATUS_RETRY_INTERVAL_MS = 60 * 1000
+
+type CheckResult = { changed: boolean; nextBoundaryAt: string }
+
+// The answer of the check made as the app opened, for the user it was made for, until the hook that
+// would have made its first check takes it
+let openingResult: (CheckResult & { userId: string }) | null = null
+
+/**
+ * Asks the server's change check as the app opens with a restored saved copy, before any screen shows
+ * it, so answers nothing changed under count as fetched now and nothing else is requested
+ *
+ * Does nothing without a restored record, where the hook's first check records one. A check that
+ * fails leaves the restored answers to the stale times they have, and the hook checks again
+ */
+export async function runOpeningCacheCheck(queryClient: QueryClient, userId: string) {
+  openingResult = null
+  if (getCheckRecord() === null) return
+  try {
+    openingResult = { userId, ...(await validateAppData(queryClient, true)) }
+  } catch {
+    openingResult = null
+  }
+}
+
+/**
+ * Whether a write of the saved entry that another tab made records a check there that this tab has
+ * not seen, so this tab asks the check too. Writes that only save more answers carry the same time
+ *
+ * @param newValue - The entry the other tab wrote
+ * @param knownObservedAt - The times this tab holds a record of or has been told of
+ */
+export function isNewObservation(newValue: string | null, knownObservedAt: (number | null)[]) {
+  const observedAt = readEntryObservedAt(newValue)
+  return observedAt !== null && !knownObservedAt.includes(observedAt)
+}
 
 /**
  * Counts the holds on a task, so it stays back while any hold is open and listeners hear when the
@@ -96,15 +128,18 @@ export function subscribeToCacheValidationRelease(listener: () => void) {
 }
 
 /**
- * Revalidates cached app and FX data on mount, focus, and the next calculation owner's midnight,
- * comparing server changes and owner-local dates with this window's last result for `userId`
+ * Revalidates cached app and FX data on mount, focus, another tab's check and the next calculation
+ * owner's midnight, comparing the server's answers with the record the saved entry keeps of what this
+ * browser last saw
  *
- * Personal data invalidates the app cache when its server timestamp differs from this window's copy,
- * even if another window shares the same login session. A new owner-local date also refreshes calculations
- * without requiring a transaction edit. FX data refreshes at most once every twelve
- * hours, or immediately when app data was just invalidated. Overlapping validate calls are coalesced,
- * and calls made while `useHoldCacheValidation` holds the check become one call when it ends. A server
- * change also fetches the profile again and hands it to `onProfileRefreshed`
+ * A difference in the user's own or the shared change time or the server version invalidates the app
+ * cache, even if another window shares the same login session. A new calculation date alone
+ * invalidates only the covered answers marked as depending on the current date. A restored copy
+ * whose check was made as the app opened takes that answer instead of asking again. Exchange rates
+ * are asked separately, without waiting, on mount and at most once every twelve hours after: a digest
+ * that differs from the record's, or none, invalidates what converts currencies. Overlapping validate
+ * calls are coalesced, and calls made while `useHoldCacheValidation` holds the check become one call
+ * when it ends. A server change also fetches the profile again and hands it to `onProfileRefreshed`
  */
 export function useCacheValidation(
   userId: string | undefined,
@@ -119,6 +154,10 @@ export function useCacheValidation(
     if (!enabled || !userId) return
     let midnightTimer: ReturnType<typeof setTimeout> | undefined
     let active = true
+    let ratesAskedAt: number | null = null
+    // The time another tab last recorded that this tab asked the check about. A tab seeing the same
+    // time again only had more answers saved
+    let toldObservedAt: number | null = null
     const heldRunner = createHeldRunner(cacheValidationGate, () => {
       void validate()
     })
@@ -159,6 +198,27 @@ export function useCacheValidation(
         })
     }
 
+    // Asked on its own, so opening never waits for it. A failed or late answer is dropped, and the
+    // next check asks again
+    const askRates = () => {
+      const now = Date.now()
+      if (ratesAskedAt !== null && now - ratesAskedAt < RATES_RECHECK_INTERVAL_MS) return
+      ratesAskedAt = now
+      fetchRatesStatus()
+        .then(({ digest }) => {
+          if (active) applyRatesDigest(queryClient, digest)
+        })
+        .catch(() => {
+          ratesAskedAt = null
+        })
+    }
+
+    const takeAnswer = (result: CheckResult) => {
+      if (result.changed || profileStale) refreshProfile()
+      scheduleMidnightCheck(result.nextBoundaryAt)
+      askRates()
+    }
+
     const validate = async () => {
       if (!heldRunner.attempt()) return
       if (validatingRef.current) {
@@ -169,24 +229,21 @@ export function useCacheValidation(
       try {
         do {
           pendingValidationRef.current = false
-          let appInvalidated = false
           try {
-            const result = await validateAppData(queryClient, userId)
-            appInvalidated = result.appInvalidated
-            if (result.changed || profileStale) refreshProfile()
-            scheduleMidnightCheck(result.nextBoundaryAt)
+            takeAnswer(await validateAppData(queryClient, false))
           } catch {
-            appInvalidated = false
             scheduleRetry()
           }
-          validateFxData(queryClient, userId, appInvalidated)
         } while (pendingValidationRef.current)
       } finally {
         validatingRef.current = false
       }
     }
 
-    void validate()
+    const opening = openingResult?.userId === userId ? openingResult : null
+    openingResult = null
+    if (opening) takeAnswer(opening)
+    else void validate()
     const unsubscribeFocus = focusManager.subscribe((focused) => {
       if (focused) void validate()
     })
@@ -194,16 +251,15 @@ export function useCacheValidation(
       void validate()
     }
     const onStorageChange = (event: StorageEvent) => {
-      const changedAtKey = `${PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX}:${userId}`
-      const dateKey = `${CALCULATION_DATE_TOKEN_KEY_PREFIX}:${userId}`
       if (
-        event.storageArea === window.localStorage &&
-        (event.key === changedAtKey || event.key === dateKey) &&
-        event.newValue !== null &&
-        event.newValue !== readStoredValue(event.key, 'session') &&
-        document.visibilityState === 'visible'
+        event.storageArea !== window.localStorage ||
+        event.key !== QUERY_CACHE_STORAGE_KEY ||
+        document.visibilityState !== 'visible' ||
+        !isNewObservation(event.newValue, [toldObservedAt, getCheckRecord()?.observedAt ?? null])
       )
-        void validate()
+        return
+      toldObservedAt = readEntryObservedAt(event.newValue)
+      void validate()
     }
     window.addEventListener('focus', onWindowFocus)
     window.addEventListener('storage', onStorageChange)
@@ -218,50 +274,8 @@ export function useCacheValidation(
   }, [enabled, onProfileRefreshed, queryClient, userId])
 }
 
-async function validateAppData(queryClient: QueryClient, userId: string) {
-  const storageKey = `${PERSONAL_CACHE_CHANGED_AT_KEY_PREFIX}:${userId}`
-  const dateStorageKey = `${CALCULATION_DATE_TOKEN_KEY_PREFIX}:${userId}`
+async function validateAppData(queryClient: QueryClient, isOpening: boolean): Promise<CheckResult> {
   const status = await fetchCacheStatus()
-  const currentChangedAt = toUtcCacheTimestamp(status.personal.changed_at) ?? ''
-  const previousChangedAt = toUtcCacheTimestamp(readStoredValue(storageKey, 'session') ?? readStoredValue(storageKey))
-  const previousDate = readStoredValue(dateStorageKey, 'session') ?? readStoredValue(dateStorageKey)
-  writeStoredValue(storageKey, currentChangedAt, 'session')
-  writeStoredValue(dateStorageKey, status.calculation_date_token, 'session')
-  if (readStoredValue(storageKey) !== currentChangedAt) {
-    writeStoredValue(storageKey, currentChangedAt)
-  }
-  if (readStoredValue(dateStorageKey) !== status.calculation_date_token) {
-    writeStoredValue(dateStorageKey, status.calculation_date_token)
-  }
-
-  const changed = previousChangedAt !== null && previousChangedAt !== currentChangedAt
-  const dayChanged = previousDate !== null && previousDate !== status.calculation_date_token
-  if (changed || dayChanged) invalidateAppData(queryClient)
-  return { appInvalidated: changed || dayChanged, changed, nextBoundaryAt: status.next_calculation_boundary_at }
-}
-
-function toUtcCacheTimestamp(value: string | null) {
-  if (!value) return value
-
-  const time = Date.parse(value)
-  if (!Number.isFinite(time)) return value
-
-  return new Date(time).toISOString()
-}
-
-function validateFxData(queryClient: QueryClient, userId: string, appInvalidated: boolean) {
-  const storageKey = `${FX_REFRESHED_AT_KEY_PREFIX}:${userId}`
-  const now = Date.now()
-  const previousRefreshedAt = readStoredValue(storageKey)
-
-  if (previousRefreshedAt === null || appInvalidated) {
-    writeStoredValue(storageKey, String(now))
-    return
-  }
-
-  const previousTime = Number(previousRefreshedAt)
-  if (Number.isFinite(previousTime) && now - previousTime < FX_REFRESH_INTERVAL_MS) return
-
-  invalidateFxData(queryClient)
-  writeStoredValue(storageKey, String(now))
+  const { changed } = applyCheckAnswer(queryClient, toCheckAnswer(status), Date.now(), isOpening)
+  return { changed, nextBoundaryAt: status.next_calculation_boundary_at }
 }

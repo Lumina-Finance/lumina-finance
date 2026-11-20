@@ -35,7 +35,9 @@ runs:
         username: ${{ inputs.registry-username }}
         password: ${{ inputs.registry-token }}
 
-    # APP_URL gives passkeys their domain, as an operator's deploy does, so the passkey flows run
+    # APP_URL gives passkeys their domain, as an operator's deploy does, so the passkey flows run.
+    # VALKEY_URL points the app at the stack's ValKey, as the example env file does, so the rates
+    # check can read the pairs it records
     - name: Write the operator env file
       shell: bash
       env:
@@ -48,4 +50,5 @@ runs:
         DB_USER=${DB_USER}
         DB_PASSWORD=${DB_PASSWORD}
         APP_URL=${APP_URL}
+        VALKEY_URL=valkey://valkey:6379
         EOF

@@ -143,23 +143,36 @@ const SAVED_DATA_PAGES = [
 ]
 
 for (const { name, path, content, refetch } of SAVED_DATA_PAGES) {
-  test(`keeps ${name} on screen when the check for changes answers after the page has drawn`, async ({ page, request }) => {
+  test(`keeps ${name} on screen while it fetches the newer copy a check for changes found on opening`, async ({ page, request }) => {
     const { accountId, spend } = await seedSignedInUser(page, request)
     const main = page.locator('#app-page-content')
     await openPage(page, path(accountId))
     await expect(main.getByText(content).first()).toBeVisible()
     await expect(main.getByRole('status').filter({ visible: true })).toHaveCount(0)
 
+    // The opening check is asked before any screen shows, so nothing of the page shows while it is held.
+    // The saved copy is restored before the check goes out, so the reload records whether its content
+    // ever showed before the check is let through
     await spend(-700)
     const check = await holdRequest(page, '/me/cache-status')
+    await page.addInitScript((text) => {
+      new MutationObserver(() => {
+        if (document.querySelector('#app-page-content')?.textContent?.includes(text)) {
+          Object.assign(window, { sawContent: true })
+        }
+      }).observe(document, { childList: true, subtree: true, characterData: true })
+    }, content)
     await page.reload()
-    await expect(main.getByText(content).first()).toBeVisible()
     await expect.poll(check.intercepted).toBe(true)
-    await clearLoadingFrames(page)
+    // Two frames give a restored copy the time to draw if anything let it through
+    await page.evaluate(() => new Promise((drawn) => requestAnimationFrame(() => requestAnimationFrame(drawn))))
+    expect(await page.evaluate(() => 'sawContent' in window)).toBe(false)
 
     const refetched = refetch(accountId)
     const answered = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith(refetched))
     check.release()
+    await expect(main.getByText(content).first()).toBeVisible()
+    await clearLoadingFrames(page)
     await answered
     await expect(main.getByText(content).first()).toBeVisible()
     expect(await readLoadingFrames(page)).toEqual([])
@@ -217,8 +230,11 @@ test('shows saved data on a reload from a copy that holds nothing readable', asy
   const stored = await page.evaluate(() => JSON.stringify(Object.entries(localStorage)))
   expect(stored).not.toContain('Everyday Chequing')
   expect(stored).not.toContain(accountId)
-  const saved = (await readSavedCache(page))!
-  expect(Object.keys(saved.entry).toSorted()).toEqual(['ciphertext', 'keyNumber', 'nonce', 'savedAt', 'shape', 'userId'])
+
+  // The time of the last check is the one more part kept in plain text, once a check has answered
+  await expect.poll(async () => (await readSavedCache(page))?.entry.observedAt).toEqual(expect.any(Number))
+  const withCheck = (await readSavedCache(page))!
+  expect(Object.keys(withCheck.entry).toSorted()).toEqual(['ciphertext', 'keyNumber', 'nonce', 'observedAt', 'savedAt', 'shape', 'userId'])
 
   // The accounts request is held, so what shows after the reload can only have come from the copy
   const accounts = await holdRequest(page, '/accounts')
