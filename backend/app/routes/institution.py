@@ -19,6 +19,8 @@ from app.schemas.institution import (
     UpdateInstitutionRequest,
 )
 from app.services.cache_state import mark_shared_cache_changed, mark_user_cache_changed
+from app.services.institutions import list_institutions
+from app.utils.pagination import LIST_PAGE_SIZE, LIST_SEARCH_MAX_LENGTH, MAX_LIST_OFFSET
 
 # Auth is required on every endpoint, since institution data is internal to signed-in users
 router = APIRouter(prefix="/institutions", tags=["institutions"])
@@ -28,26 +30,28 @@ DUPLICATE_DETAIL = "Institution with this name and country already exists"
 
 
 @router.get("", response_model=list[InstitutionResponse])
-async def list_institutions(
+async def list_institutions_route(
     _user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     country_code: str | None = Query(None, min_length=2, max_length=2),
+    q: Annotated[str | None, Query(max_length=LIST_SEARCH_MAX_LENGTH)] = None,
+    limit: Annotated[int, Query(ge=1, le=LIST_PAGE_SIZE)] = LIST_PAGE_SIZE,
+    offset: Annotated[int, Query(ge=0, le=MAX_LIST_OFFSET)] = 0,
 ):
-    """Return all institutions, optionally filtered by country
+    """Return one page of institutions, optionally filtered by country or name
 
     Args:
         _user: Authenticated user (enforces auth gate)
         db: Async database session
         country_code: Optional ISO 3166-1 alpha-2 filter
+        q: Optional text the institution name must contain
+        limit: Maximum number of institutions to return
+        offset: Number of institutions to skip before returning rows
 
     Returns:
-        List of institutions sorted by name
+        Institutions sorted by name
     """
-    query = select(Institution)
-    if country_code:
-        query = query.where(Institution.country_code == country_code)
-    result = await db.execute(query.order_by(Institution.name))
-    return result.scalars().all()
+    return await list_institutions(db, q, country_code, limit, offset)
 
 
 @router.get("/{institution_id}", response_model=InstitutionResponse)
