@@ -3,6 +3,10 @@
 import json
 
 from fastapi import HTTPException
+from starlette.datastructures import MutableHeaders
+
+# Every sign-in route lives under this prefix, the passkey, provider and native app routes included
+_SIGN_IN_PREFIX = "/auth/"
 
 # 10 MB. The frontend batches a transaction import into 750 KB requests, and the one
 # request it cannot split, a journal import's budgets, is a few MB at its largest
@@ -114,3 +118,34 @@ def _counting_receive(receive, max_body_bytes: int):
         return message
 
     return counting_receive
+
+
+class SignInNoStoreMiddleware:
+    """Tell every cache not to store an answer from the sign-in routes
+
+    Those answers carry sessions, recovery codes, ceremony options and account details, so a shared
+    or browser cache must never keep one. The header is set on every answer under the prefix, a
+    redirect or a refusal included, which a per-route header would leave to each new route to remember
+    """
+
+    def __init__(self, app) -> None:
+        """Wrap an ASGI app, marking the answers of the sign-in routes as uncacheable
+
+        Args:
+            app: ASGI application this wraps
+        """
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        """Add the header to the start of each response under the sign-in prefix"""
+        if scope["type"] != "http" or not scope["path"].startswith(_SIGN_IN_PREFIX):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_without_caching(message) -> None:
+            """Set the header as the response starts, over any value a route chose"""
+            if message["type"] == "http.response.start":
+                MutableHeaders(scope=message)["Cache-Control"] = "no-store"
+            await send(message)
+
+        await self.app(scope, receive, send_without_caching)
