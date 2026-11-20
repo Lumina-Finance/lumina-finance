@@ -38,6 +38,7 @@ from tests.routes.support import (
     _count_sign_in_provider_links,
     _create_user,
     _get_auth_header,
+    _get_login_lockout,
     _link_sign_in_providers,
     _saved_copy_key,
     _seed_reset_token,
@@ -805,6 +806,37 @@ async def test_login_requires_passkey_second_factor(client):
     assert body["passkey_available"] is True
     assert body["totp_enabled"] is False
     assert body["recovery_only"] is False
+
+
+async def test_passkey_ceremony_that_never_started_does_not_use_up_an_attempt(client):
+    """A passkey answer to a challenge the server never issued is a protocol error, so it leaves the lockout allowance whole"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    await _seed_passkey(user_id, b"unstarted-key")
+    mfa_token = (await _login(client)).json()["mfa_token"]
+
+    stale = _build_assertion("never-issued-challenge", b"unstarted-key", user_id)
+    verified = await client.post("/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": stale})
+
+    assert verified.status_code == 400
+    lockout = await _get_login_lockout(SIGNUP_PAYLOAD["email"])
+    assert lockout is None or lockout.failed_attempt_count == 0
+
+
+async def test_step_up_with_a_passkey_ceremony_that_never_started_does_not_use_up_an_attempt(client):
+    """A step-up whose passkey answers a challenge the server never issued is refused as a protocol error without counting"""
+    signup = await _create_user(client)
+    user_id = signup.json()["user"]["id"]
+    await _seed_passkey(user_id, b"unstarted-step-up-key")
+    stale = _build_assertion("never-issued-challenge", b"unstarted-step-up-key", user_id)
+
+    refused = await client.post(
+        "/auth/2fa/recovery-codes", headers=_get_auth_header(signup), json={"password": SIGNUP_PAYLOAD["password"], "passkey": stale}
+    )
+
+    assert refused.status_code == 400
+    lockout = await _get_login_lockout(SIGNUP_PAYLOAD["email"])
+    assert lockout is None or lockout.failed_attempt_count == 0
 
 
 async def test_passkey_second_factor_completes_login(client, monkeypatch):

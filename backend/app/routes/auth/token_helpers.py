@@ -32,9 +32,11 @@ from app.routes.auth.cookie_helpers import (
 )
 from app.schemas.auth import AuthResponse, UserInfo
 from app.services.auth.account_lockout import (
+    claim_attempt,
+    confirm_failed_attempt,
     get_password_credential,
     is_email_locked,
-    record_failed_attempt,
+    release_attempt,
     reset_failed_attempts,
 )
 from app.services.auth.mfa_challenge import consume_mfa_challenge, is_mfa_challenge_active
@@ -366,7 +368,8 @@ async def _complete_mfa_challenge(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
-    # The lockout counter is shared with the password step, so a factor grind trips the same lock
+    # The lockout counter is shared with the password step, so a factor grind trips the same lock. A locked
+    # account is refused here without spending the challenge
     credential = await get_password_credential(db, user_id)
     if credential is not None and await is_email_locked(db, user.email):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
@@ -377,14 +380,22 @@ async def _complete_mfa_challenge(
     if not challenge_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
+    # The attempt is counted only once its challenge is spent, so a replayed or expired challenge never
+    # counts, and before the factor is checked, so simultaneous attempts cannot check more factors than
+    # the lock allows
+    remaining = await claim_attempt(db, user.email) if credential is not None else None
+
     try:
         factor_kind = await verify_second_factor(user_id)
     except HTTPException as error:
         # A wrong factor counts toward the lockout, but a passkey protocol error such as an expired or
         # malformed challenge (400) does not, so a slow or fumbled ceremony cannot lock the account. A
         # typed code only ever fails with a 401, so it still counts
-        if credential is not None and error.status_code == status.HTTP_401_UNAUTHORIZED:
-            await record_failed_attempt(db, user.email, user_id)
+        if remaining is not None:
+            if error.status_code == status.HTTP_401_UNAUTHORIZED:
+                await confirm_failed_attempt(db, user_id, remaining)
+            else:
+                await release_attempt(db, user.email)
         raise
 
     await reset_failed_attempts(db, user.email)
