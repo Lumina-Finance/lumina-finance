@@ -16,6 +16,7 @@ from app.routes.auth.cookie_helpers import (
     OIDC_BINDING_COOKIE_KEY,
     OIDC_REAUTH_STEPUP_COOKIE_KEY,
     clear_oidc_login_binding_cookie,
+    clear_oidc_reauth_stepup_cookie,
     removing_cookie_on_failure,
     set_oidc_login_binding_cookie,
     set_oidc_reauth_stepup_cookie,
@@ -49,7 +50,6 @@ from app.services.auth import (
     complete_oidc_sign_in,
     complete_oidc_signup,
     create_oidc_onboarding_token,
-    create_oidc_reauth_stepup_token,
     get_enabled_oidc_provider_by_slug,
     is_oidc_provider_linked,
     list_enabled_oidc_providers,
@@ -57,6 +57,7 @@ from app.services.auth import (
     unlink_oidc_identity,
 )
 from app.services.auth.account_lockout import get_password_credential
+from app.services.auth.mfa_challenge import issue_reauth_stepup_proof
 from app.services.auth.step_up import verify_sensitive_action_step_up
 
 router = APIRouter(prefix="/oidc", tags=["auth"])
@@ -102,9 +103,35 @@ async def _manage_provider[T](
     Raises:
         HTTPException: Neither authorization is present or valid, or the action failed
     """
-    if reauth_stepup_proof is not None:
-        return await spend_reauth_stepup_proof(user.id, response, reauth_stepup_proof, action)
+    has_password = await get_password_credential(db, user.id) is not None
+    if reauth_stepup_proof is not None and not has_password:
+        return await spend_reauth_stepup_proof(db, user.id, response, reauth_stepup_proof, action)
 
+    if reauth_stepup_proof is None:
+        return await _step_up_then_act(db, user, step_up, action)
+
+    # An account with a password steps up with it whatever else it sends, so a proof it holds, from
+    # before it had a password, authorizes nothing and is only cleared away
+    clear_oidc_reauth_stepup_cookie(response)
+    with removing_cookie_on_failure(clear_oidc_reauth_stepup_cookie):
+        return await _step_up_then_act(db, user, step_up, action)
+
+
+async def _step_up_then_act[T](db: AsyncSession, user: User, step_up: StepUpRequest | None, action: Callable[[], Awaitable[T]]) -> T:
+    """Run the action once the account has stepped up with its password and current factor
+
+    Args:
+        db: Active database session
+        user: Authenticated user performing the action
+        step_up: Password and current factor, if the request carried them
+        action: The link or unlink the step-up is for
+
+    Returns:
+        Whatever the action returns
+
+    Raises:
+        HTTPException: The step-up is missing or does not verify, or the action failed
+    """
     if step_up is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
 
@@ -394,7 +421,7 @@ async def oidc_reauth_callback_route(
             linked to this account
     """
     await complete_oidc_reauth(db, user, data.code, data.state)
-    set_oidc_reauth_stepup_cookie(request, response, create_oidc_reauth_stepup_token(user.id))
+    set_oidc_reauth_stepup_cookie(request, response, await issue_reauth_stepup_proof(db, user.id))
 
 
 @router.post("/identities/{identity_id}/remove", status_code=status.HTTP_204_NO_CONTENT)

@@ -7,12 +7,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
 from app.models.auth import MfaChallenge
-from app.services.auth.tokens import create_mfa_challenge_token
+from app.services.auth.tokens import create_mfa_challenge_token, create_oidc_reauth_stepup_token
 
 # A challenge only verifies within the flow that issued it, so a reset challenge can never
 # complete a login and vice versa
 MFA_PURPOSE_LOGIN = "login"
 MFA_PURPOSE_PASSWORD_RESET = "password_reset"  # noqa: S105
+
+
+# A provider reauth proof rides on the challenge table too, so it can be spent once and by no other flow
+REAUTH_STEP_UP_PURPOSE = "reauth_step_up"
+
+
+async def issue_reauth_stepup_proof(db: AsyncSession, user_id: uuid.UUID) -> str:
+    """Issue the single-use proof a fresh provider reauth earns
+
+    Args:
+        db: Active database session
+        user_id: User whose provider just re-authenticated them
+
+    Returns:
+        Encoded proof for the cookie the sensitive request that follows presents
+    """
+    proof, jti, expires_at = create_oidc_reauth_stepup_token(user_id)
+    db.add(MfaChallenge(jti=jti, user_id=user_id, purpose=REAUTH_STEP_UP_PURPOSE, expires_at=expires_at))
+    await db.commit()
+    return proof
 
 
 async def delete_expired_mfa_challenges(db: AsyncSession) -> None:

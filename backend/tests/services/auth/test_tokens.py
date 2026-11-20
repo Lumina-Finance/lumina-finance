@@ -59,7 +59,7 @@ def test_token_issuers_reuse_validated_signing_keys(monkeypatch, token_use):
             OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS,
         ),
         "oidc_reauth_stepup": (
-            lambda: create_oidc_reauth_stepup_token(user_id),
+            lambda: create_oidc_reauth_stepup_token(user_id)[0],
             decode_oidc_reauth_stepup_token,
             JWT_ACCESS_KID,
             OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS,

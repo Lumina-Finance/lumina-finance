@@ -1497,6 +1497,123 @@ async def test_set_password_after_reauth(client, provider_protocol):
     assert again.status_code == 409
 
 
+async def _spend_proof_setting_a_password(client, auth, provider_protocol) -> str:
+    """Reauth, set the first password with the proof, and return the proof's value, which the browser has dropped"""
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    proof = client.cookies.get("oidc_reauth_stepup")
+    assert (await client.post("/auth/password/set", headers=auth, json={"new_password": _NEW_PASSWORD})).status_code == 204
+    return proof
+
+
+async def test_reauth_proof_cannot_be_replayed_to_set_a_password(client, provider_protocol):
+    """A copy of a spent proof is refused, so the one reauth authorized one action"""
+    await _seed_currency()
+    await _seed_provider()
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+    proof = await _spend_proof_setting_a_password(client, auth, provider_protocol)
+
+    client.cookies.set("oidc_reauth_stepup", proof)
+    replay = await client.post("/auth/password/set", headers=auth, json={"new_password": _NEW_PASSWORD})
+
+    assert (replay.status_code, replay.json()["detail"]) == (401, "Reauthentication required")
+    assert _clears_cookie(replay, "oidc_reauth_stepup")
+
+
+async def test_reauth_proof_cannot_be_replayed_to_link_a_provider(client, provider_protocol):
+    """A copy of a proof already spent on linking a provider can't link another"""
+    await _seed_currency()
+    await _seed_provider()
+    await _seed_provider(slug="other-idp")
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    proof = client.cookies.get("oidc_reauth_stepup")
+    assert (await client.post("/auth/oidc/other-idp/link", headers=auth)).status_code == 200
+
+    client.cookies.set("oidc_reauth_stepup", proof)
+    replay = await client.post("/auth/oidc/other-idp/link", headers=auth)
+
+    assert (replay.status_code, replay.json()["detail"]) == (401, "Reauthentication required")
+
+
+async def test_reauth_proof_row_expires_with_the_proof(client, provider_protocol):
+    """The server's record of a proof ends at the instant the proof itself does"""
+    from app.models.auth import MfaChallenge
+
+    await _seed_currency()
+    await _seed_provider()
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    proof = client.cookies.get("oidc_reauth_stepup")
+
+    async with TestSession() as session:
+        row = (await session.execute(select(MfaChallenge).where(MfaChallenge.purpose == "reauth_step_up"))).scalar_one()
+    claims = pyjwt.decode(proof, options={"verify_signature": False})
+    assert (int(row.expires_at.timestamp()), str(row.jti)) == (claims["exp"], claims["jti"])
+
+
+async def test_reauth_proof_past_its_lifetime_is_refused(client, provider_protocol):
+    """A proof whose record has expired authorizes nothing"""
+    from app.models.auth import MfaChallenge
+
+    await _seed_currency()
+    await _seed_provider()
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    async with TestSession() as session:
+        await session.execute(update(MfaChallenge).values(expires_at=datetime.now(UTC) - timedelta(seconds=1)))
+        await session.commit()
+
+    resp = await client.post("/auth/password/set", headers=auth, json={"new_password": _NEW_PASSWORD})
+
+    assert (resp.status_code, resp.json()["detail"]) == (401, "Reauthentication required")
+
+
+async def test_reauth_proof_stays_spent_after_the_action_it_authorized_is_refused(client, provider_protocol):
+    """A proof used on an unlink the account can't take is gone, so a copy can't be tried on another action"""
+    await _seed_currency()
+    await _seed_provider()
+    auth, user_id = await _create_passwordless_user(client, provider_protocol)
+    async with TestSession() as session:
+        identity_id = (await session.execute(select(OidcIdentity.id).where(OidcIdentity.user_id == uuid.UUID(user_id)))).scalar_one()
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    proof = client.cookies.get("oidc_reauth_stepup")
+    refused = await client.post(f"/auth/oidc/identities/{identity_id}/remove", headers=auth)
+    assert refused.status_code == 409
+
+    client.cookies.set("oidc_reauth_stepup", proof)
+    replay = await client.post(f"/auth/oidc/identities/{identity_id}/remove", headers=auth)
+
+    assert (replay.status_code, replay.json()["detail"]) == (401, "Reauthentication required")
+
+
+async def test_account_with_a_password_ignores_a_reauth_proof_it_sends(client, provider_protocol):
+    """A proof left from before the account had a password can't authorize a link, which needs the password step-up"""
+    from app.models.auth import PasswordCredential
+    from app.services.auth.password_helpers import hash_password
+
+    await _seed_currency()
+    await _seed_provider()
+    await _seed_provider(slug="other-idp")
+    auth, user_id = await _create_passwordless_user(client, provider_protocol)
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    proof = client.cookies.get("oidc_reauth_stepup")
+
+    # The password is stored directly, so the proof is still unspent and only the password can refuse it
+    async with TestSession() as session:
+        session.add(PasswordCredential(user_id=uuid.UUID(user_id), password_hash=hash_password(_NEW_PASSWORD), password_algo="argon2id"))
+        await session.commit()
+
+    client.cookies.set("oidc_reauth_stepup", proof)
+    without_step_up = await client.post("/auth/oidc/other-idp/link", headers=auth)
+    assert (without_step_up.status_code, without_step_up.json()["detail"]) == (401, "Reauthentication required")
+    assert _clears_cookie(without_step_up, "oidc_reauth_stepup")
+
+    client.cookies.set("oidc_reauth_stepup", proof)
+    with_step_up = await client.post("/auth/oidc/other-idp/link", headers=auth, json={"password": _NEW_PASSWORD})
+    assert with_step_up.status_code == 200
+    assert _clears_cookie(with_step_up, "oidc_reauth_stepup")
+
+
 async def test_setting_a_first_password_gives_the_account_a_new_saved_copy_key(client, provider_protocol):
     """Setting a password signs out the other sessions, so the next sign-in carries a key their copies can't open"""
     await _seed_currency()

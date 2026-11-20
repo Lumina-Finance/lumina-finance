@@ -39,7 +39,7 @@ from app.services.auth.account_lockout import (
     release_attempt,
     reset_failed_attempts,
 )
-from app.services.auth.mfa_challenge import consume_mfa_challenge, is_mfa_challenge_active
+from app.services.auth.mfa_challenge import REAUTH_STEP_UP_PURPOSE, consume_mfa_challenge, is_mfa_challenge_active
 from app.services.auth.saved_copy_key import derive_saved_copy_key
 from app.services.auth.sessions import (
     create_auth_session,
@@ -218,8 +218,8 @@ def decode_oidc_reauth_stepup_token(stepup_token: str) -> dict[str, Any]:
     return payload
 
 
-def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> None:
-    """Raise unless a reauth step-up proof authorizes an action for the given account
+def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> uuid.UUID:
+    """Return the identifier of a reauth step-up proof, raising unless it authorizes an action for the account
 
     The proof is minted after a fresh provider reauth and bound to the account, so it cannot authorize
     an action on another account even if presented on a different session
@@ -228,18 +228,24 @@ def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> None:
         user_id: Account the action is for
         proof: Encoded reauth step-up token read from the cookie
 
+    Returns:
+        The identifier the server recorded when it issued the proof
+
     Raises:
         HTTPException: The proof is invalid, expired, or for another account
     """
     try:
         payload = decode_oidc_reauth_stepup_token(proof)
-    except jwt.PyJWTError:
+        proof_id = uuid.UUID(str(payload["jti"]))
+    except jwt.PyJWTError, KeyError, ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required") from None
     if payload["sub"] != str(user_id):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
+    return proof_id
 
 
 async def spend_reauth_stepup_proof[T](
+    db: AsyncSession,
     user_id: uuid.UUID,
     response: Response,
     proof: str | None,
@@ -251,6 +257,7 @@ async def spend_reauth_stepup_proof[T](
     is refused, so a spent proof never stays in the browser
 
     Args:
+        db: Active database session
         user_id: Account the action is for
         response: FastAPI response object for removing the proof cookie on success
         proof: Encoded reauth step-up token read from the cookie, if any
@@ -260,13 +267,19 @@ async def spend_reauth_stepup_proof[T](
         Whatever the action returns
 
     Raises:
-        HTTPException: The proof is missing, invalid or for another account, or the action failed
+        HTTPException: The proof is missing, invalid, spent or for another account, or the action failed
     """
     clear_oidc_reauth_stepup_cookie(response)
     with removing_cookie_on_failure(clear_oidc_reauth_stepup_cookie):
         if proof is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
-        verify_reauth_stepup_proof(user_id, proof)
+        proof_id = verify_reauth_stepup_proof(user_id, proof)
+
+        # Spent and committed before the action runs, so a copy of the cookie replayed at once, or
+        # after the action failed, finds nothing to spend
+        if not await consume_mfa_challenge(db, proof_id, user_id, REAUTH_STEP_UP_PURPOSE):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
+        await db.commit()
         return await action()
 
 

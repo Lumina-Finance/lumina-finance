@@ -239,6 +239,7 @@ async def set_password_route(
     # account even if the cookie is somehow presented on a different session, and it is spent whatever
     # the outcome
     await spend_reauth_stepup_proof(
+        db,
         user.id,
         response,
         oidc_reauth_stepup,
