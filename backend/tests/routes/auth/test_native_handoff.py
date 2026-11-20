@@ -6,18 +6,26 @@ import contextlib
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 from urllib.parse import parse_qs, urlsplit
 
 import jwt
 import pytest
+from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.database import current_session_id_ctx, get_db
+from app.dependencies import get_authenticated_user
 from app.main import app
 from app.models.auth import MfaChallenge
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
+from app.models.user import User
 from app.services.auth import native_handoff as native_handoff_service
 from app.services.auth import tokens
 from tests.conftest import TestSession
@@ -171,13 +179,11 @@ async def test_handoff_with_bad_challenge_tells_app_it_failed(client, challenge)
     assert resp.headers["location"] == "luminafinance://auth/callback?error=handoff_failed"
 
 
-@pytest.mark.parametrize("repeated", ["access_token", "code_challenge"])
-async def test_handoff_with_repeated_field_tells_app_it_failed(client, repeated):
-    """A field sent twice is refused, since which value counts would be ambiguous"""
+async def test_handoff_with_repeated_challenge_tells_app_it_failed(client):
+    """A challenge sent twice is refused, since which value counts would be ambiguous"""
     signup = await _create_user(client)
     _, challenge = _pkce_pair()
-    form = {"access_token": signup.json()["access_token"], "code_challenge": challenge}
-    form[repeated] = [form[repeated], form[repeated]]
+    form = {"access_token": signup.json()["access_token"], "code_challenge": [challenge, challenge]}
 
     resp = await client.post("/auth/native/handoff", data=form, follow_redirects=False)
 
@@ -191,6 +197,124 @@ async def test_handoff_with_binary_body_tells_app_it_failed(client):
 
     assert resp.status_code == 303
     assert resp.headers["location"] == "luminafinance://auth/callback?error=handoff_failed"
+
+
+@pytest.fixture
+def user_check_override():
+    """Replace the signed-in-user check as outside code does, noting each token it is given before calling the original
+
+    Takes a Request beside the usual two arguments, so a replacement with dependencies of its own is
+    resolved by the framework and never called by hand
+    """
+    seen: list[str] = []
+
+    async def noting_user_check(
+        request: Request,
+        credentials: Annotated[HTTPAuthorizationCredentials, Depends(HTTPBearer())],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> User:
+        seen.append(credentials.credentials)
+        return await get_authenticated_user(credentials, db)
+
+    app.dependency_overrides[get_authenticated_user] = noting_user_check
+    yield seen
+    app.dependency_overrides.pop(get_authenticated_user, None)
+
+
+async def test_handoff_checks_the_access_token_through_the_signed_in_user_override(client, user_check_override):
+    """A replacement of the signed-in-user check sees the handoff's token, as it does on every other route"""
+    signup = await _create_user(client)
+    access_token = signup.json()["access_token"]
+
+    query = await _hand_off(client, access_token, _pkce_pair()[1])
+
+    assert user_check_override == [access_token]
+    assert "code" in query
+
+
+@pytest.mark.parametrize("refusal", [HTTPException, StarletteHTTPException], ids=["fastapi", "starlette"])
+async def test_handoff_refused_by_the_signed_in_user_override_tells_app_it_failed(client, refusal):
+    """A replacement refusing the token ends the sheet in the app, whichever kind of refusal it raises"""
+    signup = await _create_user(client)
+
+    async def refusing_user_check(credentials: Annotated[HTTPAuthorizationCredentials, Depends(HTTPBearer())]) -> User:
+        raise refusal(status_code=401, detail="Refused")
+
+    app.dependency_overrides[get_authenticated_user] = refusing_user_check
+    try:
+        query = await _hand_off(client, signup.json()["access_token"], _pkce_pair()[1])
+    finally:
+        app.dependency_overrides.pop(get_authenticated_user, None)
+
+    assert query == {"error": "handoff_failed"}
+
+
+async def test_handoff_with_a_non_ascii_access_token_tells_app_it_failed(client):
+    """A token holding characters outside ASCII is refused like any other bad token, never answered with a server error"""
+    _, challenge = _pkce_pair()
+
+    query = await _hand_off(client, "€", challenge)
+
+    assert query == {"error": "handoff_failed"}
+
+
+@pytest.mark.parametrize("field_count", [0, 2], ids=["missing", "repeated"])
+async def test_handoff_ignores_an_authorization_header_when_the_form_field_is_unusable(client, field_count):
+    """The form's field is the only token this route reads, so a header from elsewhere can't stand in for it"""
+    signup = await _create_user(client)
+    access_token = signup.json()["access_token"]
+    _, challenge = _pkce_pair()
+    form = {"code_challenge": challenge, "access_token": [access_token] * field_count}
+
+    resp = await client.post(
+        "/auth/native/handoff",
+        data=form,
+        headers={"Authorization": f"Bearer {access_token}"},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "luminafinance://auth/callback?error=handoff_failed"
+
+
+@pytest.mark.parametrize("token_is_good", [True, False], ids=["handed-off", "refused"])
+async def test_handoff_leaves_the_request_headers_as_sent_for_request_observers(client, request_records, token_is_good):
+    """The token the route presents as a header is gone from the request's scope by the time observers see it, refusal included"""
+    signup = await _create_user(client)
+    request_records.clear()
+
+    await _hand_off(client, signup.json()["access_token"] if token_is_good else "not-a-token", _pkce_pair()[1])
+
+    [record] = request_records
+    assert record.route == "/native/handoff"
+    names = {name.lower() for name, _ in record.scope["headers"]}
+    assert b"authorization" not in names
+    assert {b"cookie", b"content-type"} <= names, "the request's own headers are put back as they were"
+
+
+@pytest.mark.parametrize("cookie", [None, "not-a-token"], ids=["missing", "not-a-token"])
+async def test_handoff_without_session_identity_from_the_user_check_is_refused(client, cookie):
+    """A replacement that returns a user but leaves no session identity can't turn a missing or unusable cookie into a code"""
+    signup = await _create_user(client)
+    client.cookies.clear()
+    if cookie is not None:
+        client.cookies.set("refresh_token", cookie)
+
+    async def user_check_without_session(
+        credentials: Annotated[HTTPAuthorizationCredentials, Depends(HTTPBearer())],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> User:
+        user = await get_authenticated_user(credentials, db)
+        current_session_id_ctx.set(None)
+        return user
+
+    app.dependency_overrides[get_authenticated_user] = user_check_without_session
+    try:
+        query = await _hand_off(client, signup.json()["access_token"], _pkce_pair()[1])
+    finally:
+        app.dependency_overrides.pop(get_authenticated_user, None)
+
+    assert query == {"error": "handoff_failed"}
 
 
 async def test_exchange_with_unusable_code_is_refused(client):
