@@ -125,7 +125,9 @@ export function SavedRanges({
           says nothing about */}
       {savedRangesFailed && <LoadFailure className="pt-2" error={savedRangesError} subject="Saved ranges" />}
 
-      <ul className={savedRanges.length > 0 ? 'mt-2' : ''}>
+      {/* A page of fifty rows would run the sticky panel past the screen, with Show more out of reach, so
+          the rows scroll in their own box and the button stays under it */}
+      <ul className={`max-h-[12rem] overflow-y-auto ${savedRanges.length > 0 ? 'mt-2' : ''}`}>
         <AnimatePresence initial={false}>
           {savedRanges.map((range) => (
             <motion.li
