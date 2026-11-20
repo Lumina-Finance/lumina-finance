@@ -5,7 +5,7 @@ registries:
     type: docker-registry
     url: https://dhi.io
     username: ${{secrets.DOCKERHUB_USERNAME}}
-    password: ${{secrets.DOCKERHUB_TOKEN}}
+    password: ${{secrets.DOCKERHUB_PULL_TOKEN}}
 
 updates:
   - package-ecosystem: uv
@@ -72,9 +72,7 @@ updates:
   - package-ecosystem: github-actions
     directories:
       - /
-      - /.github/actions/docker-build-setup
-      - /.github/actions/e2e-image
-      - /.github/actions/e2e-browser
+      - /.github/actions/*
     cooldown:
       default-days: 14
     schedule:

@@ -31,14 +31,14 @@ jobs:
       e2e-specs: ${{ steps.tests.outputs.e2e }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The test file lists compare against the base branch
           fetch-depth: 0
 
       - name: Filter changed paths
         id: filter
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
             # Workflow edits exercise the pipeline they change
@@ -67,7 +67,7 @@ jobs:
       # step, since the setting reading them applies to every filter of a step
       - name: Filter changes that reach the app image
         id: image-filter
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           predicate-quantifier: some-with-excludes
           filters: |
@@ -140,7 +140,8 @@ jobs:
         || needs.changes.outputs.docker == 'true'
         || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_service-images.yml
-    secrets: inherit
+    secrets:
+      DOCKERHUB_PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
   # Runs only when the images it loads were pulled
   backend-test:
@@ -179,7 +180,8 @@ jobs:
         || needs.changes.outputs.docker == 'true'
         || needs.changes.outputs.lockfiles == 'true' }}
     uses: ./.github/workflows/_docker-build.yml
-    secrets: inherit
+    secrets:
+      DOCKERHUB_PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
   # The browser tests' type check and contract tests need no image, so they start at once and a type
   # error shows without waiting for the image build or a browser job's setup
@@ -198,7 +200,8 @@ jobs:
     uses: ./.github/workflows/_e2e-test.yml
     with:
       specs: ${{ needs.changes.outputs.e2e-specs }}
-    secrets: inherit
+    secrets:
+      DOCKERHUB_PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
   # Keep this name stable for the repository's required status check
   # Jobs skipped by path filters are allowed, but failures and cancellations block merging

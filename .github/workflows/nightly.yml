@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -79,5 +79,6 @@ jobs:
         type=raw,value=nightly
         type=raw,value=${{ needs.version.outputs.app-version }}
       flavor: latest=false
-    secrets:
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      environment: nightly
+    # The nightly environment holds the push token and only main may use it. GitHub's documentation doesn't say a called workflow reads an environment's secrets unless its caller passes secrets, so the caller inherits them
+    secrets: inherit

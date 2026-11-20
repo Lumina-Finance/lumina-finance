@@ -7,6 +7,9 @@ on:
         description: Spec files to run alone, relative to e2e and separated by spaces. Empty runs the whole suite
         type: string
         default: ""
+    secrets:
+      DOCKERHUB_PULL_TOKEN:
+        required: true
 
 permissions:
   contents: read
@@ -76,7 +79,7 @@ jobs:
 
     steps: &stack-steps
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Prepare the image and env file
         uses: ./.github/actions/e2e-image
@@ -84,7 +87,7 @@ jobs:
           platform: ${{ matrix.platform }}
           app-url: http://localhost:8080
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry-token: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
       # The stack starts with no pull, so an image missing here fails the job
       - name: Load the service images
@@ -173,7 +176,7 @@ jobs:
       # Setup failures do not produce an E2E report
       - name: Keep the report from a failed run
         if: ${{ failure() && (steps.no-bank-sync-tests.outcome == 'failure' || steps.bank-sync-tests.outcome == 'failure') }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-tests-${{ matrix.platform }}-${{ matrix.projects }}-bank-${{ matrix.bank }}-${{ matrix.shard }}
           path: e2e/playwright-report
@@ -224,7 +227,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # APP_URL is the origin the API allows, so the app on port 8080 may call it on port 8081
       - name: Prepare the image and env file
@@ -233,7 +236,7 @@ jobs:
           platform: amd64
           app-url: ${{ env.APP_ORIGIN }}
           registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-          registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry-token: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 
       - name: Load the service images
         uses: ./.github/actions/service-images
@@ -299,7 +302,7 @@ jobs:
 
       - name: Keep the report from a failed run
         if: ${{ failure() && steps.e2e-tests.outcome == 'failure' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-tests-cross-origin
           path: e2e/playwright-report
