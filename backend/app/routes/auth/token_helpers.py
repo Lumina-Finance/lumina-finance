@@ -30,7 +30,7 @@ from app.routes.auth.cookie_helpers import (
     request_is_native_client,
     set_refresh_cookie,
 )
-from app.schemas.auth import AuthResponse, UserInfo
+from app.schemas.auth import AuthResponse, StepUpRequest, UserInfo
 from app.services.auth.account_lockout import (
     claim_attempt,
     confirm_failed_attempt,
@@ -48,6 +48,7 @@ from app.services.auth.sessions import (
     is_session_live,
     rotate_auth_session_tokens,
 )
+from app.services.auth.step_up import verify_sensitive_action_step_up
 from app.services.auth.tokens import (
     MFA_CHALLENGE_TOKEN_USE,
     NATIVE_HANDOFF_TOKEN_USE,
@@ -282,6 +283,70 @@ async def spend_reauth_stepup_proof[T](
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
         await db.commit()
         return await action()
+
+
+async def authorize_sensitive_action[T](
+    db: AsyncSession,
+    user: User,
+    response: Response,
+    step_up: StepUpRequest | None,
+    reauth_stepup_proof: str | None,
+    action: Callable[[], Awaitable[T]],
+) -> T:
+    """Authorize a sensitive account action via password step-up or a fresh reauth proof, then do it
+
+    An account with a password steps up with it. A passwordless account has none, so it presents the
+    proof a fresh provider reauth minted instead. The proof is single use, so it is removed whatever
+    the outcome, including when the action itself is refused
+
+    Args:
+        db: Active database session
+        user: Authenticated user performing the action
+        response: FastAPI response object for clearing a spent proof cookie
+        step_up: Password and current factor, sent by an account that has a password
+        reauth_stepup_proof: Proof cookie, sent by a passwordless account after a reauth
+        action: The action the authorization is for
+
+    Returns:
+        Whatever the action returns
+
+    Raises:
+        HTTPException: Neither authorization is present or valid, or the action failed
+    """
+    has_password = await get_password_credential(db, user.id) is not None
+    if reauth_stepup_proof is not None and not has_password:
+        return await spend_reauth_stepup_proof(db, user.id, response, reauth_stepup_proof, action)
+
+    if reauth_stepup_proof is None:
+        return await _step_up_then_act(db, user, step_up, action)
+
+    # An account with a password steps up with it whatever else it sends, so a proof it holds, from
+    # before it had a password, authorizes nothing and is only cleared away
+    clear_oidc_reauth_stepup_cookie(response)
+    with removing_cookie_on_failure(clear_oidc_reauth_stepup_cookie):
+        return await _step_up_then_act(db, user, step_up, action)
+
+
+async def _step_up_then_act[T](db: AsyncSession, user: User, step_up: StepUpRequest | None, action: Callable[[], Awaitable[T]]) -> T:
+    """Run the action once the account has stepped up with its password and current factor
+
+    Args:
+        db: Active database session
+        user: Authenticated user performing the action
+        step_up: Password and current factor, if the request carried them
+        action: The action the step-up is for
+
+    Returns:
+        Whatever the action returns
+
+    Raises:
+        HTTPException: The step-up is missing or does not verify, or the action failed
+    """
+    if step_up is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
+
+    await verify_sensitive_action_step_up(db, user, step_up.password, code=step_up.code, passkey=step_up.passkey)
+    return await action()
 
 
 def _raise_for_token_use(payload: dict[str, Any], expected_token_use: str) -> None:
