@@ -1,10 +1,6 @@
-import type { User } from '@/api/auth/types';
-import { authenticatedFetch } from '@/api/client';
-import {
-  fromRunwayResultResponse,
-  fromRunwaySettingsResponse,
-  toRunwaySettingsPayload,
-} from '@/api/user/mappers';
+import type { User } from '@/api/auth/types'
+import { authenticatedFetch } from '@/api/client'
+import { fromRunwayResultResponse, fromRunwaySettingsResponse, toRunwaySettingsPayload } from '@/api/user/mappers'
 import type {
   CacheStatus,
   ChangePasswordPayload,
@@ -12,20 +8,20 @@ import type {
   RunwaySettingsResponse,
   RunwaySettingsUpdate,
   UpdateProfilePayload,
-} from '@/api/user/types';
+} from '@/api/user/types'
 
 /**
  * Fetches cache freshness metadata for the current user's visible data
  */
 export function fetchCacheStatus() {
-  return authenticatedFetch<CacheStatus>('/me/cache-status');
+  return authenticatedFetch<CacheStatus>('/me/cache-status')
 }
 
 /**
  * Fetches the current user's profile
  */
 export function fetchProfile() {
-  return authenticatedFetch<User>('/me');
+  return authenticatedFetch<User>('/me')
 }
 
 /**
@@ -35,7 +31,7 @@ export function updateProfile(payload: UpdateProfilePayload) {
   return authenticatedFetch<User>('/me', {
     method: 'PATCH',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -45,9 +41,8 @@ export function changePassword(payload: ChangePasswordPayload) {
   return authenticatedFetch<void>('/auth/password', {
     method: 'PATCH',
     body: JSON.stringify(payload),
-  });
+  })
 }
-
 
 /**
  * Sets the first password for an account authorized by a provider reauth, then signs out other sessions
@@ -56,7 +51,7 @@ export function setPassword(payload: { new_password: string }) {
   return authenticatedFetch<void>('/auth/password/set', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -65,7 +60,7 @@ export function setPassword(payload: { new_password: string }) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchRunwayAccounts(signal?: AbortSignal) {
-  return authenticatedFetch<string[]>('/me/runway-accounts', { signal });
+  return authenticatedFetch<string[]>('/me/runway-accounts', { signal })
 }
 
 /**
@@ -75,7 +70,7 @@ export function updateRunwayAccounts(accountIds: string[]) {
   return authenticatedFetch<string[]>('/me/runway-accounts', {
     method: 'PUT',
     body: JSON.stringify({ account_ids: accountIds }),
-  });
+  })
 }
 
 /**
@@ -84,9 +79,7 @@ export function updateRunwayAccounts(accountIds: string[]) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export async function fetchRunwaySettings(signal?: AbortSignal) {
-  return fromRunwaySettingsResponse(
-    await authenticatedFetch<RunwaySettingsResponse>('/me/runway-settings', { signal }),
-  );
+  return fromRunwaySettingsResponse(await authenticatedFetch<RunwaySettingsResponse>('/me/runway-settings', { signal }))
 }
 
 /**
@@ -98,7 +91,7 @@ export async function updateRunwaySettings(settings: RunwaySettingsUpdate) {
       method: 'PUT',
       body: JSON.stringify(toRunwaySettingsPayload(settings)),
     }),
-  );
+  )
 }
 
 /**
@@ -107,7 +100,5 @@ export async function updateRunwaySettings(settings: RunwaySettingsUpdate) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export async function fetchRunway(signal?: AbortSignal) {
-  return fromRunwayResultResponse(
-    await authenticatedFetch<RunwayResultResponse>('/me/runway', { signal }),
-  );
+  return fromRunwayResultResponse(await authenticatedFetch<RunwayResultResponse>('/me/runway', { signal }))
 }

@@ -8,7 +8,7 @@ export type {
   RunwaySettingsUpdate,
   RunwayThresholds,
   UpdateProfilePayload,
-} from '@/api/user/types';
+} from '@/api/user/types'
 
 export {
   changePassword,
@@ -21,7 +21,7 @@ export {
   updateProfile,
   updateRunwayAccounts,
   updateRunwaySettings,
-} from '@/api/user/requests';
+} from '@/api/user/requests'
 
 export {
   useChangePassword,
@@ -31,4 +31,4 @@ export {
   useUpdateProfile,
   useUpdateRunwayAccounts,
   useUpdateRunwaySettings,
-} from '@/api/user/hooks';
+} from '@/api/user/hooks'
