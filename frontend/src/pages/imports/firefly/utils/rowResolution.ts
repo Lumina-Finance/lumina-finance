@@ -3,7 +3,12 @@ import type { Category } from '@/api/categories'
 import type { Institution } from '@/api/institutions'
 import { CREATE_ACCOUNT_VALUE, CREATE_CATEGORY_VALUE } from '@/pages/imports/constants'
 import type { Currency } from '@/api/currency'
-import type { CsvRow, ImportAccountCreateDetails, ImportCategoryKind, ImportCategoryRename } from '@/pages/imports/types'
+import type {
+  CsvRow,
+  ImportAccountCreateDetails,
+  ImportCategoryKind,
+  ImportCategoryRename,
+} from '@/pages/imports/types'
 import {
   buildPreviewCategory,
   MAX_IMPORT_MINOR_UNITS,
@@ -157,13 +162,15 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
     if (!account) throw new FireflyRowSkipError(FIREFLY_BALANCE_ROW_UNATTACHED_REASON)
 
     const amount = getFireflyAmountInAccountCurrency(row, account.currency, options.currencies)
-    return [{
-      account,
-      amount: destination ? amount : -amount,
-      category: options.balanceAdjustmentCategory,
-      merchantName: null,
-      counterpartyAccount: null,
-    }]
+    return [
+      {
+        account,
+        amount: destination ? amount : -amount,
+        category: options.balanceAdjustmentCategory,
+        merchantName: null,
+        counterpartyAccount: null,
+      },
+    ]
   }
 
   // A journal between two imported accounts is a transfer in Lumina no matter
@@ -201,25 +208,29 @@ function buildFireflyRowLegs(row: CsvRow, options: FireflyRowResolutionOptions):
   if (journalType === FIREFLY_TYPE_WITHDRAWAL) {
     if (!source) throw new FireflyRowSkipError(FIREFLY_WITHDRAWAL_SOURCE_UNTRACKED_REASON)
 
-    return [{
-      account: source,
-      amount: -getFireflyAmountInAccountCurrency(row, source.currency, options.currencies),
-      category: getFireflyMappedCategory(row, options),
-      merchantName: row.destination_name?.trim() || null,
-      counterpartyAccount: null,
-    }]
+    return [
+      {
+        account: source,
+        amount: -getFireflyAmountInAccountCurrency(row, source.currency, options.currencies),
+        category: getFireflyMappedCategory(row, options),
+        merchantName: row.destination_name?.trim() || null,
+        counterpartyAccount: null,
+      },
+    ]
   }
 
   if (journalType === FIREFLY_TYPE_DEPOSIT) {
     if (!destination) throw new FireflyRowSkipError(FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON)
 
-    return [{
-      account: destination,
-      amount: getFireflyAmountInAccountCurrency(row, destination.currency, options.currencies),
-      category: getFireflyMappedCategory(row, options),
-      merchantName: row.source_name?.trim() || null,
-      counterpartyAccount: null,
-    }]
+    return [
+      {
+        account: destination,
+        amount: getFireflyAmountInAccountCurrency(row, destination.currency, options.currencies),
+        category: getFireflyMappedCategory(row, options),
+        merchantName: row.source_name?.trim() || null,
+        counterpartyAccount: null,
+      },
+    ]
   }
 
   throw new FireflyRowSkipError(FIREFLY_TRANSFER_ENDPOINT_UNTRACKED_REASON)
@@ -265,7 +276,9 @@ function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string,
   } else if (foreign && foreign.currencyCode === accountCurrency) {
     rawAmount = foreign.amount
   } else {
-    throw new FireflyRowSkipError(`Neither the amount nor the foreign amount is in the account's currency (${accountCurrency})`)
+    throw new FireflyRowSkipError(
+      `Neither the amount nor the foreign amount is in the account's currency (${accountCurrency})`,
+    )
   }
 
   // Every account's currency is one the API served, so a missing exponent is unreachable. An
@@ -297,15 +310,16 @@ function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string,
 /**
  * Gets the category the user's mapping choices assign to a categorized row
  */
-function getFireflyMappedCategory(
-  row: CsvRow,
-  options: FireflyRowResolutionOptions,
-): Category | undefined {
+function getFireflyMappedCategory(row: CsvRow, options: FireflyRowResolutionOptions): Category | undefined {
   const source = getFireflyRowCategorySource(row)
   const choice = options.categoryMappings[source]
 
   if (choice === CREATE_CATEGORY_VALUE) {
-    return buildPreviewCategory(source, options.categoryRenames[source]?.name ?? source, options.categoryCreateKinds[source] ?? 'expense')
+    return buildPreviewCategory(
+      source,
+      options.categoryRenames[source]?.name ?? source,
+      options.categoryCreateKinds[source] ?? 'expense',
+    )
   }
 
   return choice ? options.categoryById.get(choice) : undefined

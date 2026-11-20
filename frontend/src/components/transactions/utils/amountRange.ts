@@ -39,8 +39,9 @@ export function isAmountRangeLocked(
   currencies: Currency[],
   amountCurrency: string,
 ): boolean {
-  return findCurrencyExponent(currencies, amountCurrency) === null
-    || isAppliedRangeWaitingOnCurrency(filters, currencies)
+  return (
+    findCurrencyExponent(currencies, amountCurrency) === null || isAppliedRangeWaitingOnCurrency(filters, currencies)
+  )
 }
 
 /**
@@ -50,10 +51,7 @@ export function isAmountRangeLocked(
  * @param filters - The applied bounds and the currency their minor units belong to
  * @param currencies - The currency table, which is empty until it downloads
  */
-export function isAppliedRangeWaitingOnCurrency(
-  filters: AppliedAmountRange,
-  currencies: Currency[],
-): boolean {
+export function isAppliedRangeWaitingOnCurrency(filters: AppliedAmountRange, currencies: Currency[]): boolean {
   const hasBound = filters.min_amount !== undefined || filters.max_amount !== undefined
 
   return hasBound && findAmountRangeDraft(filters, currencies) === null
