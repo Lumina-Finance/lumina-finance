@@ -89,7 +89,7 @@ export const COVERED_QUERIES: readonly CoveredQuery[] = [
   // The server ranks merchants by how recently each was used, aged against today
   { queryKey: merchantKeys.all, dependsOnDate: true },
   { queryKey: tagKeys.all, dependsOnDate: false },
-  { queryKey: institutionKeys.list(), dependsOnDate: false },
+  { queryKey: institutionKeys.all, dependsOnDate: false },
   { queryKey: importLayoutKeys.all, dependsOnDate: false },
   { queryKey: importSourceKeys.all, dependsOnDate: false },
 ]

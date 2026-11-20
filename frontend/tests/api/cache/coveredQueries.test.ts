@@ -41,7 +41,8 @@ describe('which answers the change check covers', () => {
     ['the categories', categoryKeys.list()],
     ['a merchant lookup', merchantKeys.infinite({ search: 'a' }, 20)],
     ['the tags', tagKeys.infinite({}, 20)],
-    ['the institutions', institutionKeys.list()],
+    ['the institutions', institutionKeys.infinite({}, 20)],
+    ['the saved insight range pages', insightsKeys.savedRangesPages(20)],
     ['the import layouts', importLayoutKeys.all],
     ['the import sources', importSourceKeys.all],
     ['the saved insight ranges', insightsKeys.savedRanges()],
@@ -103,7 +104,7 @@ const MARKINGS: Array<[name: string, key: readonly unknown[], dependsOnDate: boo
   ['the categories', categoryKeys.list(), false],
   ['the merchant ranking', merchantKeys.infinite({}, 20), true],
   ['the tags', tagKeys.infinite({}, 20), false],
-  ['the institutions', institutionKeys.list(), false],
+  ['the institutions', institutionKeys.infinite({}, 20), false],
   ['the import layouts', importLayoutKeys.all, false],
   ['the import sources', importSourceKeys.all, false],
 ]
