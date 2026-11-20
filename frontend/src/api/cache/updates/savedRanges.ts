@@ -26,8 +26,8 @@ export function addCachedSavedRange(queryClient: QueryClient, savedRange: SavedI
 }
 
 /**
- * Takes a deleted range out of the loaded pages in place, so its row plays its exit animation
- * before the pages are read again
+ * Takes a deleted range out of the loaded pages in place, so its row leaves the list at once
+ * and the pages are read again afterwards
  */
 export function removeCachedSavedRange(queryClient: QueryClient, rangeId: string) {
   queryClient.setQueriesData<SavedRangePages>(

@@ -165,7 +165,7 @@ export function useDeleteSavedInsightsRange() {
   return useMutation({
     mutationFn: deleteSavedInsightsRange,
     onSuccess: (_, rangeId) => {
-      // Remove the deleted range in place so the exit animation plays without waiting on the pages to be read again
+      // Remove the deleted range in place so its row leaves at once, without waiting on the pages to be read again
       removeCachedSavedRange(queryClient, rangeId)
     },
   })
