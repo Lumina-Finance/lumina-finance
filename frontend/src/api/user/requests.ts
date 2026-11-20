@@ -1,5 +1,6 @@
 import type { User } from '@/api/auth/types'
 import { authenticatedFetch } from '@/api/client'
+import type { StepUpPayload } from '@/api/two-factor/types'
 import { fromRunwayResultResponse, fromRunwaySettingsResponse, toRunwaySettingsPayload } from '@/api/user/mappers'
 import type {
   CacheStatus,
@@ -59,6 +60,19 @@ export function setPassword(payload: { new_password: string }) {
   return authenticatedFetch<void>('/auth/password/set', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+/**
+ * Signs the account out of every other device after step-up
+ *
+ * An account with a password passes its step-up. A passwordless account omits it and relies on the
+ * reauth proof cookie a fresh provider reauth armed, so the null body carries no step-up
+ */
+export function endOtherSessions(stepUp?: StepUpPayload) {
+  return authenticatedFetch<void>('/auth/sessions/end-others', {
+    method: 'POST',
+    body: JSON.stringify(stepUp ?? null),
   })
 }
 

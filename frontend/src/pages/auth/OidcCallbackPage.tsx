@@ -23,7 +23,7 @@ import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyR
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { handOffToNativeApp } from '@/utils/nativeHandoff'
-import { consumeOidcIntent, type OidcSignedInIntent } from '@/utils/oidcIntent'
+import { consumeOidcIntent, getReauthResumeState, type OidcSignedInIntent } from '@/utils/oidcIntent'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
 import { getBrowserTimeZone } from '@/utils/date'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
@@ -95,13 +95,7 @@ const OidcCallbackPage = () => {
       withMinDelay(() => completeOidcReauthCallback({ code, state }))
         .then(() => {
           // The reauth armed the step-up proof, so settings resumes the action it was started for
-          if (action.kind === 'set-password') {
-            navigate('/settings', { replace: true, state: { setPassword: true } })
-          } else if (action.kind === 'link') {
-            navigate('/settings', { replace: true, state: { resumeLink: action.slug } })
-          } else {
-            navigate('/settings', { replace: true, state: { resumeUnlink: action.identityId } })
-          }
+          navigate('/settings', { replace: true, state: getReauthResumeState(action) })
         })
         .catch((reauthError: Error) => {
           const isGenericAuthFailure = reauthError instanceof ApiError && reauthError.status === 401

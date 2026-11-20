@@ -4,7 +4,27 @@ const OIDC_INTENT_KEY = 'oidc-signed-in-intent'
 
 /** What a passwordless account resumes once its reauth step-up completes */
 export type OidcReauthAction =
-  { kind: 'set-password' } | { kind: 'link'; slug: string } | { kind: 'unlink'; identityId: string }
+  | { kind: 'set-password' }
+  | { kind: 'link'; slug: string }
+  | { kind: 'unlink'; identityId: string }
+  | { kind: 'end-other-sessions' }
+
+/**
+ * The settings navigation state that tells the matching control to finish an action after its reauth,
+ * one flag per action so no action is mistaken for another
+ */
+export function getReauthResumeState(action: OidcReauthAction) {
+  switch (action.kind) {
+    case 'set-password':
+      return { setPassword: true }
+    case 'link':
+      return { resumeLink: action.slug }
+    case 'unlink':
+      return { resumeUnlink: action.identityId }
+    case 'end-other-sessions':
+      return { resumeEndOtherSessions: true }
+  }
+}
 
 /**
  * Why a signed-in provider roundtrip was started, so the callback page knows how to finish it. A link
