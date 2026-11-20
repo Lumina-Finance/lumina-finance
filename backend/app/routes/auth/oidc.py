@@ -7,7 +7,7 @@ import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Path, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import current_session_id_ctx, get_db
 from app.dependencies import get_current_user
 from app.models.oidc import OidcIdentity, OidcProvider
 from app.models.user import User
@@ -368,7 +368,7 @@ async def remove_oidc_identity_route(
     data: StepUpRequest | None = None,
     oidc_reauth_stepup: Annotated[str | None, Cookie(alias=OIDC_REAUTH_STEPUP_COOKIE_KEY)] = None,
 ):
-    """Remove a linked provider after step-up
+    """Remove a linked provider after step-up and sign out every other session
 
     An account with a password steps up with it. A passwordless account instead presents the proof
     from a fresh provider reauth. Removal is refused when it would leave no way to sign in
@@ -385,7 +385,11 @@ async def remove_oidc_identity_route(
         HTTPException: The step-up fails, the identity is not the user's, or removing it
             would leave the account with no way to sign in
     """
-    await authorize_sensitive_action(db, user, response, data, oidc_reauth_stepup, lambda: unlink_oidc_identity(db, user, identity_id))
+    # get_current_user has already resolved, so the session id is set for this request
+    current_session_id = current_session_id_ctx.get()
+    await authorize_sensitive_action(
+        db, user, response, data, oidc_reauth_stepup, lambda: unlink_oidc_identity(db, user, current_session_id, identity_id)
+    )
 
 
 def _decode_onboarding_claims(onboarding_token: str) -> OidcOnboardingClaims:
