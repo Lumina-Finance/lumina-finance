@@ -1,14 +1,13 @@
 """OIDC sign-in and provider linking routes"""
 
 import uuid
-from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 import jwt
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Path, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import current_session_id_ctx, get_db
 from app.dependencies import get_current_user
 from app.models.oidc import OidcIdentity, OidcProvider
 from app.models.user import User
@@ -16,15 +15,14 @@ from app.routes.auth.cookie_helpers import (
     OIDC_BINDING_COOKIE_KEY,
     OIDC_REAUTH_STEPUP_COOKIE_KEY,
     clear_oidc_login_binding_cookie,
-    clear_oidc_reauth_stepup_cookie,
     removing_cookie_on_failure,
     set_oidc_login_binding_cookie,
     set_oidc_reauth_stepup_cookie,
 )
 from app.routes.auth.token_helpers import (
+    authorize_sensitive_action,
     decode_oidc_onboarding_token,
     issue_and_store_tokens,
-    spend_reauth_stepup_proof,
 )
 from app.schemas.auth import (
     AuthResponse,
@@ -58,7 +56,6 @@ from app.services.auth import (
 )
 from app.services.auth.account_lockout import get_password_credential
 from app.services.auth.mfa_challenge import issue_reauth_stepup_proof
-from app.services.auth.step_up import verify_sensitive_action_step_up
 
 router = APIRouter(prefix="/oidc", tags=["auth"])
 
@@ -73,70 +70,6 @@ def _build_identity_summary(identity: OidcIdentity, provider: OidcProvider) -> O
         created_at=identity.created_at,
         last_login_at=identity.last_login_at,
     )
-
-
-async def _manage_provider[T](
-    db: AsyncSession,
-    user: User,
-    response: Response,
-    step_up: StepUpRequest | None,
-    reauth_stepup_proof: str | None,
-    action: Callable[[], Awaitable[T]],
-) -> T:
-    """Authorize linking or unlinking a provider via password step-up or a fresh reauth proof, then do it
-
-    An account with a password steps up with it. A passwordless account has none, so it presents the
-    proof a fresh provider reauth minted instead. The proof is single use, so it is removed whatever
-    the outcome, including when the link or unlink itself is refused
-
-    Args:
-        db: Active database session
-        user: Authenticated user performing the action
-        response: FastAPI response object for clearing a spent proof cookie
-        step_up: Password and current factor, sent by an account that has a password
-        reauth_stepup_proof: Proof cookie, sent by a passwordless account after a reauth
-        action: The link or unlink the authorization is for
-
-    Returns:
-        Whatever the action returns
-
-    Raises:
-        HTTPException: Neither authorization is present or valid, or the action failed
-    """
-    has_password = await get_password_credential(db, user.id) is not None
-    if reauth_stepup_proof is not None and not has_password:
-        return await spend_reauth_stepup_proof(db, user.id, response, reauth_stepup_proof, action)
-
-    if reauth_stepup_proof is None:
-        return await _step_up_then_act(db, user, step_up, action)
-
-    # An account with a password steps up with it whatever else it sends, so a proof it holds, from
-    # before it had a password, authorizes nothing and is only cleared away
-    clear_oidc_reauth_stepup_cookie(response)
-    with removing_cookie_on_failure(clear_oidc_reauth_stepup_cookie):
-        return await _step_up_then_act(db, user, step_up, action)
-
-
-async def _step_up_then_act[T](db: AsyncSession, user: User, step_up: StepUpRequest | None, action: Callable[[], Awaitable[T]]) -> T:
-    """Run the action once the account has stepped up with its password and current factor
-
-    Args:
-        db: Active database session
-        user: Authenticated user performing the action
-        step_up: Password and current factor, if the request carried them
-        action: The link or unlink the step-up is for
-
-    Returns:
-        Whatever the action returns
-
-    Raises:
-        HTTPException: The step-up is missing or does not verify, or the action failed
-    """
-    if step_up is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
-
-    await verify_sensitive_action_step_up(db, user, step_up.password, code=step_up.code, passkey=step_up.passkey)
-    return await action()
 
 
 @router.get("/providers", response_model=OidcProvidersResponse)
@@ -333,7 +266,9 @@ async def link_oidc_route(
     if provider is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown sign-in provider")
 
-    authorization_url = await _manage_provider(db, user, response, data, oidc_reauth_stepup, lambda: begin_oidc_link(db, user, provider))
+    authorization_url = await authorize_sensitive_action(
+        db, user, response, data, oidc_reauth_stepup, lambda: begin_oidc_link(db, user, provider)
+    )
     return OidcAuthorizeResponse(authorization_url=authorization_url)
 
 
@@ -433,7 +368,7 @@ async def remove_oidc_identity_route(
     data: StepUpRequest | None = None,
     oidc_reauth_stepup: Annotated[str | None, Cookie(alias=OIDC_REAUTH_STEPUP_COOKIE_KEY)] = None,
 ):
-    """Remove a linked provider after step-up
+    """Remove a linked provider after step-up and sign out every other session
 
     An account with a password steps up with it. A passwordless account instead presents the proof
     from a fresh provider reauth. Removal is refused when it would leave no way to sign in
@@ -450,7 +385,11 @@ async def remove_oidc_identity_route(
         HTTPException: The step-up fails, the identity is not the user's, or removing it
             would leave the account with no way to sign in
     """
-    await _manage_provider(db, user, response, data, oidc_reauth_stepup, lambda: unlink_oidc_identity(db, user, identity_id))
+    # get_current_user has already resolved, so the session id is set for this request
+    current_session_id = current_session_id_ctx.get()
+    await authorize_sensitive_action(
+        db, user, response, data, oidc_reauth_stepup, lambda: unlink_oidc_identity(db, user, current_session_id, identity_id)
+    )
 
 
 def _decode_onboarding_claims(onboarding_token: str) -> OidcOnboardingClaims:

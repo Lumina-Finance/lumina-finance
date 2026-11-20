@@ -37,23 +37,26 @@ export function useActionFeedback({
     setStatus(nextStatus)
   }, [])
 
-  const run = useCallback(async <T,>(action: () => Promise<T>): Promise<T> => {
-    setMountedStatus('loading')
-    const minimumLoading = waitForMilliseconds(minimumLoadingMs)
+  const run = useCallback(
+    async <T>(action: () => Promise<T>): Promise<T> => {
+      setMountedStatus('loading')
+      const minimumLoading = waitForMilliseconds(minimumLoadingMs)
 
-    try {
-      const result = await action()
-      await minimumLoading
-      setMountedStatus('success')
-      await waitForMilliseconds(successMs)
-      setMountedStatus('idle')
-      return result
-    } catch (error) {
-      await minimumLoading
-      setMountedStatus('idle')
-      throw error
-    }
-  }, [minimumLoadingMs, setMountedStatus, successMs])
+      try {
+        const result = await action()
+        await minimumLoading
+        setMountedStatus('success')
+        await waitForMilliseconds(successMs)
+        setMountedStatus('idle')
+        return result
+      } catch (error) {
+        await minimumLoading
+        setMountedStatus('idle')
+        throw error
+      }
+    },
+    [minimumLoadingMs, setMountedStatus, successMs],
+  )
 
   return {
     isPending: status !== 'idle',

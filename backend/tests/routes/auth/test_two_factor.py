@@ -20,11 +20,15 @@ from app.services.maintenance.expired_records import prune_expired_records
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
+    _assert_other_sessions_ended,
+    _assert_other_sessions_kept,
+    _assert_session_works,
     _create_user,
     _enroll,
     _fresh_totp_code,
     _get_auth_header,
     _get_login_lockout,
+    _sign_in_again,
 )
 
 _PASSWORD = SIGNUP_PAYLOAD["password"]
@@ -340,6 +344,54 @@ async def test_complete_turns_on_two_factor_after_confirm(client):
     assert status.json()["totp_enabled"] is True
 
 
+async def test_two_factor_turned_on_signs_out_other_sessions(client):
+    """Turning on an authenticator signs out every other device and keeps the one that turned it on"""
+    signup = await _create_user(client)
+    caller = (_get_auth_header(signup), signup.cookies["refresh_token"])
+    other = await _sign_in_again(client)
+    await _assert_session_works(client, caller)
+    await _assert_session_works(client, other)
+
+    secret = (await client.post("/auth/2fa/setup", headers=caller[0], json={"step_up": _STEP_UP})).json()["secret"]
+    await client.post("/auth/2fa/confirm", headers=caller[0], json={"code": pyotp.TOTP(secret).now()})
+    complete = await client.post("/auth/2fa/complete", headers=caller[0])
+    assert complete.status_code == 204
+
+    await _assert_other_sessions_ended(client, caller, other)
+
+
+async def test_two_factor_completion_refused_keeps_other_sessions(client):
+    """Completing before a code is confirmed is refused and signs nobody out"""
+    signup = await _create_user(client)
+    caller = (_get_auth_header(signup), signup.cookies["refresh_token"])
+    other = await _sign_in_again(client)
+
+    complete = await client.post("/auth/2fa/complete", headers=caller[0])
+    assert complete.status_code == 400
+
+    await _assert_other_sessions_kept(client, caller, other)
+
+
+async def test_two_factor_turned_off_keeps_other_sessions(client):
+    """Disabling the authenticator leaves the account's other devices signed in"""
+    caller_auth, secret, _ = await _enroll(client)
+    caller_refresh = client.cookies["refresh_token"]
+
+    # The account now challenges at sign-in, so the second device signs in with a code
+    second = await _login_with_code(client, _fresh_totp_code(secret))
+    assert second.status_code == 200
+    other = (_get_auth_header(second), second.cookies["refresh_token"])
+
+    # The sign-in spent the code's step, so free it for the disabling step-up below
+    async with TestSession() as db:
+        await db.execute(update(TotpCredential).values(last_used_step=None))
+        await db.commit()
+    disable = await client.post("/auth/2fa/disable", headers=caller_auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
+    assert disable.status_code == 204
+
+    await _assert_other_sessions_kept(client, (caller_auth, caller_refresh), other)
+
+
 async def test_complete_without_confirm_is_rejected(client):
     """Completing before a code is confirmed is refused so 2FA never enables around an unverified secret"""
     auth = _get_auth_header(await _create_user(client))
@@ -548,6 +600,17 @@ async def test_login_second_factor_failure_hides_attempts_remaining(client):
 async def test_regenerate_then_confirm_swaps_the_codes(client):
     """Confirming a regeneration activates the new batch and retires the old one"""
     auth, secret, old_codes = await _enroll(client)
+    caller = (auth, client.cookies["refresh_token"])
+
+    # The account challenges at sign-in now, so a second device signs in with a code
+    second = await _login_with_code(client, _fresh_totp_code(secret))
+    assert second.status_code == 200
+    other = (_get_auth_header(second), second.cookies["refresh_token"])
+
+    # The sign-in spent the code's step, so free it for the step-up below
+    async with TestSession() as db:
+        await db.execute(update(TotpCredential).values(last_used_step=None))
+        await db.commit()
 
     regenerate = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
     assert regenerate.status_code == 200
@@ -557,6 +620,9 @@ async def test_regenerate_then_confirm_swaps_the_codes(client):
 
     confirm = await client.post("/auth/2fa/recovery-codes/confirm", headers=auth)
     assert confirm.status_code == 204
+
+    # New recovery codes leave the other device signed in, and a recovery sign-in below ends every session
+    await _assert_other_sessions_kept(client, caller, other)
 
     assert (await _login_with_code(client, old_codes[0])).status_code == 401
     assert (await _login_with_code(client, new_codes[0])).status_code == 200

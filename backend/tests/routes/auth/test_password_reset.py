@@ -652,8 +652,8 @@ async def test_reset_verify_with_recovery_code_wipes_factors_and_grants_restrict
     )
     assert verify.status_code == 200
     assert verify.json()["access_token"]
-    assert _saved_copy_key(verify) == (derive_saved_copy_key(user_id, 2), 2), (
-        "the reset and then the wipe each ended every session, so the response carries the second new key"
+    assert _saved_copy_key(verify) == (derive_saved_copy_key(user_id, 3), 3), (
+        "enrolling, the reset and then the wipe each ended every other session, so the response carries the third new key"
     )
 
     # The wiped account forces re-enrolment at the next login, with only a recovery code usable

@@ -18,6 +18,7 @@ from app.routes.auth.passkeys import router as passkeys_router
 from app.routes.auth.password_reset_helpers import answer_completed_reset
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
+    authorize_sensitive_action,
     complete_mfa_challenge,
     issue_and_store_tokens,
     spend_reauth_stepup_proof,
@@ -61,6 +62,7 @@ from app.services.auth import (
     confirm_totp_enrollment,
     count_reset_sign_in_providers,
     disable_two_factor,
+    end_other_sessions,
     ensure_reset_token_active,
     is_passkey_registered,
     is_registration_open,
@@ -245,6 +247,34 @@ async def set_password_route(
         oidc_reauth_stepup,
         lambda: set_first_password(db, user, current_session_id_ctx.get(), data.new_password),
     )
+
+
+@router.post("/sessions/end-others", status_code=status.HTTP_204_NO_CONTENT)
+async def end_other_sessions_route(
+    response: Response,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    data: StepUpRequest | None = None,
+    oidc_reauth_stepup: Annotated[str | None, Cookie(alias=OIDC_REAUTH_STEPUP_COOKIE_KEY)] = None,
+):
+    """Sign the authenticated user out of every other device after step-up
+
+    An account with a password steps up with it and any current second factor. A passwordless account
+    instead presents the proof from a fresh provider reauth
+
+    Args:
+        response: FastAPI response object for clearing a spent proof cookie
+        user: Authenticated user resolved from the access token
+        db: Active database session
+        data: Password and a current factor, for an account that has a password
+        oidc_reauth_stepup: Reauth proof cookie, for a passwordless account
+
+    Raises:
+        HTTPException: The step-up is missing or fails
+    """
+    # get_current_user has already resolved, so the session id is set for this request
+    current_session_id = current_session_id_ctx.get()
+    await authorize_sensitive_action(db, user, response, data, oidc_reauth_stepup, lambda: end_other_sessions(db, user.id, current_session_id))
 
 
 @router.post("/password/forgot", status_code=status.HTTP_204_NO_CONTENT)
@@ -438,8 +468,8 @@ async def complete_totp_route(
 ):
     """Turn on two-factor after the user has saved their recovery codes
 
-    The permissive resolver lets a recovery-code login finish re-enrolment here, which also lifts the
-    restriction
+    Every other session is signed out as it turns on. The permissive resolver lets a recovery-code
+    login finish re-enrolment here, which also lifts the restriction
 
     Args:
         user: Authenticated user resolved from the access token
@@ -448,7 +478,8 @@ async def complete_totp_route(
     Raises:
         HTTPException: Enrolment was not confirmed first, or there is no pending setup
     """
-    await complete_totp_enrollment(db, user.id)
+    # get_authenticated_user has already resolved, so the session id is set for this request
+    await complete_totp_enrollment(db, user.id, current_session_id_ctx.get())
 
 
 @router.post("/2fa/disable", status_code=status.HTTP_204_NO_CONTENT)

@@ -13,6 +13,7 @@ export type {
 
 export {
   changePassword,
+  endOtherSessions,
   setPassword,
   fetchCacheStatus,
   fetchProfile,

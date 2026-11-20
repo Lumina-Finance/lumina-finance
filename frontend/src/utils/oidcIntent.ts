@@ -7,6 +7,24 @@ export type OidcReauthAction =
   | { kind: 'set-password' }
   | { kind: 'link'; slug: string }
   | { kind: 'unlink'; identityId: string }
+  | { kind: 'end-other-sessions' }
+
+/**
+ * The settings navigation state that tells the matching control to finish an action after its reauth,
+ * one flag per action so no action is mistaken for another
+ */
+export function getReauthResumeState(action: OidcReauthAction) {
+  switch (action.kind) {
+    case 'set-password':
+      return { setPassword: true }
+    case 'link':
+      return { resumeLink: action.slug }
+    case 'unlink':
+      return { resumeUnlink: action.identityId }
+    case 'end-other-sessions':
+      return { resumeEndOtherSessions: true }
+  }
+}
 
 /**
  * Why a signed-in provider roundtrip was started, so the callback page knows how to finish it. A link
@@ -28,15 +46,23 @@ export function markOidcIntent(intent: OidcSignedInIntent): boolean {
 }
 
 /**
- * Reads and clears the signed-in intent, returning null when none was set, as for an anonymous sign-in
+ * Reads the signed-in intent, returning null when none was set, as for an anonymous sign-in. Reading
+ * leaves it stored, so a render React throws away before the return is handled can read it again
  */
-export function consumeOidcIntent(): OidcSignedInIntent | null {
+export function readOidcIntent(): OidcSignedInIntent | null {
   const raw = readStoredValue(OIDC_INTENT_KEY, 'session')
-  removeStoredValue(OIDC_INTENT_KEY, 'session')
   if (!raw) return null
   try {
     return JSON.parse(raw) as OidcSignedInIntent
   } catch {
     return null
   }
+}
+
+/**
+ * Clears the signed-in intent once the callback page handles the return, so a later return isn't read
+ * with it
+ */
+export function clearOidcIntent() {
+  removeStoredValue(OIDC_INTENT_KEY, 'session')
 }

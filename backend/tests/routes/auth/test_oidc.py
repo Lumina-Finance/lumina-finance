@@ -19,7 +19,19 @@ from app.services.auth import oidc_login, registration
 from app.services.auth.saved_copy_key import derive_saved_copy_key
 from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _clears_cookie, _saved_copy_key, _seed_currency, _seed_reset_token, sign_up_confirmed
+from tests.routes.support import (
+    SIGNUP_PAYLOAD,
+    _assert_other_sessions_ended,
+    _assert_other_sessions_kept,
+    _assert_session_works,
+    _clears_cookie,
+    _get_auth_header,
+    _saved_copy_key,
+    _seed_currency,
+    _seed_reset_token,
+    _sign_in_again,
+    sign_up_confirmed,
+)
 
 ISSUER = "https://idp.test"
 CLIENT_ID = "client-123"
@@ -815,8 +827,10 @@ async def _start_link(client, auth, slug: str = "test-idp") -> str:
 
 
 async def test_link_attaches_provider_to_account(client, provider_protocol):
-    """A step-up authorized link roundtrip attaches the provider subject to the account"""
+    """A step-up authorized link roundtrip attaches the provider subject to the account and signs nobody out"""
     auth, user_id = await _create_password_user(client)
+    caller = (auth, client.cookies["refresh_token"])
+    other = await _sign_in_again(client, email=_claims()["email"])
     await _seed_provider()
     provider_protocol["claims"] = _claims()
 
@@ -834,6 +848,7 @@ async def test_link_attaches_provider_to_account(client, provider_protocol):
     assert str(identity.user_id) == user_id
     assert identity.subject == "subject-1"
     assert str(auth_identity.user_id) == user_id
+    await _assert_other_sessions_kept(client, caller, other)
 
 
 async def test_link_closed_registration_attaches_provider(client, provider_protocol, monkeypatch):
@@ -1152,6 +1167,48 @@ async def test_unlink_removes_identity_after_step_up(client, provider_protocol):
     assert oidc_auth_identities == []
 
 
+async def test_unlink_with_password_signs_out_other_sessions(client, provider_protocol):
+    """Unlinking with the password signs out every other device and keeps the one that unlinked"""
+    auth, _ = await _create_password_user(client)
+    caller = (auth, client.cookies["refresh_token"])
+    other = await _sign_in_again(client, email=_claims()["email"])
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+    state = await _start_link(client, auth)
+    linked = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+    await _assert_session_works(client, caller)
+    await _assert_session_works(client, other)
+
+    resp = await client.post(
+        f"/auth/oidc/identities/{linked.json()['id']}/remove",
+        headers=auth,
+        json={"password": SIGNUP_PAYLOAD["password"]},
+    )
+    assert resp.status_code == 204
+
+    await _assert_other_sessions_ended(client, caller, other)
+
+
+async def test_unlink_refused_keeps_other_sessions(client, provider_protocol):
+    """A wrong password, or an identity that is not the user's, is refused and signs nobody out"""
+    auth, _ = await _create_password_user(client)
+    caller = (auth, client.cookies["refresh_token"])
+    other = await _sign_in_again(client, email=_claims()["email"])
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+    state = await _start_link(client, auth)
+    linked = await client.post("/auth/oidc/link/callback", headers=auth, json={"code": "any", "state": state})
+
+    wrong_password = await client.post(
+        f"/auth/oidc/identities/{linked.json()['id']}/remove", headers=auth, json={"password": "WrongPassword123!"}
+    )
+    assert wrong_password.status_code == 401
+    unknown = await client.post(f"/auth/oidc/identities/{uuid.uuid4()}/remove", headers=auth, json={"password": SIGNUP_PAYLOAD["password"]})
+    assert unknown.status_code == 404
+
+    await _assert_other_sessions_kept(client, caller, other)
+
+
 async def test_unlink_rejects_wrong_password(client, provider_protocol):
     """A wrong password fails the unlink step-up and keeps the identity"""
     auth, _ = await _create_password_user(client)
@@ -1376,6 +1433,83 @@ async def test_passwordless_account_unlinks_provider_after_reauth(client, provid
     async with TestSession() as session:
         remaining = (await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))).scalars().all()
     assert len(remaining) == 1
+
+
+async def _sign_in_through_provider(client, provider_protocol) -> tuple[dict, str]:
+    """Sign the passwordless account in again through its provider, returning that session's auth header and refresh cookie"""
+    state = await _start_sign_in(client)
+    provider_protocol["claims"] = _claims()
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+    assert resp.status_code == 200, resp.text
+    return _get_auth_header(resp), resp.cookies["refresh_token"]
+
+
+async def test_passwordless_unlink_signs_out_other_sessions(client, provider_protocol):
+    """A passwordless account unlinking with a fresh reauth signs out every other device and keeps its own"""
+    await _seed_currency()
+    await _seed_provider()
+    other_provider = await _seed_provider(slug="other-idp")
+    auth, user_id = await _create_passwordless_user(client, provider_protocol)
+    caller = (auth, client.cookies["refresh_token"])
+    other = await _sign_in_through_provider(client, provider_protocol)
+
+    other_identity_id = uuid.uuid4()
+    async with TestSession() as session:
+        session.add(
+            OidcIdentity(
+                id=other_identity_id,
+                user_id=uuid.UUID(user_id),
+                provider_id=other_provider.id,
+                subject="subject-2",
+                email="sso-user@example.com",
+            )
+        )
+        await session.commit()
+    await _assert_session_works(client, caller)
+    await _assert_session_works(client, other)
+
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    resp = await client.post(f"/auth/oidc/identities/{other_identity_id}/remove", headers=auth)
+    assert resp.status_code == 204
+
+    await _assert_other_sessions_ended(client, caller, other)
+
+
+async def test_passwordless_end_others_after_reauth_signs_out_other_sessions(client, provider_protocol):
+    """A passwordless account signs out its other devices with a fresh reauth, and without one is refused"""
+    await _seed_currency()
+    await _seed_provider()
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+    caller = (auth, client.cookies["refresh_token"])
+    other = await _sign_in_through_provider(client, provider_protocol)
+
+    refused = await client.post("/auth/sessions/end-others", headers=auth)
+    assert refused.status_code == 401
+    await _assert_session_works(client, other)
+
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    resp = await client.post("/auth/sessions/end-others", headers=auth)
+    assert resp.status_code == 204
+    assert _clears_cookie(resp, "oidc_reauth_stepup")
+
+    await _assert_other_sessions_ended(client, caller, other)
+
+
+async def test_passwordless_unlink_refused_keeps_other_sessions(client, provider_protocol):
+    """Removing the only provider is refused, and the reauth that authorized it signs nobody out"""
+    await _seed_currency()
+    await _seed_provider()
+    auth, user_id = await _create_passwordless_user(client, provider_protocol)
+    caller = (auth, client.cookies["refresh_token"])
+    other = await _sign_in_through_provider(client, provider_protocol)
+    async with TestSession() as session:
+        identity_id = (await session.execute(select(OidcIdentity).where(OidcIdentity.user_id == uuid.UUID(user_id)))).scalar_one().id
+
+    await _arm_reauth_proof(client, auth, provider_protocol)
+    resp = await client.post(f"/auth/oidc/identities/{identity_id}/remove", headers=auth)
+    assert resp.status_code == 409
+
+    await _assert_other_sessions_kept(client, caller, other)
 
 
 async def test_passwordless_unlink_last_provider_is_refused(client, provider_protocol):

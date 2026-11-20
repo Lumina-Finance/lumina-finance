@@ -48,7 +48,7 @@ from app.services.auth.recovery_codes import (
     has_pending_recovery_codes,
     staging_cutoff,
 )
-from app.services.auth.sessions import delete_all_user_auth_sessions
+from app.services.auth.sessions import delete_all_user_auth_sessions, delete_other_user_auth_sessions
 
 # Distinguishes a registration challenge from an authentication one in the shared challenge table
 _REGISTRATION_PURPOSE = "registration"
@@ -277,17 +277,19 @@ async def register_passkey(db: AsyncSession, user_id: uuid.UUID, credential: dic
     return passkey, recovery_codes
 
 
-async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID) -> None:
+async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID, current_session_id: uuid.UUID) -> None:
     """Activate a staged passkey once the user has saved the recovery codes issued with it
 
     Both the staged passkey and the staged recovery batch are promoted together, so the account never
-    has an enforced passkey factor whose recovery codes were never saved. When this finishes a forced
-    re-enrol it also signs out every session, so the recovery path ends in a fresh login rather than
-    promoting its restricted session
+    has an enforced passkey factor whose recovery codes were never saved. Every other session is signed
+    out in the same commit, so a device that signed in before the second factor existed cannot keep its
+    access. When this finishes a forced re-enrol it signs out every session, so the recovery path ends
+    in a fresh login rather than promoting its restricted session
 
     Args:
         db: Active database session
         user_id: User confirming their staged passkey
+        current_session_id: Session that made the request and stays signed in, except after a forced re-enrol
 
     Raises:
         HTTPException: No staged passkey with pending recovery codes is awaiting confirmation
@@ -318,6 +320,8 @@ async def confirm_passkey_registration(db: AsyncSession, user_id: uuid.UUID) -> 
     # the user back to a fresh login with the new factor
     if was_forced_reenrollment:
         await delete_all_user_auth_sessions(db, user_id)
+    else:
+        await delete_other_user_auth_sessions(db, user_id, current_session_id)
 
     await db.commit()
 
@@ -592,6 +596,8 @@ async def rename_passkey(db: AsyncSession, user_id: uuid.UUID, passkey_id: uuid.
 async def remove_passkey(db: AsyncSession, user_id: uuid.UUID, passkey_id: uuid.UUID) -> None:
     """Delete one of the user's passkeys, dropping the auth identity once the last one is gone
 
+    The caller commits, so the removal lands with the rest of its unit of work
+
     Args:
         db: Active database session
         user_id: User the passkey must belong to
@@ -612,7 +618,6 @@ async def remove_passkey(db: AsyncSession, user_id: uuid.UUID, passkey_id: uuid.
                 AuthIdentity.auth_provider == AuthProvider.WEBAUTHN,
             )
         )
-    await db.commit()
 
 
 async def _get_owned_passkey(db: AsyncSession, user_id: uuid.UUID, passkey_id: uuid.UUID) -> WebauthnCredential:

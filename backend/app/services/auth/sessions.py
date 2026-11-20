@@ -1,12 +1,13 @@
 """Auth session service helpers"""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from sqlalchemy import delete, or_, select, text, update
+from sqlalchemy import ColumnElement, and_, delete, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
+from app.config.jwt import SESSION_MAX_AGE_SECONDS
 from app.db.rls.functions import ROTATE_SAVED_COPY_KEY
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
@@ -16,6 +17,21 @@ from app.models.user import User
 # The most rotated refresh tokens one token issue removes, so a backlog never slows a sign-in. Each
 # refresh leaves one and every refresh issues tokens, so ordinary traffic clears them all as they end
 GRACE_ENDED_TOKEN_DELETE_LIMIT = 100
+
+
+def is_session_live() -> ColumnElement[bool]:
+    """Return the condition a session row meets while it can still authorize requests and refreshes
+
+    It is read from the row, never only stored in its expiry, so a session older than the maximum age
+    stops working at once, including one that was already signed in when the limit began
+
+    Returns:
+        SQL condition for a session that has neither expired nor outlived the maximum age
+    """
+    return and_(
+        AuthSession.expires_at > sa_func.now(),
+        AuthSession.created_at > sa_func.now() - timedelta(seconds=SESSION_MAX_AGE_SECONDS),
+    )
 
 
 async def delete_expired_auth_sessions(db: AsyncSession) -> None:
@@ -136,6 +152,20 @@ async def delete_other_user_auth_sessions(
     # Removing the sessions cascades to their token allowlist rows
     await db.execute(other_sessions_delete_query)
     await _rotate_saved_copy_key(db, user_id)
+
+
+async def end_other_sessions(db: AsyncSession, user_id: uuid.UUID, current_session_id: uuid.UUID) -> None:
+    """Sign a user out of every device but the one asking, as its own unit of work
+
+    The caller authorizes the request first
+
+    Args:
+        db: Active database session
+        user_id: User whose other sessions end
+        current_session_id: Session that made the request and stays signed in
+    """
+    await delete_other_user_auth_sessions(db, user_id, current_session_id)
+    await db.commit()
 
 
 async def delete_all_user_auth_sessions(db: AsyncSession, user_id: uuid.UUID) -> None:

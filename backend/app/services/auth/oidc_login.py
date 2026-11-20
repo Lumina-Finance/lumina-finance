@@ -35,6 +35,7 @@ from app.services.auth.oidc_client import (
 )
 from app.services.auth.oidc_providers import get_enabled_oidc_provider_by_id
 from app.services.auth.registration import reject_closed_registration
+from app.services.auth.sessions import delete_other_user_auth_sessions
 from app.services.auth.signup import reject_missing_base_currency, reject_registered_email
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.user_lookup import find_user_id_by_email, fold_email, normalize_typed_spelling
@@ -564,8 +565,8 @@ async def list_oidc_identities(db: AsyncSession, user: User) -> list[tuple[OidcI
     return list(result.tuples().all())
 
 
-async def unlink_oidc_identity(db: AsyncSession, user: User, identity_id: uuid.UUID) -> None:
-    """Remove a linked provider, refusing to strand the account
+async def unlink_oidc_identity(db: AsyncSession, user: User, current_session_id: uuid.UUID, identity_id: uuid.UUID) -> None:
+    """Remove a linked provider and sign out every other session, refusing to strand the account
 
     The caller authorizes the removal first. It is refused when no way to sign in would remain:
     no password, no passkey, and no other linked provider
@@ -573,6 +574,7 @@ async def unlink_oidc_identity(db: AsyncSession, user: User, identity_id: uuid.U
     Args:
         db: Active database session
         user: Authenticated user removing the link
+        current_session_id: Session that made the request and stays signed in
         identity_id: Identity row being removed
 
     Raises:
@@ -603,6 +605,8 @@ async def unlink_oidc_identity(db: AsyncSession, user: User, identity_id: uuid.U
         if auth_identity is not None:
             await db.delete(auth_identity)
 
+    # A device that signed in through the removed provider must not stay signed in
+    await delete_other_user_auth_sessions(db, user.id, current_session_id)
     await db.commit()
 
 

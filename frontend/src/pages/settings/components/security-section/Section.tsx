@@ -3,6 +3,7 @@ import { PasswordRequirements } from '@/components/PasswordRequirements'
 import SettingsCard from '@/pages/settings/components/Card'
 import SettingsField from '@/pages/settings/components/Field'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
+import EndOtherSessionsControls from '@/pages/settings/components/security-section/EndOtherSessionsControls'
 import MultiFactorControls from '@/pages/settings/components/security-section/MultiFactorControls'
 import { SetPasswordControls } from '@/pages/settings/components/security-section/SetPasswordControls'
 import SignInProviderControls from '@/pages/settings/components/security-section/SignInProviderControls'
@@ -58,7 +59,14 @@ export default function SecuritySection({
             </div>
 
             <SettingsField label="Email" htmlFor="security-email" hint="Planned, currently not supported to change">
-              <input id="security-email" className="app-input" type="email" value={email} disabled style={DISABLED_INPUT_STYLE} />
+              <input
+                id="security-email"
+                className="app-input"
+                type="email"
+                value={email}
+                disabled
+                style={DISABLED_INPUT_STYLE}
+              />
             </SettingsField>
 
             {hasPassword ? (
@@ -118,6 +126,10 @@ export default function SecuritySection({
 
             <div className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
               <SignInProviderControls />
+            </div>
+
+            <div className="border-t pt-6" style={{ borderColor: 'var(--app-border)' }}>
+              <EndOtherSessionsControls hasPassword={hasPassword} />
             </div>
           </div>
         </SettingsCard>
