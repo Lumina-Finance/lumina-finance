@@ -24,7 +24,10 @@ test('waits for a held mutation response on a slow connection', async ({ page, r
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
-      }).catch(() => {})
+      })
+        // Read the body as the app does, since an answer marked no-store finishes loading only once it is read
+        .then((response) => response.text())
+        .catch(() => {})
     }
   }, { url: `${API_BASE_URL}${path}`, email: user.email, password: user.password })
   const connection = await page.context().newCDPSession(page)
