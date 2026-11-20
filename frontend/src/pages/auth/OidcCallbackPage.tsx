@@ -23,7 +23,7 @@ import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyR
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { handOffToNativeApp } from '@/utils/nativeHandoff'
-import { consumeOidcIntent, getReauthResumeState, type OidcSignedInIntent } from '@/utils/oidcIntent'
+import { clearOidcIntent, getReauthResumeState, readOidcIntent, type OidcSignedInIntent } from '@/utils/oidcIntent'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
 import { getBrowserTimeZone } from '@/utils/date'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
@@ -58,8 +58,9 @@ const OidcCallbackPage = () => {
   // transition, so the flag keeps the caption from reinterpreting the arrival as a link
   const [signInCompleted, setSignInCompleted] = useState(false)
 
-  // What a signed-in return is for, captured once since the flag is read and cleared on mount
-  const [signedInIntent] = useState<OidcSignedInIntent | null>(() => consumeOidcIntent())
+  // What a signed-in return is for. Reading has no side effect, so any render can read it, and the effect
+  // clears the flag once the session has restored and the return is handled
+  const [signedInIntent] = useState<OidcSignedInIntent | null>(() => readOidcIntent())
   const isReauth = user !== null && signedInIntent?.flow === 'reauth'
 
   // The stored roundtrip is single use on the server, so the strict-mode double effect
@@ -86,7 +87,9 @@ const OidcCallbackPage = () => {
   useEffect(() => {
     // The session must finish restoring first, because it decides whether this callback
     // completes a link for the signed-in account or an anonymous sign-in
-    if (loading || callbackStartedRef.current || paramError) return
+    if (loading) return
+    clearOidcIntent()
+    if (callbackStartedRef.current || paramError) return
     if (!code || !state) return
     callbackStartedRef.current = true
 

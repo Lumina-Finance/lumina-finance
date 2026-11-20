@@ -6,7 +6,7 @@
  * as an unlink
  */
 import { afterEach, expect, it, vi } from 'vitest'
-import { consumeOidcIntent, getReauthResumeState, markOidcIntent } from '@/utils/oidcIntent'
+import { getReauthResumeState, markOidcIntent, readOidcIntent } from '@/utils/oidcIntent'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -24,7 +24,7 @@ function blockStorage() {
 
 it('reads a provider return as having no flag when the browser blocks storage', () => {
   blockStorage()
-  expect(consumeOidcIntent()).toBeNull()
+  expect(readOidcIntent()).toBeNull()
 })
 
 it('says the flag could not be kept when the browser blocks storage', () => {
