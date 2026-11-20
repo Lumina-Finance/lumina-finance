@@ -104,6 +104,15 @@ async def test_list_tags_rejects_invalid_pagination_params(client):
         assert resp.status_code == 422
 
 
+async def test_list_tags_accepts_the_largest_limit_and_offset(client):
+    """The limit and offset bounds are inclusive."""
+    headers = _get_auth_header(await _create_user(client))
+
+    for url in [f"/tags?limit={LIST_PAGE_SIZE}", f"/tags?offset={MAX_LIST_OFFSET}"]:
+        resp = await client.get(url, headers=headers)
+        assert resp.status_code == 200
+
+
 async def test_list_tags_without_auth_returns_401(client):
     """GET /tags without an Authorization header returns 401."""
     resp = await client.get("/tags")

@@ -85,13 +85,28 @@ async def test_list_institutions_search_reaches_rows_past_the_first_page(client)
 
 async def test_list_institutions_search_composes_with_the_country_filter(client):
     """The country filter and the search term both apply."""
+    # Each row the filters should drop fails exactly one of them
     await _seed_institution_rows(["Maple Bank"], country_code="CA")
-    await _seed_institution_rows(["Maple Savings"], country_code="US")
+    await _seed_institution_rows(["Maple Savings", "Other Savings"], country_code="US")
     headers = _get_auth_header(await _create_user(client))
 
     resp = await client.get("/institutions", params={"q": "maple", "country_code": "US"}, headers=headers)
 
     assert [institution["name"] for institution in resp.json()] == ["Maple Savings"]
+
+
+async def test_list_institutions_orders_equal_names_by_id(client):
+    """Rows sharing a name keep one order from page to page, so a page boundary never splits them differently."""
+    await _seed_institution_rows(["Twin Bank"], country_code="CA")
+    await _seed_institution_rows(["Twin Bank"], country_code="US")
+    await _seed_institution_rows(["Twin Bank"], country_code="GB")
+    headers = _get_auth_header(await _create_user(client))
+
+    resp = await client.get("/institutions", params={"q": "twin"}, headers=headers)
+
+    ids = [institution["id"] for institution in resp.json()]
+    assert len(ids) == 3
+    assert ids == sorted(ids)
 
 
 @pytest.mark.parametrize(

@@ -125,6 +125,15 @@ async def test_list_saved_ranges_refuses_paging_outside_its_bounds(client, param
     assert resp.status_code == 422
 
 
+async def test_list_saved_ranges_accepts_the_largest_limit_and_offset(client):
+    """The limit and offset bounds are inclusive."""
+    headers = _get_auth_header(await _create_user(client))
+
+    for params in ({"limit": LIST_PAGE_SIZE}, {"offset": MAX_LIST_OFFSET}):
+        resp = await client.get("/insights/saved-ranges", params=params, headers=headers)
+        assert resp.status_code == 200
+
+
 async def test_create_saved_range_rejects_duplicate_name(client):
     """A second range reusing a name returns a conflict."""
     headers = _get_auth_header(await _create_user(client))

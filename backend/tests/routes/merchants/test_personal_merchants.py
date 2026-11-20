@@ -102,6 +102,15 @@ async def test_list_merchants_without_a_limit_returns_the_first_fifty(client):
     }
 
 
+async def test_list_merchants_accepts_the_largest_limit_and_offset(client):
+    """The limit and offset bounds are inclusive."""
+    headers = _get_auth_header(await _create_user(client))
+
+    for url in [f"/merchants?limit={LIST_PAGE_SIZE}", f"/merchants?offset={MAX_LIST_OFFSET}"]:
+        resp = await client.get(url, headers=headers)
+        assert resp.status_code == 200
+
+
 async def test_list_merchants_rejects_invalid_pagination_params(client):
     """Pagination query params must stay within the route bounds."""
     signup_resp = await _create_user(client)
