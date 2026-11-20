@@ -96,7 +96,7 @@ async def test_a_category_spelled_differently_is_skipped_by_the_insert_too():
 
 
 async def test_only_the_merchants_not_already_there_are_written():
-    """One insert carries every new merchant, and the ones another request wrote are left alone."""
+    """Only the new merchants are written, and the ones another request wrote are left alone."""
     async with TestSession() as session:
         user_id = (await _seed_user(session)).id
         await insert_import_records_if_absent(
