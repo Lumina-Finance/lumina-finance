@@ -1,5 +1,7 @@
 """Paging and search of GET /institutions, which every user's account forms and import steps read from one shared table."""
 
+import uuid
+
 import pytest
 
 from app.models.base import InstitutionStatus
@@ -97,16 +99,25 @@ async def test_list_institutions_search_composes_with_the_country_filter(client)
 
 async def test_list_institutions_orders_equal_names_by_id(client):
     """Rows sharing a name keep one order from page to page, so a page boundary never splits them differently."""
-    await _seed_institution_rows(["Twin Bank"], country_code="CA")
-    await _seed_institution_rows(["Twin Bank"], country_code="US")
-    await _seed_institution_rows(["Twin Bank"], country_code="GB")
+    # The rows go in with the highest id first, so without an id tie-break they would come back in that insert order
+    ids = [uuid.UUID(int=number) for number in (3, 2, 1)]
+    async with TestSession() as session:
+        session.add_all(
+            Institution(
+                id=institution_id,
+                name="Twin Bank",
+                country_code=country_code,
+                website="https://bank.example.com",
+                status=InstitutionStatus.CANONICAL,
+            )
+            for institution_id, country_code in zip(ids, ("CA", "US", "GB"), strict=True)
+        )
+        await session.commit()
     headers = _get_auth_header(await _create_user(client))
 
     resp = await client.get("/institutions", params={"q": "twin"}, headers=headers)
 
-    ids = [institution["id"] for institution in resp.json()]
-    assert len(ids) == 3
-    assert ids == sorted(ids)
+    assert [institution["id"] for institution in resp.json()] == [str(institution_id) for institution_id in sorted(ids)]
 
 
 @pytest.mark.parametrize(
