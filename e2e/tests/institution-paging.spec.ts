@@ -27,10 +27,11 @@ test('the institution picker pages at fifty, searches by name and names a select
   expect(linked.status()).toBe(200)
 
   // The whole table is never asked for: every list request carries its page size
+  const listPath = new URL(`${API_BASE_URL}/institutions`).pathname
   const listRequests: string[] = []
   page.on('request', (seen) => {
     const url = new URL(seen.url())
-    if (seen.method() === 'GET' && url.pathname === '/institutions') listRequests.push(url.search)
+    if (seen.method() === 'GET' && url.pathname === listPath) listRequests.push(url.search)
   })
 
   await logInViaApi(page, user)
