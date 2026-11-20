@@ -6,6 +6,7 @@ from sqlalchemy import text
 
 from app.database import current_user_id_ctx
 from app.routes.merchants.listing_helpers import MERCHANT_USAGE_CUTOFF_DAYS, get_merchants_for_user
+from app.utils.pagination import LIST_PAGE_SIZE
 from tests.conftest import ScopedSession
 from tests.routes.merchants._helpers import (
     _create_group,
@@ -314,7 +315,7 @@ async def test_list_merchants_reads_only_the_users_own_transactions(client, monk
                 return await execute(statement, *args, **kwargs)
 
             monkeypatch.setattr(session, "execute", explain_then_execute)
-            await get_merchants_for_user(session, user_id, None, None, None, 0, _user_today())
+            await get_merchants_for_user(session, user_id, None, None, LIST_PAGE_SIZE, 0, _user_today())
     finally:
         current_user_id_ctx.reset(identity_token)
 

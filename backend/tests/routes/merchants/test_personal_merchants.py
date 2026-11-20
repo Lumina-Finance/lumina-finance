@@ -1,6 +1,7 @@
 import pytest
 
 from app.services.merchants.defaults import SELF_MERCHANT_NAME
+from app.utils.pagination import LIST_PAGE_SIZE, MAX_LIST_OFFSET
 from tests.routes.merchants._helpers import (
     MERCHANT_PAYLOAD,
     NONEXISTENT_ID,
@@ -80,12 +81,38 @@ async def test_list_merchants_searches_names_case_insensitively(client):
     assert _own_merchant_names(resp) == ["Coffee Bar"]
 
 
+async def test_list_merchants_without_a_limit_returns_the_first_fifty(client):
+    """A request that sends no limit gets one page, so the whole list never leaves in one response."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    for number in range(LIST_PAGE_SIZE + 2):
+        await _create_merchant(client, headers, name=f"Market {number:03d}")
+
+    first_page = await client.get("/merchants", headers=headers)
+    rest = await client.get(f"/merchants?offset={LIST_PAGE_SIZE}", headers=headers)
+
+    assert first_page.status_code == 200
+    assert len(first_page.json()) == LIST_PAGE_SIZE
+    # The system merchants join the user's own, so the two pages together hold all of them once
+    listed_ids = [merchant["id"] for merchant in first_page.json() + rest.json()]
+    assert len(listed_ids) == len(set(listed_ids))
+    assert {f"Market {number:03d}" for number in range(LIST_PAGE_SIZE + 2)} <= {
+        merchant["name"] for merchant in first_page.json() + rest.json()
+    }
+
+
 async def test_list_merchants_rejects_invalid_pagination_params(client):
     """Pagination query params must stay within the route bounds."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    for url in ["/merchants?limit=0", "/merchants?limit=51", "/merchants?offset=-1"]:
+    for url in [
+        "/merchants?limit=0",
+        "/merchants?limit=51",
+        "/merchants?offset=-1",
+        f"/merchants?offset={MAX_LIST_OFFSET + 1}",
+    ]:
         resp = await client.get(url, headers=headers)
         assert resp.status_code == 422
 

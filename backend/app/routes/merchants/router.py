@@ -26,6 +26,7 @@ from app.schemas.merchant import (
     UpdateMerchantRequest,
 )
 from app.utils.dates import resolve_timezone
+from app.utils.pagination import LIST_PAGE_SIZE, LIST_SEARCH_MAX_LENGTH, MAX_LIST_OFFSET
 
 router = APIRouter(prefix="/merchants", tags=["merchants"])
 
@@ -35,9 +36,9 @@ async def list_merchants(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     group_id: Annotated[uuid.UUID | None, Query()] = None,
-    q: Annotated[str | None, Query(max_length=200)] = None,
-    limit: Annotated[int | None, Query(ge=1, le=50)] = None,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    q: Annotated[str | None, Query(max_length=LIST_SEARCH_MAX_LENGTH)] = None,
+    limit: Annotated[int, Query(ge=1, le=LIST_PAGE_SIZE)] = LIST_PAGE_SIZE,
+    offset: Annotated[int, Query(ge=0, le=MAX_LIST_OFFSET)] = 0,
 ):
     """Return merchants visible in the requested scope
 
@@ -46,7 +47,7 @@ async def list_merchants(
         db: Active database session
         group_id: Optional group scope to include with personal merchants
         q: Optional name search text
-        limit: Optional maximum number of merchants to return
+        limit: Maximum number of merchants to return
         offset: Number of merchants to skip before returning rows
 
     Returns:

@@ -1,5 +1,6 @@
 import pytest
 
+from app.utils.pagination import LIST_PAGE_SIZE, MAX_LIST_OFFSET
 from tests.routes.support import _create_account, _create_user, _get_auth_header, _get_system_merchant_id
 from tests.routes.tags._helpers import (
     NONEXISTENT_ID,
@@ -77,12 +78,28 @@ async def test_list_tags_supports_limit_and_offset(client):
     assert [tag["name"] for tag in second_page.json()] == ["charlie"]
 
 
+async def test_list_tags_without_a_limit_returns_the_first_fifty(client):
+    """A request that sends no limit gets one page, so the whole list never leaves in one response."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    for number in range(LIST_PAGE_SIZE + 2):
+        await _create_tag(client, headers, name=f"tag {number:03d}")
+
+    first_page = await client.get("/tags", headers=headers)
+    rest = await client.get(f"/tags?offset={LIST_PAGE_SIZE}", headers=headers)
+
+    assert first_page.status_code == 200
+    assert [tag["name"] for tag in first_page.json()] == [f"tag {number:03d}" for number in range(LIST_PAGE_SIZE)]
+    assert [tag["name"] for tag in rest.json()] == ["tag 050", "tag 051"]
+
+
 async def test_list_tags_rejects_invalid_pagination_params(client):
     """Invalid limit and offset query params return 422."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
 
-    for url in ["/tags?limit=0", "/tags?limit=51", "/tags?offset=-1"]:
+    for url in ["/tags?limit=0", "/tags?limit=51", "/tags?offset=-1", f"/tags?offset={MAX_LIST_OFFSET + 1}"]:
         resp = await client.get(url, headers=headers)
         assert resp.status_code == 422
 

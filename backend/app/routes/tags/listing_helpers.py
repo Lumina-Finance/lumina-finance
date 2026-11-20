@@ -19,7 +19,7 @@ async def get_tags_for_user(
     user_id: uuid.UUID,
     group_id: uuid.UUID | None,
     search_text: str | None,
-    limit: int | None,
+    limit: int,
     offset: int,
 ) -> Sequence[Tag]:
     """Return tags visible in the requested scope
@@ -29,11 +29,11 @@ async def get_tags_for_user(
         user_id: Authenticated user identifier
         group_id: Optional group scope to include with personal tags
         search_text: Optional name search text
-        limit: Optional maximum number of tags to return
+        limit: Maximum number of tags to return
         offset: Number of tags to skip before returning rows
 
     Returns:
-        Tags ordered by name
+        Tags ordered by name, then identifier
 
     Raises:
         HTTPException: User is not a member of the requested group
@@ -48,9 +48,9 @@ async def get_tags_for_user(
         escaped_search_text = escape_like_search_text(normalized_search_text)
         tag_query = tag_query.where(Tag.name.ilike(f"%{escaped_search_text}%", escape="\\"))
 
-    tag_query = tag_query.order_by(Tag.name)
-    if limit is not None:
-        tag_query = tag_query.limit(limit).offset(offset)
+    # A personal tag and a group tag may share a name, and paging over a tie the database breaks
+    # differently each time repeats or skips a row
+    tag_query = tag_query.order_by(Tag.name, Tag.id).limit(limit).offset(offset)
 
     # Fetch visible tags for the requested scope, search text, and pagination
     result = await db.execute(tag_query)
