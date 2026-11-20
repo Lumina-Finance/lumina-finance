@@ -13,6 +13,11 @@ import {
   INSTITUTION_FIELD_IDS,
   INSTITUTION_FIELDS,
 } from '@/components/reference-modals/institutionModalConstants'
+import {
+  validateInstitutionForm,
+  type InstitutionField,
+  type InstitutionForm,
+} from '@/components/reference-modals/institutionForm'
 import { COUNTRY_OPTIONS } from '@/constants/countries'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
@@ -22,10 +27,6 @@ const INITIAL_FORM = {
   country_code: '',
   website: '',
 }
-
-type InstitutionForm = typeof INITIAL_FORM
-type InstitutionField = keyof InstitutionForm
-type InstitutionFieldErrors = Partial<Record<InstitutionField, string>>
 
 interface InstitutionModalProps {
   open: boolean
@@ -41,44 +42,27 @@ interface InstitutionModalProps {
 }
 
 /**
- * Validates the institution fields the backend requires on both write paths
- */
-function validateInstitutionForm(form: InstitutionForm): InstitutionFieldErrors {
-  const errors: InstitutionFieldErrors = {}
-  if (!form.name.trim()) errors.name = 'Name is required'
-  if (!form.country_code) errors.country_code = 'Select a country'
-  if (!form.website.trim()) errors.website = 'Website is required'
-  return errors
-}
-
-/**
  * Adds an institution, or corrects one, from nested account and import workflows
  *
  * The form holds no logo field, because a logo is derived from the website rather than
  * uploaded, and a correction leaves any stored logo URL alone
  */
-export default function InstitutionModal({
-  open,
-  initialName,
-  institution,
-  onClose,
-  onSaved,
-}: InstitutionModalProps) {
+export default function InstitutionModal({ open, initialName, institution, onClose, onSaved }: InstitutionModalProps) {
   const createMutation = useCreateInstitution()
   const updateMutation = useUpdateInstitution()
   const isCorrection = Boolean(institution)
 
   // Callers remount this with a key rather than reopening it, so the initial values are
   // read once per opening and never go stale against the institution being corrected
-  const [form, setForm] = useState<InstitutionForm>(() => (
+  const [form, setForm] = useState<InstitutionForm>(() =>
     institution
       ? {
           name: institution.name,
           country_code: institution.country_code,
           website: institution.website,
         }
-      : { ...INITIAL_FORM, name: initialName }
-  ))
+      : { ...INITIAL_FORM, name: initialName },
+  )
   const [submitError, setSubmitError] = useState('')
   const [saveInProgress, setSaveInProgress] = useState(false)
   const isSaving = createMutation.isPending || updateMutation.isPending || saveInProgress
@@ -105,14 +89,16 @@ export default function InstitutionModal({
       ? updateMutation.mutateAsync({ institutionId: institution.id, payload })
       : createMutation.mutateAsync(payload)
 
-    void saved.then(async (savedInstitution) => {
-      await minimumLoading
-      onSaved(savedInstitution)
-    }).catch(async (error) => {
-      await minimumLoading
-      setSubmitError(error instanceof ApiError ? error.message : 'Something went wrong.')
-      setSaveInProgress(false)
-    })
+    void saved
+      .then(async (savedInstitution) => {
+        await minimumLoading
+        onSaved(savedInstitution)
+      })
+      .catch(async (error) => {
+        await minimumLoading
+        setSubmitError(error instanceof ApiError ? error.message : 'Something went wrong.')
+        setSaveInProgress(false)
+      })
   }
 
   return (
@@ -151,10 +137,20 @@ export default function InstitutionModal({
 
         <CreateModalSectionFrame step="01">
           <div className="min-w-0 space-y-3">
-            <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
+            <p
+              className="flex h-4 items-center text-base font-bold leading-none"
+              style={{ color: 'var(--app-accent)' }}
+            >
+              Identity
+            </p>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.name} label="Name" error={errors.name} errorId={INSTITUTION_FIELD_IDS.nameError} />
+              <CreateModalFieldLabelRow
+                htmlFor={INSTITUTION_FIELD_IDS.name}
+                label="Name"
+                error={errors.name}
+                errorId={INSTITUTION_FIELD_IDS.nameError}
+              />
               <input
                 id={INSTITUTION_FIELD_IDS.name}
                 type="text"
@@ -169,7 +165,12 @@ export default function InstitutionModal({
             </div>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.country} label="Country" error={errors.country_code} errorId={INSTITUTION_FIELD_IDS.countryError} />
+              <CreateModalFieldLabelRow
+                htmlFor={INSTITUTION_FIELD_IDS.country}
+                label="Country"
+                error={errors.country_code}
+                errorId={INSTITUTION_FIELD_IDS.countryError}
+              />
               <Dropdown
                 id={INSTITUTION_FIELD_IDS.country}
                 options={COUNTRY_OPTIONS}
@@ -187,10 +188,20 @@ export default function InstitutionModal({
 
         <CreateModalSectionFrame step="02">
           <div className="min-w-0 space-y-3">
-            <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Reference</p>
+            <p
+              className="flex h-4 items-center text-base font-bold leading-none"
+              style={{ color: 'var(--app-accent)' }}
+            >
+              Reference
+            </p>
 
             <div>
-              <CreateModalFieldLabelRow htmlFor={INSTITUTION_FIELD_IDS.website} label="Website" error={errors.website} errorId={INSTITUTION_FIELD_IDS.websiteError} />
+              <CreateModalFieldLabelRow
+                htmlFor={INSTITUTION_FIELD_IDS.website}
+                label="Website"
+                error={errors.website}
+                errorId={INSTITUTION_FIELD_IDS.websiteError}
+              />
               <input
                 id={INSTITUTION_FIELD_IDS.website}
                 type="url"

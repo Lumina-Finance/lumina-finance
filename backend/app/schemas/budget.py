@@ -7,7 +7,11 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.models.base import RecurrenceFreq
 from app.schemas.fx import FxStatus
+from app.schemas.limits import PositiveMinorUnits
 from app.utils.date_window import WindowDate
+
+# Longest cadence a base budget stores, the largest value its small-integer column holds
+MAX_BUDGET_INSTANCE_LENGTH = 32767
 
 
 def validate_recurrence_anchor_fields(
@@ -57,14 +61,14 @@ class CreateBaseBudgetRequest(BaseModel):
     currency: str = Field(min_length=3, max_length=3)
     group_id: uuid.UUID | None = None
     recurrence_freq: RecurrenceFreq
-    instance_length: int = Field(1, ge=1)
+    instance_length: int = Field(1, ge=1, le=MAX_BUDGET_INSTANCE_LENGTH)
     recurrence_weekday: int | None = Field(None, ge=0, le=6)
     recurrence_dom: int | None = Field(None, ge=1, le=31)
     recurrence_month: int | None = Field(None, ge=1, le=12)
     recurs: bool = False
     category_ids: list[uuid.UUID] = Field(min_length=1)
     period_start: WindowDate | None = None
-    overall_limit: int | None = Field(None, gt=0)
+    overall_limit: PositiveMinorUnits | None = None
 
     @model_validator(mode="after")
     def _validate_recurrence_field_pairing(self):
@@ -119,13 +123,13 @@ class CreateBudgetRequest(BaseModel):
     """
 
     period_start: WindowDate
-    overall_limit: int = Field(..., gt=0)
+    overall_limit: PositiveMinorUnits
 
 
 class UpdateBudgetRequest(BaseModel):
     """Partial update for a budget instance. Only overall_limit is editable."""
 
-    overall_limit: int | None = Field(None, gt=0)
+    overall_limit: PositiveMinorUnits | None = None
 
 
 class BudgetResponse(BaseModel):

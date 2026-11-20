@@ -5,8 +5,10 @@ stands for both
 """
 
 import pytest
+from sqlalchemy import text
 
 from app.schemas.import_run import MAX_IMPORT_BATCH_ROWS, MAX_IMPORT_MAPPINGS
+from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._import_helpers import _csv_batch, _firefly_batch, _open_run, _stage_batch
 
@@ -37,6 +39,26 @@ async def test_staging_a_batch_over_the_row_cap_is_refused(client, source):
 
     assert resp.status_code == 422
     assert [(error["loc"], error["type"]) for error in resp.json()["detail"]] == [(["body", "rows"], "too_long")]
+
+
+@pytest.mark.parametrize("source", _SOURCES)
+async def test_staging_a_new_category_with_a_40_character_icon_is_refused_before_anything_is_staged(client, source):
+    """A mapping creating a category with an icon past 32 characters is refused with the icon named."""
+    headers = _get_auth_header(await _create_user(client))
+    run_id = await _open_run(client, headers, 1, source)
+    batch = _build_batch(source, 1)
+    batch["categories"] = [{"source": "Zebra Treats", "create": {"name": "Zebra Treats", "kind": "expense", "icon": "x" * 40}}]
+
+    resp = await _stage_batch(client, headers, run_id, batch, source)
+
+    assert resp.status_code == 422
+    assert [(error["loc"], error["type"]) for error in resp.json()["detail"]] == [
+        (["body", "categories", 0, "create", "icon"], "string_too_long")
+    ]
+    async with TestSession() as session:
+        staged = (await session.execute(text("SELECT count(*) FROM import_staged_rows WHERE import_run_id = :id"), {"id": run_id})).scalar_one()
+        categories = (await session.execute(text("SELECT count(*) FROM categories WHERE name = 'Zebra Treats'"))).scalar_one()
+    assert (staged, categories) == (0, 0)
 
 
 @pytest.mark.parametrize("source", _SOURCES)
@@ -76,8 +98,7 @@ async def test_staging_refuses_more_mappings_than_an_import_may_declare_across_b
     # The run already held the Groceries mapping every batch declares, so the total runs one past
     # the two halves
     assert second.json()["detail"] == (
-        f"This import declares {half * 2 + 1} distinct values for Category source, "
-        f"and the limit is {MAX_IMPORT_MAPPINGS}"
+        f"This import declares {half * 2 + 1} distinct values for Category source, and the limit is {MAX_IMPORT_MAPPINGS}"
     )
 
 

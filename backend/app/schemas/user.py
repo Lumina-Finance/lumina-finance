@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.preferences import DateFormat
 from app.schemas.auth import validate_iana_timezone
 from app.schemas.fx import FxStatus
+from app.schemas.limits import MAX_PERSON_NAME_LENGTH, MAX_PROFILE_PICTURE_LENGTH, MAX_TIMEZONE_LENGTH
 from app.schemas.profile_preferences import ProfilePreferences
 
 RUNWAY_THRESHOLD_MIN_MONTHS = 0
@@ -53,10 +54,10 @@ class CacheStatus(BaseModel):
 class UpdateProfileRequest(BaseModel):
     """Partial update for user profile. Only provided fields are changed."""
 
-    first_name: str | None = Field(None, min_length=1, max_length=256)
-    last_name: str | None = None
-    profile_pic: str | None = None
-    tz: str | None = Field(None, max_length=40)
+    first_name: str | None = Field(None, min_length=1, max_length=MAX_PERSON_NAME_LENGTH)
+    last_name: str | None = Field(None, max_length=MAX_PERSON_NAME_LENGTH)
+    profile_pic: str | None = Field(None, max_length=MAX_PROFILE_PICTURE_LENGTH)
+    tz: str | None = Field(None, max_length=MAX_TIMEZONE_LENGTH)
     base_currency: str | None = Field(None, min_length=3, max_length=3)
     date_format: DateFormat | None = None
 

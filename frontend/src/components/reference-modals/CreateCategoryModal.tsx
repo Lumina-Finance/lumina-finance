@@ -9,11 +9,10 @@ import { FormError } from '@/components/forms/FormError'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import type { ModalLevel } from '@/components/modal/Shell'
+import { validateCategoryForm } from '@/components/reference-modals/categoryForm'
 import {
   CREATE_CATEGORY_FIELD_IDS,
   CREATE_CATEGORY_FIELDS,
-  CREATE_CATEGORY_ICON_REQUIRED_MESSAGE,
-  CREATE_CATEGORY_NAME_REQUIRED_MESSAGE,
 } from '@/components/reference-modals/createCategoryConstants'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
@@ -66,14 +65,7 @@ export default function CreateCategoryModal({
   const isCreating = createCategory.isPending || createInProgress
   const isSecondary = level === 'stacked'
   const name = form.name.trim()
-  const refusal = useRefusedSubmit(
-    {
-      icon: form.icon ? undefined : CREATE_CATEGORY_ICON_REQUIRED_MESSAGE,
-      name: name ? undefined : CREATE_CATEGORY_NAME_REQUIRED_MESSAGE,
-    },
-    CREATE_CATEGORY_FIELDS,
-    CREATE_CATEGORY_FIELD_IDS,
-  )
+  const refusal = useRefusedSubmit(validateCategoryForm(form), CREATE_CATEGORY_FIELDS, CREATE_CATEGORY_FIELD_IDS)
 
   const setField = <K extends keyof typeof form>(field: K, value: (typeof form)[K]) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -87,21 +79,22 @@ export default function CreateCategoryModal({
     setCreateInProgress(true)
     const minimumLoading = waitForMilliseconds(LOADING_ANIMATION_MIN_MS)
 
-    void createCategory.mutateAsync(
-      {
+    void createCategory
+      .mutateAsync({
         name,
         kind: form.kind,
         icon: form.icon,
         group_id: null,
-      },
-    ).then(async (category) => {
-      await minimumLoading
-      onCreated(category)
-    }).catch(async (error) => {
-      await minimumLoading
-      setFormError(error instanceof Error ? error.message : 'Failed to create category.')
-      setCreateInProgress(false)
-    })
+      })
+      .then(async (category) => {
+        await minimumLoading
+        onCreated(category)
+      })
+      .catch(async (error) => {
+        await minimumLoading
+        setFormError(error instanceof Error ? error.message : 'Failed to create category.')
+        setCreateInProgress(false)
+      })
   }
 
   const railLabel = isSecondary ? 'Linked' : 'Category'
@@ -135,14 +128,16 @@ export default function CreateCategoryModal({
       <div className="space-y-5">
         <CreateModalSectionFrame step="01">
           <div className="min-w-0 space-y-3">
-            <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Identity</p>
+            <p
+              className="flex h-4 items-center text-base font-bold leading-none"
+              style={{ color: 'var(--app-accent)' }}
+            >
+              Identity
+            </p>
 
             <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-4">
               <div>
-                <CreateModalFieldLabelRow
-                  htmlFor={CREATE_CATEGORY_FIELD_IDS.icon}
-                  label="Icon"
-                />
+                <CreateModalFieldLabelRow htmlFor={CREATE_CATEGORY_FIELD_IDS.icon} label="Icon" />
                 <CategoryIconSelector
                   id={CREATE_CATEGORY_FIELD_IDS.icon}
                   categoryName={form.name || 'New category'}
@@ -155,7 +150,9 @@ export default function CreateCategoryModal({
                 />
                 {/* The icon box is too narrow for visible text, so its error colour shows the problem and this carries the message to screen readers */}
                 {refusal.errors.icon && (
-                  <p id={CREATE_CATEGORY_FIELD_IDS.iconError} role="alert" className="sr-only">{refusal.errors.icon}</p>
+                  <p id={CREATE_CATEGORY_FIELD_IDS.iconError} role="alert" className="sr-only">
+                    {refusal.errors.icon}
+                  </p>
                 )}
               </div>
 
@@ -175,7 +172,6 @@ export default function CreateCategoryModal({
                   onChange={(event) => setField('name', event.target.value)}
                   onBlur={() => refusal.touch('name')}
                   placeholder="Groceries"
-                  maxLength={256}
                   required
                 />
               </div>
@@ -185,9 +181,19 @@ export default function CreateCategoryModal({
 
         <CreateModalSectionFrame step="02">
           <div className="min-w-0 space-y-3">
-            <p className="flex h-4 items-center text-base font-bold leading-none" style={{ color: 'var(--app-accent)' }}>Classification</p>
+            <p
+              className="flex h-4 items-center text-base font-bold leading-none"
+              style={{ color: 'var(--app-accent)' }}
+            >
+              Classification
+            </p>
             <div>
-              <label htmlFor={CREATE_CATEGORY_FIELD_IDS.kind} className="app-label mb-1.5 block text-[0.9375rem] leading-5">Category type</label>
+              <label
+                htmlFor={CREATE_CATEGORY_FIELD_IDS.kind}
+                className="app-label mb-1.5 block text-[0.9375rem] leading-5"
+              >
+                Category type
+              </label>
               <Dropdown
                 id={CREATE_CATEGORY_FIELD_IDS.kind}
                 options={KIND_OPTIONS}

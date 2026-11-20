@@ -1,8 +1,10 @@
-"""Keeps the bank account numbers and bank IDs of an import out of validation error responses
+"""Keeps the bank account numbers and bank IDs of an import, and over-long texts, out of validation error responses
 
 FastAPI answers a refused request with each error's input, the value that failed. For an OFX row
 that value is a raw account number or bank ID, or a whole row or batch holding them, and the server
-must never hand them back, so they are dropped from the errors before the response is built
+must never hand them back, so they are dropped from the errors before the response is built. The
+same goes for a text past its length limit, which can be a password or token and can be as long as
+the body
 """
 
 from typing import Any
@@ -26,17 +28,27 @@ def _holds_sensitive_value(error: dict[str, Any]) -> bool:
     return isinstance(value, dict | list) and any(field in str(value) for field in SENSITIVE_FIELDS)
 
 
+def _is_oversize(error: dict[str, Any]) -> bool:
+    """Say whether an error is a text past its length limit, whose input is as long as what was sent
+
+    Repeating it would hand back a password or a token that was cut off, or as much as the body limit
+    allows, to answer a request that only needed its field named
+    """
+    return error.get("type") == "string_too_long"
+
+
 async def handle_request_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
-    """Answer 422 with FastAPI's usual body, minus the input of errors that may hold bank values
+    """Answer 422 with FastAPI's usual body, minus the input of errors that may hold bank values or run past a limit
 
     Args:
         request: The refused request
         exc: The validation failure
 
     Returns:
-        The 422 response, its errors carrying no input where it held a bank account or bank ID
+        The 422 response, its errors carrying no input where it held a bank account or bank ID or a text over its length limit
     """
     errors = [
-        {key: value for key, value in error.items() if key != "input"} if _holds_sensitive_value(error) else error for error in exc.errors()
+        {key: value for key, value in error.items() if key != "input"} if _holds_sensitive_value(error) or _is_oversize(error) else error
+        for error in exc.errors()
     ]
     return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})

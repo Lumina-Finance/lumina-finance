@@ -4,7 +4,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import DBAPIError
@@ -18,6 +18,7 @@ from app.database import async_session, engine, verify_app_role_is_unprivileged
 from app.db.bank_transaction_key import verify_key_matches_hashes
 from app.db.encryption_key import verify_key_matches_data
 from app.log_setup import configure_logging
+from app.null_characters import refuse_null_characters
 from app.request_hook import RequestObserverMiddleware, observe_requests
 from app.request_log import log_request
 from app.request_security import RequestBodySizeLimitMiddleware
@@ -108,6 +109,8 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     lifespan=_lifespan,
+    # Ahead of every route's own dependencies, so a refused request reaches neither authentication nor the database
+    dependencies=[Depends(refuse_null_characters)],
 )
 
 # Install the configured email sender before any request can send mail

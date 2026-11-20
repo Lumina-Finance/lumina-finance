@@ -117,7 +117,6 @@ async def test_list_categories_returns_user_categories(client):
     assert "Other Expense" not in names
 
 
-
 async def test_list_categories_without_auth_returns_401(client):
     """GET /categories without an Authorization header returns 401."""
     resp = await client.get("/categories")
@@ -366,6 +365,26 @@ async def test_patch_category_icon_only_preserves_name(client):
         stored = await client.get(url, headers=headers)
         assert stored.status_code == 200
         assert stored.json() == resp.json()
+
+
+async def test_category_routes_refuse_a_name_or_icon_past_the_limit_and_store_nothing(client):
+    """A 300-character name or 40-character icon is refused on create and on update, and no row changes."""
+    headers = _get_auth_header(await _create_user(client))
+    created = (await _create_category(client, headers)).json()
+    url = f"/categories/{created['id']}"
+    refused = [({"name": "n" * 300}, "name"), ({"icon": "x" * 40}, "icon")]
+
+    for fields, field in refused:
+        create_resp = await _create_category(client, headers, **{"name": "Other", **fields})
+        update_resp = await client.patch(url, json=fields, headers=headers)
+
+        assert create_resp.status_code == update_resp.status_code == 422
+        assert create_resp.json()["detail"][0]["loc"] == update_resp.json()["detail"][0]["loc"] == ["body", field]
+
+    stored = await client.get(url, headers=headers)
+    assert stored.json() == created
+    names = {category["name"] for category in (await client.get("/categories", headers=headers)).json()}
+    assert "Other" not in names
 
 
 async def test_patch_category_empty_body_returns_unchanged(client):

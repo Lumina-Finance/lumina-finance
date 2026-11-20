@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +31,7 @@ async def list_currencies(
 
 @router.get("/{currency_id}", response_model=CurrencyResponse)
 async def get_currency(
-    currency_id: str,
+    currency_id: Annotated[str, Path(min_length=3, max_length=3)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Return a single currency by its ISO 4217 code

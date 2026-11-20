@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from app.schemas.dashboard import RangeKind
 from app.schemas.fx import FxStatus
 from app.schemas.institution import InstitutionResponse
+from app.schemas.limits import MAX_ENUM_TEXT_LENGTH, EnteredAmount, NonNegativeMinorUnits
 
 # Characters an account's notes may hold, equal to the column
 MAX_ACCOUNT_NOTES_LENGTH = 2000
@@ -73,14 +74,14 @@ class AccountResponse(BaseModel):
 class CreateAccountRequest(BaseModel):
     """Create a new account. Either personal (default) or group-scoped."""
 
-    account_kind: str  # AccountKind enum value — must be consistent with account_type
-    account_type: str  # AccountType enum value
+    account_kind: str = Field(max_length=MAX_ENUM_TEXT_LENGTH)  # AccountKind enum value, consistent with account_type
+    account_type: str = Field(max_length=MAX_ENUM_TEXT_LENGTH)  # AccountType enum value
     tax_advantaged_category_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
     currency: str = Field(min_length=3, max_length=3)
-    credit_limit: int | None = Field(None, ge=0)  # Only valid on liability accounts
-    starting_balance: int | None = None  # Signed initial balance adjustment in minor units
+    credit_limit: NonNegativeMinorUnits | None = None  # Only valid on liability accounts
+    starting_balance: EnteredAmount | None = None  # Signed initial balance adjustment in minor units
     notes: str | None = Field(None, max_length=MAX_ACCOUNT_NOTES_LENGTH)
     is_archived: bool = False
     group_id: uuid.UUID | None = None
@@ -92,7 +93,7 @@ class RecordStartingBalanceRequest(BaseModel):
     # Minor units as the user states the balance, so a liability's is the amount owed. That is
     # saved negated. Zero is accepted, and so is a negative for an overdrawn asset or a liability's
     # credit balance. A zero balance needs no adjustment, so none is written
-    amount: int
+    amount: EnteredAmount
 
 
 class UpdateAccountRequest(BaseModel):
@@ -101,7 +102,7 @@ class UpdateAccountRequest(BaseModel):
     tax_advantaged_category_id: uuid.UUID | None = None
     name: str | None = Field(None, min_length=1, max_length=256)
     institution_id: uuid.UUID | None = None
-    credit_limit: int | None = Field(None, ge=0)  # Only valid on liability accounts
+    credit_limit: NonNegativeMinorUnits | None = None  # Only valid on liability accounts
     notes: str | None = Field(None, max_length=MAX_ACCOUNT_NOTES_LENGTH)  # Null clears the notes
     is_archived: bool | None = None
 

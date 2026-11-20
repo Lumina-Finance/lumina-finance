@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Path, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -38,6 +38,7 @@ from app.schemas.auth import (
     OidcSignupRequest,
     StepUpRequest,
 )
+from app.schemas.limits import MAX_OIDC_SLUG_LENGTH
 from app.services.auth import (
     OidcOnboardingClaims,
     begin_oidc_link,
@@ -129,7 +130,7 @@ async def list_oidc_providers_route(
 
 @router.post("/{slug}/authorize", response_model=OidcAuthorizeResponse)
 async def authorize_oidc_route(
-    slug: str,
+    slug: Annotated[str, Path(max_length=MAX_OIDC_SLUG_LENGTH)],
     request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -274,7 +275,7 @@ async def list_oidc_identities_route(
 
 @router.post("/{slug}/link", response_model=OidcAuthorizeResponse)
 async def link_oidc_route(
-    slug: str,
+    slug: Annotated[str, Path(max_length=MAX_OIDC_SLUG_LENGTH)],
     response: Response,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],

@@ -3,16 +3,10 @@ export type {
   Institution,
   UpdateInstitutionPayload,
   UpdateInstitutionRequest,
-} from '@/api/institutions/types';
+} from '@/api/institutions/types'
 
-export {
-  createInstitution,
-  fetchInstitutions,
-  updateInstitution,
-} from '@/api/institutions/requests';
+export { INSTITUTION_ADDRESS_MAX_LENGTH } from '@/api/institutions/types'
 
-export {
-  useCreateInstitution,
-  useInstitutions,
-  useUpdateInstitution,
-} from '@/api/institutions/hooks';
+export { createInstitution, fetchInstitutions, updateInstitution } from '@/api/institutions/requests'
+
+export { useCreateInstitution, useInstitutions, useUpdateInstitution } from '@/api/institutions/hooks'

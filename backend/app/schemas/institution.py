@@ -4,6 +4,8 @@ import uuid
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.web_addresses import HttpsAddress
+
 
 class InstitutionResponse(BaseModel):
     """Financial institution returned by the list, detail and correction endpoints, and embedded in AccountResponse."""
@@ -23,8 +25,8 @@ class CreateInstitutionRequest(BaseModel):
 
     name: str = Field(min_length=1, max_length=256)
     country_code: str = Field(min_length=2, max_length=2)
-    website: str = Field(min_length=1)
-    logo_url: str | None = None
+    website: HttpsAddress
+    logo_url: HttpsAddress | None = None
 
 
 class UpdateInstitutionRequest(BaseModel):
@@ -32,8 +34,8 @@ class UpdateInstitutionRequest(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=256)
     country_code: str | None = Field(None, min_length=2, max_length=2)
-    website: str | None = Field(None, min_length=1)
-    logo_url: str | None = None
+    website: HttpsAddress | None = None
+    logo_url: HttpsAddress | None = None
 
     @field_validator("name", "country_code", "website", mode="before")
     @classmethod

@@ -2,12 +2,18 @@
 
 import uuid
 from datetime import date, datetime
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from app.models.bank_connection import PROVIDER_ID_MAX_LENGTH, BankImportKind, BankLinkState, ConnectsFrom, UnavailableReason
 from app.models.bank_transaction import EditableBankField
+from app.schemas.limits import (
+    MAX_BANK_NICKNAME_INPUT_LENGTH,
+    MAX_EXTERNAL_ACCOUNT_ID_LENGTH,
+    MAX_TOKEN_LENGTH,
+    SignedMinorUnits,
+)
 from app.schemas.names import TrimmedName
 
 # Running while a sync is fetching the import's next part or could fetch it now. Waiting while a
@@ -43,7 +49,7 @@ class CredentialRequest(BaseModel):
 
     # Each of the provider's credential fields by its key. Each value is a secret, such as a setup
     # token: it is claimed once and never stored, logged or shown, so printing the request masks it
-    credentials: dict[str, SecretStr] = Field(max_length=MAX_CREDENTIAL_FIELDS)
+    credentials: dict[str, Annotated[SecretStr, Field(max_length=MAX_TOKEN_LENGTH)]] = Field(max_length=MAX_CREDENTIAL_FIELDS)
 
     @model_validator(mode="before")
     @classmethod
@@ -79,8 +85,8 @@ class CreateBankConnectionRequest(CredentialRequest):
 
     provider: str = Field(max_length=PROVIDER_ID_MAX_LENGTH)
 
-    # Blank means none. The length is checked where the refusal can say it in a sentence
-    nickname: TrimmedName | None = None
+    # Blank means none. The stored length is checked where the refusal can say it in a sentence
+    nickname: TrimmedName | None = Field(None, max_length=MAX_BANK_NICKNAME_INPUT_LENGTH)
 
 
 class ReconnectBankConnectionRequest(CredentialRequest):
@@ -102,7 +108,7 @@ class StartBankAuthorizationRequest(CredentialRequest):
 
     # Blank means none. The length is checked where the refusal can say it in a sentence. A reconnection
     # keeps its connection's nickname, so naming one there is refused
-    nickname: TrimmedName | None = None
+    nickname: TrimmedName | None = Field(None, max_length=MAX_BANK_NICKNAME_INPUT_LENGTH)
 
     # Set to give a rejected connection a new credential in place of adding a connection
     connection_id: uuid.UUID | None = None
@@ -136,7 +142,7 @@ class UpdateBankConnectionRequest(BaseModel):
     """A connection's new nickname, and a blank or null one brings back the provider's name"""
 
     # Required, so an empty body can't clear it by accident
-    nickname: TrimmedName | None
+    nickname: TrimmedName | None = Field(max_length=MAX_BANK_NICKNAME_INPUT_LENGTH)
 
 
 class BankRequestBudgetResponse(BaseModel):
@@ -367,7 +373,7 @@ class LinkBankAccountRequest(BaseModel):
     """A bank account on one of the user's connections to link, and where its import starts"""
 
     connection_id: uuid.UUID
-    external_account_id: str
+    external_account_id: str = Field(max_length=MAX_EXTERNAL_ACCOUNT_ID_LENGTH)
 
     # Calendar days in the user's profile timezone, inside the account's import range. Without an end
     # date, or with today, the import runs from the start to today. An earlier end date imports the
@@ -608,7 +614,7 @@ class RecordBalanceMatchRequest(BaseModel):
 
     # Signed minor units, as the ledger keeps them, so a second submission or a tab showing an older
     # offer is refused once the offer has moved
-    offered_amount: int
+    offered_amount: SignedMinorUnits
 
 
 class AccountBankStatusResponse(BaseModel):

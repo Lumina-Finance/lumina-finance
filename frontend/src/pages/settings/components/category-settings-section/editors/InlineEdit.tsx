@@ -1,9 +1,10 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { HintButton } from '@/components/tooltips/HintButton'
 import { Check, Pencil, X } from 'lucide-react'
 import { useUpdateCategory, type Category } from '@/api/categories'
 import CategoryIconSelector from '@/components/category-icon-selector/Selector'
+import { getCategoryNameLengthProblem } from '@/components/reference-modals/categoryForm'
 import { editableEmoji } from '@/pages/settings/components/category-settings-section/utils'
 
 /**
@@ -29,6 +30,7 @@ export default function InlineCategoryEdit({
     icon: editableEmoji(category.icon),
   })
   const [formError, setFormError] = useState<string | null>(null)
+  const errorId = useId()
 
   const setField = (field: 'name' | 'icon', value: string) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -42,6 +44,11 @@ export default function InlineCategoryEdit({
     const name = form.name.trim()
     if (!name) {
       setFormError('Name is required.')
+      return
+    }
+    const lengthProblem = getCategoryNameLengthProblem(name)
+    if (lengthProblem) {
+      setFormError(`${lengthProblem}.`)
       return
     }
     if (name === category.name && form.icon === editableEmoji(category.icon)) {
@@ -94,8 +101,9 @@ export default function InlineCategoryEdit({
               className="block h-8 min-w-0 flex-1 bg-transparent text-[0.9375rem] font-medium leading-8 outline-none"
               value={form.name}
               onChange={(event) => setField('name', event.target.value)}
-              maxLength={256}
               aria-label={`${category.name} name`}
+              aria-invalid={formError ? true : undefined}
+              aria-describedby={formError ? errorId : undefined}
               required
               style={{ color: 'var(--app-text)' }}
             />
@@ -107,7 +115,7 @@ export default function InlineCategoryEdit({
             />
           </div>
           {formError && (
-            <p className="mt-1 text-sm" style={{ color: 'var(--app-negative)' }}>
+            <p id={errorId} role="alert" className="mt-1 text-sm" style={{ color: 'var(--app-negative)' }}>
               {formError}
             </p>
           )}
