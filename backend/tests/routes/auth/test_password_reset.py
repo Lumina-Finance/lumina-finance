@@ -413,6 +413,9 @@ async def test_forgot_password_prunes_rows_older_than_the_rolling_day(client):
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
     await _seed_reset_token(user_id, raw_token="yesterday-link", expires_in_seconds=-90000, age_seconds=90000)
+    other = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "other-user@example.com"})
+    other_id = uuid.UUID(other.json()["user"]["id"])
+    await _seed_reset_token(other_id, raw_token="other-yesterday-link", expires_in_seconds=-90000, age_seconds=90000)
 
     resp = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
     rows = await _reset_tokens_for(user_id)
@@ -420,6 +423,7 @@ async def test_forgot_password_prunes_rows_older_than_the_rolling_day(client):
     assert resp.status_code == 204
     assert len(rows) == 1
     assert rows[0].used_at is None and rows[0].expires_at > datetime.now(UTC)
+    assert len(await _reset_tokens_for(other_id)) == 1, "another account's old link is left for the schedule"
 
 
 async def test_reset_password_sets_new_password_and_consumes_token(client):

@@ -9,11 +9,13 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -58,13 +60,16 @@ class LoginLockout(Base):
     email_hash: Mapped[str] = mapped_column(VARCHAR(64), primary_key=True)
     failed_attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null = temporarily locked
-    last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)  # Lets cleanup drop idle rows
+    last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)  # Lets cleanup drop idle rows
 
 
 class TotpCredential(Base):
     """Stores a user's TOTP secret encrypted at rest, one-to-one and pending until confirmed"""
 
     __tablename__ = "totp_credentials"
+
+    # Holds only staged authenticators, so the scheduled cleanup finds the expired ones without reading confirmed ones
+    __table_args__ = (Index("ix_totp_credentials_staged_created_at", "created_at", postgresql_where=text("confirmed_at IS NULL")),)
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
     secret_encrypted: Mapped[str] = mapped_column(EncryptedText, nullable=False)
@@ -79,6 +84,9 @@ class RecoveryCode(Base):
     """Stores one-time 2FA recovery codes as hashes, deleted when redeemed"""
 
     __tablename__ = "recovery_codes"
+
+    # Holds only staged codes, so the scheduled cleanup finds the expired ones without reading active ones
+    __table_args__ = (Index("ix_recovery_codes_pending_created_at", "created_at", postgresql_where=text("pending IS TRUE")),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -118,7 +126,7 @@ class PasswordResetToken(Base):
     # its send is still queued in this process
     emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    # Indexed because every reset request prunes by age, and requests for any email add rows
+    # Indexed because the scheduled cleanup prunes by age, and requests for any email add rows
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
 
 
@@ -127,14 +135,17 @@ class SignupEmailSend(Base):
 
     A registered address is recorded too, though nothing is sent to it, so both requests do the same
     work. The address is kept only as a keyed hash, since the log holds addresses of people who never
-    registered. A row lasts a day, then the sign-up request or the scheduled cleanup removes it.
+    registered. A row lasts a day, then the next sign-up request for the same address or the scheduled
+    cleanup removes it.
     """
 
     __tablename__ = "signup_email_sends"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email_hash: Mapped[str] = mapped_column(VARCHAR(64), nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    # Indexed so the scheduled cleanup finds records past the day without reading every address's
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
 
 
 class MfaChallenge(Base):
@@ -147,7 +158,9 @@ class MfaChallenge(Base):
 
     # The purpose scopes a challenge to the flow that issued it, so one flow cannot spend another's
     purpose: Mapped[str] = mapped_column(nullable=False, server_default="login")
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Indexed so the scheduled cleanup finds expired challenges without reading every row
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
@@ -155,6 +168,9 @@ class WebauthnCredential(Base):
     """Stores a registered passkey: the public key and signature counter used to verify assertions"""
 
     __tablename__ = "webauthn_credentials"
+
+    # Holds only staged passkeys, so the scheduled cleanup finds the expired ones without reading confirmed ones
+    __table_args__ = (Index("ix_webauthn_credentials_staged_created_at", "created_at", postgresql_where=text("confirmed_at IS NULL")),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -186,5 +202,7 @@ class WebauthnChallenge(Base):
     # Null for a usernameless authentication ceremony, where the user is only known once the assertion resolves
     user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     purpose: Mapped[str] = mapped_column(VARCHAR(20), nullable=False)  # registration or authentication
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Indexed so the scheduled cleanup finds expired challenges without reading every row
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

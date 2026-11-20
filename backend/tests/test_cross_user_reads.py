@@ -38,13 +38,10 @@ from app.services.transactions.listing import list_transaction_responses
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import _build_account, _build_unlinked_link, _build_user
 from tests.routes.support.identity_helpers import _act_as
+from tests.routes.support.query_cost_helpers import SLACK, _avoid_full_scans, _rows_read
 
 # How many rows the other user keeps in each table
 OTHER_ROWS = 60
-
-# How many rows a case may read beyond those it returns or looks up. Reading through more than a
-# handful of the other user's rows fails the case
-SLACK = 5
 
 # When budget spending runs, a fixed time long after the seeded month, so no date cutoff applies
 NOW = datetime(2026, 11, 18, 12, tzinfo=UTC)
@@ -56,21 +53,6 @@ MANY_ROWS = 20000
 # The month every seeded transaction and the budget fall in, long past, so no date cutoff applies
 PERIOD_START = date(2026, 3, 1)
 PERIOD_END = date(2026, 3, 31)
-
-# The rows this transaction has read from a table so far, by sequential scans of it and entries
-# returned by its indexes, including index-only scans that never visit the table, and including
-# what any function or foreign key check it ran read
-_ROWS_READ = text(
-    "SELECT pg_stat_get_xact_tuples_returned(c.oid)"
-    " + coalesce((SELECT sum(pg_stat_get_xact_tuples_returned(i.indexrelid)) FROM pg_index i WHERE i.indrelid = c.oid), 0)"
-    " FROM pg_class c WHERE c.oid = to_regclass(:table)"
-)
-
-
-async def _rows_read(session: AsyncSession, table: str) -> int:
-    """Return how many rows of a table this transaction has read so far"""
-    return (await session.execute(_ROWS_READ, {"table": table})).scalar_one()
-
 
 # The blocks of a table and its indexes this transaction has asked for so far, counting each time it
 # asked, and including what any function or foreign key check it ran asked for. Beside them, how
@@ -89,11 +71,6 @@ async def _assert_reads_few_blocks(session: AsyncSession, table: str) -> None:
     """
     blocks_read, blocks_held = (await session.execute(_BLOCKS_READ, {"table": table})).one()
     assert blocks_read < blocks_held / 4, f"read {blocks_read} of the {blocks_held} blocks of {table}"
-
-
-async def _avoid_full_scans(session: AsyncSession) -> None:
-    """Have the planner take any plan other than a sequential scan for the rest of the transaction"""
-    await session.execute(text("SET LOCAL enable_seqscan = off"))
 
 
 def _build_transaction(user_id: uuid.UUID, account_id: uuid.UUID, category_id: uuid.UUID, amount: int, day: int) -> Transaction:

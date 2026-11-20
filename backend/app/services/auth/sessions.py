@@ -3,13 +3,17 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import delete, or_, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
+
+# The most rotated refresh tokens one token issue removes, so a backlog never slows a sign-in. Each
+# refresh leaves one and every refresh issues tokens, so ordinary traffic clears them all as they end
+GRACE_ENDED_TOKEN_DELETE_LIMIT = 100
 
 
 async def delete_expired_auth_sessions(db: AsyncSession) -> None:
@@ -45,6 +49,32 @@ async def delete_expired_auth_tokens(db: AsyncSession) -> None:
 
     # Keep the token allowlist bounded to credentials that can still authorize requests or grace refreshes
     await db.execute(expired_token_delete_query)
+
+
+async def delete_grace_ended_refresh_tokens(db: AsyncSession) -> None:
+    """Delete the oldest rotated refresh tokens whose grace has ended, up to a cap
+
+    Only these rows change an answer: while one exists a late refresh with its token signs the user
+    out, and once it is gone the refresh gets a conflict instead, so the newer cookie another tab holds
+    keeps working. Tokens past their lifetime are left to the scheduled cleanup, since a token's own
+    expiry already refuses it before its row is looked up
+
+    Args:
+        db: Active database session
+    """
+    # Chosen first and deleted by key, since a delete that selects its own rows with a limit and a
+    # skip of locked ones can run its selection again and remove more than the cap
+    grace_ended_jtis = (
+        await db.scalars(
+            select(AuthToken.jti)
+            .where(AuthToken.refresh_grace_expires_at < sa_func.now())
+            .order_by(AuthToken.refresh_grace_expires_at)
+            .limit(GRACE_ENDED_TOKEN_DELETE_LIMIT)
+            .with_for_update(skip_locked=True)
+        )
+    ).all()
+    if grace_ended_jtis:
+        await db.execute(delete(AuthToken).where(AuthToken.jti.in_(grace_ended_jtis)))
 
 
 async def delete_auth_session(db: AsyncSession, session_id: uuid.UUID) -> None:

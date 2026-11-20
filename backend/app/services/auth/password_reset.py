@@ -88,11 +88,26 @@ async def delete_stale_password_reset_tokens(db: AsyncSession) -> None:
     Args:
         db: Active database session
     """
-    stale_delete_query = delete(PasswordResetToken).where(PasswordResetToken.created_at < datetime.now(UTC) - _SEND_LOG_RETENTION)
+    # The scheduled cleanup prunes every account's rows with this
+    await db.execute(delete(PasswordResetToken).where(PasswordResetToken.created_at < datetime.now(UTC) - _SEND_LOG_RETENTION))
 
-    # The scheduled cleanup prunes these too. A reset request still prunes first, since the email
-    # limit counts the rows left
-    await db.execute(stale_delete_query)
+
+async def delete_account_stale_password_reset_tokens(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Delete one account's reset tokens older than the rolling day the email limit counts over
+
+    A reset request prunes only the requester's rows, since those are the ones its limit counts, so
+    no request reads another account's rows. The scheduled cleanup prunes the rest
+
+    Args:
+        db: Active database session
+        user_id: Account whose limit the request counts
+    """
+    await db.execute(
+        delete(PasswordResetToken).where(
+            PasswordResetToken.user_id == user_id,
+            PasswordResetToken.created_at < datetime.now(UTC) - _SEND_LOG_RETENTION,
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -152,7 +167,8 @@ async def _issue_password_reset(db: AsyncSession, email: str, session_factory: a
     """
     account = await find_login_account(db, email)
     user_id = account.id if account else None
-    await delete_stale_password_reset_tokens(db)
+    owner = user_id or _NO_USER_ID
+    await delete_account_stale_password_reset_tokens(db, owner)
 
     # Hold this user's allowance until the new token commits, including when no prior rows exist.
     # An email with no account locks on itself, so unknown emails never queue behind one another.
@@ -168,7 +184,6 @@ async def _issue_password_reset(db: AsyncSession, email: str, session_factory: a
     # the same statement, and the cutoff alone changes: while a send is under way it reaches back past the
     # pruned rows, so nothing matches, and one for an unknown email deletes nothing
     now = datetime.now(UTC)
-    owner = user_id or _NO_USER_ID
     unsent_before = now - (_SEND_LOG_RETENTION if has_send_under_way(owner) else _UNSENT_LINK_GRACE)
     await db.execute(
         delete(PasswordResetToken).where(

@@ -41,7 +41,7 @@ from app.services.auth.mfa_challenge import consume_mfa_challenge, is_mfa_challe
 from app.services.auth.sessions import (
     create_auth_session,
     create_auth_token,
-    delete_expired_auth_tokens,
+    delete_grace_ended_refresh_tokens,
     rotate_auth_session_tokens,
 )
 from app.services.auth.tokens import (
@@ -569,11 +569,6 @@ async def issue_and_store_tokens(
     if refresh_in_body is None:
         refresh_in_body = request_is_native_client(request)
 
-    # Token issue clears expired tokens, as the schedule does. While a rotated refresh token's row
-    # outlives its grace, a late refresh with it signs the user out, and once the row is gone the
-    # refresh gets a conflict instead, so the newer cookie another tab holds keeps working
-    await delete_expired_auth_tokens(db)
-
     is_new_session = session_id is None
     if session_id is None:
         session_id = uuid.uuid4()
@@ -593,6 +588,18 @@ async def issue_and_store_tokens(
 
     db.add(create_auth_token(user.id, session_id, access_jti, AuthTokenKind.ACCESS, access_exp))
     db.add(create_auth_token(user.id, session_id, refresh_jti, AuthTokenKind.REFRESH, refresh_exp))
+
+    # Token issue clears rotated refresh tokens whose grace has ended, a few at a time. While such a
+    # row exists, a late refresh with its token signs the user out, and once the row is gone the
+    # refresh gets a conflict instead, so the newer cookie another tab holds keeps working. The
+    # schedule clears everything else that expired
+    #
+    # This runs after the rotation, since the rotation is the one statement that can wait on a
+    # row another request holds, and it touches only this session's rows. Run first, the clearing
+    # would hold another session's rows while the rotation waited, and two refreshes could each
+    # wait on rows the other cleared until the database ended one with a deadlock. The clearing
+    # skips rows others hold, so run last it never waits
+    await delete_grace_ended_refresh_tokens(db)
     await db.commit()
 
     auth_response = AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)

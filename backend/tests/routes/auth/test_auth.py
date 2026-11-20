@@ -1,11 +1,11 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import jwt
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 
 from app.config.jwt import JWT_ACCESS_PRIVATE_KEY, JWT_ALGORITHM, JWT_ISSUER, JWT_REFRESH_PRIVATE_KEY
 from app.main import app
@@ -22,8 +22,10 @@ from tests.routes.support import (
     _create_user,
     _get_login_lockout,
     _seed_currency,
+    sign_up_confirmed,
     sign_up_through_email,
 )
+from tests.routes.support.lock_helpers import _cancel_unfinished, _wait_until_waiting_on
 
 # --- Helpers ---
 
@@ -418,6 +420,91 @@ async def test_a_late_refresh_after_its_grace_keeps_the_newer_cookie_once_tokens
     assert "set-cookie" not in late.headers
 
 
+async def test_a_sign_in_clears_another_users_rotated_token_whose_grace_ended(client):
+    """Whoever signs in clears every user's ended grace, so one user's late refresh still gets the conflict"""
+    other_signup = await _create_user(client)
+    other_cookie = other_signup.cookies["refresh_token"]
+    client.cookies.set("refresh_token", other_cookie)
+    assert (await client.post("/auth/refresh")).status_code == 200
+    async with TestSession() as session:
+        await session.execute(
+            update(AuthToken)
+            .where(AuthToken.refresh_grace_expires_at.is_not(None))
+            .values(refresh_grace_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+        )
+        await session.commit()
+    signing_in = {**SIGNUP_PAYLOAD, "email": "signing-in@example.com"}
+    await sign_up_confirmed(client, signing_in)
+
+    login = await client.post("/auth/login", json={"email": signing_in["email"], "password": signing_in["password"]})
+    assert login.status_code == 200
+    async with TestSession() as session:
+        ended = (await session.scalars(select(AuthToken.jti).where(AuthToken.refresh_grace_expires_at.is_not(None)))).all()
+    client.cookies.set("refresh_token", other_cookie)
+    late = await client.post("/auth/refresh")
+
+    assert ended == [], "the other user's row with an ended grace is gone"
+    assert late.status_code == 409
+
+
+async def test_a_refresh_does_not_deadlock_with_another_that_cleans_up_the_first_sessions_ended_token(client):
+    """Two sessions each hold a rotated token whose grace ended, and neither refresh waits on the other for good
+
+    Refresh 1 meets a lock another refresh holds on its own session's old token. The other refresh then
+    deletes the token that refresh 1 would clear for it, which only works while refresh 1 holds no such
+    row, as it does when its cleanup runs after its own rotation
+    """
+
+    async def rotated_session(email: str) -> tuple[str, UUID]:
+        """Sign up and refresh once, so the session has a previous token
+
+        Returns:
+            The session's current refresh cookie and its previous token's id
+        """
+        signup = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": email})
+        client.cookies.set("refresh_token", signup.cookies["refresh_token"])
+        refreshed = await client.post("/auth/refresh")
+        assert refreshed.status_code == 200
+        async with TestSession() as session:
+            previous_jti = await session.scalar(
+                select(AuthToken.jti).where(
+                    AuthToken.user_id == UUID(signup.json()["user"]["id"]), AuthToken.refresh_grace_expires_at.is_not(None)
+                )
+            )
+        return refreshed.cookies["refresh_token"], previous_jti
+
+    await _seed_currency()
+    first_cookie, first_previous = await rotated_session("first-session@example.com")
+    _second_cookie, second_previous = await rotated_session("second-session@example.com")
+
+    # Ended only now, since each token issue above clears the ended ones. The second session's ended
+    # longer ago, so refresh 1's cleanup reaches it first
+    async with TestSession() as session:
+        for jti, ended_ago in ((first_previous, timedelta(minutes=1)), (second_previous, timedelta(minutes=2))):
+            await session.execute(update(AuthToken).where(AuthToken.jti == jti).values(refresh_grace_expires_at=datetime.now(UTC) - ended_ago))
+        await session.commit()
+    client.cookies.set("refresh_token", first_cookie)
+
+    async with TestSession() as holder:
+        # Stands for the other refresh holding the first session's old token
+        await holder.execute(text("SELECT jti FROM auth_tokens WHERE jti = :jti FOR UPDATE"), {"jti": first_previous})
+        holder_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
+        refresh = asyncio.create_task(client.post("/auth/refresh"))
+        try:
+            await _wait_until_waiting_on(holder_pid, refresh)
+
+            # Stands for the other refresh's own cleanup deleting the second session's old token. Bounded so a
+            # wait on refresh 1 fails here rather than hanging
+            await holder.execute(text("SET LOCAL lock_timeout = '3s'"))
+            await holder.execute(text("DELETE FROM auth_tokens WHERE jti = :jti"), {"jti": second_previous})
+            await holder.commit()
+            response = await refresh
+        finally:
+            await _cancel_unfinished([refresh])
+
+    assert response.status_code == 200
+
+
 async def test_concurrent_refresh_keeps_only_current_and_previous_refresh_tokens(client):
     """Concurrent refresh attempts keep one current and one previous refresh token"""
     signup_resp = await _create_user(client)
@@ -654,8 +741,8 @@ async def test_refresh_revokes_old_access_token(client):
     assert resp.status_code == 200
 
 
-async def test_expired_tokens_purged_on_token_issuance(client):
-    """Expired auth token rows are cleaned up when new tokens are issued"""
+async def test_token_issue_leaves_a_token_past_its_lifetime_to_the_schedule(client):
+    """A token past its lifetime keeps its row at token issue, so a sign-in never scans for them"""
     await _create_user(client)
 
     # Seed an expired token directly in the DB
@@ -687,7 +774,6 @@ async def test_expired_tokens_purged_on_token_issuance(client):
         result = await session.execute(select(AuthToken))
         assert len(result.scalars().all()) == 3
 
-    # Login triggers token issuance, which purges expired rows
     login_resp = await client.post(
         "/auth/login",
         json={"email": SIGNUP_PAYLOAD["email"], "password": SIGNUP_PAYLOAD["password"]},
@@ -695,13 +781,13 @@ async def test_expired_tokens_purged_on_token_issuance(client):
     assert login_resp.status_code == 200
 
     async with TestSession() as session:
-        # The expired token should be gone
+        # The token's own expiry already refuses it, so only the schedule removes its row
         result = await session.execute(select(AuthToken).where(AuthToken.jti == expired_jti))
-        assert result.scalar_one_or_none() is None
+        assert result.scalar_one_or_none() is not None
 
-        # Valid tokens survive: 2 from signup + 2 from login = 4
+        # 2 from signup, 1 expired and 2 from login
         result = await session.execute(select(AuthToken))
-        assert len(result.scalars().all()) == 4
+        assert len(result.scalars().all()) == 5
 
 
 # --- Logout ---

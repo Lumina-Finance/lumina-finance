@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import VARCHAR, CheckConstraint, DateTime, ForeignKey, Integer, UniqueConstraint, func
+from sqlalchemy import VARCHAR, CheckConstraint, DateTime, ForeignKey, Index, Integer, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,7 +39,13 @@ class ImportRun(Base):
     """
 
     __tablename__ = "import_runs"
-    __table_args__ = (CheckConstraint(f"source IN ({SOURCE_CHECK_VALUES})", name="ck_import_runs_source"),)
+    __table_args__ = (
+        CheckConstraint(f"source IN ({SOURCE_CHECK_VALUES})", name="ck_import_runs_source"),
+        # One index for each way the scheduled cleanup finds a run to remove, an abandoned upload by
+        # when it was started and a committed run by when it was committed
+        Index("ix_import_runs_uncommitted_created_at", "created_at", postgresql_where=text("committed_at IS NULL")),
+        Index("ix_import_runs_committed_at", "committed_at", postgresql_where=text("committed_at IS NOT NULL")),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
