@@ -99,7 +99,13 @@ export function ImportAccountMappingTable({
   const typeHeadingId = `${labelNamespace}-type`
   const currencyHeadingId = `${labelNamespace}-currency`
   const institutionHeadingId = `${labelNamespace}-institution`
-  const { eligibleRows, selectedRows, validSelection, allSelected: allRowsSelected, someSelected: someRowsSelected } = getImportAccountSelection(rows, selectedRowIds)
+  const {
+    eligibleRows,
+    selectedRows,
+    validSelection,
+    allSelected: allRowsSelected,
+    someSelected: someRowsSelected,
+  } = getImportAccountSelection(rows, selectedRowIds)
   const { mapped: mappedCount, new: newCount } = countImportAccountRowStates(rows)
 
   // A reference-data refresh can settle a selected row without calling its mapping handler
@@ -119,11 +125,12 @@ export function ImportAccountMappingTable({
   const hasBatchFieldSet = Boolean(batchAccountType || batchAccountCurrency) || hasBatchInstitutionSet
 
   // Both are needed, and the rows come first since they are what the batch applies to
-  const batchApplyReason = editableRows.length === 0
-    ? 'Select the accounts to edit first'
-    : hasBatchFieldSet
-      ? undefined
-      : 'Choose a type, currency or institution first'
+  const batchApplyReason =
+    editableRows.length === 0
+      ? 'Select the accounts to edit first'
+      : hasBatchFieldSet
+        ? undefined
+        : 'Choose a type, currency or institution first'
 
   /** Updates one eligible row while retaining the other table's current selection */
   const toggleRow = (row: (typeof rows)[number]) => {
@@ -198,7 +205,10 @@ export function ImportAccountMappingTable({
               {row.source}
             </p>
             {creating && (
-              <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+              <span
+                className="shrink-0 text-[0.6875rem] font-semibold uppercase"
+                style={{ color: 'var(--app-accent)' }}
+              >
                 New
               </span>
             )}
@@ -263,7 +273,7 @@ export function ImportAccountMappingTable({
             className={!disabled && row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
             disabled={disabled || !creating || institutionsDisabled}
             onCreateNew={(query) => onCreateInstitution(query, row.id)}
-            createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
+            createNewLabel={(query) => (query ? `Create institution "${query}"` : 'Create institution')}
           />
         </td>
       </tr>
@@ -278,7 +288,9 @@ export function ImportAccountMappingTable({
           style={IMPORT_INSET_STYLE}
         >
           <div className="col-span-3 min-w-0 px-4">
-            <p id={batchHeadingId} className="text-sm font-semibold">Batch edit accounts</p>
+            <p id={batchHeadingId} className="text-sm font-semibold">
+              Batch edit accounts
+            </p>
             <p className="mt-1 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
               {accountMappingSummary}
             </p>
@@ -319,7 +331,7 @@ export function ImportAccountMappingTable({
                 size="field"
                 disabled={disabled || institutionsDisabled}
                 onCreateNew={onBatchCreateInstitution}
-                createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
+                createNewLabel={(query) => (query ? `Create institution "${query}"` : 'Create institution')}
               />
             </div>
             <DisabledReasonButton
@@ -358,15 +370,21 @@ export function ImportAccountMappingTable({
                 </span>
               </th>
               <th className="px-4 py-3 font-medium">Source account</th>
-              <th id={accountHeadingId} className="px-4 py-3 font-medium">Existing account</th>
-              <th id={typeHeadingId} className="px-4 py-3 font-medium">Type</th>
-              <th id={currencyHeadingId} className="px-2 py-3 font-medium">Currency</th>
-              <th id={institutionHeadingId} className="py-3 pl-4 pr-0 font-medium">Institution</th>
+              <th id={accountHeadingId} className="px-4 py-3 font-medium">
+                Existing account
+              </th>
+              <th id={typeHeadingId} className="px-4 py-3 font-medium">
+                Type
+              </th>
+              <th id={currencyHeadingId} className="px-2 py-3 font-medium">
+                Currency
+              </th>
+              <th id={institutionHeadingId} className="py-3 pl-4 pr-0 font-medium">
+                Institution
+              </th>
             </tr>
           </thead>
-          <tbody>
-            {rows.map(renderMappingRow)}
-          </tbody>
+          <tbody>{rows.map(renderMappingRow)}</tbody>
         </table>
       </div>
     </div>

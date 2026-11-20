@@ -99,19 +99,17 @@ function createFile(overrides: Partial<ImportFileDraft> = {}): ImportFileDraft {
 
 describe('import workflow option helpers', () => {
   it('builds dropdown options with action and none choices pinned first', () => {
-    const currencies: Currency[] = [
-      { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
-    ]
+    const currencies: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
     const institutions: Institution[] = [
       { id: 'bank', status: 'active', name: 'Bank', country_code: 'CA', website: '', logo_url: null },
     ]
 
-    expect(buildImportAccountOptions([
-      createAccount({ id: 'visa', name: 'Visa', account_kind: 'revolving' }),
-    ])).toEqual([
-      { value: CREATE_ACCOUNT_VALUE, label: 'Create new account', group: 'Import action' },
-      { value: 'visa', label: 'Visa', group: 'Revolving credit' },
-    ])
+    expect(buildImportAccountOptions([createAccount({ id: 'visa', name: 'Visa', account_kind: 'revolving' })])).toEqual(
+      [
+        { value: CREATE_ACCOUNT_VALUE, label: 'Create new account', group: 'Import action' },
+        { value: 'visa', label: 'Visa', group: 'Revolving credit' },
+      ],
+    )
     expect(buildImportCurrencyOptions(currencies)).toEqual([{ value: 'CAD', label: 'CAD' }])
     expect(buildImportInstitutionOptions(institutions)).toEqual([
       { value: '', label: 'None' },
@@ -128,12 +126,14 @@ describe('import workflow option helpers', () => {
   })
 
   it('sorts category match options by kind and name after the create action', () => {
-    expect(buildImportCategoryMatchOptions([
-      createCategory({ id: 'transfer', name: 'Between accounts', kind: 'transfer' }),
-      createCategory({ id: 'salary', name: 'Salary', kind: 'income', icon: '💵' }),
-      createCategory({ id: 'food', name: 'Food', kind: 'expense' }),
-      createCategory({ id: 'rent', name: 'Rent', kind: 'expense' }),
-    ])).toMatchObject([
+    expect(
+      buildImportCategoryMatchOptions([
+        createCategory({ id: 'transfer', name: 'Between accounts', kind: 'transfer' }),
+        createCategory({ id: 'salary', name: 'Salary', kind: 'income', icon: '💵' }),
+        createCategory({ id: 'food', name: 'Food', kind: 'expense' }),
+        createCategory({ id: 'rent', name: 'Rent', kind: 'expense' }),
+      ]),
+    ).toMatchObject([
       { value: CREATE_CATEGORY_VALUE, label: 'Create new category', group: 'Import action' },
       { value: 'food', label: 'Food', group: 'Expense' },
       { value: 'rent', label: 'Rent', group: 'Expense' },
@@ -157,9 +157,7 @@ describe('import workflow option helpers', () => {
         id: 'visa-file',
         name: 'Visa.csv',
         headers: ['Account', 'Category', 'Merchant'],
-        rows: [
-          { Account: 'Visa', Category: 'Groceries', Merchant: 'Market', Tags: '' },
-        ],
+        rows: [{ Account: 'Visa', Category: 'Groceries', Merchant: 'Market', Tags: '' }],
       }),
     ]
 
@@ -167,13 +165,21 @@ describe('import workflow option helpers', () => {
     expect(getMissingRequiredColumnLabels({ ...EMPTY_COLUMN_MAP, dt: 'Date' })).toContain(MISSING_AMOUNT_COLUMN_LABEL)
     // Files staged together are one account's statements, so the first stands for all of them
     expect(buildImportAccountMappingSources(files, '', '')).toEqual([
-      { id: 'checking-file', label: 'Chequing Activity', matchText: 'Chequing Activity.csv', isCounterpartyOnly: false },
+      {
+        id: 'checking-file',
+        label: 'Chequing Activity',
+        matchText: 'Chequing Activity.csv',
+        isCounterpartyOnly: false,
+      },
     ])
     expect(buildImportAccountMappingSources(files, 'Account', '')).toEqual([
       { id: 'Main', label: 'Main', matchText: 'Main', isCounterpartyOnly: false },
       { id: 'Visa', label: 'Visa', matchText: 'Visa', isCounterpartyOnly: false },
     ])
-    expect(getImportedCategories(files, { ...EMPTY_COLUMN_MAP, category_id: 'Category' }, {})).toEqual(['Groceries', 'Rent'])
+    expect(getImportedCategories(files, { ...EMPTY_COLUMN_MAP, category_id: 'Category' }, {})).toEqual([
+      'Groceries',
+      'Rent',
+    ])
     expect(getImportedMerchants(files, 'Merchant')).toEqual(['Landlord', 'Market'])
     expect(getImportedTags(files, 'Tags')).toEqual(['essentials', 'food', 'housing'])
   })
@@ -207,15 +213,8 @@ describe('import workflow option helpers', () => {
     const values = options.map((option) => option.value)
 
     expect(values).not.toContain('account_id')
-    expect(values).toEqual(expect.arrayContaining([
-      '',
-      'dt',
-      'amount',
-      'category_id',
-      'counterparty_account_id',
-    ]))
+    expect(values).toEqual(expect.arrayContaining(['', 'dt', 'amount', 'category_id', 'counterparty_account_id']))
   })
-
 
   it('marks an archived account wherever it is offered', () => {
     const options = buildImportAccountOptions([
@@ -276,15 +275,14 @@ describe('archived accounts in account mapping', () => {
   it('lists an archived account once however many sources point at it', () => {
     const secondSource = { ...rowSource, id: 'Old Savings Account', matchText: 'Old Savings Account' }
 
-    expect(getArchivedAccountMatches([rowSource, secondSource], {}, [chequing, archivedSavings]))
-      .toEqual([{ id: 'savings', name: 'Old Savings' }])
+    expect(getArchivedAccountMatches([rowSource, secondSource], {}, [chequing, archivedSavings])).toEqual([
+      { id: 'savings', name: 'Old Savings' },
+    ])
   })
 })
 
 describe('blocking the upload until the currency list is in hand', () => {
-  const currencies: Currency[] = [
-    { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
-  ]
+  const currencies: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
 
   it('lets a file be uploaded once the list has arrived', () => {
     expect(getImportUploadBlockReason(currencies, false)).toBeNull()
@@ -293,7 +291,10 @@ describe('blocking the upload until the currency list is in hand', () => {
   it('blocks on an empty list, whether it failed or has simply not arrived', () => {
     // A request the browser has not started, which is what an offline page has, reports neither
     // loading nor failed, so the list itself is what decides rather than the request's state
-    expect(getImportUploadBlockReason([], false)).toEqual({ message: CURRENCIES_LOADING_UPLOAD_BLOCK, isFailure: false })
+    expect(getImportUploadBlockReason([], false)).toEqual({
+      message: CURRENCIES_LOADING_UPLOAD_BLOCK,
+      isFailure: false,
+    })
     expect(getImportUploadBlockReason([], true)).toEqual({ message: CURRENCIES_FAILED_UPLOAD_BLOCK, isFailure: true })
   })
 
@@ -313,7 +314,10 @@ describe('waiting on the saved import settings before a CSV file is read', () =>
   })
 
   it('waits while they load, without dressing the wait as an error', () => {
-    expect(getImportLayoutsUploadBlockReason(false)).toEqual({ message: IMPORT_LAYOUTS_LOADING_UPLOAD_BLOCK, isFailure: false })
+    expect(getImportLayoutsUploadBlockReason(false)).toEqual({
+      message: IMPORT_LAYOUTS_LOADING_UPLOAD_BLOCK,
+      isFailure: false,
+    })
   })
 })
 
@@ -369,8 +373,9 @@ describe('the three ways a file can carry its amount', () => {
   // five steps further down. Kept in one place rather than two, since a rule stated twice drifts
   it('leaves the category direction rule to the rows it is about', () => {
     const options = buildColumnTargetOptions()
-    const amountHints = ['amount', 'amount_out', 'amount_in', 'amount_direction']
-      .map((value) => options.find((option) => option.value === value)?.description ?? '')
+    const amountHints = ['amount', 'amount_out', 'amount_in', 'amount_direction'].map(
+      (value) => options.find((option) => option.value === value)?.description ?? '',
+    )
 
     for (const hint of amountHints) expect(hint).not.toContain('category')
     expect(getRowSignDisagreesWithCategoryReason('expense')).toContain('expense category')
@@ -378,8 +383,9 @@ describe('the three ways a file can carry its amount', () => {
 
   it('heads the three under one group of their own', () => {
     const options = buildColumnTargetOptions()
-    const amountGroups = ['amount', 'amount_out', 'amount_in']
-      .map((value) => options.find((option) => option.value === value)?.group)
+    const amountGroups = ['amount', 'amount_out', 'amount_in'].map(
+      (value) => options.find((option) => option.value === value)?.group,
+    )
 
     expect(new Set(amountGroups).size).toBe(1)
     expect(amountGroups[0]).not.toBe('Optional fields')
@@ -388,10 +394,12 @@ describe('the three ways a file can carry its amount', () => {
   // A single signed column and the two sides are alternatives, so a map holding both states the
   // amount twice with nothing to say which reading wins
   it('reports a map stating the amount two ways at once', () => {
-    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_out: 'Debit' })?.message)
-      .toBe(AMOUNT_ARRANGEMENT_CLASH_ERROR)
-    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_in: 'Credit' })?.message)
-      .toBe(AMOUNT_ARRANGEMENT_CLASH_ERROR)
+    expect(
+      getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_out: 'Debit' })?.message,
+    ).toBe(AMOUNT_ARRANGEMENT_CLASH_ERROR)
+    expect(
+      getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_in: 'Credit' })?.message,
+    ).toBe(AMOUNT_ARRANGEMENT_CLASH_ERROR)
   })
 
   it('says nothing about a map using one arrangement or none', () => {
@@ -404,20 +412,25 @@ describe('the three ways a file can carry its amount', () => {
   // twice. The message has to be the direction one rather than the amount one, since the fix is
   // different: this map has no second amount to drop
   it('reports a Direction column mapped beside a side', () => {
-    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount_direction: 'Type', amount_out: 'Debit' })?.message)
-      .toBe(DIRECTION_ARRANGEMENT_CLASH_ERROR)
-    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount_direction: 'Type', amount_in: 'Credit' })?.message)
-      .toBe(DIRECTION_ARRANGEMENT_CLASH_ERROR)
+    expect(
+      getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount_direction: 'Type', amount_out: 'Debit' })?.message,
+    ).toBe(DIRECTION_ARRANGEMENT_CLASH_ERROR)
+    expect(
+      getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount_direction: 'Type', amount_in: 'Credit' })?.message,
+    ).toBe(DIRECTION_ARRANGEMENT_CLASH_ERROR)
   })
 
   it('reports nothing about a Direction column beside a single Amount column', () => {
-    expect(getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_direction: 'Type' })).toBeNull()
+    expect(
+      getAmountArrangementClashError({ ...MAPPED_ELSEWHERE, amount: 'Amount', amount_direction: 'Type' }),
+    ).toBeNull()
   })
 
   // The Direction column carries no money, so mapping it answers nothing about how the file states
   // its amount and the missing-amount error still stands
   it('still asks for an amount where only a Direction column is mapped', () => {
-    expect(getMissingRequiredColumnLabels({ ...MAPPED_ELSEWHERE, amount_direction: 'Type' }))
-      .toEqual([MISSING_AMOUNT_COLUMN_LABEL])
+    expect(getMissingRequiredColumnLabels({ ...MAPPED_ELSEWHERE, amount_direction: 'Type' })).toEqual([
+      MISSING_AMOUNT_COLUMN_LABEL,
+    ])
   })
 })

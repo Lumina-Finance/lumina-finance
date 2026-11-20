@@ -103,13 +103,15 @@ export function ProviderAccountMappingStep({
   setBatchAccountInstitution,
   setSelectedAccountRows,
 }: ProviderAccountMappingStepProps) {
-  const { openInstitutionModal, institutionModalKey, institutionModalProps } = useImportInstitutionModal((target, institutionId) => {
-    if (target === BATCH_INSTITUTION_TARGET) {
-      setBatchAccountInstitution(institutionId)
-    } else {
-      setAccountCreateInstitutions((current) => ({ ...current, [target]: institutionId }))
-    }
-  })
+  const { openInstitutionModal, institutionModalKey, institutionModalProps } = useImportInstitutionModal(
+    (target, institutionId) => {
+      if (target === BATCH_INSTITUTION_TARGET) {
+        setBatchAccountInstitution(institutionId)
+      } else {
+        setAccountCreateInstitutions((current) => ({ ...current, [target]: institutionId }))
+      }
+    },
+  )
 
   // Every account in the export takes rows, so no source here is counterparty-only
   const accountRows = buildImportAccountMappingRows(sources, {

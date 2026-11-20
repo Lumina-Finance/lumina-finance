@@ -51,17 +51,21 @@ export function FireflyAccountMappingStep({
       isImportFinished={Boolean(importResult)}
       index="02"
       description="Asset and liability accounts from the export must map to an existing account or a new one."
-      notice={(
+      notice={
         <ImportNotice title="How currencies are read">
-          Amounts are written in each mapped account&apos;s currency. Rows without an amount in that currency are skipped and reported after the import.
+          Amounts are written in each mapped account&apos;s currency. Rows without an amount in that currency are
+          skipped and reported after the import.
         </ImportNotice>
-      )}
-      emptyState={transactionsFile
-        ? {
-          title: 'No accounts to import into',
-          description: 'No row in this export can be imported into an asset or liability account. The preview lists why each row is skipped.',
-        }
-        : { title: 'No account names detected', description: 'Upload the transactions CSV first.' }}
+      }
+      emptyState={
+        transactionsFile
+          ? {
+              title: 'No accounts to import into',
+              description:
+                'No row in this export can be imported into an asset or liability account. The preview lists why each row is skipped.',
+            }
+          : { title: 'No account names detected', description: 'Upload the transactions CSV first.' }
+      }
       sources={trackedAccounts}
       onAccountMappingChange={updateFireflyAccountMapping}
     />

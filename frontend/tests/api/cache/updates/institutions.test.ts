@@ -4,11 +4,11 @@
  * useUpdateInstitution calls useMutation and useQueryClient, which need a live React tree to
  * invoke, so this covers updateCachedInstitution directly against a real QueryClient instead
  */
-import { describe, expect, it } from 'vitest';
-import { QueryClient } from '@tanstack/react-query';
-import type { Institution } from '@/api/institutions';
-import { accountKeys, institutionKeys } from '@/api/cache/queryKeys';
-import { updateCachedInstitution } from '@/api/cache/updates/institutions';
+import { describe, expect, it } from 'vitest'
+import { QueryClient } from '@tanstack/react-query'
+import type { Institution } from '@/api/institutions'
+import { accountKeys, institutionKeys } from '@/api/cache/queryKeys'
+import { updateCachedInstitution } from '@/api/cache/updates/institutions'
 
 /**
  * Creates an institution fixture, defaulting the fields a correction does not exercise
@@ -22,44 +22,40 @@ function createInstitution(overrides: Partial<Institution> = {}): Institution {
     website: 'https://alpha.example.com',
     logo_url: null,
     ...overrides,
-  };
+  }
 }
 
 describe('updateCachedInstitution', () => {
   it('puts a renamed institution back into name order', () => {
-    const queryClient = new QueryClient();
-    const zeta = createInstitution({ id: 'zeta', name: 'Zeta Bank' });
+    const queryClient = new QueryClient()
+    const zeta = createInstitution({ id: 'zeta', name: 'Zeta Bank' })
     queryClient.setQueryData(institutionKeys.list(), [
       createInstitution(),
       createInstitution({ id: 'beta', name: 'Beta Bank' }),
       zeta,
-    ]);
+    ])
 
-    updateCachedInstitution(queryClient, { ...zeta, name: 'Aaa Bank' });
+    updateCachedInstitution(queryClient, { ...zeta, name: 'Aaa Bank' })
 
-    const cached = queryClient.getQueryData<Institution[]>(institutionKeys.list());
-    expect(cached?.map((institution) => institution.name)).toEqual([
-      'Aaa Bank',
-      'Alpha Bank',
-      'Beta Bank',
-    ]);
-  });
+    const cached = queryClient.getQueryData<Institution[]>(institutionKeys.list())
+    expect(cached?.map((institution) => institution.name)).toEqual(['Aaa Bank', 'Alpha Bank', 'Beta Bank'])
+  })
 
   it('leaves an unfetched list absent rather than writing an empty one', () => {
-    const queryClient = new QueryClient();
+    const queryClient = new QueryClient()
 
-    updateCachedInstitution(queryClient, createInstitution());
+    updateCachedInstitution(queryClient, createInstitution())
 
-    expect(queryClient.getQueryData(institutionKeys.list())).toBeUndefined();
-  });
+    expect(queryClient.getQueryData(institutionKeys.list())).toBeUndefined()
+  })
 
   it('invalidates the accounts that embed the corrected institution', () => {
-    const queryClient = new QueryClient();
-    queryClient.setQueryData(accountKeys.list(), []);
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(accountKeys.list(), [])
 
-    updateCachedInstitution(queryClient, createInstitution());
+    updateCachedInstitution(queryClient, createInstitution())
 
-    const accountQuery = queryClient.getQueryCache().find({ queryKey: accountKeys.list() });
-    expect(accountQuery?.state.isInvalidated).toBe(true);
-  });
-});
+    const accountQuery = queryClient.getQueryCache().find({ queryKey: accountKeys.list() })
+    expect(accountQuery?.state.isInvalidated).toBe(true)
+  })
+})

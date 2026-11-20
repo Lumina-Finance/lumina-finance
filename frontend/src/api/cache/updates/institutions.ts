@@ -1,7 +1,7 @@
-import type { QueryClient } from '@tanstack/react-query';
-import { invalidateAccounts } from '@/api/cache/invalidation';
-import { institutionKeys } from '@/api/cache/queryKeys';
-import type { Institution } from '@/api/institutions/types';
+import type { QueryClient } from '@tanstack/react-query'
+import { invalidateAccounts } from '@/api/cache/invalidation'
+import { institutionKeys } from '@/api/cache/queryKeys'
+import type { Institution } from '@/api/institutions/types'
 
 /**
  * Writes a corrected institution into the cached selector list and refreshes the accounts
@@ -16,11 +16,11 @@ import type { Institution } from '@/api/institutions/types';
  */
 export function updateCachedInstitution(queryClient: QueryClient, institution: Institution) {
   queryClient.setQueryData<Institution[]>(institutionKeys.list(), (institutions) => {
-    if (!institutions) return institutions;
+    if (!institutions) return institutions
     return institutions
       .map((item) => (item.id === institution.id ? institution : item))
-      .sort((left, right) => left.name.localeCompare(right.name));
-  });
+      .sort((left, right) => left.name.localeCompare(right.name))
+  })
 
-  invalidateAccounts(queryClient);
+  invalidateAccounts(queryClient)
 }

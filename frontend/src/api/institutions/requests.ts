@@ -1,9 +1,5 @@
-import { authenticatedFetch } from '@/api/client';
-import type {
-  CreateInstitutionPayload,
-  Institution,
-  UpdateInstitutionRequest,
-} from '@/api/institutions/types';
+import { authenticatedFetch } from '@/api/client'
+import type { CreateInstitutionPayload, Institution, UpdateInstitutionRequest } from '@/api/institutions/types'
 
 /**
  * Fetches institutions available for account creation and account identity edits
@@ -11,7 +7,7 @@ import type {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchInstitutions(signal?: AbortSignal) {
-  return authenticatedFetch<Institution[]>('/institutions', { signal });
+  return authenticatedFetch<Institution[]>('/institutions', { signal })
 }
 
 /**
@@ -21,7 +17,7 @@ export function createInstitution(payload: CreateInstitutionPayload) {
   return authenticatedFetch<Institution>('/institutions', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -31,5 +27,5 @@ export function updateInstitution({ institutionId, payload }: UpdateInstitutionR
   return authenticatedFetch<Institution>(`/institutions/${institutionId}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
-  });
+  })
 }
