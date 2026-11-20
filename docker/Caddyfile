@@ -9,6 +9,8 @@
 	encode zstd gzip
 	root * /srv/lumina/frontend
 
+	import /etc/caddy/security-headers.caddy
+
 	handle_path /api/* {
 		reverse_proxy 127.0.0.1:8000 {
 			header_up X-Forwarded-For {client_ip}

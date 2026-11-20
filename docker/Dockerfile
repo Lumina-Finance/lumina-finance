@@ -77,7 +77,7 @@ COPY backend/app ./app
 COPY backend/scripts ./scripts
 
 # Runtime configuration
-COPY docker/Caddyfile /etc/caddy/Caddyfile
+COPY docker/Caddyfile docker/security-headers.caddy /etc/caddy/
 COPY docker/entrypoint.py /usr/local/bin/entrypoint.py
 
 EXPOSE 80
