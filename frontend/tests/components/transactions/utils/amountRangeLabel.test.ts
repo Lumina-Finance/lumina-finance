@@ -17,15 +17,18 @@ const currencies: Currency[] = [
   { id: 'IQD', name: 'Iraqi Dinar', symbol: 'ع.د', minor_unit_exponent: 3 },
 ]
 
-function label(
-  amount: AmountDraft,
-  amountCurrency: string,
-  amountExponent: number,
-): string | null {
+function label(amount: AmountDraft, amountCurrency: string, amountExponent: number): string | null {
   return buildAmountRangeLabel({ amount, amountCurrency, amountExponent })
 }
 
 describe('amount range chip label', () => {
+  it('shows no chip for a bound past what the filter can send, rather than a rounded amount nobody typed', () => {
+    expect(label({ min: '10', max: '10000000000000.00' }, 'CAD', 2)).toBeNull()
+    expect(label({ min: '10000000000000.00', max: '' }, 'CAD', 2)).toBeNull()
+    expect(label({ min: '10', max: '9999999999999.99' }, 'CAD', 2)).toBe('CA$10.00–9,999,999,999,999.99')
+    expect(label({ min: '9999999999999.99', max: '' }, 'CAD', 2)).toBe('CA$9,999,999,999,999.99–any')
+  })
+
   it('writes the lower CAD amount exactly as a transaction row does', () => {
     const rowMagnitude = formatCurrency(123456, 'CAD', currencies)
 

@@ -1,13 +1,13 @@
-"""Every field a request body or path can carry has an upper bound, so no request stores or hashes more than a column or a hash can take"""
+"""Every field a request body, path or query string can carry has an upper bound, so no request stores more than a column can take"""
 
 from app.main import app
 
 # String formats whose values the parser bounds itself
 BOUNDED_STRING_FORMATS = {"uuid", "date", "date-time", "time", "duration"}
 
-# Where a request carries a value the user chooses and the API stores or looks up. Query values, headers
-# and cookies are left to their own checks, since each is cut short by the server's header and URL limits
-SWEPT_PLACES = {"path"}
+# Where a request carries a value the user chooses and the API stores or looks up. Headers and cookies
+# are left to their own checks, since each is cut short by the server's header size limit
+SWEPT_PLACES = {"path", "query"}
 
 
 def _unbounded_fields(schema: dict, components: dict, place: str, seen: frozenset[str] = frozenset()) -> list[str]:
@@ -47,27 +47,53 @@ def _unbounded_fields(schema: dict, components: dict, place: str, seen: frozense
     return found
 
 
-def _unbounded_request_fields() -> list[str]:
-    """List every body field and path value of the API that has no upper bound"""
-    document = app.openapi()
-    components = document["components"]["schemas"]
+def _unbounded_request_fields(document: dict) -> list[str]:
+    """List every body field, path value and query value of an API description that has no upper bound"""
+    components = document.get("components", {}).get("schemas", {})
     found = []
     for path, operations in document["paths"].items():
         for method, operation in operations.items():
             where = f"{method.upper()} {path}"
             for parameter in operation.get("parameters", []):
                 if parameter["in"] in SWEPT_PLACES:
-                    found += _unbounded_fields(parameter["schema"], components, f"{where} path {parameter['name']}")
+                    found += _unbounded_fields(parameter["schema"], components, f"{where} {parameter['in']} {parameter['name']}")
             for media in operation.get("requestBody", {}).get("content", {}).values():
                 found += _unbounded_fields(media["schema"], components, f"{where} body")
     return sorted(set(found))
 
 
 def test_no_request_field_is_unbounded():
-    """A text field is capped in length and a number at its largest storable value, wherever a body or path carries it"""
-    unbounded = _unbounded_request_fields()
+    """A text field is capped in length and a number at its largest storable value, wherever a body, path or query string carries it"""
+    unbounded = _unbounded_request_fields(app.openapi())
 
     assert not unbounded, "\n" + "\n".join(unbounded)
+
+
+def test_the_sweep_reads_body_path_and_query_values_and_leaves_headers_alone():
+    """Each swept place is walked, so dropping one from the sweep fails here, while a header is left to the server's size limit"""
+    unbounded_text = {"type": "string"}
+    document = {
+        "paths": {
+            "/things/{name}": {
+                "get": {
+                    "parameters": [
+                        {"name": "name", "in": "path", "schema": unbounded_text},
+                        {"name": "page", "in": "query", "schema": {"type": "integer"}},
+                        {"name": "tags", "in": "query", "schema": {"type": "array", "items": unbounded_text}},
+                        {"name": "origin", "in": "header", "schema": unbounded_text},
+                    ],
+                    "requestBody": {"content": {"application/json": {"schema": {"type": "object", "properties": {"note": unbounded_text}}}}},
+                },
+            },
+        },
+    }
+
+    assert _unbounded_request_fields(document) == [
+        "GET /things/{name} body.note is a string with no maxLength",
+        "GET /things/{name} path name is a string with no maxLength",
+        "GET /things/{name} query page is a number with no maximum",
+        "GET /things/{name} query tags[] is a string with no maxLength",
+    ]
 
 
 def test_the_walk_flags_what_it_is_meant_to_and_nothing_bounded():

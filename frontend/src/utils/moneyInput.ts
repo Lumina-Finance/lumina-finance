@@ -7,6 +7,13 @@ const CANONICAL_DECIMAL = '.'
 // Currencies missing from the table are treated as having two decimal places
 export const DEFAULT_MINOR_UNIT_EXPONENT = 2
 
+// The bounds of the signed 64-bit column the backend stores an amount in. The negative side
+// reaches one further than the positive, as two's complement does, so a caller that negates an
+// amount has to bound its own result. The same two values are written out again in
+// backend/app/utils/money.py, and the two have to agree
+export const MIN_MINOR_UNITS = -(2n ** 63n)
+export const MAX_MINOR_UNITS = 2n ** 63n - 1n
+
 // Whole digits, then at most one decimal point and its digits. Latin digits only, since a
 // character the field cannot read is a character it will not take
 const MONEY_INPUT = /^(\d*)(?:\.(\d*))?$/
@@ -99,14 +106,43 @@ export function findCurrencyExponent(currencies: Currency[], code: string): numb
 export function toMinorUnits(value: string, exponent: number): number | null {
   if (!digitsOf(value) || !isValidMoneyInput(value)) return null
 
+  const { digits, roundsUp } = scaleToMinorUnitDigits(value, exponent)
+  const scaled = Number(digits)
+
+  return roundsUp ? scaled + 1 : scaled
+}
+
+/**
+ * Reports whether a money value, counted in minor units, is past a ceiling
+ *
+ * The digits are compared as integers rather than as numbers, since the largest amount the API
+ * stores is past what a number holds exactly, and a number of enough digits is no finite number at
+ * all. Text a money field would not take, and text holding no digit, is never past the ceiling
+ *
+ * @param value - The money value as the field holds it
+ * @param exponent - Decimal places of the field's currency
+ * @param ceiling - The largest whole number of minor units that is allowed
+ */
+export function isMinorUnitsAbove(value: string, exponent: number, ceiling: bigint): boolean {
+  if (!MONEY_INPUT.test(value) || !digitsOf(value)) return false
+
+  const { digits, roundsUp } = scaleToMinorUnitDigits(value, exponent)
+
+  return BigInt(digits) + (roundsUp ? 1n : 0n) > ceiling
+}
+
+/**
+ * Moves a money value's decimal point through its digits to count it in minor units, and says
+ * whether the digits dropped past the currency's places round the amount up
+ */
+function scaleToMinorUnitDigits(value: string, exponent: number): { digits: string; roundsUp: boolean } {
   const { whole, fraction } = splitMoneyInput(value)
   const kept = fraction.padEnd(exponent, '0').slice(0, exponent)
-  const scaled = Number(`${whole || '0'}${kept}`)
   // A fraction longer than the currency holds only arrives when the currency changed under an
   // amount already entered, since the field refuses to take one while typing
   const firstDropped = fraction[exponent]
 
-  return firstDropped !== undefined && Number(firstDropped) >= 5 ? scaled + 1 : scaled
+  return { digits: `${whole || '0'}${kept}`, roundsUp: firstDropped !== undefined && Number(firstDropped) >= 5 }
 }
 
 /**
@@ -145,6 +181,22 @@ export function normalizeMoneyInput(value: string, exponent: number): string {
   const minorUnits = toMinorUnits(value, exponent)
 
   return minorUnits === null ? '' : fromMinorUnits(minorUnits, exponent)
+}
+
+/**
+ * Settles a money value as the field loses focus. An amount past a ceiling is left as typed
+ *
+ * A number rounds an amount of that size, or writes it in a form the field cannot read, so settling
+ * it would change what was typed and could hide the refusal the caller shows for it
+ *
+ * @param value - The money value as the field holds it
+ * @param exponent - Decimal places of the field's currency
+ * @param ceiling - The largest whole number of minor units to settle, or undefined to settle every value
+ */
+export function settleMoneyInput(value: string, exponent: number, ceiling?: bigint): string {
+  return ceiling !== undefined && isMinorUnitsAbove(value, exponent, ceiling)
+    ? value
+    : normalizeMoneyInput(value, exponent)
 }
 
 /**

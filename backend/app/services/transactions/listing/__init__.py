@@ -12,7 +12,7 @@ from app.schemas.transaction import TransactionResponse
 from app.services.bank_sync.sources import build_bank_sources, with_bank_records
 from app.services.transactions.links import get_transaction_links_batch
 from app.services.transactions.listing.amounts import get_transaction_listing_converted_amounts
-from app.services.transactions.listing.queries import build_transaction_listing_query
+from app.services.transactions.listing.queries import SortOrder, TagMatch, TransactionSortField, build_transaction_listing_query
 from app.services.transactions.listing.validation import validate_transaction_listing_filters
 from app.services.transactions.response_helpers import (
     build_transaction_response,
@@ -31,15 +31,15 @@ async def list_transaction_responses(
     merchant_ids: list[uuid.UUID] | None = None,
     currencies: list[str] | None = None,
     tag_ids: list[uuid.UUID] | None = None,
-    tag_match: str = "all",
+    tag_match: TagMatch = "all",
     min_amount: int | None = None,
     max_amount: int | None = None,
     amount_currency: str | None = None,
     from_date: date | None = None,
     to_date: date | None = None,
     search_text: str | None = None,
-    sort_by: str = "dt",
-    sort_order: str = "desc",
+    sort_by: TransactionSortField = "dt",
+    sort_order: SortOrder = "desc",
     limit: int = 15,
     offset: int = 0,
     extra_conditions: Sequence[ColumnElement[bool]] = (),
@@ -79,19 +79,15 @@ async def list_transaction_responses(
         sources, and account/base-currency converted amounts
 
     Raises:
-        HTTPException: Raised with 422 for invalid sort fields, sort order, date
-            range, tag match mode, or an amount range missing its currency
+        HTTPException: Raised with 422 for a reversed date or amount range, or an amount range
+            missing its currency
     """
     validate_transaction_listing_filters(
-        tag_ids=tag_ids,
-        tag_match=tag_match,
         min_amount=min_amount,
         max_amount=max_amount,
         amount_currency=amount_currency,
         from_date=from_date,
         to_date=to_date,
-        sort_by=sort_by,
-        sort_order=sort_order,
     )
 
     transaction_query = build_transaction_listing_query(

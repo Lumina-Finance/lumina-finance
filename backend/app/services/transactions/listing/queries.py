@@ -3,6 +3,7 @@
 import uuid
 from collections.abc import Sequence
 from datetime import date
+from typing import Literal
 
 import sqlalchemy as sa
 from sqlalchemy import ColumnElement, select
@@ -15,8 +16,14 @@ from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
 
+# The values a request may name for the order of the list and how its tags are matched. The routes take
+# them as they are, so the API description states them
+TransactionSortField = Literal["dt", "amount", "created_at", "updated_at"]
+SortOrder = Literal["asc", "desc"]
+TagMatch = Literal["all", "any"]
+
 # Sortable fields mapped to their SQLAlchemy column objects
-_SORT_FIELDS: dict[str, MappedColumn] = {
+_SORT_FIELDS: dict[TransactionSortField, MappedColumn] = {
     "dt": Transaction.dt,
     "amount": Transaction.amount,
     "created_at": Transaction.created_at,
@@ -32,18 +39,6 @@ _FILTER_FIELDS: dict[str, MappedColumn] = {
 }
 
 
-def is_valid_transaction_listing_sort_field(sort_by: str) -> bool:
-    """Return whether a transaction list sort field is supported
-
-    Args:
-        sort_by: Requested transaction list sort field
-
-    Returns:
-        True when the sort field can be used by the listing query
-    """
-    return sort_by in _SORT_FIELDS
-
-
 def build_transaction_listing_query(
     *,
     user_id: uuid.UUID,
@@ -52,15 +47,15 @@ def build_transaction_listing_query(
     merchant_ids: list[uuid.UUID] | None,
     currencies: list[str] | None,
     tag_ids: list[uuid.UUID] | None,
-    tag_match: str,
+    tag_match: TagMatch,
     min_amount: int | None,
     max_amount: int | None,
     amount_currency: str | None,
     from_date: date | None,
     to_date: date | None,
     search_text: str | None,
-    sort_by: str,
-    sort_order: str,
+    sort_by: TransactionSortField,
+    sort_order: SortOrder,
     limit: int | None,
     offset: int | None,
     extra_conditions: Sequence[ColumnElement[bool]] = (),
@@ -157,7 +152,7 @@ def build_transaction_listing_query(
     return transaction_query
 
 
-def _has_tags(tag_ids: list[uuid.UUID], tag_match: str) -> ColumnElement[bool]:
+def _has_tags(tag_ids: list[uuid.UUID], tag_match: TagMatch) -> ColumnElement[bool]:
     """Build the condition a transaction meets when it carries the selected tags
 
     The tag links are looked up by each transaction's own id, so their read rule is checked only for
@@ -229,7 +224,7 @@ def _nearest_amount_order(nearest_amount: tuple[int, str] | None):
     )
 
 
-def _date_sort_order(sort_order: str, tag_names):
+def _date_sort_order(sort_order: SortOrder, tag_names):
     """Build deterministic ordering for default date sorting
 
     Args:

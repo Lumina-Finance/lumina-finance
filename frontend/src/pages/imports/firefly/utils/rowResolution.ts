@@ -11,13 +11,12 @@ import type {
 } from '@/pages/imports/types'
 import {
   buildPreviewCategory,
-  MAX_IMPORT_MINOR_UNITS,
   type PreviewAccount,
   resolvePreviewAccount,
   toImportMinorUnits,
 } from '@/pages/imports/utils'
 import { findReusedImportCategory } from '@/pages/imports/utils/categoryMatching'
-import { findCurrencyExponent } from '@/utils/moneyInput'
+import { findCurrencyExponent, MAX_MINOR_UNITS } from '@/utils/moneyInput'
 import {
   FIREFLY_BALANCE_ROW_UNATTACHED_REASON,
   FIREFLY_DEPOSIT_DESTINATION_UNTRACKED_REASON,
@@ -302,7 +301,7 @@ function getFireflyAmountInAccountCurrency(row: CsvRow, accountCurrency: string,
   // one the column cannot take. Such a row is left out, since its unsigned amount would be past
   // what the endpoint stores
   const absoluteMinorUnits = minorUnits < 0n ? -minorUnits : minorUnits
-  if (absoluteMinorUnits > MAX_IMPORT_MINOR_UNITS) throw new FireflyRowSkipError(`Amount is too large: "${rawAmount}"`)
+  if (absoluteMinorUnits > MAX_MINOR_UNITS) throw new FireflyRowSkipError(`Amount is too large: "${rawAmount}"`)
 
   return Number(absoluteMinorUnits)
 }

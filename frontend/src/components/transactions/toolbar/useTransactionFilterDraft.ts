@@ -13,6 +13,7 @@ import { getCurrencyExponent } from '@/utils/moneyInput'
 import {
   buildAmountFilterPatch,
   findAmountRangeDraft,
+  findTooLargeAmountBounds,
   isAmountRangeCrossed,
   isAmountRangeLocked,
   isAppliedRangeWaitingOnCurrency,
@@ -27,6 +28,9 @@ import type { TransactionFilterSetter } from '@/components/transactions/toolbar/
 
 /** What the panel says, and Apply gives as its reason, while the minimum is above the maximum */
 export const CROSSED_AMOUNT_RANGE_MESSAGE = 'Enter a minimum at or below the maximum'
+
+/** What the panel says, and Apply gives as its reason, while a bound is more than the filter can send */
+export const AMOUNT_TOO_LARGE_MESSAGE = 'Enter a smaller amount'
 
 /** What the panel says, and Apply gives as its reason, while the From date is after the To date */
 export const CROSSED_DATE_RANGE_MESSAGE = "From can't be after To"
@@ -149,7 +153,21 @@ export function useTransactionFilterDraft({
   // while an applied bound is waiting for that currency to arrive, which is the one case where
   // changing it would leave the applied bounds counted in a currency nothing on screen names
   const isAmountCurrencyLocked = isAppliedRangeWaitingOnCurrency(filters, currencies)
-  const hasCrossedAmountBounds = isAmountRangeCrossed(amount, amountExponent)
+  const tooLargeAmountBounds = findTooLargeAmountBounds(amount, amountExponent)
+  const hasTooLargeAmountBound = tooLargeAmountBounds.min || tooLargeAmountBounds.max
+
+  // Comparing two bounds says nothing while one of them is an amount the filter cannot send, and the
+  // message for that bound is the one to act on first
+  const hasCrossedAmountBounds = !hasTooLargeAmountBound && isAmountRangeCrossed(amount, amountExponent)
+  const amountError = hasTooLargeAmountBound
+    ? AMOUNT_TOO_LARGE_MESSAGE
+    : hasCrossedAmountBounds
+      ? CROSSED_AMOUNT_RANGE_MESSAGE
+      : null
+  const invalidAmountBounds = {
+    min: tooLargeAmountBounds.min || hasCrossedAmountBounds,
+    max: tooLargeAmountBounds.max || hasCrossedAmountBounds,
+  }
   const amountCurrencyNote = currencyLocked
     ? `Amounts are matched in ${amountCurrency}, this account's currency`
     : selections.currency[0]
@@ -165,13 +183,12 @@ export function useTransactionFilterDraft({
 
   // Either range excluding itself blocks the whole commit, since no transaction can satisfy it and
   // applying it would close the panel on an empty list
-  const isApplyBlocked = hasCrossedAmountBounds || hasCrossedDateRange || dateWindowError !== null
+  const isApplyBlocked = amountError !== null || hasCrossedDateRange || dateWindowError !== null
 
   // The first reason, when several hold. The amount message sits in the panel's own line and the
   // date messages on the date fields' labels, so each shows where it applies
-  const applyBlockedReason = hasCrossedAmountBounds
-    ? CROSSED_AMOUNT_RANGE_MESSAGE
-    : (dateWindowError ?? (hasCrossedDateRange ? CROSSED_DATE_RANGE_MESSAGE : undefined))
+  const applyBlockedReason =
+    amountError ?? dateWindowError ?? (hasCrossedDateRange ? CROSSED_DATE_RANGE_MESSAGE : undefined)
 
   /**
    * Counts the live selections on a facet so its tab can show a badge and the pill can show a total
@@ -321,7 +338,8 @@ export function useTransactionFilterDraft({
     isAmountLocked,
     isAmountCurrencyLocked,
     currencyListState,
-    hasCrossedAmountBounds,
+    amountError,
+    invalidAmountBounds,
     hasCrossedDateRange,
     dateWindowErrors,
     isApplyBlocked,

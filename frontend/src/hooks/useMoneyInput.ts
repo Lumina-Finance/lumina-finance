@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ChangeEvent } from 'react'
-import { normalizeMoneyInput, readMoneyInputChange } from '@/utils/moneyInput'
+import { readMoneyInputChange, settleMoneyInput } from '@/utils/moneyInput'
 
 /**
  * Wires a text input to a money value, so an editable amount always reads and writes the one
@@ -10,6 +10,8 @@ import { normalizeMoneyInput, readMoneyInputChange } from '@/utils/moneyInput'
  * @param onChange - Receives the money value, and the raw text for a caller that reads something
  * else out of it such as a typed sign
  * @param onBlur - The caller's own blur handling, typically validation
+ * @param settleCeiling - The largest whole number of minor units settled on blur. An amount past it is
+ * left as typed, for a caller that refuses such an amount on the field
  * @returns Props to put on the input
  */
 export function useMoneyInput({
@@ -17,11 +19,13 @@ export function useMoneyInput({
   exponent,
   onChange,
   onBlur,
+  settleCeiling,
 }: {
   value: string
   exponent: number
   onChange: (value: string, typed?: string) => void
   onBlur?: () => void
+  settleCeiling?: bigint
 }) {
   const previousExponentRef = useRef(exponent)
 
@@ -31,9 +35,9 @@ export function useMoneyInput({
     if (previousExponentRef.current === exponent) return
     previousExponentRef.current = exponent
 
-    const settled = normalizeMoneyInput(value, exponent)
+    const settled = settleMoneyInput(value, exponent, settleCeiling)
     if (settled !== value) onChange(settled)
-  }, [exponent, value, onChange])
+  }, [exponent, value, onChange, settleCeiling])
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const typed = event.target.value
@@ -41,7 +45,7 @@ export function useMoneyInput({
   }
 
   const handleBlur = () => {
-    const settled = normalizeMoneyInput(value, exponent)
+    const settled = settleMoneyInput(value, exponent, settleCeiling)
     if (settled !== value) onChange(settled)
     onBlur?.()
   }

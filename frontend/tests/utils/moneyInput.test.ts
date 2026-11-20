@@ -15,9 +15,12 @@ import {
   getMoneyPlaceholder,
   holdsMinus,
   isAcceptedMoneyInput,
+  isMinorUnitsAbove,
   isValidMoneyInput,
+  MAX_MINOR_UNITS,
   normalizeMoneyInput,
   readMoneyInputChange,
+  settleMoneyInput,
   toMinorUnits,
 } from '@/utils/moneyInput'
 import { currencyExponents, nonNegativeMinorUnits } from '@tests/utils/generators'
@@ -174,6 +177,70 @@ describe('converting to and from stored minor units', () => {
     expect(normalizeMoneyInput('.99', CENTS)).toBe('0.99')
     expect(normalizeMoneyInput('007', CENTS)).toBe('7.00')
     expect(normalizeMoneyInput('', CENTS)).toBe('')
+  })
+
+  it('leaves an amount past the ceiling as typed when the field is left, rather than rounding it', () => {
+    const ceiling = 10n ** 15n - 1n
+
+    expect(settleMoneyInput('10000000000000.00', CENTS, ceiling)).toBe('10000000000000.00')
+    expect(settleMoneyInput('10000000000000000000', CENTS, ceiling)).toBe('10000000000000000000')
+    expect(settleMoneyInput('1'.repeat(400), WHOLE_UNITS, ceiling)).toBe('1'.repeat(400))
+    expect(settleMoneyInput('9999999999999.9', CENTS, ceiling)).toBe('9999999999999.90')
+    expect(settleMoneyInput('1.005', CENTS, ceiling)).toBe('1.01')
+  })
+
+  it('settles every amount as before when no ceiling is given', () => {
+    expect(settleMoneyInput('1234.5', CENTS)).toBe('1234.50')
+    expect(settleMoneyInput('10000000000000000000', CENTS)).toBe(normalizeMoneyInput('10000000000000000000', CENTS))
+    expect(settleMoneyInput('', CENTS)).toBe('')
+  })
+
+  it('settles an amount at or under the ceiling and leaves one over it, whatever the decimal places', () => {
+    const ceiling = 10n ** 15n - 1n
+
+    fc.assert(
+      fc.property(
+        fc.oneof(fc.bigInt({ min: ceiling - 20n, max: ceiling + 20n }), fc.bigInt({ min: 0n, max: 2n ** 70n })),
+        currencyExponents,
+        (minorUnits, exponent) => {
+          const digits = minorUnits.toString().padStart(exponent + 1, '0')
+          const typed = exponent === 0 ? digits : `${digits.slice(0, -exponent)}.${digits.slice(-exponent)}`
+
+          expect(settleMoneyInput(typed, exponent, ceiling)).toBe(
+            minorUnits > ceiling ? typed : normalizeMoneyInput(typed, exponent),
+          )
+        },
+      ),
+    )
+  })
+
+  it('says an amount is past a ceiling exactly when its minor units are, whatever the decimal places', () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(
+          fc.bigInt({ min: MAX_MINOR_UNITS - 20n, max: MAX_MINOR_UNITS + 20n }),
+          fc.bigInt({ min: 0n, max: 2n ** 90n }),
+        ),
+        currencyExponents,
+        (minorUnits, exponent) => {
+          const digits = minorUnits.toString().padStart(exponent + 1, '0')
+          const typed = exponent === 0 ? digits : `${digits.slice(0, -exponent)}.${digits.slice(-exponent)}`
+
+          expect(isMinorUnitsAbove(typed, exponent, MAX_MINOR_UNITS)).toBe(minorUnits > MAX_MINOR_UNITS)
+        },
+      ),
+    )
+  })
+
+  it('says an amount is past a ceiling only by comparing its digits, at the ceiling and one over', () => {
+    expect(isMinorUnitsAbove('92233720368547758.07', CENTS, MAX_MINOR_UNITS)).toBe(false)
+    expect(isMinorUnitsAbove('92233720368547758.08', CENTS, MAX_MINOR_UNITS)).toBe(true)
+    expect(isMinorUnitsAbove('9223372036854775807', WHOLE_UNITS, MAX_MINOR_UNITS)).toBe(false)
+    expect(isMinorUnitsAbove('9223372036854775808', WHOLE_UNITS, MAX_MINOR_UNITS)).toBe(true)
+    expect(isMinorUnitsAbove('9'.repeat(400), CENTS, MAX_MINOR_UNITS)).toBe(true)
+    expect(isMinorUnitsAbove('', CENTS, MAX_MINOR_UNITS)).toBe(false)
+    expect(isMinorUnitsAbove('.', CENTS, MAX_MINOR_UNITS)).toBe(false)
+    expect(isMinorUnitsAbove('12abc', CENTS, MAX_MINOR_UNITS)).toBe(false)
   })
 
   it('shows a large stored amount with every digit, so settling it saves the same amount', () => {

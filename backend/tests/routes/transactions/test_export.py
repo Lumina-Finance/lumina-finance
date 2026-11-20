@@ -186,7 +186,6 @@ async def test_export_transactions_with_reversed_dates_returns_422(client):
 @pytest.mark.parametrize(
     ("query", "reason"),
     [
-        ("tag_id=11111111-1111-4111-8111-111111111111&tag_match=some", "Tag match must be 'all' or 'any'"),
         ("min_amount=100", "Amount currency is required when filtering by amount"),
         ("min_amount=500&max_amount=100&amount_currency=CAD", "Minimum amount must not exceed maximum amount"),
     ],

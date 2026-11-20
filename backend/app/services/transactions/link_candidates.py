@@ -18,6 +18,7 @@ from app.schemas.transaction import TransactionResponse
 from app.services.transactions.accounts import get_parent_account_for_transaction
 from app.services.transactions.links import get_refunded_amounts
 from app.services.transactions.listing import list_transaction_responses
+from app.services.transactions.listing.queries import TagMatch
 
 # Enough to scroll, and a search or the filters narrow the rest
 _CANDIDATE_LIMIT = 30
@@ -32,7 +33,7 @@ class CandidateFilters:
     merchant_ids: list[uuid.UUID] | None = None
     currencies: list[str] | None = None
     tag_ids: list[uuid.UUID] | None = None
-    tag_match: str = "all"
+    tag_match: TagMatch = "all"
     min_amount: int | None = None
     max_amount: int | None = None
     amount_currency: str | None = None
