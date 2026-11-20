@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-query'
 import { SESSION_KEY } from '@/api/auth/session'
 import type { AuthResponse } from '@/api/auth/types'
+import { getCheckRecord, setCheckRecord, subscribeToCheckRecord, type SavedCheck } from '@/api/cache/cacheCheck'
 import { authKeys, twoFactorKeys } from '@/api/cache/queryKeys'
 import { importSavedCopyKey, openSavedCopy, sealSavedCopy, type SealedCopy } from '@/api/cache/savedCopyCipher'
 import { hasUncacheableFxStatus } from '@/api/shared/fxCache'
@@ -47,14 +48,19 @@ const PERSISTED_CACHE_SHAPE = '9'
  * a load needs to decide whether to open it
  *
  * The user id is already in plain text in the session flag. Nothing of the user's data is outside
- * the ciphertext
+ * the ciphertext, the last check's answer included. `observedAt` is the one time of it outside, so
+ * another tab hearing of a write can tell from the header alone whether a check found a difference
  */
 type SavedEntry = SealedCopy & {
   shape: string
   userId: string
   keyNumber: number
   savedAt: number
+  observedAt?: number
 }
+
+// What the sealed text holds beside the dehydrated queries
+type SavedState = DehydratedState & { check?: SavedCheck | null }
 
 /** The key a signed-in tab seals its saved copy with, held in memory only */
 type SessionKey = {
@@ -154,6 +160,7 @@ export function dropSavedCopyKey() {
  */
 export function discardSavedCopy() {
   dropSavedCopyKey()
+  setCheckRecord(null, { notify: false })
   removeStoredValue(QUERY_CACHE_STORAGE_KEY)
 }
 
@@ -172,6 +179,7 @@ function isSavedEntry(value: unknown): value is SavedEntry {
     typeof entry.userId === 'string' &&
     typeof entry.keyNumber === 'number' &&
     typeof entry.savedAt === 'number' &&
+    (entry.observedAt === undefined || typeof entry.observedAt === 'number') &&
     typeof entry.nonce === 'string' &&
     typeof entry.ciphertext === 'string'
   )
@@ -185,6 +193,32 @@ function parseSavedEntry(stored: string): SavedEntry | null {
   } catch {
     return null
   }
+}
+
+/**
+ * When the last check found a difference, as the stored entry in `stored` records, or null for no
+ * entry, one that isn't readable or one saved before any check answered
+ *
+ * Another tab reads it from a storage event to tell a write that records a new observation from one
+ * that only saves more answers
+ */
+export function readEntryObservedAt(stored: string | null) {
+  if (stored === null) return null
+  return parseSavedEntry(stored)?.observedAt ?? null
+}
+
+function isSavedCheck(value: unknown): value is SavedCheck {
+  if (typeof value !== 'object' || value === null) return false
+  const { answer, ratesDigest } = value as Record<string, unknown>
+  if (typeof answer !== 'object' || answer === null) return false
+  const fields = answer as Record<string, unknown>
+  return (
+    (fields.personalChangedAt === null || typeof fields.personalChangedAt === 'string') &&
+    (fields.sharedChangedAt === null || typeof fields.sharedChangedAt === 'string') &&
+    typeof fields.calculationDateToken === 'string' &&
+    typeof fields.serverVersion === 'string' &&
+    (ratesDigest === null || typeof ratesDigest === 'string')
+  )
 }
 
 /**
@@ -219,7 +253,14 @@ export async function restoreSavedQueryCache(queryClient: QueryClient, userId: s
   }
 
   try {
-    hydrate(queryClient, JSON.parse(await openSavedCopy(await key.key, entry)) as DehydratedState)
+    const state = JSON.parse(await openSavedCopy(await key.key, entry)) as SavedState
+    hydrate(queryClient, state)
+
+    // The record is the entry's alone, so one without both its parts is none, and the first check
+    // after it fetches everything again
+    if (isSavedCheck(state.check) && entry.observedAt !== undefined) {
+      setCheckRecord({ ...state.check, observedAt: entry.observedAt }, { notify: false })
+    }
   } catch {
     // Another tab may have saved its own copy while this one was opened, and that one stays
     if (readStoredValue(QUERY_CACHE_STORAGE_KEY) === stored) removeStoredValue(QUERY_CACHE_STORAGE_KEY)
@@ -282,11 +323,20 @@ async function saveQueryCache(queryClient: QueryClient) {
   const changes = changeCount
   const savedAt = Date.now()
   lastSavedAt = savedAt
-  const state = JSON.stringify(dehydrate(queryClient, dehydrateOptions))
+  const record = getCheckRecord()
+  const check: SavedCheck | null = record && { answer: record.answer, ratesDigest: record.ratesDigest }
+  const state = JSON.stringify({ ...dehydrate(queryClient, dehydrateOptions), check } satisfies SavedState)
   try {
     const sealed = await sealSavedCopy(await key.key, state)
     writeSavedCopy(
-      { shape: PERSISTED_CACHE_SHAPE, userId, keyNumber: key.number, savedAt, ...sealed },
+      {
+        shape: PERSISTED_CACHE_SHAPE,
+        userId,
+        keyNumber: key.number,
+        savedAt,
+        ...(record && { observedAt: record.observedAt }),
+        ...sealed,
+      },
       sequence,
       changes,
       key,
@@ -337,6 +387,11 @@ export function startSavingQueryCache(queryClient: QueryClient) {
     changeCount += 1
     scheduleTimedSave()
   })
+  // A new check record is saved like any change, so a reload or another tab finds what this one last saw
+  const unsubscribeRecord = subscribeToCheckRecord(() => {
+    changeCount += 1
+    scheduleTimedSave()
+  })
   const onPageHide = () => {
     if (sessionKey !== null && tabUserId !== null && changeCount !== savedChangeCount) {
       staleBelowChanges = changeCount
@@ -351,6 +406,7 @@ export function startSavingQueryCache(queryClient: QueryClient) {
 
   return () => {
     unsubscribe()
+    unsubscribeRecord()
     if (timer !== null) clearTimeout(timer)
     window.removeEventListener('pagehide', onPageHide)
     document.removeEventListener('visibilitychange', onVisibilityChange)

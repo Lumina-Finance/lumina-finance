@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
+import { setCheckRecord } from '@/api/cache/cacheCheck'
 import { currencyKeys } from '@/api/cache/queryKeys'
 
 /**
@@ -10,4 +11,5 @@ export function clearUserScopedCache(queryClient: QueryClient): void {
   const currencies = queryClient.getQueryCache().find({ queryKey: currencyKeys.list(), exact: true })
   queryClient.removeQueries({ predicate: (query) => query !== currencies })
   queryClient.getMutationCache().clear()
+  setCheckRecord(null, { notify: false })
 }

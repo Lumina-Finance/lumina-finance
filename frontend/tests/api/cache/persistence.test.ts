@@ -16,13 +16,16 @@ import {
   discardSavedCopy,
   dropSavedCopyKey,
   QUERY_CACHE_STORAGE_KEY,
+  readEntryObservedAt,
   removeUnreadableSavedCopy,
   restoreSavedQueryCache,
   setQueryCacheUser,
   startSavingQueryCache,
   takeSavedCopyKey,
 } from '@/api/cache/persistence'
+import { getCheckRecord, setCheckRecord } from '@/api/cache/cacheCheck'
 import { authKeys, twoFactorKeys } from '@/api/cache/queryKeys'
+import { clearUserScopedCache } from '@/api/cache/session'
 import { importSavedCopyKey, openSavedCopy, sealSavedCopy } from '@/api/cache/savedCopyCipher'
 import type { TotpSetupResponse } from '@/api/two-factor'
 import { changePassword, type ChangePasswordPayload } from '@/api/user'
@@ -836,4 +839,120 @@ describe('removing a copy in the old form as the app starts', () => {
     removeUnreadableSavedCopy()
     expect(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBe(entry)
   })
+})
+
+describe('what the saved copy keeps of the last check', () => {
+  const RECORD = {
+    answer: {
+      personalChangedAt: '2026-05-01T10:00:00.000Z',
+      sharedChangedAt: null,
+      calculationDateToken: 'secret-date-token',
+      serverVersion: '1.2.3',
+    },
+    observedAt: 1_700_000_000_000,
+    ratesDigest: 'secret-rates-digest',
+  }
+
+  it('keeps the answer only inside the ciphertext, the time beside it, and gives both back to a reload', async () => {
+    const saving = loadPage({ [SESSION_KEY]: USER_A })
+    saving.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
+    setCheckRecord(RECORD)
+    await runTimedSave()
+
+    const storedText = saving.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)!
+    expect(storedText).not.toContain('secret-date-token')
+    expect(storedText).not.toContain('secret-rates-digest')
+    expect(readStoredEntry(saving)).toMatchObject({ observedAt: RECORD.observedAt })
+    expect(readEntryObservedAt(storedText)).toBe(RECORD.observedAt)
+
+    setCheckRecord(null, { notify: false })
+    const reloaded = loadPage(Object.fromEntries(saving.localStorage.items))
+    await reloaded.restore()
+
+    expect(getCheckRecord()).toEqual(RECORD)
+    expect(reloaded.client.getQueryData(['accounts'])).toEqual([{ id: 'first-user-account' }])
+  })
+
+  it('writes the entry again when the record changes with no query changed, which tells the other tabs', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.client.setQueryData(['accounts'], [])
+    await runTimedSave()
+    expect(readEntryObservedAt(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY))).toBeNull()
+
+    setCheckRecord(RECORD)
+    await runTimedSave()
+    expect(readEntryObservedAt(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY))).toBe(RECORD.observedAt)
+
+    setCheckRecord({ ...RECORD, observedAt: RECORD.observedAt + 1 })
+    await runTimedSave()
+    expect(readEntryObservedAt(page.localStorage.getItem(QUERY_CACHE_STORAGE_KEY))).toBe(RECORD.observedAt + 1)
+  })
+
+  it('restores an entry that holds no record, such as one an older version saved, with none', async () => {
+    const stored = await savedCopyOf()
+
+    const reloaded = loadPage(stored)
+    await reloaded.restore()
+
+    expect(reloaded.client.getQueryData(['accounts'])).toEqual([{ id: 'first-user-account' }])
+    expect(getCheckRecord()).toBeNull()
+  })
+
+  it('forgets the record with the saved copy', () => {
+    loadPage({ [SESSION_KEY]: USER_A })
+    setCheckRecord(RECORD)
+
+    discardSavedCopy()
+
+    expect(getCheckRecord()).toBeNull()
+  })
+
+  it('forgets the record when a new session starts, so the next user is not matched against the last', () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    setCheckRecord(RECORD)
+
+    clearUserScopedCache(page.client)
+
+    expect(getCheckRecord()).toBeNull()
+  })
+
+  it.each([
+    ['a check with no time beside it', (check: unknown) => ({ check, observedAt: undefined })],
+    ['a time with no check beside it', () => ({ check: null, observedAt: RECORD.observedAt })],
+    [
+      'a check with a field of the wrong kind',
+      (check: Record<string, unknown>) => ({
+        check: { ...check, answer: { ...(check.answer as object), serverVersion: 3 } },
+        observedAt: RECORD.observedAt,
+      }),
+    ],
+  ])(
+    'restores the answers but no record from an entry with %s, so the first check fetches everything',
+    async (_name, build) => {
+      const session = savedCopySession()
+      const { check, observedAt } = build({ answer: RECORD.answer, ratesDigest: RECORD.ratesDigest } as never)
+      const sealed = await sealSavedCopy(
+        await importSavedCopyKey(session.saved_copy_key!),
+        JSON.stringify({
+          queries: [{ queryKey: ['accounts'], queryHash: '["accounts"]', state: { data: [{ id: 'kept' }] } }],
+          mutations: [],
+          check,
+        }),
+      )
+      const entry = {
+        shape: '9',
+        userId: USER_A,
+        keyNumber: 0,
+        savedAt: Date.now(),
+        ...(observedAt === undefined ? {} : { observedAt }),
+        ...sealed,
+      }
+
+      const reloaded = loadPage({ [SESSION_KEY]: USER_A, [QUERY_CACHE_STORAGE_KEY]: JSON.stringify(entry) })
+      await reloaded.restore()
+
+      expect(reloaded.client.getQueryData(['accounts'])).toEqual([{ id: 'kept' }])
+      expect(getCheckRecord()).toBeNull()
+    },
+  )
 })

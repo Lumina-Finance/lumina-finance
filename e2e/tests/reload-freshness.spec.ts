@@ -143,6 +143,18 @@ test('signs a tab out when its renewal returns a user signed in since in another
   await openPage(page, '/transactions')
   await expect(page.getByTestId(`transaction-row-${firstRow}`)).toBeVisible()
 
+  // The first tab's session ends when the second user signs in, so its next request is refused and it
+  // renews through the shared cookie. Another tab's save already makes it ask the change check, so
+  // that request can come at any point after the second sign-in, and the listeners go up before it.
+  // A renewal between the log out and the sign-in finds no cookie and carries no token, so only the
+  // one that does counts
+  const renewed = page.waitForResponse(async (response) =>
+    response.url() === `${API_BASE_URL}/auth/refresh` && response.ok() && 'access_token' in await response.json())
+  const sentWith: string[] = []
+  page.on('request', (sent) => {
+    if (sent.url().startsWith(API_BASE_URL)) sentWith.push(sent.headers()['authorization'] ?? '')
+  })
+
   // The second user signs in in another tab, which then saves its copy
   const other = await context.newPage()
   await openPage(other, '/transactions')
@@ -157,25 +169,6 @@ test('signs a tab out when its renewal returns a user signed in since in another
   const flagBySecond = await readFlag()
   expect(flagBySecond).not.toBeNull()
 
-  // The first tab's next request is refused as expired, so it renews through the shared cookie
-  const renewed = page.waitForResponse(`${API_BASE_URL}/auth/refresh`)
-  const isSearch = (url: URL) => url.href.startsWith(`${API_BASE_URL}/transactions`) && url.search.includes('offee')
-  await page.route(isSearch, (route) => route.fulfill({
-    status: 401,
-    headers: {
-      'Access-Control-Allow-Origin': route.request().headers()['origin'],
-      'Access-Control-Allow-Credentials': 'true',
-      'Access-Control-Expose-Headers': 'WWW-Authenticate',
-      'WWW-Authenticate': 'Bearer',
-    },
-    contentType: 'application/json',
-    body: JSON.stringify({ detail: 'Token is not active' }),
-  }), { times: 1 })
-  const sentWith: string[] = []
-  page.on('request', (sent) => {
-    if (sent.url().startsWith(API_BASE_URL)) sentWith.push(sent.headers()['authorization'] ?? '')
-  })
-  await page.getByPlaceholder('Search transactions...', { exact: true }).fill('offee')
   const secondToken = (await (await renewed).json() as { access_token: string }).access_token
   expect(secondToken).toEqual(expect.any(String))
 
@@ -375,4 +368,126 @@ test('settles the restore when the renewal lost a rotation to another tab', asyn
 
   await expect(page.getByRole('status', { name: /^Loading/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+})
+
+// What a load that finds nothing changed may still ask for: the session renewal, the two checks and
+// the answers no check covers (they fetch as before). Bank sync data is among them, since a screen
+// reads it again whenever it mounts
+const ALLOWED_ON_UNCHANGED_OPEN = new Set([
+  '/auth/refresh',
+  '/me/cache-status',
+  '/me/rates-status',
+  '/version',
+  '/currencies',
+  '/bank-sync/links',
+  '/bank-sync/providers',
+  '/bank-review/items',
+  '/bank-review/backlogs',
+  '/bank-sync/holds',
+  '/bank-sync/pending',
+])
+
+/** The path of an API request below the API's own prefix, such as `/me/cache-status` for `/api/me/cache-status` */
+function apiPath(url: string) {
+  const prefix = new URL(API_BASE_URL).pathname.replace(/\/+$/, '')
+  return new URL(url).pathname.slice(prefix.length)
+}
+
+/**
+ * Wait until the first check of the session and the rates check after it have been recorded and the
+ * refetch they start has finished, and the saved copy holds both
+ *
+ * Hiding the page saves only what changed since the last save, so the wait is for the copy's text to
+ * hold the rates digest rather than for a new save
+ */
+async function waitForRecordedCheck(page: Page) {
+  await page.waitForLoadState('networkidle')
+  await setVisibility(page, 'hidden')
+  await expect.poll(async () => (await readSavedCache(page))?.entry.observedAt).toEqual(expect.any(Number))
+  await expect.poll(async () => (await readSavedCache(page))?.text ?? '').toContain('"ratesDigest":"')
+  await setVisibility(page, 'visible')
+}
+
+// Opening with a restored copy asks the server's change check before any screen shows, and when it
+// finds nothing different and the copy's last difference is under 30 days old, the restored answers
+// are used as they are. The exchange-rate check follows without holding the screen back
+test('requests no data beyond the checks when nothing changed since the saved copy', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Unchanged Savings' })
+  const row = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000 })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(`transaction-row-${row}`)).toBeVisible()
+  await waitForSavedCache(page, [row])
+  await waitForRecordedCheck(page)
+
+  const sent: string[] = []
+  page.on('request', (event) => {
+    if (event.url().startsWith(API_BASE_URL)) sent.push(apiPath(event.url()))
+  })
+  const ratesAnswered = page.waitForResponse((response) => response.url() === `${API_BASE_URL}/me/rates-status`)
+
+  // Ten minutes on, so every restored answer is older than its five minutes and only the check's
+  // answer keeps it from being fetched again
+  await page.clock.setFixedTime(Date.now() + 10 * 60_000)
+  await page.goto('/transactions')
+  await waitForPageReady(page)
+  await expect(page.getByTestId(`transaction-row-${row}`)).toBeVisible()
+
+  // The rate check's answer is the last one that can start a fetch, so the fence follows it
+  await ratesAnswered
+  const fence = '/version'
+  await page.evaluate((url) => fetch(url), `${API_BASE_URL}${fence}`)
+  const beforeFence = sent.slice(0, sent.lastIndexOf(fence))
+  expect(beforeFence).toContain('/me/cache-status')
+  expect(beforeFence).toContain('/me/rates-status')
+  expect(beforeFence.filter((path) => !ALLOWED_ON_UNCHANGED_OPEN.has(path))).toEqual([])
+})
+
+test('fetches again on opening because the check found a change made through the API since the saved copy', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Changed Savings' })
+  const first = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000 })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(`transaction-row-${first}`)).toBeVisible()
+  await waitForSavedCache(page, [first])
+  await waitForRecordedCheck(page)
+
+  const added = await createTransaction(request, user, { accountId: account.id, categoryName: 'Dining', amount: -700 })
+  const refetched = page.waitForRequest((sent) => {
+    return sent.url().startsWith(API_BASE_URL) && apiPath(sent.url()) === '/transactions'
+  })
+  await page.goto('/transactions')
+  await waitForPageReady(page)
+
+  await refetched
+  await expect(page.getByTestId(`transaction-row-${added}`)).toBeVisible()
+  await expect(page.getByTestId(`transaction-row-${first}`)).toBeVisible()
+})
+
+// Another tab that finds a change records it in the saved entry, and the storage event that write
+// fires makes a tab already open check too, so it shows the change with no reload
+test('shows a change in a tab that stayed open when another tab found it on opening', async ({ page, context, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Two Tab Savings' })
+  const first = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000 })
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(`transaction-row-${first}`)).toBeVisible()
+  await waitForSavedCache(page, [first])
+  await waitForRecordedCheck(page)
+
+  const other = await context.newPage()
+  await openPage(other, '/transactions')
+  await setVisibility(other, 'visible')
+  await expect(other.getByTestId(`transaction-row-${first}`)).toBeVisible()
+  await other.waitForLoadState('networkidle')
+
+  const added = await createTransaction(request, user, { accountId: account.id, categoryName: 'Dining', amount: -700 })
+  await page.goto('/transactions')
+  await waitForPageReady(page)
+  await expect(page.getByTestId(`transaction-row-${added}`)).toBeVisible()
+
+  await expect(other.getByTestId(`transaction-row-${added}`)).toBeVisible()
 })

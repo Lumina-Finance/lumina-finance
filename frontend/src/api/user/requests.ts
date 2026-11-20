@@ -4,6 +4,7 @@ import { fromRunwayResultResponse, fromRunwaySettingsResponse, toRunwaySettingsP
 import type {
   CacheStatus,
   ChangePasswordPayload,
+  RatesStatus,
   RunwayResultResponse,
   RunwaySettingsResponse,
   RunwaySettingsUpdate,
@@ -15,6 +16,13 @@ import type {
  */
 export function fetchCacheStatus() {
   return authenticatedFetch<CacheStatus>('/me/cache-status')
+}
+
+/**
+ * Fetches a digest of the recent exchange rates behind the current user's converted figures
+ */
+export function fetchRatesStatus() {
+  return authenticatedFetch<RatesStatus>('/me/rates-status')
 }
 
 /**

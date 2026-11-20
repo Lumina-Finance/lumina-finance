@@ -37,6 +37,15 @@ export interface CacheStatus {
   next_calculation_boundary_at: string
   personal: CacheScopeStatus
   groups: Record<string, CacheScopeStatus>
+  /** When data every user shares last changed, null until the first change */
+  shared_changed_at: string | null
+  /** The release the server runs */
+  server_version: string
+}
+
+export interface RatesStatus {
+  /** Digest of the recent exchange rates behind the user's converted figures, null when they can't be read now */
+  digest: string | null
 }
 
 export interface RunwayThresholdsResponse {
