@@ -21,7 +21,9 @@ export type {
   SavedInsightsRange,
   SavedInsightsRangeQualifier,
   SavedInsightsRangeUnit,
-} from '@/api/insights/types';
+} from '@/api/insights/types'
+
+export { SAVED_INSIGHTS_RANGES_PAGE_SIZE } from '@/api/insights/types'
 
 export {
   createSavedInsightsRange,
@@ -34,7 +36,7 @@ export {
   fetchInsightsPeriodGlance,
   fetchInsightsSavingsRateTrend,
   fetchSavedInsightsRanges,
-} from '@/api/insights/requests';
+} from '@/api/insights/requests'
 
 export {
   useDeleteSavedInsightsRange,
@@ -47,4 +49,4 @@ export {
   useInsightsSavingsRateTrend,
   useSaveInsightsRange,
   useSavedInsightsRanges,
-} from '@/api/insights/hooks';
+} from '@/api/insights/hooks'

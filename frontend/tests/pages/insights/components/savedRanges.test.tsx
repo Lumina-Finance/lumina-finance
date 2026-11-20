@@ -19,12 +19,15 @@ function savedRange(overrides: Partial<SavedInsightsRange>): SavedInsightsRange 
   }
 }
 
-function drawList(ranges: SavedInsightsRange[]) {
+function drawList(ranges: SavedInsightsRange[], hasMore = false, loadingMore = false) {
   return renderToStaticMarkup(
     <SavedRanges
       savedRanges={ranges}
       savedRangesError={null}
       savedRangesFailed={false}
+      hasMore={hasMore}
+      loadingMore={loadingMore}
+      onLoadMore={() => undefined}
       draftRangeTooLong={false}
       onSaveCurrentRange={async () => undefined}
       onApplySavedRange={() => undefined}
@@ -50,5 +53,17 @@ describe('saved ranges list', () => {
 
   it('leaves the apply button of a range within 20 years available', () => {
     expect(applyButtonOf(drawList([savedRange({})]), 'Long look')).not.toContain('aria-disabled="true"')
+  })
+
+  it('offers Show more only while the server holds ranges beyond the ones listed', () => {
+    expect(drawList([savedRange({})], false)).not.toContain('Show more')
+    expect(drawList([savedRange({})], true)).toContain('Show more')
+  })
+
+  it('holds the Show more button off while the next page is being read', () => {
+    const markup = drawList([savedRange({})], true, true)
+
+    expect(markup).toContain('Loading…')
+    expect(markup).not.toContain('Show more')
   })
 })

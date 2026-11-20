@@ -57,6 +57,11 @@ type InsightsFloatingRangeControlProps = {
 
   savedRangesFailed: boolean
 
+  /** Whether the server holds saved ranges beyond the pages read so far */
+  savedRangesHasMore: boolean
+  savedRangesLoadingMore: boolean
+  onLoadMoreSavedRanges: () => void
+
   onSelectPreset: (value: InsightsRangePreset) => void
   onRevertSelection: () => void
   onDraftAmountChange: (value: number) => void
@@ -96,6 +101,9 @@ function GlassRangeSelector({
   savedRanges,
   savedRangesError,
   savedRangesFailed,
+  savedRangesHasMore,
+  savedRangesLoadingMore,
+  onLoadMoreSavedRanges,
   onSelectPreset,
   onRevertSelection,
   onDraftAmountChange,
@@ -332,6 +340,9 @@ function GlassRangeSelector({
                   savedRanges={savedRanges}
                   savedRangesError={savedRangesError}
                   savedRangesFailed={savedRangesFailed}
+                  hasMore={savedRangesHasMore}
+                  loadingMore={savedRangesLoadingMore}
+                  onLoadMore={onLoadMoreSavedRanges}
                   draftRangeTooLong={draftError !== null}
                   onSaveCurrentRange={handleSaveCurrentRange}
                   onApplySavedRange={handleApplySavedRange}

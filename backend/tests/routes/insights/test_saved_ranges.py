@@ -1,5 +1,8 @@
 """Route tests for insights saved relative ranges."""
 
+import pytest
+
+from app.utils.pagination import LIST_PAGE_SIZE, MAX_LIST_OFFSET
 from tests.routes.support import _create_user, _get_auth_header, sign_up_confirmed
 
 SAVED_RANGE_PAYLOAD = {"name": "Half-year review", "amount": 6, "unit": "month"}
@@ -89,6 +92,46 @@ async def test_list_saved_ranges_returns_newest_first(client):
     assert resp.status_code == 200
     names = [item["name"] for item in resp.json()]
     assert names == ["Yearly", "Weekly"]
+
+
+async def test_list_saved_ranges_without_a_limit_returns_the_newest_fifty(client):
+    """A request that sends no limit gets one page, and the next page holds the older ranges."""
+    headers = _get_auth_header(await _create_user(client))
+    for number in range(LIST_PAGE_SIZE + 2):
+        resp = await client.post(
+            "/insights/saved-ranges",
+            json={"name": f"Range {number:03d}", "amount": 1, "unit": "day"},
+            headers=headers,
+        )
+        assert resp.status_code == 201
+
+    first_page = await client.get("/insights/saved-ranges", headers=headers)
+    rest = await client.get("/insights/saved-ranges", params={"offset": LIST_PAGE_SIZE}, headers=headers)
+
+    assert [item["name"] for item in first_page.json()] == [f"Range {number:03d}" for number in range(LIST_PAGE_SIZE + 1, 1, -1)]
+    assert [item["name"] for item in rest.json()] == ["Range 001", "Range 000"]
+
+
+@pytest.mark.parametrize(
+    "params",
+    [{"limit": 0}, {"limit": LIST_PAGE_SIZE + 1}, {"offset": -1}, {"offset": MAX_LIST_OFFSET + 1}],
+)
+async def test_list_saved_ranges_refuses_paging_outside_its_bounds(client, params):
+    """A limit or offset outside the route's bounds is refused."""
+    headers = _get_auth_header(await _create_user(client))
+
+    resp = await client.get("/insights/saved-ranges", params=params, headers=headers)
+
+    assert resp.status_code == 422
+
+
+async def test_list_saved_ranges_accepts_the_largest_limit_and_offset(client):
+    """The limit and offset bounds are inclusive."""
+    headers = _get_auth_header(await _create_user(client))
+
+    for params in ({"limit": LIST_PAGE_SIZE}, {"offset": MAX_LIST_OFFSET}):
+        resp = await client.get("/insights/saved-ranges", params=params, headers=headers)
+        assert resp.status_code == 200
 
 
 async def test_create_saved_range_rejects_duplicate_name(client):

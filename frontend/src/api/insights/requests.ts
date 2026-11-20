@@ -1,5 +1,6 @@
 import { authenticatedFetch } from '@/api/client'
 import { buildQueryString } from '@/api/utils/queryString'
+import { SAVED_INSIGHTS_RANGES_PAGE_SIZE } from '@/api/insights/types'
 import type {
   InsightsCashFlowResponse,
   InsightsComparisonPeriod,
@@ -126,12 +127,15 @@ export function fetchInsightsMerchants(
 }
 
 /**
- * Fetches the user's saved relative insights ranges, newest first
+ * Fetches one page of the user's saved relative insights ranges, newest first
  *
+ * @param pageSize - How many ranges the page holds. The server returns fifty at most
+ * @param offset - How many of the newest ranges to skip
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchSavedInsightsRanges(signal?: AbortSignal) {
-  return authenticatedFetch<SavedInsightsRange[]>('/insights/saved-ranges', { signal })
+export function fetchSavedInsightsRanges(pageSize = SAVED_INSIGHTS_RANGES_PAGE_SIZE, offset = 0, signal?: AbortSignal) {
+  const query = buildQueryString({ limit: pageSize, offset })
+  return authenticatedFetch<SavedInsightsRange[]>(`/insights/saved-ranges${query}`, { signal })
 }
 
 /**

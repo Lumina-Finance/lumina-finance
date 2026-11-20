@@ -10,8 +10,9 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { useBankProviders } from '@/api/bank-sync'
 import { useCurrencies } from '@/api/currency'
-import { useInstitutions, type Institution } from '@/api/institutions'
+import type { Institution } from '@/api/institutions'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
+import { InstitutionDropdown } from '@/components/institution-dropdown/InstitutionDropdown'
 import InstitutionModal from '@/components/reference-modals/InstitutionModal'
 import { useCreateAccount, type AccountsOverview } from '@/api/accounts'
 import { useAuth } from '@/hooks/useAuth'
@@ -39,7 +40,6 @@ import {
 } from '@/pages/accounts/components/create-account-modal/utils/form'
 import {
   buildCreateAccountCurrencyOptions,
-  buildCreateAccountInstitutionOptions,
   buildCreateAccountTaxPlanOptions,
 } from '@/pages/accounts/components/create-account-modal/utils/options'
 import type { CreateAccountFormField } from '@/pages/accounts/components/create-account-modal/types'
@@ -71,7 +71,6 @@ export default function CreateAccountModal({ open, onClose, onCreated, onExitCom
   // and answered by the time the prompt opens. It holds the deployment's providers, not anyone's bank data
   useBankProviders({ enabled: open })
   const { data: currencies = [] } = useCurrencies()
-  const { data: institutions = [] } = useInstitutions()
   const {
     data: taxAdvantagedCategories = [],
     error: taxAdvantagedCategoriesError,
@@ -92,7 +91,6 @@ export default function CreateAccountModal({ open, onClose, onCreated, onExitCom
     currencies,
   )
   const currencyOptions = useMemo(() => buildCreateAccountCurrencyOptions(currencies), [currencies])
-  const institutionOptions = useMemo(() => buildCreateAccountInstitutionOptions(institutions), [institutions])
   const taxPlanOptions = useMemo(
     () => buildCreateAccountTaxPlanOptions(taxAdvantagedCategories, form.currency),
     [form.currency, taxAdvantagedCategories],
@@ -103,7 +101,7 @@ export default function CreateAccountModal({ open, onClose, onCreated, onExitCom
     setSubmitError('')
   }
 
-  const institutionModal = useInstitutionModal(institutions)
+  const institutionModal = useInstitutionModal()
 
   const handleInstitutionSaved = (institution: Institution) => {
     // A correction leaves the selection where it is, so only a new institution is selected here
@@ -256,19 +254,13 @@ export default function CreateAccountModal({ open, onClose, onCreated, onExitCom
                 >
                   Institution
                 </label>
-                <Dropdown
+                <InstitutionDropdown
                   id={CREATE_ACCOUNT_MODAL_FIELD_IDS.institution}
-                  options={institutionOptions}
                   value={form.institution_id}
                   onChange={(v) => handleChange('institution_id', v)}
                   labelledBy={getFieldLabelId(CREATE_ACCOUNT_MODAL_FIELD_IDS.institution)}
-                  placeholder="Select institution..."
-                  searchable
-                  searchPlaceholder="Search institutions..."
-                  onCreateNew={institutionModal.openForCreate}
-                  createNewLabel={(query) => (query ? `Create institution "${query}"` : 'Create institution')}
-                  onEditOption={institutionModal.openForCorrection}
-                  editOptionLabel="Correct institution"
+                  onCreate={institutionModal.openForCreate}
+                  onCorrect={institutionModal.openForCorrection}
                 />
               </div>
 

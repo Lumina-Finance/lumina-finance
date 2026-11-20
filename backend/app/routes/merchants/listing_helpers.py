@@ -39,7 +39,7 @@ async def get_merchants_for_user(
     user_id: uuid.UUID,
     group_id: uuid.UUID | None,
     search_text: str | None,
-    limit: int | None,
+    limit: int,
     offset: int,
     today: date,
 ) -> Sequence[Merchant]:
@@ -50,7 +50,7 @@ async def get_merchants_for_user(
         user_id: Authenticated user identifier
         group_id: Optional group scope to include with personal merchants
         search_text: Optional name search text
-        limit: Optional maximum number of merchants to return
+        limit: Maximum number of merchants to return
         offset: Number of merchants to skip before returning rows
         today: Current date in the requesting user's timezone, used to age each transaction
 
@@ -128,8 +128,7 @@ async def get_merchants_for_user(
     # identifier settles what name cannot: a personal merchant and a group merchant may share one,
     # and paging over a tie the database breaks differently each time repeats or skips a row
     merchant_query = merchant_query.order_by(decayed_usage_score.desc(), Merchant.name, Merchant.id)
-    if limit is not None:
-        merchant_query = merchant_query.limit(limit).offset(offset)
+    merchant_query = merchant_query.limit(limit).offset(offset)
 
     # Fetch visible merchants for the requested scope, search text, and pagination
     result = await db.execute(merchant_query)

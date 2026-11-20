@@ -24,6 +24,11 @@ type SavedRangesProps = {
 
   savedRangesFailed: boolean
 
+  /** Whether the server holds saved ranges beyond the ones listed */
+  hasMore: boolean
+  loadingMore: boolean
+  onLoadMore: () => void
+
   /** True while the builder's draft covers more than 20 years. Such a draft cannot be saved */
   draftRangeTooLong: boolean
 
@@ -39,6 +44,9 @@ export function SavedRanges({
   savedRanges,
   savedRangesError,
   savedRangesFailed,
+  hasMore,
+  loadingMore,
+  onLoadMore,
   draftRangeTooLong,
   onSaveCurrentRange,
   onApplySavedRange,
@@ -117,7 +125,9 @@ export function SavedRanges({
           says nothing about */}
       {savedRangesFailed && <LoadFailure className="pt-2" error={savedRangesError} subject="Saved ranges" />}
 
-      <ul className={savedRanges.length > 0 ? 'mt-2' : ''}>
+      {/* A page of fifty rows would run the sticky panel past the screen, with Show more out of reach, so
+          the rows scroll in their own box and the button stays under it */}
+      <ul className={`max-h-[12rem] overflow-y-auto ${savedRanges.length > 0 ? 'mt-2' : ''}`}>
         <AnimatePresence initial={false}>
           {savedRanges.map((range) => (
             <motion.li
@@ -154,6 +164,17 @@ export function SavedRanges({
           ))}
         </AnimatePresence>
       </ul>
+
+      {hasMore && (
+        <button
+          type="button"
+          className="app-secondary-button mt-1 w-full text-sm"
+          disabled={loadingMore}
+          onClick={onLoadMore}
+        >
+          {loadingMore ? 'Loading…' : 'Show more'}
+        </button>
+      )}
     </div>
   )
 }

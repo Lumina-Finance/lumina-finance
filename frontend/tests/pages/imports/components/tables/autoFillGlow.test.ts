@@ -5,7 +5,14 @@
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// The institution picker reads the user's session and the query cache. This table-only render has
+// neither, so a stand-in keeps the class the table gives it and nothing else
+vi.mock('@/components/institution-dropdown/InstitutionDropdown', () => ({
+  InstitutionDropdown: ({ className }: { className?: string }) => createElement('span', { className }),
+}))
+
 import { ImportAccountMappingTable } from '@/pages/imports/components/tables/AccountMappingTable'
 import { ImportDirectionValueTable } from '@/pages/imports/components/tables/DirectionValueTable'
 import { ImportHeaderMappingTable } from '@/pages/imports/components/tables/HeaderMappingTable'
@@ -14,86 +21,94 @@ import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 
 /** Renders the column mapping table with its one column matched for the user */
 function renderColumns(disabled: boolean) {
-  return renderToStaticMarkup(createElement(ImportHeaderMappingTable, {
-    headers: ['Notes'],
-    files: [],
-    options: [],
-    autoFilledHeaders: new Set(['Notes']),
-    columnMap: { ...EMPTY_COLUMN_MAP, notes: 'Notes' },
-    validationErrors: {},
-    dateFormat: null,
-    dateFormatAutomatic: true,
-    amountFormat: null,
-    amountFormatAutomatic: true,
-    disabled,
-    onChange: () => undefined,
-    onDateFormatChange: () => undefined,
-    onAmountFormatChange: () => undefined,
-  } as unknown as Parameters<typeof ImportHeaderMappingTable>[0]))
+  return renderToStaticMarkup(
+    createElement(ImportHeaderMappingTable, {
+      headers: ['Notes'],
+      files: [],
+      options: [],
+      autoFilledHeaders: new Set(['Notes']),
+      columnMap: { ...EMPTY_COLUMN_MAP, notes: 'Notes' },
+      validationErrors: {},
+      dateFormat: null,
+      dateFormatAutomatic: true,
+      amountFormat: null,
+      amountFormatAutomatic: true,
+      disabled,
+      onChange: () => undefined,
+      onDateFormatChange: () => undefined,
+      onAmountFormatChange: () => undefined,
+    } as unknown as Parameters<typeof ImportHeaderMappingTable>[0]),
+  )
 }
 
 /** Renders the direction word table with its one word matched for the user */
 function renderDirections(disabled: boolean) {
-  return renderToStaticMarkup(createElement(ImportDirectionValueTable, {
-    values: [{ key: 'debit', label: 'DEBIT' }],
-    answers: { debit: 'out' },
-    autoFilledValues: new Set(['debit']),
-    disabled,
-    onChange: () => undefined,
-  } as unknown as Parameters<typeof ImportDirectionValueTable>[0]))
+  return renderToStaticMarkup(
+    createElement(ImportDirectionValueTable, {
+      values: [{ key: 'debit', label: 'DEBIT' }],
+      answers: { debit: 'out' },
+      autoFilledValues: new Set(['debit']),
+      disabled,
+      onChange: () => undefined,
+    } as unknown as Parameters<typeof ImportDirectionValueTable>[0]),
+  )
 }
 
 /** Renders the category table with one row filled in for the user, in its answer or only its type */
 function renderCategories(disabled: boolean, filled: 'autoFilled' | 'detailAutoFilled' = 'autoFilled') {
-  return renderToStaticMarkup(createElement(ImportValueMatchTable, {
-    sourceLabel: 'Category from export',
-    targetLabel: 'Existing category',
-    rows: [{ id: 'Food', source: 'Food', value: '', [filled]: true, onChange: () => undefined }],
-    options: [],
-    disabled,
-  } as unknown as Parameters<typeof ImportValueMatchTable>[0]))
+  return renderToStaticMarkup(
+    createElement(ImportValueMatchTable, {
+      sourceLabel: 'Category from export',
+      targetLabel: 'Existing category',
+      rows: [{ id: 'Food', source: 'Food', value: '', [filled]: true, onChange: () => undefined }],
+      options: [],
+      disabled,
+    } as unknown as Parameters<typeof ImportValueMatchTable>[0]),
+  )
 }
 
 /** Renders the account table with one row filled in for the user */
 function renderAccounts(disabled: boolean) {
-  return renderToStaticMarkup(createElement(ImportAccountMappingTable, {
-    rows: [{
-      id: 'Checking',
-      source: 'Checking',
-      value: '',
-      autoFilled: true,
-      isCounterpartyOnly: false,
-      isReadOnlyAccount: false,
-      isHandAnswered: false,
-      accountType: '',
-      accountCurrency: '',
-      accountInstitution: '',
-      createType: '',
-      createCurrency: '',
-      createInstitution: '',
-      onChange: () => undefined,
-      onCreateTypeChange: () => undefined,
-      onCreateCurrencyChange: () => undefined,
-      onCreateInstitutionChange: () => undefined,
-    }],
-    options: [],
-    accountTypeOptions: [],
-    currencyOptions: [],
-    institutionOptions: [],
-    disabled,
-    currenciesDisabled: false,
-    institutionsDisabled: false,
-    selectedRowIds: new Set<string>(),
-    batchAccountType: '',
-    batchAccountCurrency: '',
-    batchAccountInstitution: '',
-    onBatchAccountTypeChange: () => undefined,
-    onBatchAccountCurrencyChange: () => undefined,
-    onBatchAccountInstitutionChange: () => undefined,
-    onSelectedRowsChange: () => undefined,
-    onCreateInstitution: () => undefined,
-    onBatchCreateInstitution: () => undefined,
-  } as unknown as Parameters<typeof ImportAccountMappingTable>[0]))
+  return renderToStaticMarkup(
+    createElement(ImportAccountMappingTable, {
+      rows: [
+        {
+          id: 'Checking',
+          source: 'Checking',
+          value: '',
+          autoFilled: true,
+          isCounterpartyOnly: false,
+          isReadOnlyAccount: false,
+          isHandAnswered: false,
+          accountType: '',
+          accountCurrency: '',
+          accountInstitution: '',
+          createType: '',
+          createCurrency: '',
+          createInstitution: '',
+          onChange: () => undefined,
+          onCreateTypeChange: () => undefined,
+          onCreateCurrencyChange: () => undefined,
+          onCreateInstitutionChange: () => undefined,
+        },
+      ],
+      options: [],
+      accountTypeOptions: [],
+      currencyOptions: [],
+      disabled,
+      currenciesDisabled: false,
+      selectedRowIds: new Set<string>(),
+      batchAccountType: '',
+      batchAccountCurrency: '',
+      batchAccountInstitution: '',
+      onBatchAccountTypeChange: () => undefined,
+      onBatchAccountCurrencyChange: () => undefined,
+      onBatchAccountInstitutionChange: () => undefined,
+      onSelectedRowsChange: () => undefined,
+      onCreateInstitution: () => undefined,
+      onBatchCreateInstitution: () => undefined,
+    } as unknown as Parameters<typeof ImportAccountMappingTable>[0]),
+  )
 }
 
 // The glow is drawn by the `import-auto-fill-*` styles, so the class names are what tells it shown from held

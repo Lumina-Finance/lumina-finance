@@ -445,18 +445,19 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     categoriesResolved,
     refetchAccounts,
     refetchCategories,
-    institutionsLoading,
     categoriesLoading,
     selectableAccounts,
     allAccounts,
     accountOptions,
     currencyOptions,
-    institutionOptions,
     categoryMatchOptions,
     accountById,
     categoryById,
     institutionById,
-  } = useImportReferenceData({ isImportFinished: run.workflow.importResult !== null })
+  } = useImportReferenceData({
+    isImportFinished: run.workflow.importResult !== null,
+    institutionIds: Object.values(accountCreateInstitutions),
+  })
 
   const supportedCurrencyCodes = useMemo(() => getSupportedCurrencyCodes(currencies), [currencies])
 
@@ -1619,12 +1620,10 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     refetchCategories,
     clearedAccountSourceLabels,
     clearedCategorySourceLabels,
-    institutionsLoading,
     categoriesLoading,
     accountOptions,
     counterpartyAccountOptions,
     currencyOptions,
-    institutionOptions,
     categoryMatchOptions,
     accountById,
     categoryById,

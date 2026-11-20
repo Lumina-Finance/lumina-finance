@@ -6,7 +6,7 @@ import { FormError } from '@/components/forms/FormError'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import { useRestoreOnceWhenReady } from '@/hooks/useRestoreOnceWhenReady'
-import { useInstitutions, type Institution } from '@/api/institutions'
+import type { Institution } from '@/api/institutions'
 import { useInstitutionModal } from '@/hooks/useInstitutionModal'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import InstitutionModal from '@/components/reference-modals/InstitutionModal'
@@ -85,7 +85,6 @@ export default function EditAccountIdentityModal({
   const currencyState = useCurrencyListState()
   const updateAccount = useUpdateAccount()
   const deleteAccount = useDeleteAccount({ minimumPendingMs: ACTION_LOADING_MIN_MS })
-  const { data: institutions = [] } = useInstitutions()
   const {
     data: taxAdvantagedCategories = [],
     error: taxAdvantagedCategoriesError,
@@ -97,7 +96,7 @@ export default function EditAccountIdentityModal({
   const [deleteStage, setDeleteStage] = useState<DeleteStage>('idle')
   const [deleteNameInput, setDeleteNameInput] = useState('')
   const [saveDelayPending, setSaveDelayPending] = useState(false)
-  const institutionModal = useInstitutionModal(institutions)
+  const institutionModal = useInstitutionModal()
   const {
     shown: showsBankLinkSection,
     ownPersonal,
@@ -181,14 +180,6 @@ export default function EditAccountIdentityModal({
       institutionModal.close()
     }
   }
-
-  const institutionOptions = useMemo<DropdownOption[]>(
-    () => [
-      { value: '', label: 'None' },
-      ...institutions.map((institution) => ({ value: institution.id, label: institution.name })),
-    ],
-    [institutions],
-  )
 
   const taxAdvantagedCategoryOptions = useMemo<DropdownOption[]>(
     () => [
@@ -368,7 +359,7 @@ export default function EditAccountIdentityModal({
               <AccountIdentitySection
                 form={form}
                 fieldErrors={refusal.errors}
-                institutionOptions={institutionOptions}
+                accountInstitution={account.institution}
                 setField={setField}
                 onCreateInstitution={institutionModal.openForCreate}
                 onCorrectInstitution={institutionModal.openForCorrection}

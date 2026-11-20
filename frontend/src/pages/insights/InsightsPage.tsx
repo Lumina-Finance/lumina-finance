@@ -54,6 +54,7 @@ export default function InsightsPage() {
   )
   const range = useInsightsRange()
   const savedRangesQuery = useSavedInsightsRanges()
+  const savedRanges = useMemo(() => savedRangesQuery.data?.pages.flat() ?? [], [savedRangesQuery.data])
   const saveRange = useSaveInsightsRange()
   const deleteRange = useDeleteSavedInsightsRange()
 
@@ -125,9 +126,12 @@ export default function InsightsPage() {
         draftQualifier={range.draftQualifier}
         draftFrom={range.draftInputDates.from}
         draftTo={range.draftInputDates.to}
-        savedRanges={savedRangesQuery.data ?? []}
+        savedRanges={savedRanges}
         savedRangesError={savedRangesQuery.error}
         savedRangesFailed={savedRangesQuery.isError}
+        savedRangesHasMore={savedRangesQuery.hasNextPage}
+        savedRangesLoadingMore={savedRangesQuery.isFetchingNextPage}
+        onLoadMoreSavedRanges={() => void savedRangesQuery.fetchNextPage()}
         onSelectPreset={range.selectPreset}
         onRevertSelection={range.revertSelection}
         onDraftAmountChange={range.setDraftAmount}

@@ -42,6 +42,7 @@ from app.services.insights import (
 )
 from app.utils.date_window import require_report_range
 from app.utils.dates import resolve_timezone
+from app.utils.pagination import LIST_PAGE_SIZE, MAX_LIST_OFFSET
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -317,19 +318,29 @@ async def get_merchants_route(
 async def list_saved_ranges_route(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=LIST_PAGE_SIZE)] = LIST_PAGE_SIZE,
+    offset: Annotated[int, Query(ge=0, le=MAX_LIST_OFFSET)] = 0,
 ):
-    """Return the authenticated user's saved relative insights ranges
+    """Return one page of the authenticated user's saved relative insights ranges
 
     Args:
         user: Authenticated user requesting their saved ranges
         db: Active database session
+        limit: Maximum number of saved ranges to return
+        offset: Number of saved ranges to skip before returning rows
 
     Returns:
         Saved ranges ordered with the most recently created first
     """
-    # Read the caller's saved ranges, newest first so the latest save surfaces at the top
+    # Read the caller's saved ranges, newest first so the latest save surfaces at the top. The
+    # identifier settles saves made in the same instant, since paging over a tie the database
+    # breaks differently each time repeats or skips a row
     result = await db.execute(
-        select(SavedInsightsRange).where(SavedInsightsRange.user_id == user.id).order_by(SavedInsightsRange.created_at.desc())
+        select(SavedInsightsRange)
+        .where(SavedInsightsRange.user_id == user.id)
+        .order_by(SavedInsightsRange.created_at.desc(), SavedInsightsRange.id.desc())
+        .limit(limit)
+        .offset(offset)
     )
     return result.scalars().all()
 

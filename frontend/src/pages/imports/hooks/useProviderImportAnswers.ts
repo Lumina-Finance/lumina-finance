@@ -33,11 +33,15 @@ import { useImportTagMatches } from './useImportTagMatches'
 export function useProviderImportReferenceData({
   transferCategoryName,
   isImportFinished,
+  institutionIds,
 }: {
   transferCategoryName: string
   isImportFinished: boolean
+
+  /** The institutions the create-new answers chose, each read by its ID rather than from the whole table */
+  institutionIds: string[]
 }) {
-  const reference = useImportReferenceData({ isImportFinished })
+  const reference = useImportReferenceData({ isImportFinished, institutionIds })
   const { categories, selectableAccounts, categoryMatchOptions: allCategoryMatchOptions, categoryById } = reference
 
   const accountOptions = useMemo(

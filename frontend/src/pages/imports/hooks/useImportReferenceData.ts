@@ -2,13 +2,12 @@ import { useMemo } from 'react'
 import { useAccounts, type AccountsOverview } from '@/api/accounts'
 import { useCategories, type Category } from '@/api/categories'
 import { useCurrencies, type Currency } from '@/api/currency'
-import { useInstitutions, type Institution } from '@/api/institutions'
+import { useInstitutionsById, type Institution } from '@/api/institutions'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import {
   buildImportAccountOptions,
   buildImportCategoryMatchOptions,
   buildImportCurrencyOptions,
-  buildImportInstitutionOptions,
 } from '@/pages/imports/utils'
 import { isImportableAccount } from '@/utils/importableAccount'
 
@@ -21,7 +20,6 @@ export interface ImportReferenceData {
   categories: Category[] | undefined
   accountsLoading: boolean
   currenciesLoading: boolean
-  institutionsLoading: boolean
   categoriesLoading: boolean
 
   /**
@@ -77,10 +75,11 @@ export interface ImportReferenceData {
   allAccounts: AccountsOverview[]
   accountOptions: DropdownOption[]
   currencyOptions: DropdownOption[]
-  institutionOptions: DropdownOption[]
   categoryMatchOptions: DropdownOption[]
   accountById: Map<string, AccountsOverview>
   categoryById: Map<string, Category>
+
+  /** The institutions the answers chose. The preview names only those, so the table is never read whole */
   institutionById: Map<string, Institution>
 }
 
@@ -92,10 +91,13 @@ export interface ImportReferenceData {
  *   whatever it is doing. A finished import is a record of what it did, and the list it refetches
  *   because of its own commit would otherwise take back the create-new answers it was run with
  *   until the request lands, leaving the preview asking for accounts again
+ * @param institutionIds - The institutions the create-new answers chose, each read by its ID. The
+ *   institutions table is shared and holds thousands of rows, so none of the flows reads it whole
  */
 export function useImportReferenceData({
   isImportFinished = false,
-}: { isImportFinished?: boolean } = {}): ImportReferenceData {
+  institutionIds = [],
+}: { isImportFinished?: boolean; institutionIds?: string[] } = {}): ImportReferenceData {
   const {
     data: accounts = [],
     isLoading: accountsLoading,
@@ -106,9 +108,9 @@ export function useImportReferenceData({
   } = useAccounts()
   const { data: currencies = [], isLoading: currenciesLoading, isError: currenciesError } = useCurrencies()
 
-  // The institution list gates nothing: the commit writes a null institution for a new account that
-  // has none, so a step answered without the list still imports
-  const { data: institutions = [], isLoading: institutionsLoading } = useInstitutions()
+  // Reading the institutions gates nothing: the commit writes a null institution for a new account
+  // that has none, so a step answered before they arrive still imports
+  const institutionById = useInstitutionsById(institutionIds)
   const {
     data: categories,
     isLoading: categoriesLoading,
@@ -127,8 +129,6 @@ export function useImportReferenceData({
 
   const currencyOptions = useMemo(() => buildImportCurrencyOptions(currencies), [currencies])
 
-  const institutionOptions = useMemo(() => buildImportInstitutionOptions(institutions), [institutions])
-
   const categoryMatchOptions = useMemo(() => buildImportCategoryMatchOptions(categories), [categories])
 
   // Every account, not only the selectable ones, or a transfer recording an archived or read-only
@@ -138,11 +138,6 @@ export function useImportReferenceData({
   const categoryById = useMemo(
     () => new Map((categories ?? []).map((category) => [category.id, category])),
     [categories],
-  )
-
-  const institutionById = useMemo(
-    () => new Map(institutions.map((institution) => [institution.id, institution])),
-    [institutions],
   )
 
   return {
@@ -164,13 +159,11 @@ export function useImportReferenceData({
     accountsCurrent: isImportFinished || (accountsUpdatedAt > 0 && !accountsFetching && !accountsError),
     refetchAccounts: refetchAccountsQuery,
     refetchCategories: refetchCategoriesQuery,
-    institutionsLoading,
     categoriesLoading,
     selectableAccounts,
     allAccounts: accounts,
     accountOptions,
     currencyOptions,
-    institutionOptions,
     categoryMatchOptions,
     accountById,
     categoryById,

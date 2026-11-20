@@ -39,6 +39,8 @@ test('corrects the highlighted institution by keyboard and the original inline a
   await search.fill(name)
   const target = create.getByRole('option', { name, exact: true })
   await expect(target).toBeVisible()
+  // The search runs on the server, so the first page stays on screen until the match replaces it
+  await expect(create.getByRole('listbox').getByRole('option')).toHaveCount(1)
   await expect(create.getByRole('listbox').getByRole('button')).toHaveCount(0)
 
   await search.press('Shift+Alt+Enter')
@@ -53,8 +55,8 @@ test('corrects the highlighted institution by keyboard and the original inline a
   await expect(correction).toBeHidden()
   await expect(picker).toHaveText('None')
 
+  // With nothing typed the highlighted option is None, and it has nothing to correct
   await picker.click()
-  await search.fill('None')
   await expect(create.getByRole('option', { name: 'None', exact: true })).toBeVisible()
   await search.press('Alt+Enter')
   await expect(correction).toBeHidden()

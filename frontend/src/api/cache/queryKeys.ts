@@ -86,7 +86,15 @@ export const insightsKeys = {
   merchantsAll: ['insights-merchants'] as const,
   merchants: (fromDate: string, toDate: string, comparisonPeriod = 'same_length', categoryIds: string[] = []) =>
     ['insights-merchants', fromDate, toDate, comparisonPeriod, categoryIds] as const,
+  /** Every saved-ranges read. A change made in another session invalidates this prefix */
   savedRanges: () => ['insights-saved-ranges'] as const,
+
+  /**
+   * The pages of saved ranges, under their own key so a list an earlier version stored whole is
+   * never read back as pages
+   */
+  savedRangesPagesAll: ['insights-saved-ranges', 'pages'] as const,
+  savedRangesPages: (pageSize: number) => ['insights-saved-ranges', 'pages', pageSize] as const,
 }
 
 export const budgetKeys = {
@@ -139,7 +147,13 @@ export const tagKeys = {
 }
 
 export const institutionKeys = {
-  list: () => ['institutions'] as const,
+  all: ['institutions'] as const,
+  detail: (institutionId: string | null | undefined) => ['institutions', institutionId] as const,
+
+  /** Every page the pickers hold, whatever search and page size it was read with */
+  infiniteAll: ['institutions', 'infinite'] as const,
+  infinite: (filters: Record<string, unknown>, pageSize: number) =>
+    ['institutions', 'infinite', filters, pageSize] as const,
 }
 
 export const currencyKeys = {

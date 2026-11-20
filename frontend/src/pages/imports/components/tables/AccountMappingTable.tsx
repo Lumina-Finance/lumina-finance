@@ -1,5 +1,7 @@
 import { useEffect, useId, type Dispatch, type SetStateAction } from 'react'
+import type { Institution } from '@/api/institutions'
 import Dropdown, { type DropdownOption } from '@/components/dropdown/Dropdown'
+import { InstitutionDropdown } from '@/components/institution-dropdown/InstitutionDropdown'
 import { CREATE_ACCOUNT_VALUE, IMPORT_INSET_STYLE, UNSET_BATCH_INSTITUTION } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { canApplyBatchEditToRow, countImportAccountRowStates } from '@/pages/imports/utils'
@@ -20,10 +22,8 @@ export function ImportAccountMappingTable({
   options,
   accountTypeOptions,
   currencyOptions,
-  institutionOptions,
   disabled,
   currenciesDisabled,
-  institutionsDisabled,
   selectedRowIds,
   batchAccountType,
   batchAccountCurrency,
@@ -65,6 +65,9 @@ export function ImportAccountMappingTable({
     accountType: string
     accountCurrency: string
     accountInstitution: string
+
+    /** The institution the matched account carries, so its row names it without a request */
+    accountInstitutionRecord: Institution | null
     createType: string
     createCurrency: string
     createInstitution: string
@@ -76,12 +79,10 @@ export function ImportAccountMappingTable({
   options: DropdownOption[]
   accountTypeOptions: DropdownOption[]
   currencyOptions: DropdownOption[]
-  institutionOptions: DropdownOption[]
 
   /** Holds every answer in the table and its batch bar, such as while the accounts list loads */
   disabled: boolean
   currenciesDisabled: boolean
-  institutionsDisabled: boolean
   selectedRowIds: Set<string>
   batchAccountType: string
   batchAccountCurrency: string
@@ -99,7 +100,13 @@ export function ImportAccountMappingTable({
   const typeHeadingId = `${labelNamespace}-type`
   const currencyHeadingId = `${labelNamespace}-currency`
   const institutionHeadingId = `${labelNamespace}-institution`
-  const { eligibleRows, selectedRows, validSelection, allSelected: allRowsSelected, someSelected: someRowsSelected } = getImportAccountSelection(rows, selectedRowIds)
+  const {
+    eligibleRows,
+    selectedRows,
+    validSelection,
+    allSelected: allRowsSelected,
+    someSelected: someRowsSelected,
+  } = getImportAccountSelection(rows, selectedRowIds)
   const { mapped: mappedCount, new: newCount } = countImportAccountRowStates(rows)
 
   // A reference-data refresh can settle a selected row without calling its mapping handler
@@ -119,11 +126,12 @@ export function ImportAccountMappingTable({
   const hasBatchFieldSet = Boolean(batchAccountType || batchAccountCurrency) || hasBatchInstitutionSet
 
   // Both are needed, and the rows come first since they are what the batch applies to
-  const batchApplyReason = editableRows.length === 0
-    ? 'Select the accounts to edit first'
-    : hasBatchFieldSet
-      ? undefined
-      : 'Choose a type, currency or institution first'
+  const batchApplyReason =
+    editableRows.length === 0
+      ? 'Select the accounts to edit first'
+      : hasBatchFieldSet
+        ? undefined
+        : 'Choose a type, currency or institution first'
 
   /** Updates one eligible row while retaining the other table's current selection */
   const toggleRow = (row: (typeof rows)[number]) => {
@@ -198,7 +206,10 @@ export function ImportAccountMappingTable({
               {row.source}
             </p>
             {creating && (
-              <span className="shrink-0 text-[0.6875rem] font-semibold uppercase" style={{ color: 'var(--app-accent)' }}>
+              <span
+                className="shrink-0 text-[0.6875rem] font-semibold uppercase"
+                style={{ color: 'var(--app-accent)' }}
+              >
                 New
               </span>
             )}
@@ -249,21 +260,19 @@ export function ImportAccountMappingTable({
           />
         </td>
         <td className="py-3 pl-4 pr-0 align-middle">
-          <Dropdown
+          <InstitutionDropdown
             labelledBy={`${institutionHeadingId} ${sourceLabelId}`}
-            options={institutionOptions}
             value={creating ? row.createInstitution : row.accountInstitution}
+            selectedInstitution={row.accountInstitutionRecord}
             onChange={row.onCreateInstitutionChange}
-            searchable
             // The institution list spends the empty string on "None", so without this an unanswered
             // row reads as having been given one, and its tooltip repeats the claim
             blankWhenEmpty={!creating}
             placeholder="Institution"
             size="compact"
             className={!disabled && row.autoFilled && !creating ? 'import-auto-fill-field' : undefined}
-            disabled={disabled || !creating || institutionsDisabled}
-            onCreateNew={(query) => onCreateInstitution(query, row.id)}
-            createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
+            disabled={disabled || !creating}
+            onCreate={(query) => onCreateInstitution(query, row.id)}
           />
         </td>
       </tr>
@@ -278,7 +287,9 @@ export function ImportAccountMappingTable({
           style={IMPORT_INSET_STYLE}
         >
           <div className="col-span-3 min-w-0 px-4">
-            <p id={batchHeadingId} className="text-sm font-semibold">Batch edit accounts</p>
+            <p id={batchHeadingId} className="text-sm font-semibold">
+              Batch edit accounts
+            </p>
             <p className="mt-1 text-xs" style={{ color: 'var(--app-text-subtle)' }}>
               {accountMappingSummary}
             </p>
@@ -309,17 +320,14 @@ export function ImportAccountMappingTable({
           </div>
           <div className="flex min-w-0 items-center gap-3 px-4">
             <div className="min-w-0 flex-1">
-              <Dropdown
+              <InstitutionDropdown
                 labelledBy={`${batchHeadingId} ${institutionHeadingId}`}
-                options={institutionOptions}
-                value={batchAccountInstitution}
+                value={hasBatchInstitutionSet ? batchAccountInstitution : null}
                 onChange={onBatchAccountInstitutionChange}
-                searchable
                 placeholder="Institution"
                 size="field"
-                disabled={disabled || institutionsDisabled}
-                onCreateNew={onBatchCreateInstitution}
-                createNewLabel={(query) => query ? `Create institution "${query}"` : 'Create institution'}
+                disabled={disabled}
+                onCreate={onBatchCreateInstitution}
               />
             </div>
             <DisabledReasonButton
@@ -358,15 +366,21 @@ export function ImportAccountMappingTable({
                 </span>
               </th>
               <th className="px-4 py-3 font-medium">Source account</th>
-              <th id={accountHeadingId} className="px-4 py-3 font-medium">Existing account</th>
-              <th id={typeHeadingId} className="px-4 py-3 font-medium">Type</th>
-              <th id={currencyHeadingId} className="px-2 py-3 font-medium">Currency</th>
-              <th id={institutionHeadingId} className="py-3 pl-4 pr-0 font-medium">Institution</th>
+              <th id={accountHeadingId} className="px-4 py-3 font-medium">
+                Existing account
+              </th>
+              <th id={typeHeadingId} className="px-4 py-3 font-medium">
+                Type
+              </th>
+              <th id={currencyHeadingId} className="px-2 py-3 font-medium">
+                Currency
+              </th>
+              <th id={institutionHeadingId} className="py-3 pl-4 pr-0 font-medium">
+                Institution
+              </th>
             </tr>
           </thead>
-          <tbody>
-            {rows.map(renderMappingRow)}
-          </tbody>
+          <tbody>{rows.map(renderMappingRow)}</tbody>
         </table>
       </div>
     </div>

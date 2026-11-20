@@ -48,13 +48,11 @@ type ImportAccountMappingStepProps = Pick<
   | 'accountOptions'
   | 'counterpartyAccountOptions'
   | 'currencyOptions'
-  | 'institutionOptions'
   | 'accountsLoading'
   | 'accountsFailed'
   | 'refetchAccounts'
   | 'clearedAccountSourceLabels'
   | 'currenciesLoading'
-  | 'institutionsLoading'
   | 'selectedAccountRows'
   | 'batchAccountType'
   | 'batchAccountCurrency'
@@ -92,13 +90,11 @@ export function ImportAccountMappingStep({
   accountOptions,
   counterpartyAccountOptions,
   currencyOptions,
-  institutionOptions,
   accountsLoading,
   accountsFailed,
   refetchAccounts,
   clearedAccountSourceLabels,
   currenciesLoading,
-  institutionsLoading,
   selectedAccountRows,
   batchAccountType,
   batchAccountCurrency,
@@ -180,11 +176,9 @@ export function ImportAccountMappingStep({
   const sharedTableProps = {
     accountTypeOptions: ACCOUNT_TYPE_OPTIONS,
     currencyOptions,
-    institutionOptions,
     // A finished import shows the accounts it used without letting them change
     disabled: accountsLoading || Boolean(importResult),
     currenciesDisabled: currenciesLoading,
-    institutionsDisabled: institutionsLoading,
     selectedRowIds: selectedAccountRows,
     onSelectedRowsChange: setSelectedAccountRows,
     onCreateInstitution: (query: string, rowId: string) => openInstitutionModal(query, rowId),

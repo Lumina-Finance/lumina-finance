@@ -1,5 +1,5 @@
-import type { DropdownOption } from '@/components/dropdown/Dropdown'
-import Dropdown from '@/components/dropdown/Dropdown'
+import type { Institution } from '@/api/institutions'
+import { InstitutionDropdown } from '@/components/institution-dropdown/InstitutionDropdown'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import type { IdentityFieldErrors, IdentityFormValues } from '@/pages/accounts/detail/utils/identityForm'
 import type { SetIdentityFormField } from '@/pages/accounts/detail/components/edit-identity/types'
@@ -9,10 +9,11 @@ import { AccountIdentityFieldLabelRow } from '@/pages/accounts/detail/components
 type AccountIdentitySectionProps = {
   form: IdentityFormValues
   fieldErrors: IdentityFieldErrors
-  institutionOptions: DropdownOption[]
+  /** The institution the account carries. While it stays chosen, the picker names it without a request */
+  accountInstitution: Institution | null
   setField: SetIdentityFormField
   onCreateInstitution: (name: string) => void
-  onCorrectInstitution: (institutionId: string) => void
+  onCorrectInstitution: (institution: Institution) => void
 }
 
 /**
@@ -21,7 +22,7 @@ type AccountIdentitySectionProps = {
 export function AccountIdentitySection({
   form,
   fieldErrors,
-  institutionOptions,
+  accountInstitution,
   setField,
   onCreateInstitution,
   onCorrectInstitution,
@@ -48,18 +49,13 @@ export function AccountIdentitySection({
 
       <div>
         <AccountIdentityFieldLabelRow htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution} label="Institution" />
-        <Dropdown
+        <InstitutionDropdown
           id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.institution}
-          options={institutionOptions}
           value={form.institution_id}
           onChange={(value) => setField('institution_id', value)}
-          placeholder="Select institution..."
-          searchable
-          searchPlaceholder="Search institutions..."
-          onCreateNew={onCreateInstitution}
-          createNewLabel={(query) => (query ? `Create institution "${query}"` : 'Create institution')}
-          onEditOption={onCorrectInstitution}
-          editOptionLabel="Correct institution"
+          selectedInstitution={accountInstitution}
+          onCreate={onCreateInstitution}
+          onCorrect={onCorrectInstitution}
         />
       </div>
 
