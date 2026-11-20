@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.encryption import decrypt, encrypt
 from app.models.auth import TotpCredential
+from app.services.auth.code_shape import normalize_authenticator_code
 from app.services.auth.recovery_codes import delete_pending_recovery_codes, staging_cutoff
 from app.services.auth.webauthn import delete_staged_passkeys
 
@@ -54,15 +55,21 @@ def match_totp_step(secret: str, code: str) -> int | None:
         code: Submitted code from the authenticator app
 
     Returns:
-        The matching time step, or None when the code matches no step in the window
+        The matching time step, or None when the code is not six digits or matches no step in the window
     """
+    # Every caller reaches this check, so it is the one place that keeps a code of any other shape out
+    # of the constant-time comparison. That comparison raises on text that is not ASCII
+    digits = normalize_authenticator_code(code)
+    if digits is None:
+        return None
+
     totp = pyotp.TOTP(secret, digits=_TOTP_DIGITS, interval=_TOTP_PERIOD_SECONDS)
     current_step = int(datetime.now(UTC).timestamp()) // _TOTP_PERIOD_SECONDS
 
     # Compare against each step in the window with a constant-time check rather than relying on verify,
     # so the matched step is known and can be recorded
     for step in range(current_step - _TOTP_VALID_WINDOW, current_step + _TOTP_VALID_WINDOW + 1):
-        if secrets.compare_digest(totp.at(step * _TOTP_PERIOD_SECONDS), code):
+        if secrets.compare_digest(totp.at(step * _TOTP_PERIOD_SECONDS), digits):
             return step
 
     return None

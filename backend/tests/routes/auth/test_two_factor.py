@@ -790,6 +790,47 @@ async def test_verify_burns_the_challenge_on_a_wrong_code(client):
     assert retry.status_code == 401
 
 
+async def test_verify_accepts_an_authenticator_code_typed_in_two_groups(client):
+    """A code written as the app shows it, with a space in the middle, completes the sign-in"""
+    _, secret, user_id = await _enroll_with_id(client)
+    mfa_token = await _issue_challenge(user_id)
+    code = _fresh_totp_code(secret)
+
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": f"{code[:3]} {code[3:]}"})
+
+    assert verify.status_code == 200
+
+
+async def test_verify_answers_a_code_of_the_wrong_shape_as_a_wrong_code_and_counts_it(client):
+    """Text that cannot be a code is the ordinary wrong code, not a server error, and it counts toward the lockout"""
+    _, _, user_id = await _enroll_with_id(client)
+    mfa_token = await _issue_challenge(user_id)
+
+    verify = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": "\N{LATIN SMALL LETTER E WITH ACUTE}12345"})
+
+    assert (verify.status_code, verify.json()["detail"]) == (401, "Invalid code")
+    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 1
+
+
+async def test_step_up_answers_a_code_of_the_wrong_shape_as_a_wrong_code(client):
+    """The step-up check refuses non-ASCII text as a wrong code too"""
+    auth, _, _ = await _enroll(client)
+
+    rejected = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": "é12345"})
+
+    assert (rejected.status_code, rejected.json()["detail"]) == (401, "Invalid two-factor code")
+
+
+async def test_confirm_answers_a_code_of_the_wrong_shape_as_a_wrong_code(client):
+    """Confirming an authenticator with non-ASCII text is refused like any wrong code"""
+    auth = _get_auth_header(await _create_user(client))
+    await client.post("/auth/2fa/setup", headers=auth, json={"step_up": _STEP_UP})
+
+    confirm = await client.post("/auth/2fa/confirm", headers=auth, json={"code": "é12345"})
+
+    assert (confirm.status_code, confirm.json()["detail"]) == (400, "Invalid or expired code")
+
+
 async def test_verify_rejects_a_forged_token(client):
     """A token that is not a valid challenge JWT is rejected"""
     verify = await client.post("/auth/2fa/verify", json={"mfa_token": "not.a.jwt", "code": "000000"})
