@@ -45,6 +45,7 @@ from app.services.auth.sessions import (
     create_auth_session,
     create_auth_token,
     delete_grace_ended_refresh_tokens,
+    is_session_live,
     rotate_auth_session_tokens,
 )
 from app.services.auth.tokens import (
@@ -563,12 +564,12 @@ async def get_active_session_by_id(
         lock_for_update: Whether to lock the session row for rotation-sensitive checks
 
     Returns:
-        Auth session row when it is allowlisted and unexpired
+        Auth session row when it is allowlisted, unexpired and within its maximum age
     """
     active_session_query = select(AuthSession).where(
         AuthSession.id == session_id,
         AuthSession.user_id == user_id,
-        AuthSession.expires_at > sa_func.now(),
+        is_session_live(),
     )
     if lock_for_update:
         active_session_query = active_session_query.with_for_update()

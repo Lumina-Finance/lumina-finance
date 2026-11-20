@@ -17,6 +17,7 @@ from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
 from app.models.user import User
+from app.services.auth.sessions import is_session_live
 
 # Derive the access public key from the private key for token verification
 _private_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=None)
@@ -98,7 +99,7 @@ async def get_authenticated_user(
     active_session_query = select(AuthSession).where(
         AuthSession.id == session_id,
         AuthSession.user_id == user_uuid,
-        AuthSession.expires_at > sa_func.now(),
+        is_session_live(),
     )
 
     # Fetch the session allowlist row so logout or session expiry invalidates every token

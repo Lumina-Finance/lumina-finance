@@ -9,6 +9,10 @@ JWT_REFRESH_TOKEN_EXPIRE_SECONDS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_SECON
 JWT_REFRESH_ROTATION_GRACE_SECONDS = int(os.getenv("JWT_REFRESH_ROTATION_GRACE_SECONDS", "5"))
 JWT_ISSUER = os.getenv("JWT_ISSUER", "lumina-finance")
 
+# A session ends this long after sign-in however often it refreshes, so a refresh token that leaks
+# cannot keep a session alive forever
+SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+
 # Separate RSA key pairs for access and refresh tokens
 _keys_dir = Path("/data/keys")
 
