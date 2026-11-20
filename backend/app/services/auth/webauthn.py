@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 from webauthn import (
@@ -56,11 +57,66 @@ _AUTHENTICATION_PURPOSE = "authentication"
 # Transport hints round-trip as a comma-separated string, so the value is recognized on the next prompt
 _TRANSPORT_SEPARATOR = ","
 
+# Browsers report a handful of transports per authenticator, so a longer list is not from one
+_MAX_TRANSPORTS = 8
+
+# The WebAuthn specification caps a credential id at 1023 bytes
+_MAX_CREDENTIAL_ID_BYTES = 1023
+
+# Each passkey is listed on the sign-in prompt and kept in the exclude list of every later registration,
+# so an account cannot grow them without bound
+MAX_PASSKEYS_PER_ACCOUNT = 20
+
+_MALFORMED_PASSKEY_DETAIL = "This passkey sent details we couldn't read"
+
 
 def _known_transports(values: list[str]) -> list[AuthenticatorTransport]:
     """Keep only transport hints the library recognizes, dropping any future browser additions"""
     recognized = {transport.value for transport in AuthenticatorTransport}
     return [AuthenticatorTransport(value) for value in values if value in recognized]
+
+
+def _read_transports(credential: dict) -> list[str]:
+    """Return the transport hints a registration response carries that the library recognizes
+
+    Args:
+        credential: Attestation response returned by the browser
+
+    Returns:
+        The recognized transport names, in the order sent
+
+    Raises:
+        HTTPException: The hints are not a short list of text
+    """
+    response = credential.get("response")
+    sent = response.get("transports") if isinstance(response, dict) else None
+    if sent is None:
+        return []
+    if not isinstance(sent, list) or len(sent) > _MAX_TRANSPORTS or not all(isinstance(name, str) for name in sent):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_MALFORMED_PASSKEY_DETAIL)
+
+    # An unrecognized name is dropped rather than refused, so a browser that adds a transport keeps working
+    return [transport.value for transport in _known_transports(sent)]
+
+
+async def _refuse_passkey_over_the_limit(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Raise when the account already holds the most passkeys it may
+
+    Only confirmed passkeys count, since a staged one replaces the previous staged one and is not yet usable
+
+    Args:
+        db: Active database session
+        user_id: User registering a passkey
+
+    Raises:
+        HTTPException: The account is at the limit
+    """
+    confirmed_passkeys = select(sa_func.count()).select_from(WebauthnCredential)
+    held = await db.scalar(confirmed_passkeys.where(WebauthnCredential.user_id == user_id, WebauthnCredential.confirmed_at.is_not(None)))
+    if held >= MAX_PASSKEYS_PER_ACCOUNT:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"You've reached the limit of {MAX_PASSKEYS_PER_ACCOUNT} passkeys"
+        )
 
 
 async def build_passkey_registration_options(db: AsyncSession, user_id: uuid.UUID, account_name: str) -> str:
@@ -76,6 +132,9 @@ async def build_passkey_registration_options(db: AsyncSession, user_id: uuid.UUI
 
     Returns:
         The ceremony options serialized as JSON for the browser
+
+    Raises:
+        HTTPException: The account already holds the most passkeys it may
     """
     # A passkey whose acknowledgement expired can never be confirmed, so drop it here, or the browser
     # would refuse to register the same authenticator again as already enrolled
@@ -86,6 +145,8 @@ async def build_passkey_registration_options(db: AsyncSession, user_id: uuid.UUI
             WebauthnCredential.created_at < staging_cutoff(),
         )
     )
+
+    await _refuse_passkey_over_the_limit(db, user_id)
 
     # Exclude every credential the user already holds, including a staged one, so the same authenticator
     # cannot be enrolled twice while a first passkey is still pending acknowledgement
@@ -146,8 +207,17 @@ async def register_passkey(db: AsyncSession, user_id: uuid.UUID, credential: dic
         The stored passkey and, when it is the first second factor, the recovery codes to save once
 
     Raises:
-        HTTPException: The challenge is unknown or expired, or the attestation fails to verify
+        HTTPException: The challenge is unknown or expired, the attestation fails to verify or sends
+            details that cannot be stored, the credential is already registered, or the account
+            already holds the most passkeys it may
     """
+    # Locking the user's row first queues this account's registrations one behind another, so two at
+    # the limit cannot both count it as not yet reached. The lock leaves the key alone, so the passkey
+    # and other rows that point at the user are still written while it is held
+    user = await db.get(User, user_id, with_for_update={"key_share": True})
+    await _refuse_passkey_over_the_limit(db, user_id)
+    transports = _read_transports(credential)
+
     challenge = await _claim_registration_challenge(db, user_id, credential)
 
     try:
@@ -161,7 +231,8 @@ async def register_passkey(db: AsyncSession, user_id: uuid.UUID, credential: dic
     except InvalidRegistrationResponse as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passkey registration failed") from error
 
-    user = await db.get(User, user_id)
+    if len(verification.credential_id) > _MAX_CREDENTIAL_ID_BYTES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_MALFORMED_PASSKEY_DETAIL)
 
     # Reuse the account's batch only for a routine added factor, never during a forced re-enrol, which
     # must stage a fresh batch like a first factor
@@ -175,7 +246,6 @@ async def register_passkey(db: AsyncSession, user_id: uuid.UUID, credential: dic
         await delete_staged_passkeys(db, user_id)
         await db.execute(delete(TotpCredential).where(TotpCredential.user_id == user_id, TotpCredential.confirmed_at.is_(None)))
 
-    transports = credential.get("response", {}).get("transports") or []
     passkey = WebauthnCredential(
         user_id=user_id,
         credential_id=verification.credential_id,
@@ -186,6 +256,14 @@ async def register_passkey(db: AsyncSession, user_id: uuid.UUID, credential: dic
         confirmed_at=datetime.now(UTC) if reuse_existing_codes else None,
     )
     db.add(passkey)
+
+    # The credential id is unique across every account, so another account's passkey, or a parallel
+    # registration of the same one, trips the index here rather than at the commit
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This passkey is already registered") from None
 
     # A first factor or a forced re-enrol stays inactive until its fresh recovery codes are acknowledged
     recovery_codes = None
