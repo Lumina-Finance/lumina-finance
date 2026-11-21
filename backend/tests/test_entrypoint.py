@@ -1,4 +1,4 @@
-"""The container start-up's handling of a data folder the app can't use
+"""The container start-up's handling of a data folder the app can't use, and the order of its steps
 
 Loaded from its file, since the image's start-up script isn't part of the backend package. Owners and
 permissions are stood in for, since the tests may run as root, and no permission refuses root
@@ -6,6 +6,7 @@ permissions are stood in for, since the tests may run as root, and no permission
 
 import importlib.util
 import os
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -173,3 +174,140 @@ def test_a_usable_data_folder_lets_the_start_carry_on(entrypoint, capsys):
     """A folder the app's user can use passes without a message"""
     assert entrypoint.check_data_folder() is None
     assert capsys.readouterr().err == ""
+
+
+_ADMIN_LOGIN = {"DB_USER": "postgres", "DB_PASSWORD": "admin-secret"}
+
+
+class _ProcessReplaced(Exception):
+    """Stands for the entrypoint becoming another command, after which none of its code runs"""
+
+
+def _record_steps(entrypoint, monkeypatch) -> tuple[list[tuple[str, ...]], list[dict[str, str]]]:
+    """Stand in for every step the start-up takes
+
+    Returns the list each step is added to as it runs, and the environment of each process that replaces
+    the entrypoint, in the order they started
+    """
+    steps: list[tuple[str, ...]] = []
+    environments: list[dict[str, str]] = []
+
+    def replace(_interpreter, command, environment):
+        steps.append(tuple(command[1:]))
+        environments.append(environment)
+        # The real call never returns, since the process becomes the command
+        raise _ProcessReplaced
+
+    monkeypatch.setenv("RUN_BANK_SYNC_WORKER", "false")
+    monkeypatch.setenv("JWT_ACCESS_PRIVATE_KEY_PATH", "/keys/access.pem")
+    monkeypatch.setenv("JWT_REFRESH_PRIVATE_KEY_PATH", "/keys/refresh.pem")
+    for name, value in _ADMIN_LOGIN.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(entrypoint, "ensure_private_key", lambda name, _path: steps.append((f"{name} signing key",)))
+    monkeypatch.setattr(entrypoint, "run", lambda _interpreter, *arguments: steps.append(arguments))
+    monkeypatch.setattr(os, "execve", replace)
+    return steps, environments
+
+
+def test_the_steps_that_need_the_admin_login_come_first_and_hand_the_start_to_a_process_without_it(entrypoint, monkeypatch):
+    """Keys and the roles in the order the image always had, then the same script again with no admin login"""
+    steps, environments = _record_steps(entrypoint, monkeypatch)
+
+    with pytest.raises(_ProcessReplaced):
+        entrypoint.prepare_as_admin()
+
+    assert steps == [
+        ("Access signing key",),
+        ("Refresh signing key",),
+        ("-m", "app.db.encryption_key", "ensure-key"),
+        ("-m", "app.db.bank_transaction_key", "ensure-key"),
+        ("-m", "app.db.jobs", "bootstrap"),
+        (str(Path(entrypoint.__file__).resolve()), "--after-admin-steps"),
+    ]
+    assert not set(_ADMIN_LOGIN) & set(environments[0]), "the process that replaces the entrypoint holds no admin login"
+    assert environments[0]["JWT_ACCESS_PRIVATE_KEY_PATH"] == "/keys/access.pem", "and keeps the rest of the environment"
+
+
+def test_the_migration_is_the_next_step_and_runs_without_the_admin_login(entrypoint, monkeypatch):
+    """After the roles come the migrations, so the image's order holds, run by a process that never held the login"""
+    steps, _environments = _record_steps(entrypoint, monkeypatch)
+
+    entrypoint.prepare()
+
+    assert steps == [("-m", "app.db.jobs", "migrate")]
+
+
+def test_a_start_after_the_admin_steps_takes_none_of_them_again(entrypoint, monkeypatch):
+    """The second start of the script goes straight to migrating and serving, never asking for the admin login"""
+    steps, _environments = _record_steps(entrypoint, monkeypatch)
+    for name in _ADMIN_LOGIN:
+        monkeypatch.delenv(name)
+    monkeypatch.setattr(sys, "argv", ["entrypoint.py", "--after-admin-steps"])
+    monkeypatch.setattr(entrypoint, "drop_privileges", lambda: None)
+    monkeypatch.setattr(entrypoint, "check_data_folder", lambda: None)
+    monkeypatch.setattr(entrypoint, "serve", lambda _is_worker_here: 0)
+
+    with pytest.raises(SystemExit) as stop:
+        entrypoint.main()
+
+    assert stop.value.code == 0
+    assert steps == [("-m", "app.db.jobs", "migrate")], "only the migration ran"
+
+
+def test_a_second_start_given_by_hand_with_the_admin_login_still_drops_it(entrypoint, monkeypatch):
+    """The argument skips the admin steps but never keeps the login in the processes that serve"""
+    steps, environments = _record_steps(entrypoint, monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["entrypoint.py", "--after-admin-steps"])
+    monkeypatch.setattr(entrypoint, "drop_privileges", lambda: None)
+    monkeypatch.setattr(entrypoint, "check_data_folder", lambda: None)
+    monkeypatch.setattr(entrypoint, "serve", lambda _is_worker_here: 0)
+
+    with pytest.raises(_ProcessReplaced):
+        entrypoint.main()
+
+    assert steps == [(str(Path(entrypoint.__file__).resolve()), "--after-admin-steps")], "no admin step ran, and it started again"
+    assert not set(_ADMIN_LOGIN) & set(environments[0]), "without the login"
+
+
+def test_a_plain_start_takes_the_admin_steps(entrypoint, monkeypatch):
+    """With no argument, the script begins with the steps that need the admin login"""
+    steps, _environments = _record_steps(entrypoint, monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["entrypoint.py"])
+    monkeypatch.setattr(entrypoint, "drop_privileges", lambda: None)
+    monkeypatch.setattr(entrypoint, "check_data_folder", lambda: None)
+    monkeypatch.setattr(entrypoint, "serve", lambda _is_worker_here: 0)
+
+    with pytest.raises(_ProcessReplaced):
+        entrypoint.main()
+
+    assert ("-m", "app.db.jobs", "bootstrap") in steps, "the roles were set up"
+
+
+def test_resetting_the_bank_transaction_hash_key_sets_up_the_roles_first(entrypoint, monkeypatch):
+    """A lost data volume has neither role password nor ownership, so the reset gets the roles as a start would"""
+    steps, environments = _record_steps(entrypoint, monkeypatch)
+
+    with pytest.raises(_ProcessReplaced):
+        entrypoint.run_command(["reset-bank-transaction-hash-key"])
+
+    assert steps == [("-m", "app.db.jobs", "bootstrap"), ("-m", "app.db.bank_transaction_key", "reset-key")]
+    assert not set(_ADMIN_LOGIN) & set(environments[0]), "the reset runs as the migrator, with no admin login"
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [
+        (["worker"], ("-m", "app.worker")),
+        (["generate-app-encryption-key"], ("-m", "scripts.generate_app_encryption_key")),
+        (["rotate-app-encryption-key", "new-key"], ("-m", "scripts.rotate_app_encryption_key", "new-key")),
+    ],
+)
+def test_a_command_that_never_needs_the_admin_login_is_started_without_it(entrypoint, monkeypatch, arguments, expected):
+    """The worker and the key commands connect as the app or the migrator, so no process of theirs holds the admin login"""
+    steps, environments = _record_steps(entrypoint, monkeypatch)
+
+    with pytest.raises(_ProcessReplaced):
+        entrypoint.run_command(arguments)
+
+    assert steps == [expected]
+    assert not set(_ADMIN_LOGIN) & set(environments[0]), "the admin login was taken out of its environment"

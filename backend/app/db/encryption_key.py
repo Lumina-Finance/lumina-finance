@@ -186,7 +186,7 @@ async def _run_ensure_key() -> None:
         await engine.dispose()
 
 
-async def _run_verify_fingerprint() -> None:
+async def run_verify_fingerprint() -> None:
     """Run the fingerprint check against the migrator role, after migrations"""
     engine = create_async_engine(migration_database_url())
     try:
@@ -198,7 +198,7 @@ async def _run_verify_fingerprint() -> None:
 
 _COMMANDS = {
     "ensure-key": _run_ensure_key,
-    "verify-fingerprint": _run_verify_fingerprint,
+    "verify-fingerprint": run_verify_fingerprint,
 }
 
 
