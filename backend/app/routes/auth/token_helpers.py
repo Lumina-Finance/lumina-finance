@@ -6,17 +6,16 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from fastapi import HTTPException, Request, Response, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
 from app.config.jwt import (
-    JWT_ACCESS_PRIVATE_KEY,
+    JWT_ACCESS_PUBLIC_KEY,
     JWT_ALGORITHM,
     JWT_ISSUER,
-    JWT_REFRESH_PRIVATE_KEY,
+    JWT_REFRESH_PUBLIC_KEY,
     JWT_REFRESH_ROTATION_GRACE_SECONDS,
 )
 from app.database import current_user_id_ctx
@@ -60,27 +59,6 @@ from app.services.auth.tokens import (
 from app.services.auth.two_factor import SECOND_FACTOR_PASSKEY, verify_login_second_factor
 from app.services.auth.webauthn import verify_passkey_second_factor
 
-_refresh_public_key = load_pem_private_key(JWT_REFRESH_PRIVATE_KEY.encode(), password=None).public_key()
-_access_public_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=None).public_key()
-
-
-def get_refresh_public_key():
-    """Return the public key used to verify refresh tokens
-
-    Returns:
-        Refresh JWT public key
-    """
-    return _refresh_public_key
-
-
-def get_access_public_key():
-    """Return the public key used to verify access tokens
-
-    Returns:
-        Access JWT public key
-    """
-    return _access_public_key
-
 
 def decode_refresh_token(refresh_token: str) -> dict[str, Any]:
     """Return decoded refresh token claims
@@ -96,7 +74,7 @@ def decode_refresh_token(refresh_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         refresh_token,
-        _refresh_public_key,
+        JWT_REFRESH_PUBLIC_KEY,
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=AuthTokenKind.REFRESH.value,
@@ -119,7 +97,7 @@ def decode_access_token(access_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         access_token,
-        _access_public_key,
+        JWT_ACCESS_PUBLIC_KEY,
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=AuthTokenKind.ACCESS.value,
@@ -142,7 +120,7 @@ def decode_mfa_challenge_token(challenge_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         challenge_token,
-        _access_public_key,
+        JWT_ACCESS_PUBLIC_KEY,
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=MFA_CHALLENGE_TOKEN_USE,
@@ -165,7 +143,7 @@ def decode_native_handoff_token(handoff_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         handoff_token,
-        _access_public_key,
+        JWT_ACCESS_PUBLIC_KEY,
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=NATIVE_HANDOFF_TOKEN_USE,
@@ -188,7 +166,7 @@ def decode_oidc_onboarding_token(onboarding_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         onboarding_token,
-        _access_public_key,
+        JWT_ACCESS_PUBLIC_KEY,
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=OIDC_ONBOARDING_TOKEN_USE,
@@ -211,7 +189,7 @@ def decode_oidc_reauth_stepup_token(stepup_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         stepup_token,
-        _access_public_key,
+        JWT_ACCESS_PUBLIC_KEY,
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=OIDC_REAUTH_STEPUP_TOKEN_USE,

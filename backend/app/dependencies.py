@@ -4,24 +4,19 @@ import uuid
 from typing import Annotated
 
 import jwt
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
-from app.config.jwt import JWT_ACCESS_PRIVATE_KEY, JWT_ALGORITHM, JWT_ISSUER
+from app.config.jwt import JWT_ACCESS_PUBLIC_KEY, JWT_ALGORITHM, JWT_ISSUER
 from app.database import current_session_id_ctx, current_user_id_ctx, get_db
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
 from app.models.user import User
 from app.services.auth.sessions import is_session_live
-
-# Derive the access public key from the private key for token verification
-_private_key = load_pem_private_key(JWT_ACCESS_PRIVATE_KEY.encode(), password=None)
-ACCESS_PUBLIC_KEY = _private_key.public_key()
 
 _security = HTTPBearer()
 
@@ -53,7 +48,7 @@ async def get_authenticated_user(
     try:
         payload = jwt.decode(
             credentials.credentials,
-            ACCESS_PUBLIC_KEY,
+            JWT_ACCESS_PUBLIC_KEY,
             algorithms=[JWT_ALGORITHM],
             issuer=JWT_ISSUER,
             audience="access",

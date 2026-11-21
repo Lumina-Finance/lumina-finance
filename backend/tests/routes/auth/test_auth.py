@@ -1,9 +1,11 @@
 import asyncio
+import base64
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text, update
 
@@ -37,7 +39,7 @@ LOGIN_PAYLOAD = {
 
 def _encode_auth_test_token(
     *,
-    private_key: str,
+    private_key: RSAPrivateKey,
     user_id,
     token_id,
     session_id,
@@ -956,6 +958,18 @@ async def test_jwks_returns_both_keys_with_correct_kids(client):
     kids = {k["kid"] for k in keys}
     assert JWT_ACCESS_KID in kids
     assert JWT_REFRESH_KID in kids
+
+
+async def test_jwks_publishes_each_signing_keys_own_public_key(client):
+    """A client that verifies by kid gets the key that signed, so the two keys are never swapped"""
+    from app.config.jwt import JWT_ACCESS_KID, JWT_ACCESS_PUBLIC_KEY, JWT_REFRESH_KID, JWT_REFRESH_PUBLIC_KEY
+
+    keys = {key["kid"]: key for key in (await client.get("/auth/.well-known/jwks.json")).json()["keys"]}
+
+    for kid, public_key in ((JWT_ACCESS_KID, JWT_ACCESS_PUBLIC_KEY), (JWT_REFRESH_KID, JWT_REFRESH_PUBLIC_KEY)):
+        numbers = public_key.public_numbers()
+        assert int.from_bytes(base64.urlsafe_b64decode(keys[kid]["n"] + "=="), "big") == numbers.n, f"{kid} modulus"
+        assert int.from_bytes(base64.urlsafe_b64decode(keys[kid]["e"] + "=="), "big") == numbers.e, f"{kid} exponent"
 
 
 async def test_jwks_keys_have_valid_structure(client):
