@@ -5,6 +5,7 @@ against a server of its own (tests/db/conftest.py), since bootstrap creates role
 """
 
 import asyncio
+import json
 import logging
 import secrets
 import subprocess
@@ -54,6 +55,40 @@ _SNAPSHOT = """
     )::text
 """
 
+# Everything a run of bootstrap sets, in one value: the two roles, their settings and memberships, the
+# owners of the schema's objects, and the database's and schema's grants. The password hash is left
+# out, since every run sets the password again
+_BOOTSTRAP_SNAPSHOT = """
+    SELECT jsonb_build_object(
+        'roles', (
+            SELECT jsonb_agg(to_jsonb(r) - 'rolpassword' ORDER BY r.rolname)
+            FROM pg_roles r WHERE r.rolname IN ('{migrator}', '{app}')
+        ),
+        'memberships', (
+            SELECT jsonb_agg(to_jsonb(m) ORDER BY m.roleid, m.member)
+            FROM pg_auth_members m
+            WHERE m.roleid::regrole::text IN ('{migrator}', '{app}') OR m.member::regrole::text IN ('{migrator}', '{app}')
+        ),
+        'owners', (
+            SELECT jsonb_object_agg(owned.name, owned.owner) FROM (
+                SELECT 'relation ' || c.relname AS name, c.relowner::regrole::text AS owner
+                FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace
+                UNION ALL
+                SELECT 'function ' || p.oid::regprocedure::text, p.proowner::regrole::text
+                FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
+                UNION ALL
+                SELECT 'type ' || t.typname, t.typowner::regrole::text
+                FROM pg_type t WHERE t.typnamespace = 'public'::regnamespace
+            ) owned
+        ),
+        'database_grants', (SELECT datacl::text FROM pg_database WHERE datname = current_database()),
+        'schema', (
+            SELECT jsonb_build_object('owner', nspowner::regrole::text, 'grants', nspacl::text)
+            FROM pg_namespace WHERE nspname = 'public'
+        )
+    )::text
+"""
+
 
 def _migrate_environment(target: Target) -> dict[str, str]:
     """Return what the migrate job is given and nothing more: the migrator's password and the two keys"""
@@ -79,6 +114,11 @@ async def _run_job(job: str, environment: dict[str, str]) -> subprocess.Complete
 async def _snapshot(target: Target) -> str:
     """Return the database's state after a run of migrate"""
     return await query(target.superuser(), _SNAPSHOT.format(app_role=APP_DB_USER))
+
+
+async def _bootstrap_snapshot(target: Target) -> str:
+    """Return what a run of bootstrap has set"""
+    return await query(target.superuser(), _BOOTSTRAP_SNAPSHOT.format(migrator=MIGRATOR_DB_USER, app=APP_DB_USER))
 
 
 @asynccontextmanager
@@ -163,17 +203,23 @@ async def test_bootstrap_runs_with_only_the_admin_login_and_the_role_passwords_a
     """A deployment gives the bootstrap job no key and no migrator login, and may run it again"""
     async with provision_into(SUPERUSER_LOGIN) as target:
         environment = _bootstrap_environment(target)
-        roles = f"SELECT count(*) FROM pg_roles WHERE rolname IN ('{MIGRATOR_DB_USER}', '{APP_DB_USER}')"  # noqa: S608
+        # A table the admin owns, as a restored backup leaves it, so the first run has an owner to change
+        superuser = target.superuser()
+        async with superuser.connect() as connection:
+            await connection.execute(text("CREATE TABLE restored (id serial PRIMARY KEY)"))
+        await superuser.dispose()
 
         first = await _run_job("bootstrap", environment)
 
         assert first.returncode == 0, first.stdout + first.stderr
-        assert await query(target.superuser(), roles) == 2, "both roles were created"
+        after_first = json.loads(await _bootstrap_snapshot(target))
+        assert [role["rolname"] for role in after_first["roles"]] == sorted([MIGRATOR_DB_USER, APP_DB_USER]), "both roles were created"
+        assert set(after_first["owners"].values()) == {MIGRATOR_DB_USER}, "the admin's table went to the migrator"
 
         second = await _run_job("bootstrap", environment)
 
         assert second.returncode == 0, second.stdout + second.stderr
-        assert await query(target.superuser(), roles) == 2, "a second run leaves the two roles as they were"
+        assert json.loads(await _bootstrap_snapshot(target)) == after_first, "the second run left the roles, owners and grants as they were"
 
 
 async def test_a_restored_dump_gets_its_owners_grants_and_policies_back_through_the_jobs(provision_into):
