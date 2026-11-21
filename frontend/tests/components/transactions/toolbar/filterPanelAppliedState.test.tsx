@@ -14,12 +14,26 @@ vi.mock('@/components/list-controls/FilterGlassPanel', () => ({
 
 function RestoredPanel() {
   const { filters, setFilters } = useTransactionNavigationFilters()
-  return <TransactionFilterPanel filters={filters} setFilter={setFilters} accountOptions={[]} categoryOptions={[]} showAccountFilter />
+  return (
+    <TransactionFilterPanel
+      filters={filters}
+      setFilter={setFilters}
+      accountOptions={[]}
+      categoryOptions={[]}
+      showAccountFilter
+    />
+  )
 }
 
 describe('closed transaction filter indicator', () => {
   it('shows URL filters on the first render while the unopened draft and options are empty', () => {
     const url = '/transactions?category_id=12345678-1234-1234-1234-123456789abc&from_date=2024-02-29&to_date=2024-03-01'
-    expect(renderToStaticMarkup(<MemoryRouter initialEntries={[url]}><RestoredPanel /></MemoryRouter>)).toBe('<output>2</output>')
+    expect(
+      renderToStaticMarkup(
+        <MemoryRouter initialEntries={[url]}>
+          <RestoredPanel />
+        </MemoryRouter>,
+      ),
+    ).toBe('<output>2</output>')
   })
 })

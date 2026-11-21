@@ -21,7 +21,14 @@ function isCalendarDate(value: string): boolean {
 
 /** Reads valid category IDs and inclusive calendar bounds, omitting an impossible reversed range */
 export function parseTransactionNavigationFilters(params: URLSearchParams): TransactionNavigationFilters {
-  const categoryIds = [...new Set(params.getAll('category_id').filter((id) => CATEGORY_ID.test(id)).map((id) => id.toLowerCase()))]
+  const categoryIds = [
+    ...new Set(
+      params
+        .getAll('category_id')
+        .filter((id) => CATEGORY_ID.test(id))
+        .map((id) => id.toLowerCase()),
+    ),
+  ]
   const from = params.get('from_date') ?? ''
   const to = params.get('to_date') ?? ''
   const filters: TransactionNavigationFilters = {}
@@ -36,7 +43,10 @@ export function parseTransactionNavigationFilters(params: URLSearchParams): Tran
 }
 
 /** Replaces only owned address fields, retaining every unrelated query value and its repetition */
-export function writeTransactionNavigationFilters(params: URLSearchParams, filters: TransactionNavigationFilters): URLSearchParams {
+export function writeTransactionNavigationFilters(
+  params: URLSearchParams,
+  filters: TransactionNavigationFilters,
+): URLSearchParams {
   const next = new URLSearchParams(params)
   for (const key of ['category_id', 'from_date', 'to_date']) next.delete(key)
   const owned = new URLSearchParams()
@@ -52,6 +62,10 @@ export function writeTransactionNavigationFilters(params: URLSearchParams, filte
 
 /** Builds a category drill-down without adding a sign or chart-mode restriction */
 export function buildCategoryTransactionsUrl(categoryId: string, range: { from: string; to: string }): string {
-  const params = writeTransactionNavigationFilters(new URLSearchParams(), { category_id: [categoryId], from_date: range.from, to_date: range.to })
+  const params = writeTransactionNavigationFilters(new URLSearchParams(), {
+    category_id: [categoryId],
+    from_date: range.from,
+    to_date: range.to,
+  })
   return `/transactions?${params}`
 }

@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
-import { parseTransactionNavigationFilters, writeTransactionNavigationFilters } from '@/components/transactions/utils/filterNavigation'
+import {
+  parseTransactionNavigationFilters,
+  writeTransactionNavigationFilters,
+} from '@/components/transactions/utils/filterNavigation'
 
 /**
  * Derives address-owned filters on every navigation while keeping all other filters local
@@ -11,7 +14,10 @@ import { parseTransactionNavigationFilters, writeTransactionNavigationFilters } 
 export function useTransactionNavigationFilters() {
   const [params, setParams] = useSearchParams()
   const [localFilters, setLocalFilters] = useState<TransactionListFilters>({})
-  const filters = useMemo(() => ({ ...localFilters, ...parseTransactionNavigationFilters(params) }), [localFilters, params])
+  const filters = useMemo(
+    () => ({ ...localFilters, ...parseTransactionNavigationFilters(params) }),
+    [localFilters, params],
+  )
 
   /** Commits a complete list filter state and adds its owned address fields to navigation history */
   function setFilters(next: TransactionListFilters) {
