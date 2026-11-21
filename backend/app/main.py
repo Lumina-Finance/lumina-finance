@@ -13,6 +13,7 @@ from app.config.email import EMAIL_BACKEND, EMAIL_BACKEND_LOGGING
 from app.config.log_level import LOG_LEVEL
 from app.config.runtime import ALLOWED_ORIGINS
 from app.database import verify_app_role_is_unprivileged
+from app.db.database_keys import verify_database_keys
 from app.log_setup import configure_logging
 from app.null_characters import refuse_null_characters
 from app.request_hook import RequestObserverMiddleware, observe_requests
@@ -44,7 +45,7 @@ from app.services.bank_sync.providers.registry import run_startup_checks
 from app.services.email import build_email_sender, is_email_sender_installed, set_email_sender
 from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
 from app.services.maintenance.expired_records import run_cleanup_timer
-from app.startup import sync_sign_in_providers, verify_database_keys
+from app.startup import sync_sign_in_providers
 from app.statement_timeout import handle_statement_timeout
 from app.valkey_store import use_valkey
 

@@ -1,9 +1,10 @@
-"""Running bank sync jobs: the two operations every runner calls, and the worker's loop
+"""Running bank sync jobs: the checks before any work, the two operations every runner calls, and the worker's loop
 
-Enqueueing due work and running jobs are each callable on their own and keep nothing between
-calls, so the worker's loop calls each on a cadence of its own, and so can any other caller. Each
-sees across users only through the worker's definer functions, and runs everything else as the
-owning user under row-level security
+The checks, enqueueing due work and running jobs are each callable on their own and keep nothing
+between calls. The worker makes the checks once as it starts, and its loop calls the two operations on
+a cadence of its own. Any other caller does the same on its own schedule. Each operation sees across
+users only through the worker's definer functions, and runs everything else as the owning user under
+row-level security
 """
 
 import asyncio
@@ -19,12 +20,12 @@ from pathlib import Path
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import text
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.config.bank_sync import BANK_SYNC_WORKER_CONCURRENCY
 from app.database import async_session, current_user_id_ctx, engine, verify_app_role_is_unprivileged
-from app.db.encryption_key import verify_key_matches_data
+from app.db.database_keys import verify_database_keys
 from app.db.rls.functions import LIST_DUE_BANK_CONNECTIONS, MIGRATION_REVISIONS, RECORD_BANK_SYNC_SCAN
 from app.models import import_all_models
 from app.models.bank_sync_job import ProviderErrorKind
@@ -73,6 +74,35 @@ def _acting_as(user_id: uuid.UUID) -> Iterator[None]:
         yield
     finally:
         current_user_id_ctx.reset(token)
+
+
+async def verify_ready_to_sync() -> None:
+    """Refuse unless it is safe to run bank sync work now, checking everything the worker checks before it starts
+
+    It changes nothing, so a runner calls it at the start of every run, and stops the run when it
+    raises. It never waits: a database another release migrated is refused at once, and the work is
+    left for a later run
+
+    Raises:
+        RuntimeError: A bank provider refuses one of its settings, the connection could bypass
+            row-level security, the database isn't migrated to exactly this release, or the
+            encryption key or bank transaction hash key isn't the one the database was made with
+    """
+    run_startup_checks()
+    await verify_app_role_is_unprivileged()
+    not_migrated = (
+        f"Refusing to sync: the database isn't migrated to this release. This release ships revision {', '.join(sorted(_shipped_heads()))}"
+    )
+    try:
+        async with engine.connect() as connection:
+            found = await _database_revisions(connection)
+    except ProgrammingError as error:
+        # A database migrated by a release older than the function reading the revisions can't say
+        # which it is at. A database that can't be reached raises its own error rather than this one
+        raise RuntimeError(f"{not_migrated}, and the database's revision can't be read: {error.orig}") from error
+    if found != _shipped_heads():
+        raise RuntimeError(f"{not_migrated}, and the database is at {', '.join(sorted(found)) or 'no revision'}")
+    await verify_database_keys()
 
 
 async def enqueue_due_work() -> None:
@@ -189,27 +219,24 @@ async def check_worker_health() -> bool:
 async def run_worker() -> None:
     """Run the worker until it is stopped
 
-    Waits until the database is reachable and migrated, then scans for due work every 5 minutes
-    while BANK_SYNC_WORKER_CONCURRENCY runners claim and run jobs. The claim never hands two
-    runners jobs for one connection. On SIGTERM or SIGINT it claims no more jobs, lets each job
-    already running finish within its time limit, and returns. It takes over both signals on the
-    running loop, so callers run it in a process of its own. Jobs send their action-needed
-    emails through the sender installed before the call, or else the one EMAIL_BACKEND names, as
-    the app sends its own. They name the service as set in this process before the call
+    Waits until the database is reachable and migrated, makes the checks verify_ready_to_sync
+    makes, then scans for due work every 5 minutes while BANK_SYNC_WORKER_CONCURRENCY runners claim
+    and run jobs. The claim never hands two runners jobs for one connection. On SIGTERM or SIGINT it
+    claims no more jobs, lets each job already running finish within its time limit, and returns.
+    It takes over both signals on the running loop, so callers run it in a process of its own.
+    Jobs send their action-needed emails through the sender installed before the call, or else the
+    one EMAIL_BACKEND names, as the app sends its own. They name the service as set in this process
+    before the call
 
     Raises:
-        RuntimeError: Jobs would run as a role row-level security doesn't constrain, the
-            encryption key isn't the one the stored secrets are under, or, with no sender installed
-            before the call, EMAIL_BACKEND names an unknown backend
+        RuntimeError: verify_ready_to_sync refuses, or, with no sender installed before the call,
+            EMAIL_BACKEND names an unknown backend
     """
-    run_startup_checks()
     # A sender that code outside the app installed before starting the worker stays in place
     if not is_email_sender_installed():
         set_email_sender(build_email_sender())
     await _wait_for_database()
-    await verify_app_role_is_unprivileged()
-    async with engine.connect() as connection:
-        await verify_key_matches_data(connection)
+    await verify_ready_to_sync()
 
     # Installed once the start-up checks have passed, since a stop before then has no job to protect
     stopping = asyncio.Event()
@@ -243,8 +270,12 @@ async def is_database_migrated(connection: AsyncConnection) -> bool:
     Args:
         connection: Connection as the app role. It reads the revisions through a definer function
     """
-    revisions = await connection.scalars(text(f"SELECT {MIGRATION_REVISIONS}()"))
-    return set(revisions) == _shipped_heads()
+    return await _database_revisions(connection) == _shipped_heads()
+
+
+async def _database_revisions(connection: AsyncConnection) -> frozenset[str]:
+    """Return the migration revisions the database records, read through a definer function the app role may call"""
+    return frozenset(await connection.scalars(text(f"SELECT {MIGRATION_REVISIONS}()")))
 
 
 @functools.cache

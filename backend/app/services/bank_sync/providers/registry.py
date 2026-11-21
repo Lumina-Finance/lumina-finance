@@ -55,7 +55,9 @@ def load_adapters() -> dict[str, type[ProviderAdapter]]:
 
 
 def run_startup_checks() -> None:
-    """Load every installed provider, read its switches and run its startup check, as the app and the bank sync worker each do as they start
+    """Load every installed provider, read its switches and run its startup check
+
+    The app and the bank sync worker each run this as they start, and a scheduled runner before each run
 
     Raises:
         RuntimeError: A provider refuses one of its settings, a switch isn't true or false, or an id is malformed

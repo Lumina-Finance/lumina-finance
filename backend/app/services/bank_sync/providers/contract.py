@@ -268,7 +268,7 @@ class ProviderAdapter(ABC):
 
     @classmethod
     def on_startup(cls) -> None:
-        """Run as the app and the bank sync worker start, such as to warn about a testing-only setting
+        """Run as the app and the bank sync worker start and before each scheduled run, such as to warn about a testing-only setting
 
         Does nothing unless the adapter has something to check
         """
