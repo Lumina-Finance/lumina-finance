@@ -2,6 +2,7 @@ import { buildApiError, getSessionRestoreFailure, isRefreshAlreadyRotatedError }
 import type {
   AuthResponse,
   CompletedPasswordReset,
+  ConfirmedEmailChange,
   ConfirmSignupPayload,
   ForgotPasswordPayload,
   LoginPayload,
@@ -183,6 +184,20 @@ export function confirmSignup(payload: ConfirmSignupPayload): Promise<AuthRespon
   return requestAuth('/auth/signup/confirm', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+/**
+ * Changes an account's email to the address its emailed link was sent to, and ends every session of
+ * the account
+ *
+ * Needs no session, since the link is opened from a mailbox. The token goes in the body, never the
+ * address, so it stays out of access logs
+ */
+export function confirmEmailChange(token: string): Promise<ConfirmedEmailChange> {
+  return requestAuth('/auth/email/change/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
   })
 }
 

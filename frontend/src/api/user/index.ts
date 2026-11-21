@@ -3,6 +3,7 @@ export type {
   CacheStatus,
   ChangePasswordPayload,
   RatesStatus,
+  RequestEmailChangePayload,
   RunwayAccountBalance,
   RunwayResult,
   RunwaySettings,
@@ -21,6 +22,7 @@ export {
   fetchRunway,
   fetchRunwayAccounts,
   fetchRunwaySettings,
+  requestEmailChange,
   updateProfile,
   updateRunwayAccounts,
   updateRunwaySettings,
@@ -28,6 +30,7 @@ export {
 
 export {
   useChangePassword,
+  useRequestEmailChange,
   useRunway,
   useRunwayAccounts,
   useRunwaySettings,

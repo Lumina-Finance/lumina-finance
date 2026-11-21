@@ -9,6 +9,7 @@ import {
   fetchRunway,
   fetchRunwayAccounts,
   fetchRunwaySettings,
+  requestEmailChange,
   updateProfile,
   updateRunwayAccounts,
   updateRunwaySettings,
@@ -38,6 +39,16 @@ export function useUpdateProfile() {
 export function useChangePassword() {
   return useMutation({
     mutationFn: changePassword,
+  })
+}
+
+/**
+ * Asks for a confirmation email to a new account address, leaving every cache alone since the address
+ * changes only when the emailed link is confirmed
+ */
+export function useRequestEmailChange() {
+  return useMutation({
+    mutationFn: requestEmailChange,
   })
 }
 

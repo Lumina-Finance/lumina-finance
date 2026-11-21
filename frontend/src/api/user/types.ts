@@ -1,5 +1,6 @@
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser'
 import type { FxStatus } from '@/api/shared/fx'
+import type { StepUpPayload } from '@/api/two-factor/types'
 import type { DateFormatSetting } from '@/utils/dateFormat'
 
 /**
@@ -23,6 +24,15 @@ export interface ChangePasswordPayload {
   code?: string
   /** Passkey assertion, used when stepping up by passkey, taking priority over a code */
   passkey?: AuthenticationResponseJSON
+}
+
+/**
+ * The address an account asks to move to, with the step-up an account that has a password sends. A
+ * passwordless account omits the step-up and relies on the proof cookie a fresh provider reauth armed
+ */
+export interface RequestEmailChangePayload {
+  new_email: string
+  step_up?: StepUpPayload
 }
 
 export interface CacheScopeStatus {

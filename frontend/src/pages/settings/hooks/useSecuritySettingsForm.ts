@@ -6,6 +6,8 @@ import { useChangePassword } from '@/api/user'
 import type { StepUpCredentials } from '@/components/two-factor/StepUpModal'
 import { useActionFeedback } from '@/hooks/useActionFeedback'
 import { buildLockoutWarning, getAttemptsRemaining } from '@/utils/lockoutWarning'
+import { useEmailChangeForm } from '@/pages/settings/hooks/useEmailChangeForm'
+import { getSecuritySaveBlockedReason } from '@/pages/settings/utils/emailChange'
 import { getPasswordSaveBlockedReason } from '@/pages/settings/utils/passwordForm'
 import { isNewPasswordValid } from '@/utils/passwordPolicy'
 
@@ -41,9 +43,11 @@ function getChangePasswordErrorMessage(error: unknown): string {
 }
 
 /**
- * Owns password-change draft state, policy validation, mutation feedback, and save actions
+ * Owns the Security card's drafts, the account email and the password change, with the validation,
+ * mutation feedback, and save actions the card's one Save and Discard pair runs
  */
-export function useSecuritySettingsForm() {
+export function useSecuritySettingsForm({ savedEmail, hasPassword }: { savedEmail: string; hasPassword: boolean }) {
+  const email = useEmailChangeForm({ savedEmail, hasPassword })
   const changePassword = useChangePassword()
   const passwordFeedback = useActionFeedback()
   const totpStatus = useTotpStatus()
@@ -142,19 +146,55 @@ export function useSecuritySettingsForm() {
     setPasswordForm(emptyPasswordForm)
   }
 
+  // The card's one Save and Discard act on whichever draft is changed. Both changed at once is held off,
+  // since each asks to confirm it's the user, so they go one at a time
+  const isSecurityDirty = isPasswordDirty || email.isDirty
+  const isSecurityPending = isPasswordPending || email.isPending
+  const canSaveSecurity = email.isDirty ? email.canSave && !isPasswordDirty : canSavePassword
+  const securitySaveBlockedReason = getSecuritySaveBlockedReason({
+    emailDirty: email.isDirty,
+    passwordDirty: isPasswordDirty,
+    emailDraft: email.draft,
+    hasPassword,
+    linkedProviderCount: email.reauth.linkedProviders.length,
+    passwordReason: passwordSaveBlockedReason,
+  })
+  const securitySaveStatus = passwordFeedback.status !== 'idle' ? passwordFeedback.status : email.status
+
+  /**
+   * Saves the changed draft, the email or the password
+   */
+  function handleSaveSecurity() {
+    if (!canSaveSecurity) return
+    if (email.isDirty) {
+      email.save()
+    } else {
+      void handleSavePassword()
+    }
+  }
+
+  /**
+   * Clears both drafts without contacting the backend
+   */
+  function handleDiscardSecurity() {
+    handleDiscardPassword()
+    email.discard()
+  }
+
   return {
     passwordForm,
     setPasswordField,
     newPasswordValid,
     confirmMatches,
-    isPasswordDirty,
-    isPasswordPending,
-    canSavePassword,
-    passwordSaveBlockedReason,
+    email,
+    isSecurityDirty,
+    isSecurityPending,
+    canSaveSecurity,
+    securitySaveBlockedReason,
     passwordSaveError,
-    passwordSaveStatus: passwordFeedback.status,
-    handleSavePassword,
-    handleDiscardPassword,
+    securitySaveStatus,
+    handleSaveSecurity,
+    handleDiscardSecurity,
     isStepUpOpen,
     verifyPasswordStepUp,
     closeStepUp,

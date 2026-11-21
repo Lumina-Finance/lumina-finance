@@ -1,6 +1,7 @@
 import { ApiError, NO_EXPLANATION_MESSAGE, type LoginPayload, type SignupPayload } from '@/api/auth'
 import type { Currency } from '@/api/currency'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
+import { getEmailAddressError } from '@/utils/emailAddress'
 import { formatCurrencyLabel } from '@/utils/formatCurrency'
 import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
 
@@ -43,8 +44,6 @@ export function emailFromConfirmationToken(token: string): string {
     return ''
   }
 }
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // The form's own wording for a field the server's validation refused, keyed by the request field.
 // A field without one shows the server's reason
@@ -95,11 +94,8 @@ export function buildInitialAuthForm(timezone: string, baseCurrency = 'CAD'): Au
 export function validateAuthFields(form: AuthFormValues, mode: AuthMode): AuthFieldErrors {
   const errors: AuthFieldErrors = {}
 
-  if (!form.email) {
-    errors.email = 'Email is required'
-  } else if (!EMAIL_RE.test(form.email)) {
-    errors.email = 'Enter a valid email address'
-  }
+  const emailError = getEmailAddressError(form.email)
+  if (emailError) errors.email = emailError
 
   // Forgot-password only asks for an email, so the password rules never apply
   if (mode === 'forgot') return errors

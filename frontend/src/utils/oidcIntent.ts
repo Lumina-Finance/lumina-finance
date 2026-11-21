@@ -8,6 +8,7 @@ export type OidcReauthAction =
   | { kind: 'link'; slug: string }
   | { kind: 'unlink'; identityId: string }
   | { kind: 'end-other-sessions' }
+  | { kind: 'change-email'; email: string }
 
 /**
  * The settings navigation state that tells the matching control to finish an action after its reauth,
@@ -23,6 +24,8 @@ export function getReauthResumeState(action: OidcReauthAction) {
       return { resumeUnlink: action.identityId }
     case 'end-other-sessions':
       return { resumeEndOtherSessions: true }
+    case 'change-email':
+      return { resumeChangeEmail: action.email }
   }
 }
 

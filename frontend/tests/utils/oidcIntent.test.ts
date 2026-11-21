@@ -37,4 +37,7 @@ it('tells settings which action to finish after a reauth, one flag per action', 
   expect(getReauthResumeState({ kind: 'link', slug: 'idp' })).toEqual({ resumeLink: 'idp' })
   expect(getReauthResumeState({ kind: 'unlink', identityId: 'identity-1' })).toEqual({ resumeUnlink: 'identity-1' })
   expect(getReauthResumeState({ kind: 'end-other-sessions' })).toEqual({ resumeEndOtherSessions: true })
+  expect(getReauthResumeState({ kind: 'change-email', email: 'new@example.com' })).toEqual({
+    resumeChangeEmail: 'new@example.com',
+  })
 })
