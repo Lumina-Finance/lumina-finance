@@ -26,7 +26,7 @@ from app.models.bank_connection import (
 from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.schemas.bank_sync import ReconnectBankConnectionRequest
-from app.services.bank_sync import availability
+from app.services.bank_sync import availability, outbound
 from app.services.cache_state.updates import mark_user_cache_changed
 from tests.conftest import TestSession
 from tests.fake_simplefin_bridge import FakeBridgeTransport
@@ -52,6 +52,12 @@ _SIGNIN_SINCE = datetime(2026, 9, 30, tzinfo=UTC)
 
 # Why each link's last attempt failed, as SimpleFIN rejecting the credential leaves it
 _REJECTED_REASON = "SimpleFIN Bridge rejected the stored access credential"
+
+# The time budget the stalled reconnect gets, short to keep it quick
+_BUDGET_SECONDS = 1.0
+
+# Long past the budget, so a reconnect still waiting then was never stopped by it
+_GIVE_UP_SECONDS = 10
 
 
 async def _rejected_with_two_links(client, scenario: FakeBridgeScenario) -> tuple[dict, str, str, str]:
@@ -532,3 +538,22 @@ async def test_reconnect_of_a_connection_disconnected_meanwhile_is_not_found(cli
     assert refused.json()["detail"] == _NOT_FOUND
     assert await _stored_connection(connection_id) is None
     assert {account_id: values[1] for account_id, values in (await _links()).items()} == {everyday_id: "unlinked", savings_id: "unlinked"}
+
+
+async def test_reconnect_to_a_stalled_bridge_answers_within_the_budget_and_keeps_the_rejected_credential(
+    client, scenario: FakeBridgeScenario, monkeypatch
+):
+    """The claim gets no answer, so the reconnect stops at its time budget, says why, and changes nothing stored"""
+    headers, _, _, connection_id = await _rejected_with_two_links(client, scenario)
+    stored = (await _stored_connection(connection_id)).credential_encrypted
+    monkeypatch.setattr(outbound, "WAITED_REQUEST_BUDGET_SECONDS", _BUDGET_SECONDS)
+    stalled = PausedBridge("/claim/")
+    use_adapter(monkeypatch, simplefin_adapter(stalled))
+
+    async with asyncio.timeout(_GIVE_UP_SECONDS):
+        refused = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
+
+    assert stalled.reached.is_set()
+    assert refused.status_code == 502, refused.text
+    assert refused.json()["detail"] == "SimpleFIN Bridge couldn't be reached. Please try again in a few minutes"
+    assert (await _stored_connection(connection_id)).credential_encrypted == stored

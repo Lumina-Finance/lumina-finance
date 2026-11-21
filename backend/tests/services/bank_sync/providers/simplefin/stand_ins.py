@@ -2,7 +2,7 @@
 
 The fake SimpleFIN Bridge answers as the Bridge does, for claims, account sets and their faults, and
 AccountsTimeOut lets it answer claims while every accounts request times out. PausedBridge holds a
-request until the test releases it
+request until the test releases it, and SlowBridge answers every request after a delay
 """
 
 import asyncio
@@ -61,6 +61,20 @@ class PausedBridge(httpx.AsyncBaseTransport):
         if self._marker in request.url.path and not self.reached.is_set():
             self.reached.set()
             await self.release.wait()
+        return await self._inner.handle_async_request(request)
+
+
+class SlowBridge(httpx.AsyncBaseTransport):
+    """Forwards to the fake SimpleFIN Bridge, answering each request only after a delay"""
+
+    def __init__(self, delay_seconds: float) -> None:
+        """Wait this long before forwarding each request"""
+        self._inner = FakeBridgeTransport()
+        self._delay_seconds = delay_seconds
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        """Wait, then forward the request"""
+        await asyncio.sleep(self._delay_seconds)
         return await self._inner.handle_async_request(request)
 
 

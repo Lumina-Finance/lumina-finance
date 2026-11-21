@@ -41,6 +41,7 @@ from app.services.bank_sync.claim import (
     save_reconnected_connection,
 )
 from app.services.bank_sync.connections import read_nickname
+from app.services.bank_sync.outbound import within_time_budget
 from app.services.bank_sync.providers.contract import REFUSED_FIELDS_HEADER, ClaimRefused, ProviderAdapter, ProviderUnreachable
 from app.services.bank_sync.release import release_credential
 
@@ -77,6 +78,7 @@ def hash_state(state: str) -> str:
     return hashlib.sha256(state.encode()).hexdigest()
 
 
+@within_time_budget
 async def start_authorization(
     db: AsyncSession,
     user: User,
@@ -174,6 +176,7 @@ class _TakenAuthorization:
     expires_at: datetime
 
 
+@within_time_budget
 async def finish_authorization(db: AsyncSession, user: User, request: FinishBankAuthorizationRequest) -> FinishBankAuthorizationResponse:
     """Finish a bank sign-in from what the bank sent the user back with, adding or reconnecting a connection
 

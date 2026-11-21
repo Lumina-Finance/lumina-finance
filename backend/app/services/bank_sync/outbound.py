@@ -4,14 +4,16 @@ A credential the user pastes can carry a URL they control, and the server then c
 provider request goes through this guard to keep a crafted URL from reaching an internal service.
 Only an allowed HTTPS origin is contacted, every address its host resolves to must be public, and
 the connection goes to the address that was checked, so a DNS answer that changes in between
-can't send it elsewhere. A testing-only origin, while set, replaces the allowed origins with itself
+can't send it elsewhere. A testing-only origin, while set, replaces the allowed origins with itself.
+The provider calls of a request the user waits on share one time budget
 """
 
 import asyncio
 import contextlib
+import functools
 import logging
 import socket
-from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Collection, Iterator, Mapping, Sequence
 from contextvars import ContextVar
 from ipaddress import IPv4Address, IPv6Address, ip_address
 
@@ -24,6 +26,17 @@ type Resolver = Callable[[str, int], Awaitable[list[IpAddress]]]
 
 # A dead provider fails a sync within seconds, while a slow bank fetch still has time to answer
 REQUEST_TIMEOUT = httpx.Timeout(30.0, connect=5.0)
+
+# Every provider call a request the user waits on makes shares this many seconds, counted from when
+# the request starts. The browser gives up on a request after 30 seconds, so a stalled provider
+# fails the request while the screen can still show why, with room left for the database work
+# around the calls and for giving a credential back. Giving one back keeps its own 5 seconds.
+# Background sync waits on no one and keeps only the per-call timeout
+WAITED_REQUEST_BUDGET_SECONDS = 20.0
+
+# When the provider calls of the request the user waits on must stop, on the event loop's clock, or
+# None outside such a request
+_budget_deadline: ContextVar[float | None] = ContextVar("budget_deadline", default=None)
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 
@@ -56,6 +69,38 @@ class OriginRefused(OutboundRefused):
 
 class AddressRefused(OutboundRefused):
     """The host resolves to at least one address that isn't publicly routable"""
+
+
+class TimeBudgetSpent(httpx.TimeoutException):
+    """A provider call ran past the time budget of the request the user waits on
+
+    Adapters read it as any other timeout, so each answers as it does when its provider doesn't respond in time
+    """
+
+
+def within_time_budget[**P, R](service: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+    """Give the provider calls a service makes while the user waits one time budget, counted from when it starts"""
+
+    @functools.wraps(service)
+    async def run(*args: P.args, **kwargs: P.kwargs) -> R:
+        """Run the service with its deadline set"""
+        deadline = _budget_deadline.set(asyncio.get_running_loop().time() + WAITED_REQUEST_BUDGET_SECONDS)
+        try:
+            return await service(*args, **kwargs)
+        finally:
+            _budget_deadline.reset(deadline)
+
+    return run
+
+
+@contextlib.contextmanager
+def outside_time_budget() -> Iterator[None]:
+    """Lift the time budget for a call that keeps a shorter limit of its own, such as giving a credential back"""
+    deadline = _budget_deadline.set(None)
+    try:
+        yield
+    finally:
+        _budget_deadline.reset(deadline)
 
 
 async def resolve_host(host: str, port: int) -> list[IpAddress]:
@@ -155,10 +200,30 @@ class OutboundGuard:
         Raises:
             OriginRefused: The URL's origin is not allowed
             AddressRefused: The host resolves to an address that isn't public
+            TimeBudgetSpent: The request the user waits on ran out of time for provider calls
             httpx.RequestError: The host couldn't be resolved in time or the request failed
         """
         self.check_origin(url)
 
+        # The deadline cancels whatever step is running, the lookup and each address tried included,
+        # and a deadline already past sends nothing
+        try:
+            async with asyncio.timeout_at(_budget_deadline.get()):
+                return await self._send_allowed(method, url, headers=headers, params=params, auth=auth, content=content)
+        except TimeoutError:
+            raise TimeBudgetSpent(f"{url.host} ran past the time budget of the request waiting on it") from None
+
+    async def _send_allowed(
+        self,
+        method: str,
+        url: httpx.URL,
+        *,
+        headers: Mapping[str, str] | None,
+        params: Sequence[tuple[str, str]] | None,
+        auth: httpx.BasicAuth | None,
+        content: bytes | None,
+    ) -> httpx.Response:
+        """Send a request whose origin is allowed, at an address checked to be public"""
         host = url.raw_host.decode("ascii")
         is_test_origin = _origin_of(url) == self._test_origin
         # The lookup counts toward the connect timeout, since a resolver that never answers would

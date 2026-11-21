@@ -37,6 +37,7 @@ from app.services.bank_sync.availability import (
 from app.services.bank_sync.connections import build_connection_responses, get_own_connection, read_nickname
 from app.services.bank_sync.discovery import run_discovery
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
+from app.services.bank_sync.outbound import within_time_budget
 from app.services.bank_sync.provider_requests import record_provider_request
 from app.services.bank_sync.providers.contract import ClaimRefused, ProviderAdapter, ProviderUnreachable
 from app.services.bank_sync.release import release_stored_credential
@@ -45,6 +46,7 @@ from app.services.cache_state.updates import mark_user_cache_changed
 WORKING_CONNECTION_DETAIL = "This connection is working, so it needs no reconnection"
 
 
+@within_time_budget
 async def claim_connection(db: AsyncSession, user: User, request: CreateBankConnectionRequest) -> BankConnectionResponse:
     """Claim a supplied credential as a new connection and discover its bank accounts
 
@@ -128,6 +130,7 @@ async def save_claimed_connection(
     return (await build_connection_responses(db, user.id, [connection]))[0]
 
 
+@within_time_budget
 async def reconnect_connection(
     db: AsyncSession,
     user: User,
