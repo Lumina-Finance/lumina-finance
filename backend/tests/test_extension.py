@@ -65,6 +65,13 @@ EXPECTED_SHAPES: dict[str, str] = {
     "run_jobs": "async run_jobs(max_jobs: int, deadline: datetime | None = ...) -> int",
     "prune_expired_records": "async prune_expired_records(session_factory: async_sessionmaker[AsyncSession] = ...) -> None",
     "run_migrate": "async run_migrate() -> None",
+    "verify_app_role_is_unprivileged": "async verify_app_role_is_unprivileged() -> None",
+    "verify_database_keys": "async verify_database_keys() -> None",
+    "sync_sign_in_providers": "async sync_sign_in_providers() -> None",
+    "run_startup_checks": "run_startup_checks() -> None",
+    "use_valkey": "use_valkey(store: ValkeyStore | None = ...) -> AsyncIterator[ValkeyStore | None]",
+    "run_cleanup_timer": "run_cleanup_timer() -> AsyncIterator[None]",
+    "set_cleanup_timer_enabled": "set_cleanup_timer_enabled(enabled: bool) -> None",
 }
 
 
@@ -100,7 +107,7 @@ def test_a_name_that_is_not_a_point_is_not_there():
 
 def test_importing_the_module_needs_no_settings_and_loads_no_heavy_module():
     """The signing keys and the database password are only read when a point that needs them is asked for"""
-    heavy = ("app.dependencies", "app.database", "app.main", "app.config.jwt")
+    heavy = ("app.dependencies", "app.database", "app.main", "app.startup", "app.config.jwt")
     program = f"import sys, app.extension; print([name for name in {heavy!r} if name in sys.modules])"
 
     result = subprocess.run(  # noqa: S603

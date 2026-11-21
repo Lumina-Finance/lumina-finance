@@ -1,6 +1,7 @@
 """One cleanup for the records that expire or are left behind, except those bank sync prunes as it writes
 
-Each kind is one entry in EXPIRED_RECORD_KINDS, and the app prunes them all on a schedule while it serves
+Each kind is one entry in EXPIRED_RECORD_KINDS. The app prunes them all on a schedule while it serves,
+unless code outside the app turns that timer off, and prune_expired_records runs one pass without it
 
 Bank sync prunes its request records where it writes them: recording a request to a provider deletes
 that connection's earlier records once the request budget no longer counts them
@@ -8,7 +9,8 @@ that connection's earlier records once the request budget no longer counts them
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager, suppress
 from datetime import timedelta
 from typing import NamedTuple
 
@@ -80,8 +82,53 @@ async def prune_expired_records(session_factory: async_sessionmaker[AsyncSession
             logger.warning("Expired %s could not be pruned", kind.name, exc_info=True)
 
 
-async def prune_expired_records_on_schedule() -> None:
-    """Prune at once and then every interval, until cancelled when the server shuts down"""
+async def _prune_expired_records_on_schedule() -> None:
+    """Prune at once and then every interval, until cancelled"""
     while True:
         await prune_expired_records()
         await asyncio.sleep(EXPIRED_RECORD_PRUNE_INTERVAL.total_seconds())
+
+
+# False while code outside the app has turned the timer off. It is set in code and never read from the
+# environment, so no setting can leave expired records unpruned
+_is_cleanup_timer_enabled = True
+
+
+def set_cleanup_timer_enabled(enabled: bool) -> None:
+    """Turn the cleanup timer on or off for code that runs the cleanup on its own schedule
+
+    run_cleanup_timer reads the switch as its block starts, so a change applies from the next start and leaves a
+    running timer alone
+
+    Args:
+        enabled: False leaves out the timer's passes, the one at the start included, so the kinds the
+            cleanup covers wait until the caller runs prune_expired_records
+
+    Raises:
+        TypeError: The value is not a bool, since text such as "false" would count as on
+    """
+    global _is_cleanup_timer_enabled
+    if not isinstance(enabled, bool):
+        raise TypeError("set_cleanup_timer_enabled takes True or False")
+    _is_cleanup_timer_enabled = enabled
+
+
+@asynccontextmanager
+async def run_cleanup_timer() -> AsyncIterator[None]:
+    """Prune at once and then every interval while the block runs, and stop the timer when the block ends
+
+    The switch is read as the block starts. With the timer turned off before then, the block runs no
+    pass and logs one line saying the timer is off
+    """
+    if not _is_cleanup_timer_enabled:
+        logger.info("The cleanup timer is off, so expired records wait for prune_expired_records")
+        yield
+        return
+
+    timer = asyncio.create_task(_prune_expired_records_on_schedule())
+    try:
+        yield
+    finally:
+        timer.cancel()
+        with suppress(asyncio.CancelledError):
+            await timer

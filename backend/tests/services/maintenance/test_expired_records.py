@@ -2,7 +2,6 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Awaitable, Callable, Iterable
-from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
 
@@ -335,7 +334,7 @@ async def test_a_failing_kind_is_logged_and_the_kinds_around_it_still_commit(mon
 
 
 async def test_the_schedule_keeps_pruning_until_cancelled(monkeypatch):
-    """The server loop prunes again after each interval rather than once"""
+    """The cleanup timer prunes again after each interval rather than once"""
     runs = 0
     second_run = asyncio.Event()
 
@@ -348,11 +347,8 @@ async def test_the_schedule_keeps_pruning_until_cancelled(monkeypatch):
     monkeypatch.setattr(expired_records, "prune_expired_records", count_run)
     monkeypatch.setattr(expired_records, "EXPIRED_RECORD_PRUNE_INTERVAL", timedelta(0))
 
-    schedule = asyncio.create_task(expired_records.prune_expired_records_on_schedule())
-    await asyncio.wait_for(second_run.wait(), timeout=5)
-    schedule.cancel()
-    with suppress(asyncio.CancelledError):
-        await schedule
+    async with expired_records.run_cleanup_timer():
+        await asyncio.wait_for(second_run.wait(), timeout=5)
 
 
 # How many rows of each kind the cleanup must leave alone. Enough that reading them all shows
