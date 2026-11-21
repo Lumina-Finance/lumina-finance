@@ -16,6 +16,7 @@ import {
 import { recordPolicyViolations } from '../support/contentSecurity'
 import { stageFireflyExport } from '../support/firefly'
 import { CAFE, PAYROLL, statementFile } from '../support/ofx'
+import { needsOneAddress } from '../support/origins'
 import { requestResetLink } from '../support/reset'
 import { getAccountRow } from '../support/selectors'
 import { API_BASE_URL, BASE_URL } from '../support/target'
@@ -48,7 +49,13 @@ async function readHeaders(page: Page, path: string): Promise<Record<string, str
   return response.headers()
 }
 
-test('sends the policy with the app and the API, and runs no script it did not ship', async ({ page }) => {
+// The three tests below read what the packaged image's own web server sends at the app's address,
+// the API beneath /api included. A stack that serves the app from another host sets its own headers
+// and has no API under the app's address, so they leave a run against such a stack. The tests
+// further down read the console for refusals and judge whatever policy the stack sends
+const IMAGE_SERVER = needsOneAddress("reads the packaged image's web server, which a stack serving the app elsewhere replaces")
+
+test('sends the policy with the app and the API, and runs no script it did not ship', IMAGE_SERVER, async ({ page }) => {
   for (const path of ['/', '/api/health']) {
     const headers = await readHeaders(page, path)
 
@@ -79,7 +86,7 @@ test('sends the policy with the app and the API, and runs no script it did not s
   }
 })
 
-test('refuses to be shown inside a frame', async ({ page }) => {
+test('refuses to be shown inside a frame', IMAGE_SERVER, async ({ page }) => {
   // The framing page is answered from the app's own address. The browser refuses a page on a made-up
   // site as a public page reaching into a local one, so the test would pass with no header at all.
   // The policy forbids every parent, the app's own address included, so this stands for any site
@@ -96,7 +103,7 @@ test('refuses to be shown inside a frame', async ({ page }) => {
   expect(page.frames().filter((frame) => frame.url().startsWith(`${BASE_URL}/login`))).toEqual([])
 })
 
-test('sends no address in the referrer when a link on the reset page leaves the app', async ({ page, request }) => {
+test('sends no address in the referrer when a link on the reset page leaves the app', IMAGE_SERVER, async ({ page, request }) => {
   const user = await signUpUser(request)
   const link = await requestResetLink(page, user.email)
   const token = new URL(link).searchParams.get('token')

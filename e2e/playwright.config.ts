@@ -3,9 +3,9 @@ import { availableParallelism } from 'node:os'
 
 import { TEST_TIMEZONE } from './support/api'
 import { BANK_SYNC_TESTS, NO_BANK_SYNC_TESTS } from './support/bankSyncServer'
-import { ACROSS_ORIGINS_TESTS } from './support/origins'
+import { ACROSS_ORIGINS_TESTS, ONE_ADDRESS_TESTS } from './support/origins'
 import { EVERY_SIZE_TESTS } from './support/sizes'
-import { BASE_URL } from './support/target'
+import { BASE_URL, IS_API_ON_OTHER_ORIGIN } from './support/target'
 import { VISUAL_TEST_TIMEOUT_MS } from './support/visual-limit-reporter'
 
 // The development runner preserves the host-derived count when reserving an app CPU.
@@ -23,6 +23,12 @@ if (bankSync !== undefined && bankSync !== 'on' && bankSync !== 'off') {
   throw new Error('E2E_BANK_SYNC must be on or off')
 }
 const otherServersTests = bankSync === 'on' ? [NO_BANK_SYNC_TESTS] : bankSync === 'off' ? [BANK_SYNC_TESTS] : []
+
+// The address of the API decides the rest. Against the packaged image, where one address serves the
+// app and the API, the tests that need two stay out. Against a stack with the API elsewhere they run
+// with every other test, and the few written for one address stay out
+const otherAddressesTests = IS_API_ON_OTHER_ORIGIN ? ONE_ADDRESS_TESTS : ACROSS_ORIGINS_TESTS
+const leftOutTests = [otherAddressesTests, ...otherServersTests]
 
 // Set by the development runner for a screenshot or visual check run, whose throwaway specs fail
 // fast: a test over the limit fails, one that outlasts it by the teardown allowance stops the run,
@@ -99,17 +105,7 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
-      grepInvert: [ACROSS_ORIGINS_TESTS, ...otherServersTests],
-      use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.desktop },
-    },
-    {
-      // Desktop's size, for the tests desktop leaves out because they need the app and the API on
-      // different origins. Its CI job builds the frontend for that and is the only job to name
-      // this project. The development runner names none, so it runs this one too, on an instance
-      // whose frontend and API already have separate ports
-      name: 'cross-origin',
-      grep: ACROSS_ORIGINS_TESTS,
-      grepInvert: otherServersTests,
+      grepInvert: leftOutTests,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.desktop },
     },
     {
@@ -119,13 +115,13 @@ export default defineConfig({
       // tests whose result depends on the screen, since every other test fails the same way on desktop
       name: 'tablet',
       grep: EVERY_SIZE_TESTS,
-      grepInvert: otherServersTests,
+      grepInvert: leftOutTests,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.tablet, isMobile: true, hasTouch: true },
     },
     {
       name: 'phone',
       grep: EVERY_SIZE_TESTS,
-      grepInvert: otherServersTests,
+      grepInvert: leftOutTests,
       use: { ...devices['Desktop Chrome'], viewport: VIEWPORTS.phone, isMobile: true, hasTouch: true },
     },
   ],

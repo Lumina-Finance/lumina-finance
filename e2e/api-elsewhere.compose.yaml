@@ -1,0 +1,17 @@
+# Layered over docker/compose.yml to run the browser suite with the API at another address than the app.
+# The one container answers on two ports, so the app on 8080 reaches the API on 8081. Both stay on
+# one host, because the refresh cookie is SameSite=Lax, which a request from localhost to 127.0.0.1
+# would not carry, and the session would never start.
+#
+# The app on 8080 is a frontend built for that API, with VITE_API_URL=http://localhost:8081/api, and it
+# replaces the image's own. docker/.env names APP_URL=http://localhost:8080, the origin the API allows.
+# The policy lets the app connect only to its own origin, so the API's is named too.
+# Nothing here is part of the shipped stack.
+services:
+  app:
+    ports:
+      - "8081:80"
+    environment:
+      CSP_CONNECT_SRC_EXTRA: http://localhost:8081
+    volumes:
+      - ../frontend/dist:/srv/lumina/frontend:ro

@@ -5,7 +5,7 @@ import { logInViaApi, openPage } from '../support/app'
 import { ACROSS_ORIGINS } from '../support/origins'
 import { currentTotp, enrollTotp } from '../support/totp'
 
-// Runs in the cross-origin project only: the attempts left come in a header the browser reads only when
+// Runs against an API on another origin only: the attempts left come in a header the browser reads only when
 // the API is on another origin. Its width is the desktop one
 
 // A code the authenticator will not show for the next few steps, so Verify refuses it

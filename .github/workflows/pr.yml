@@ -25,6 +25,7 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       frontend-image: ${{ steps.image-filter.outputs.frontend }}
       docker: ${{ steps.filter.outputs.docker }}
+      api-elsewhere: ${{ steps.filter.outputs.api-elsewhere }}
       backend-tests: ${{ steps.tests.outputs.backend }}
       frontend-tests: ${{ steps.tests.outputs.frontend }}
       e2e-specs: ${{ steps.tests.outputs.e2e }}
@@ -55,6 +56,21 @@ jobs:
               - 'docker/**'
               - 'e2e/**'
               - 'backend/tests/fake_*/**'
+              - '.github/workflows/**'
+              - '.github/actions/**'
+
+            # What decides how the app reaches an API at another address: the frontend's API client,
+            # the server's allowed origins and cookies, the sign-in routes, the packaged image, and
+            # the browser suite's own support code and configuration. A change to one runs the whole
+            # browser suite against such a stack too. A change to specs alone runs only those
+            api-elsewhere:
+              - 'frontend/src/api/**'
+              - 'frontend/src/utils/nativeHandoff.ts'
+              - 'backend/app/main.py'
+              - 'backend/app/config/**'
+              - 'backend/app/routes/auth/**'
+              - 'docker/**'
+              - 'e2e/**'
               - '.github/workflows/**'
               - '.github/actions/**'
 
@@ -193,6 +209,7 @@ jobs:
     uses: ./.github/workflows/_e2e-test.yml
     with:
       specs: ${{ needs.changes.outputs.e2e-specs }}
+      api-elsewhere: ${{ needs.changes.outputs.api-elsewhere == 'true' }}
     secrets:
       DOCKERHUB_PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
 

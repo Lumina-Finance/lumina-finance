@@ -30,20 +30,32 @@ function readTarget(environment) {
   delete env.E2E_FAKE_ENABLE_BANKING_URL
   return spawnSync(process.execPath, [
     '--experimental-strip-types', '--input-type=module', '-e',
-    `const target = await import(${JSON.stringify(targetUrl.href)}); console.log(JSON.stringify({ frontend: target.BASE_URL, api: target.API_BASE_URL, bridge: target.FAKE_SIMPLEFIN_BRIDGE_URL }))`,
+    `const target = await import(${JSON.stringify(targetUrl.href)}); console.log(JSON.stringify({ frontend: target.BASE_URL, api: target.API_BASE_URL, bridge: target.FAKE_SIMPLEFIN_BRIDGE_URL, isApiOnOtherOrigin: target.IS_API_ON_OTHER_ORIGIN }))`,
   ], { env: { ...env, ...environment }, encoding: 'utf8' })
 }
 
 test('same-origin target defaults the API to /api and normalizes trailing slashes', () => {
   const result = readTarget({ E2E_BASE_URL: `${frontend}///` })
   assert.equal(result.status, 0, result.stderr)
-  assert.deepEqual(JSON.parse(result.stdout), { frontend, api: `${frontend}/api`, bridge: null })
+  assert.deepEqual(JSON.parse(result.stdout), { frontend, api: `${frontend}/api`, bridge: null, isApiOnOtherOrigin: false })
 })
 
 test('split target preserves the full API prefix and browser origin', () => {
   const result = readTarget({ E2E_BASE_URL: frontend, E2E_API_BASE_URL: `${apiBase}///` })
   assert.equal(result.status, 0, result.stderr)
-  assert.deepEqual(JSON.parse(result.stdout), { frontend, api: apiBase, bridge: null })
+  assert.deepEqual(JSON.parse(result.stdout), { frontend, api: apiBase, bridge: null, isApiOnOtherOrigin: true })
+})
+
+test('an API address on the frontend origin is not a split target, whatever its path', () => {
+  const result = readTarget({ E2E_BASE_URL: frontend, E2E_API_BASE_URL: `${frontend}/v1` })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(JSON.parse(result.stdout).isApiOnOtherOrigin, false)
+})
+
+test('an API on another port of the same host is a split target', () => {
+  const result = readTarget({ E2E_BASE_URL: frontend, E2E_API_BASE_URL: 'http://frontend.example:8081/api' })
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(JSON.parse(result.stdout).isApiOnOtherOrigin, true)
 })
 
 test('a supplied fake SimpleFIN Bridge address loses its trailing slashes', () => {

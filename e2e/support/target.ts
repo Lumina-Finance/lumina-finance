@@ -69,6 +69,13 @@ for (const [name, value] of targets) {
   }
 }
 
+/**
+ * Whether the API answers at another origin than the app. The packaged image never does. The answer
+ * decides which tests the run takes: the ones written for one address stay out, and the ones that
+ * need two come in (`support/origins.ts`)
+ */
+export const IS_API_ON_OTHER_ORIGIN = new URL(API_BASE_URL).origin !== new URL(BASE_URL).origin
+
 // Long enough to cover a container that has just been started, short enough that pointing at
 // nothing fails while you are still watching
 const REACHABLE_TIMEOUT_MS = 60_000
