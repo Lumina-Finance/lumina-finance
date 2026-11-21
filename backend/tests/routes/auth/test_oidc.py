@@ -21,11 +21,14 @@ from app.services.auth.token_hashing import hash_token
 from tests.conftest import TestSession
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
+    _assert_bare_cookie,
+    _assert_host_bound_cookie,
     _assert_other_sessions_ended,
     _assert_other_sessions_kept,
     _assert_session_works,
     _clears_cookie,
     _get_auth_header,
+    _resend_cookie,
     _saved_copy_key,
     _seed_currency,
     _seed_reset_token,
@@ -1761,3 +1764,128 @@ async def test_setting_a_first_password_gives_the_account_a_new_saved_copy_key(c
 
     login = await client.post("/auth/login", json={"email": "sso-user@example.com", "password": _NEW_PASSWORD})
     assert _saved_copy_key(login) == (derive_saved_copy_key(uuid.UUID(user_id), 1), 1)
+
+
+async def _start_sign_in_over_https(client) -> str:
+    """Begin a sign-in on an HTTPS connection, asserting the binding cookie is host-bound, and return the state"""
+    client.headers["x-forwarded-proto"] = "https"
+    resp = await client.post("/auth/oidc/test-idp/authorize")
+    assert resp.status_code == 200
+    _assert_host_bound_cookie(resp, "oidc_login_binding")
+    return parse_qs(urlparse(resp.json()["authorization_url"]).query)["state"][0]
+
+
+async def test_callback_over_https_reads_the_host_bound_binding_cookie(client, provider_protocol):
+    """A sign-in started over HTTPS completes with the host-bound cookie, and the callback then removes it"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+    state = await _start_sign_in_over_https(client)
+    _resend_cookie(client, "__Host-oidc_login_binding")
+
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert "max-age=0" in _assert_host_bound_cookie(resp, "oidc_login_binding")
+
+
+async def test_callback_over_https_refuses_the_binding_secret_under_the_bare_name(client, provider_protocol):
+    """A sibling hostname can only plant the bare name, so even the right secret under it binds nothing"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+    state = await _start_sign_in_over_https(client)
+    _resend_cookie(client, "__Host-oidc_login_binding", send_as="oidc_login_binding")
+
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert "oidc_login_binding=" in resp.request.headers["cookie"], "the bare-name cookie reached the app"
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Single sign-on failed"
+    assert "max-age=0" in _assert_host_bound_cookie(resp, "oidc_login_binding"), "the refusal removes the host-bound cookie"
+
+
+async def test_sign_in_over_plain_http_keeps_the_bare_binding_cookie_a_browser_there_accepts(client, provider_protocol):
+    """A plain HTTP install sets and removes the binding cookie without Secure, or its browser would drop it"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+    started = await client.post("/auth/oidc/test-idp/authorize")
+    state = parse_qs(urlparse(started.json()["authorization_url"]).query)["state"][0]
+
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert "max-age" in _assert_bare_cookie(started, "oidc_login_binding")
+    assert "max-age=0" in _assert_bare_cookie(resp, "oidc_login_binding")
+
+
+async def _arm_reauth_proof_over_https(client, provider_protocol) -> dict:
+    """Make a passwordless account reauthenticate over HTTPS, asserting the proof cookie is host-bound
+
+    Returns:
+        The account's auth header
+    """
+    await _seed_currency()
+    await _seed_provider()
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+    client.headers["x-forwarded-proto"] = "https"
+    state = await _start_reauth(client, auth)
+    provider_protocol["claims"] = _claims()
+    resp = await client.post("/auth/oidc/reauth/callback", headers=auth, json={"code": "any", "state": state})
+    assert resp.status_code == 204
+    _assert_host_bound_cookie(resp, "oidc_reauth_stepup")
+    return auth
+
+
+async def test_reauth_proof_over_https_is_read_from_its_host_bound_cookie(client, provider_protocol):
+    """A proof armed over HTTPS authorizes the password it was for, and the spent cookie is removed host-bound"""
+    auth = await _arm_reauth_proof_over_https(client, provider_protocol)
+    _resend_cookie(client, "__Host-oidc_reauth_stepup")
+
+    resp = await client.post("/auth/password/set", headers=auth, json={"new_password": _NEW_PASSWORD})
+
+    assert resp.status_code == 204
+    assert "max-age=0" in _assert_host_bound_cookie(resp, "oidc_reauth_stepup")
+
+
+async def test_reauth_proof_over_https_is_refused_under_the_bare_name(client, provider_protocol):
+    """A copy of a real proof under the bare name authorizes nothing, since a sibling hostname could send one"""
+    auth = await _arm_reauth_proof_over_https(client, provider_protocol)
+    _resend_cookie(client, "__Host-oidc_reauth_stepup", send_as="oidc_reauth_stepup")
+
+    resp = await client.post("/auth/password/set", headers=auth, json={"new_password": _NEW_PASSWORD})
+
+    assert "oidc_reauth_stepup=" in resp.request.headers["cookie"], "the bare-name copy reached the app"
+    assert (resp.status_code, resp.json()["detail"]) == (401, "Reauthentication required")
+    assert "max-age=0" in _assert_host_bound_cookie(resp, "oidc_reauth_stepup")
+
+
+@pytest.mark.parametrize(
+    ("request_path", "success_status"),
+    [("/auth/sessions/end-others", 204), ("/auth/oidc/other-idp/link", 200)],
+    ids=["end-other-sessions", "link-provider"],
+)
+async def test_other_routes_taking_the_reauth_proof_read_its_host_bound_cookie(client, provider_protocol, request_path, success_status):
+    """Every route that accepts the proof reads it under the host-bound name over HTTPS, not only setting a password"""
+    await _seed_provider(slug="other-idp")
+    auth = await _arm_reauth_proof_over_https(client, provider_protocol)
+    _resend_cookie(client, "__Host-oidc_reauth_stepup")
+
+    resp = await client.post(request_path, headers=auth)
+
+    assert resp.status_code == success_status
+    assert "max-age=0" in _assert_host_bound_cookie(resp, "oidc_reauth_stepup")
+
+
+async def test_reauth_proof_over_plain_http_keeps_the_bare_cookie_a_browser_there_accepts(client, provider_protocol):
+    """A plain HTTP install sets and removes the proof cookie without Secure, or its browser would drop it"""
+    await _seed_currency()
+    await _seed_provider()
+    auth, _ = await _create_passwordless_user(client, provider_protocol)
+    state = await _start_reauth(client, auth)
+    provider_protocol["claims"] = _claims()
+    armed = await client.post("/auth/oidc/reauth/callback", headers=auth, json={"code": "any", "state": state})
+
+    spent = await client.post("/auth/password/set", headers=auth, json={"new_password": _NEW_PASSWORD})
+
+    assert (armed.status_code, spent.status_code) == (204, 204)
+    assert "max-age" in _assert_bare_cookie(armed, "oidc_reauth_stepup")
+    assert "max-age=0" in _assert_bare_cookie(spent, "oidc_reauth_stepup")

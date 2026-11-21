@@ -3,6 +3,8 @@
 from tests.routes.support.account_helpers import ACCOUNT_PAYLOAD, _create_account, _record_starting_balance
 from tests.routes.support.auth_helpers import (
     SIGNUP_PAYLOAD,
+    _assert_bare_cookie,
+    _assert_host_bound_cookie,
     _assert_other_sessions_ended,
     _assert_other_sessions_kept,
     _assert_session_works,
@@ -14,6 +16,7 @@ from tests.routes.support.auth_helpers import (
     _get_auth_header,
     _get_login_lockout,
     _link_sign_in_providers,
+    _resend_cookie,
     _saved_copy_key,
     _seed_currency,
     _seed_reset_token,
@@ -29,6 +32,8 @@ __all__ = [
     "ACCOUNT_PAYLOAD",
     "SIGNUP_PAYLOAD",
     "HeldCheck",
+    "_assert_bare_cookie",
+    "_assert_host_bound_cookie",
     "_assert_other_sessions_ended",
     "_assert_other_sessions_kept",
     "_assert_session_works",
@@ -43,6 +48,7 @@ __all__ = [
     "_get_system_merchant_id",
     "_link_sign_in_providers",
     "_record_starting_balance",
+    "_resend_cookie",
     "_saved_copy_key",
     "_seed_currency",
     "_seed_reset_token",

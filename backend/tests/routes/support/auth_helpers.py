@@ -254,3 +254,74 @@ def _clears_cookie(resp, key: str) -> bool:
         True when one of the response's Set-Cookie headers expires that cookie
     """
     return any(header.startswith(f'{key}=""') and "Max-Age=0" in header for header in resp.headers.get_list("set-cookie"))
+
+
+def _cookie_headers_for(resp, key: str) -> list[str]:
+    """Return the raw Set-Cookie headers a response sends for one cookie name, in lower case"""
+    headers = [header.lower() for header in resp.headers.get_list("set-cookie")]
+    return [header for header in headers if header.startswith(f"{key.lower()}=")]
+
+
+def _assert_host_bound_cookie(resp, key: str) -> str:
+    """Assert a response sets or removes a cookie only under its host-bound name, and return that header
+
+    A browser drops a host-bound cookie that lacks Secure, has a Domain or has a Path other than /,
+    and it can't remove one the same way, so each of those breaks sign-in in a real browser while
+    the plain-HTTP test client carries on regardless
+
+    Args:
+        resp: API response to inspect
+        key: The cookie's bare name
+
+    Returns:
+        The one Set-Cookie header for the host-bound name, in lower case
+    """
+    assert _cookie_headers_for(resp, key) == [], f"{key} is never sent under its bare name over HTTPS"
+    headers = _cookie_headers_for(resp, f"__Host-{key}")
+    assert len(headers) == 1, f"one Set-Cookie for __Host-{key}, got {headers}"
+    attributes = [part.strip() for part in headers[0].split(";")[1:]]
+    assert "secure" in attributes, "the browser refuses the prefix without Secure"
+    assert "path=/" in attributes, "the browser refuses the prefix on any other path"
+    assert not any(attribute.startswith("domain") for attribute in attributes), "the browser refuses the prefix with a Domain"
+    return headers[0]
+
+
+def _assert_bare_cookie(resp, key: str) -> str:
+    """Assert a response sets or removes a cookie only under its bare name and without Secure, and return that header
+
+    A plain HTTP install, such as one on a local network, has no secure connection, so a browser
+    would refuse a Secure cookie there, a removal included, and a user could not sign in or out
+
+    Args:
+        resp: API response to inspect
+        key: The cookie's bare name
+
+    Returns:
+        The one Set-Cookie header for the bare name, in lower case
+    """
+    assert _cookie_headers_for(resp, f"__Host-{key}") == [], f"{key} is never sent host-bound over plain HTTP"
+    headers = _cookie_headers_for(resp, key)
+    assert len(headers) == 1, f"one Set-Cookie for {key}, got {headers}"
+    attributes = [part.strip() for part in headers[0].split(";")[1:]]
+    assert "secure" not in attributes, "a browser on plain HTTP refuses a Secure cookie"
+    return headers[0]
+
+
+def _resend_cookie(client, name: str, *, send_as: str | None = None, resp=None) -> None:
+    """Make the test client send back the one cookie it holds under a name, as another name if asked
+
+    The client's base URL is plain HTTP, so its cookie jar withholds a cookie the server marked Secure.
+    A browser on an HTTPS site sends it, so the test hands the value back without the flag. Every other
+    cookie in the jar is dropped, so a test names exactly what the browser would send
+
+    Args:
+        client: Async test client
+        name: Name of the cookie the server set
+        send_as: Name to send the value under, so a test can plant a cookie for another name
+        resp: The response that set the cookie, for a client whose jar already holds an older one under
+            the same name
+    """
+    value = (resp.cookies if resp is not None else client.cookies).get(name)
+    assert value, f"the client holds a {name} cookie to send back"
+    client.cookies.clear()
+    client.cookies.set(send_as or name, value)

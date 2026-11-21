@@ -3,7 +3,7 @@
 import uuid
 
 import jwt
-from fastapi import Response
+from fastapi import Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import AuthTokenKind
@@ -14,6 +14,7 @@ from app.services.auth.sessions import delete_auth_session
 
 async def logout_auth_session(
     db: AsyncSession,
+    request: Request,
     response: Response,
     access_token: str | None,
     refresh_token: str | None,
@@ -27,6 +28,7 @@ async def logout_auth_session(
 
     Args:
         db: Active database session
+        request: FastAPI request object, read for the name of the cookie to remove
         response: FastAPI response object
         access_token: Optional bearer token from the Authorization header
         refresh_token: Optional refresh token from the cookie, or from a native app's body
@@ -41,7 +43,7 @@ async def logout_auth_session(
 
     await db.commit()
     if clears_cookie:
-        clear_refresh_cookie(response)
+        clear_refresh_cookie(request, response)
     logout_response = {"detail": "Logged out"}
     return logout_response
 

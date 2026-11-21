@@ -82,17 +82,17 @@ async def _refresh(
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
 
-    claims = _get_refresh_token_claims(refresh_token)
+    claims = _get_refresh_token_claims(request, refresh_token)
 
     # Stamp the identity from the signature-verified token before any query opens the
     # transaction the row-level security policies read
     current_user_id_ctx.set(claims.user_id)
 
-    await _verify_refresh_token_allowlist(db, claims)
+    await _verify_refresh_token_allowlist(db, request, claims)
 
     user = await get_user_by_id(db, claims.user_id)
     if not user:
-        _raise_refresh_token_error("User not found")
+        _raise_refresh_token_error(request, "User not found")
 
     auth_response = await issue_and_store_tokens(
         db,
@@ -105,10 +105,11 @@ async def _refresh(
     return auth_response
 
 
-def _get_refresh_token_claims(refresh_token: str) -> _RefreshTokenClaims:
+def _get_refresh_token_claims(request: Request, refresh_token: str) -> _RefreshTokenClaims:
     """Return parsed refresh-token claims or raise a refresh auth error
 
     Args:
+        request: FastAPI request object, read for the name of the cookie an error removes
         refresh_token: Encoded refresh token from the cookie
 
     Returns:
@@ -117,20 +118,20 @@ def _get_refresh_token_claims(refresh_token: str) -> _RefreshTokenClaims:
     try:
         payload = decode_refresh_token(refresh_token)
     except jwt.PyJWTError:
-        _raise_refresh_token_error("Invalid or expired refresh token")
+        _raise_refresh_token_error(request, "Invalid or expired refresh token")
 
     jti = payload.get("jti")
     sid = payload.get("sid")
     user_id = payload.get("sub")
     if not jti or not sid or not user_id:
-        _raise_refresh_token_error("Invalid token")
+        _raise_refresh_token_error(request, "Invalid token")
 
     try:
         token_id = uuid.UUID(str(jti))
         session_id = uuid.UUID(str(sid))
         user_uuid = uuid.UUID(str(user_id))
     except ValueError:
-        _raise_refresh_token_error("Invalid token")
+        _raise_refresh_token_error(request, "Invalid token")
 
     claims = _RefreshTokenClaims(token_id=token_id, session_id=session_id, user_id=user_uuid)
     return claims
@@ -138,12 +139,14 @@ def _get_refresh_token_claims(refresh_token: str) -> _RefreshTokenClaims:
 
 async def _verify_refresh_token_allowlist(
     db: AsyncSession,
+    request: Request,
     claims: _RefreshTokenClaims,
 ) -> None:
     """Verify that the refresh token and session are still allowlisted
 
     Args:
         db: Active database session
+        request: FastAPI request object, read for the name of the cookie an error removes
         claims: Parsed refresh token identifiers
 
     Returns:
@@ -151,19 +154,19 @@ async def _verify_refresh_token_allowlist(
     """
     token = await get_token_by_jti(db, claims.token_id, claims.user_id, AuthTokenKind.REFRESH)
     if token is not None and token.session_id != claims.session_id:
-        _raise_refresh_token_error("Invalid token")
+        _raise_refresh_token_error(request, "Invalid token")
 
     auth_session = await get_active_session_by_id(db, claims.session_id, claims.user_id, lock_for_update=True)
     if not auth_session:
-        _raise_refresh_token_error("Session is not active")
+        _raise_refresh_token_error(request, "Session is not active")
 
     active = await get_active_token_by_jti(db, claims.token_id, claims.user_id, AuthTokenKind.REFRESH)
     if not active:
         await _raise_for_rotated_or_inactive_refresh_token(db, claims)
-        _raise_refresh_token_error("Refresh token is not active")
+        _raise_refresh_token_error(request, "Refresh token is not active")
 
     if active.session_id != claims.session_id:
-        _raise_refresh_token_error("Invalid token")
+        _raise_refresh_token_error(request, "Invalid token")
 
 
 async def _raise_for_rotated_or_inactive_refresh_token(
@@ -201,10 +204,11 @@ def _raise_refresh_token_conflict(detail: str) -> NoReturn:
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from None
 
 
-def _raise_refresh_token_error(detail: str) -> NoReturn:
+def _raise_refresh_token_error(request: Request, detail: str) -> NoReturn:
     """Raise a refresh authentication error that also removes the refresh cookie
 
     Args:
+        request: FastAPI request object, read for the name of the cookie to remove
         detail: Response detail explaining why refresh failed
 
     Raises:
@@ -213,5 +217,5 @@ def _raise_refresh_token_error(detail: str) -> NoReturn:
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail=detail,
-        headers={"set-cookie": build_cookie_removal_header(clear_refresh_cookie)},
+        headers={"set-cookie": build_cookie_removal_header(request, clear_refresh_cookie)},
     ) from None
