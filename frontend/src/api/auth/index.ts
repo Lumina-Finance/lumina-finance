@@ -4,6 +4,7 @@ export {
   getSessionRestoreFailure,
   isAnsweredByApp,
   isRefreshAlreadyRotatedError,
+  MAINTENANCE_MESSAGE,
   NO_EXPLANATION_MESSAGE,
   type ApiFieldError,
 } from '@/api/auth/errors'

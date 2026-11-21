@@ -6,7 +6,7 @@
  * "[object Object]" rather than naming the field and its problem
  */
 import { describe, expect, it } from 'vitest'
-import { buildApiError } from '@/api/auth/errors'
+import { buildApiError, MAINTENANCE_MESSAGE } from '@/api/auth/errors'
 
 describe('buildApiError', () => {
   it.each([
@@ -70,5 +70,25 @@ describe('buildApiError', () => {
         : [{ loc: ['body'], msg: 'Input should be a valid dictionary' }]
 
     expect(buildApiError(422, { detail }).message).toBe(message)
+  })
+
+  it("words a 503 marked as maintenance with the page's own sentence, whatever the server wrote", () => {
+    const error = buildApiError(503, { detail: 'Back soon', maintenance: true })
+
+    expect(error).toMatchObject({
+      message: MAINTENANCE_MESSAGE,
+      detail: MAINTENANCE_MESSAGE,
+      isMaintenance: true,
+      status: 503,
+    })
+  })
+
+  it.each([
+    ['a 503 with only a reason, such as a cancelled statement', 503, { detail: 'The query took too long' }],
+    ['a 503 with no body, such as a gateway giving up', 503, null],
+    ['a marker on another status', 500, { maintenance: true }],
+    ['a marker that is not true', 503, { maintenance: 'yes' }],
+  ])('does not take %s for maintenance', (_label, status, body) => {
+    expect(buildApiError(status, body).isMaintenance).toBe(false)
   })
 })

@@ -5,7 +5,7 @@ import { HintButton } from '@/components/tooltips/HintButton'
 
 /**
  * Guidance that is not a warning or an error, something stopped until the user fixes it, or
- * something waiting on the user's review, in the status dot's colours
+ * something waiting on the user's review or on a service they can only wait for, in the status dot's colours
  */
 type InfoCalloutTone = 'info' | 'stopped' | 'review'
 

@@ -261,7 +261,7 @@ describe('auth API functions', () => {
 })
 
 describe('restoring the session on page load', () => {
-  const failedResponse = (status: number) => ({ ok: false, status, json: async () => null })
+  const failedResponse = (status: number) => new Response(null, { status })
 
   it('loads signed in when a second attempt answers after a gateway error', async () => {
     vi.useFakeTimers()

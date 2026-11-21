@@ -1,4 +1,6 @@
+import { isMaintenanceAnswer, MAINTENANCE_STATUS } from '@/api/auth/errors'
 import { API_BASE } from '@/api/config'
+import { reportMaintenance } from '@/api/version/serverState'
 
 // How long a request to the server may go unanswered before it fails, so a screen waiting on one that
 // never answers shows its error state rather than loading forever. Long enough for the slowest
@@ -52,7 +54,31 @@ export function fetchFromServer(
     signal?.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
   }
 
-  return fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal }).catch((error: unknown) => {
-    throw explainRequestFailure(error)
-  })
+  return fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal })
+    .catch((error: unknown) => {
+      throw explainRequestFailure(error)
+    })
+    .then(async (response) => {
+      await noteMaintenance(response)
+      return response
+    })
+}
+
+/**
+ * Tells the page whether the server is in maintenance from an answer, for every kind of request
+ * alike, so a screen that fails to load and one that restores a session read the same state. An
+ * answer the server accepts ends it. Only the 503 that could be a maintenance is read, from a copy
+ * so the caller still gets the body
+ */
+async function noteMaintenance(response: Response) {
+  if (response.ok) {
+    reportMaintenance(false)
+    return
+  }
+  if (response.status !== MAINTENANCE_STATUS) return
+  const body: unknown = await response
+    .clone()
+    .json()
+    .catch(() => null)
+  if (isMaintenanceAnswer(response.status, body)) reportMaintenance(true)
 }

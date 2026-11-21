@@ -167,7 +167,7 @@ export default function FailureBlock({
       </div>
 
       <p
-        className={`${MESSAGE_SPACING_CLASS[size]} text-sm leading-relaxed ${compact && detail ? COMPACT_MESSAGE_CAP_CLASS : ''}`}
+        className={`${MESSAGE_SPACING_CLASS[size]} text-sm leading-relaxed ${detail ? 'text-pretty' : ''} ${compact && detail ? COMPACT_MESSAGE_CAP_CLASS : ''}`}
         style={{ color: 'var(--app-text-muted)' }}
       >
         {detail ??

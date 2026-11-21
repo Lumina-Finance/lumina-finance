@@ -7,10 +7,18 @@ export const REFRESH_ALREADY_ROTATED_DETAIL = 'Refresh token was already rotated
 // The app sends these too, such as a 502 for a provider it couldn't reach, but always with a detail
 const GATEWAY_STATUSES = new Set([502, 503, 504])
 
+// The one status a maintenance answer comes with
+export const MAINTENANCE_STATUS = 503
+
+// What every screen shows while the server is in maintenance. The page words it rather than the
+// response, so the notice and the cards that failed to load say the same thing
+export const MAINTENANCE_MESSAGE = 'Lumina Finance is down for maintenance. Please try again in a few minutes.'
+
 interface ApiErrorOptions {
   attemptsRemaining?: number
   detail?: string
   fieldErrors?: ApiFieldError[]
+  isMaintenance?: boolean
   refusedFields?: string[]
 }
 
@@ -32,6 +40,9 @@ export class ApiError extends Error {
   /** The form fields a refusal is about, by key, where the server named some rather than all */
   refusedFields?: string[]
 
+  /** Whether the server answered that it is in maintenance, so the request was not carried out */
+  isMaintenance: boolean
+
   constructor(message: string, status: number, options: ApiErrorOptions = {}) {
     super(message)
     // Without this the class inherits the plain Error name, so a copied bug report cannot tell a
@@ -42,6 +53,7 @@ export class ApiError extends Error {
     this.detail = options.detail
     this.fieldErrors = options.fieldErrors
     this.refusedFields = options.refusedFields
+    this.isMaintenance = options.isMaintenance ?? false
   }
 }
 
@@ -127,17 +139,36 @@ function describeRefusedFields(fieldErrors: ApiFieldError[]): string {
 }
 
 /**
+ * Whether a response is the server saying it is in maintenance: a 503 whose body says
+ * `"maintenance": true`. A 503 without that marker is a cancelled statement or a gateway giving up,
+ * and neither says anything of maintenance
+ */
+export function isMaintenanceAnswer(status: number, body: unknown) {
+  return (
+    status === MAINTENANCE_STATUS &&
+    typeof body === 'object' &&
+    body !== null &&
+    (body as { maintenance?: unknown }).maintenance === true
+  )
+}
+
+/**
  * Builds the error a failed response stands for from its status and its parsed body, if any
  *
- * A sentence the server sent is the message. A validation refusal names the fields it refused and
- * keeps the server's reasons as `fieldErrors`. Anything else, including no body at all, gets the
- * friendly sentence, since a status code is not something a user can act on
+ * A maintenance answer gets the page's own maintenance sentence. Otherwise, a sentence the server
+ * sent is the message. A validation refusal names the fields it refused and keeps the server's
+ * reasons as `fieldErrors`. Anything else, including no body at all, gets the friendly sentence,
+ * since a status code is not something a user can act on
  */
 export function buildApiError(
   status: number,
   body: unknown,
-  options: Omit<ApiErrorOptions, 'detail' | 'fieldErrors'> = {},
+  options: Omit<ApiErrorOptions, 'detail' | 'fieldErrors' | 'isMaintenance'> = {},
 ): ApiError {
+  if (isMaintenanceAnswer(status, body)) {
+    return new ApiError(MAINTENANCE_MESSAGE, status, { ...options, detail: MAINTENANCE_MESSAGE, isMaintenance: true })
+  }
+
   const detail = typeof body === 'object' && body !== null ? (body as { detail?: unknown }).detail : undefined
   if (typeof detail === 'string' && detail.trim()) return new ApiError(detail, status, { ...options, detail })
 

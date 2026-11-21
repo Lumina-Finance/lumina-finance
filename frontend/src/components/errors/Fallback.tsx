@@ -1,5 +1,8 @@
+import { ApiError } from '@/api/auth'
 import FailureBlock from '@/components/errors/FailureBlock'
 import { useServerReachability } from '@/hooks/useServerReachability'
+
+const MAINTENANCE_HEADING = "We'll be back soon"
 
 export type FallbackVariant = 'card' | 'screen'
 
@@ -27,22 +30,30 @@ export default function Fallback({ componentStack, error, preserveStoredData = f
   // can act on. An unreachable server rewrites it rather than the other way round
   const serverUnreachable = useServerReachability() === 'unreachable'
 
+  // A server in maintenance did answer, so nothing is unreachable and no bug is behind the screen
+  const isMaintenance = error instanceof ApiError && error.isMaintenance
+
   const content = (
     <FailureBlock
       componentStack={componentStack}
+      detail={isMaintenance ? error.detail : null}
       error={error}
       // The last word and the face are held together, or a narrow screen breaks between them and
       // leaves the bracket opening the next line as stray punctuation
       heading={
-        <>
-          OK this was not in the{' '}
-          <span className="whitespace-nowrap">
-            plan <span aria-hidden>:(</span>
-          </span>
-        </>
+        isMaintenance ? (
+          MAINTENANCE_HEADING
+        ) : (
+          <>
+            OK this was not in the{' '}
+            <span className="whitespace-nowrap">
+              plan <span aria-hidden>:(</span>
+            </span>
+          </>
+        )
       }
       preserveStoredData={preserveStoredData}
-      serverUnreachable={serverUnreachable}
+      serverUnreachable={serverUnreachable && !isMaintenance}
       size={variant}
     />
   )

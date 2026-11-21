@@ -3,7 +3,9 @@ import { focusManager, useQueryClient, type QueryClient } from '@tanstack/react-
 import type { User } from '@/api/auth'
 import { fetchCacheStatus, fetchProfile, fetchRatesStatus } from '@/api/user'
 import { applyCheckAnswer, applyRatesDigest, getCheckRecord, toCheckAnswer } from '@/api/cache/cacheCheck'
+import { invalidateAppData } from '@/api/cache/invalidation'
 import { QUERY_CACHE_STORAGE_KEY, readEntryObservedAt } from '@/api/cache/persistence'
+import { reportServerVersion, subscribeToMaintenance } from '@/api/version'
 
 const RATES_RECHECK_INTERVAL_MS = 12 * 60 * 60 * 1000
 const CACHE_STATUS_RETRY_INTERVAL_MS = 60 * 1000
@@ -91,6 +93,30 @@ export function createHeldRunner(gate: ReturnType<typeof createHoldGate>, task: 
       return false
     },
     dispose: unsubscribe,
+  }
+}
+
+/**
+ * What the check does as a maintenance starts and ends. While one lasts it asks the server again on
+ * its own, since a user left on a screen has no other reason to cause a check. What failed meanwhile
+ * stays failed until asked again, so the end of it fetches the app data once more, waiting for any
+ * dialogue that holds the checks back as a check does
+ *
+ * @param gate - The hold gate whose holds delay the fetch
+ * @param actions - `retry` schedules the next check, `refetch` fetches the app data again
+ */
+export function createMaintenanceReaction(
+  gate: ReturnType<typeof createHoldGate>,
+  { refetch, retry }: { refetch: () => void; retry: () => void },
+) {
+  const heldRefetch = createHeldRunner(gate, refetch)
+
+  return {
+    onChange(isMaintenance: boolean) {
+      if (isMaintenance) retry()
+      else if (heldRefetch.attempt()) refetch()
+    },
+    dispose: heldRefetch.dispose,
   }
 }
 
@@ -261,9 +287,16 @@ export function useCacheValidation(
       toldObservedAt = readEntryObservedAt(event.newValue)
       void validate()
     }
+    const maintenance = createMaintenanceReaction(cacheValidationGate, {
+      retry: scheduleRetry,
+      refetch: () => invalidateAppData(queryClient),
+    })
+    const unsubscribeMaintenance = subscribeToMaintenance(maintenance.onChange)
     window.addEventListener('focus', onWindowFocus)
     window.addEventListener('storage', onStorageChange)
     return () => {
+      unsubscribeMaintenance()
+      maintenance.dispose()
       active = false
       clearTimeout(midnightTimer)
       heldRunner.dispose()
@@ -276,6 +309,7 @@ export function useCacheValidation(
 
 async function validateAppData(queryClient: QueryClient, isOpening: boolean): Promise<CheckResult> {
   const status = await fetchCacheStatus()
+  reportServerVersion(status.server_version)
   const { changed } = applyCheckAnswer(queryClient, toCheckAnswer(status), Date.now(), isOpening)
   return { changed, nextBoundaryAt: status.next_calculation_boundary_at }
 }
