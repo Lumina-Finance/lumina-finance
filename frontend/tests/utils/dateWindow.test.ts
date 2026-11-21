@@ -9,10 +9,11 @@ import { DEFAULT_DATE_FORMAT, setDateFormat } from '@/utils/dateFormat'
 import {
   getDateWindowError,
   getLatestAllowedYmd,
+  getOverviewRange,
   getOverviewRangeSpanError,
   getRangeSpanError,
 } from '@/utils/dateWindow'
-import { dateRanges, dateRangesNearSpan, toYmd, type CalendarDay } from '@tests/utils/generators'
+import { calendarDays, dateRanges, dateRangesNearSpan, toYmd, type CalendarDay } from '@tests/utils/generators'
 
 // A fixed today, so the window's far edge is the same on every day the suite runs
 const TODAY = '2026-06-10'
@@ -102,6 +103,55 @@ describe('getRangeSpanError', () => {
   })
 })
 
+describe('getOverviewRange', () => {
+  const today = '2026-06-30'
+
+  it('runs a filter with no dates from the first of this month to today', () => {
+    expect(getOverviewRange(undefined, undefined, today)).toEqual({ from: '2026-06-01', to: '2026-06-30' })
+    expect(getOverviewRange('', '', today)).toEqual({ from: '2026-06-01', to: '2026-06-30' })
+  })
+
+  it('keeps both dates a filter sets, and fills only the end it leaves out', () => {
+    expect(getOverviewRange('2026-02-03', '2026-04-05', today)).toEqual({ from: '2026-02-03', to: '2026-04-05' })
+    expect(getOverviewRange('2026-02-03', undefined, today)).toEqual({ from: '2026-02-03', to: today })
+    expect(getOverviewRange(undefined, '2026-06-12', today)).toEqual({ from: '2026-06-01', to: '2026-06-12' })
+  })
+
+  it('starts a filter with only an end before this month on the first of the month that end falls in', () => {
+    expect(getOverviewRange(undefined, '2025-01-31', today)).toEqual({ from: '2025-01-01', to: '2025-01-31' })
+    expect(getOverviewRange(undefined, '2026-05-31', today)).toEqual({ from: '2026-05-01', to: '2026-05-31' })
+    expect(getOverviewRange(undefined, '2026-06-01', today)).toEqual({ from: '2026-06-01', to: '2026-06-01' })
+  })
+
+  it('leaves a filter with only an end after this month starting on the first of this month', () => {
+    expect(getOverviewRange(undefined, '2027-03-15', today)).toEqual({ from: '2026-06-01', to: '2027-03-15' })
+  })
+
+  it('ends a filter with only a start after today on that day, so the range never runs backwards', () => {
+    expect(getOverviewRange('2026-07-01', undefined, today)).toEqual({ from: '2026-07-01', to: '2026-07-01' })
+    expect(getOverviewRange('2026-06-30', undefined, today)).toEqual({ from: '2026-06-30', to: today })
+  })
+
+  it('never returns an end before the start for any dates a filter can hold', () => {
+    fc.assert(
+      fc.property(
+        fc.option(calendarDays, { nil: undefined }),
+        fc.option(calendarDays, { nil: undefined }),
+        calendarDays,
+        (from, to, todayDay) => {
+          const range = getOverviewRange(from && toYmd(from), to && toYmd(to), toYmd(todayDay))
+
+          // A filter that crosses its own ends is refused where it is typed, so only an uncrossed one is asked of
+          if (from && to && toYmd(from) > toYmd(to)) return
+          expect(range.from <= range.to).toBe(true)
+          if (from) expect(range.from).toBe(toYmd(from))
+          if (to) expect(range.to).toBe(toYmd(to))
+        },
+      ),
+    )
+  })
+})
+
 describe('getOverviewRangeSpanError', () => {
   // Today is a given day, so a summary asking for no end runs to it and one asking for no start runs
   // from the first of its month
@@ -113,8 +163,9 @@ describe('getOverviewRangeSpanError', () => {
     expect(getOverviewRangeSpanError('2000-01-01', '', today)).toBe('Can cover at most 20 years')
   })
 
-  it('reads an end with no start as running from the first of the month', () => {
+  it('reads an end with no start as running from the first of the month it falls in', () => {
     expect(getOverviewRangeSpanError(undefined, '2026-06-20', today)).toBeNull()
+    expect(getOverviewRangeSpanError(undefined, '2025-01-31', today)).toBeNull()
   })
 
   it('refuses two dates exactly 20 years apart and takes one day less', () => {

@@ -73,10 +73,31 @@ export function getRangeSpanError(from: string, to: string): string | null {
 }
 
 /**
- * Says when the summary range a filter leads to covers more than 20 years, or returns null
+ * Returns the range the summary above a transaction list asks for, with both ends set
  *
- * The summary always asks for both dates, so an end left out is today and a start left out is the first of
- * the month
+ * An end the filter leaves out is filled so the range never runs backwards, since the server refuses
+ * one that does. A missing start is the first of this month, or the first of the month the end falls
+ * in when the end is earlier. A missing end is today, or the start itself when the start is later. A
+ * filter whose ends cross is refused where it is typed, so it is not asked of here
+ *
+ * @param from - The filter's first day, "" or undefined when it has none
+ * @param to - The filter's last day, "" or undefined when it has none
+ * @param todayYmd - Today in the user's timezone as "YYYY-MM-DD"
+ */
+export function getOverviewRange(
+  from: string | undefined,
+  to: string | undefined,
+  todayYmd: string,
+): { from: string; to: string } {
+  const end = to || (from && from > todayYmd ? from : todayYmd)
+  const monthStart = `${todayYmd.slice(0, 7)}-01`
+  const endMonthStart = `${end.slice(0, 7)}-01`
+
+  return { from: from || (endMonthStart < monthStart ? endMonthStart : monthStart), to: end }
+}
+
+/**
+ * Says when the summary range a filter leads to covers more than 20 years, or returns null
  *
  * @param from - The filter's first day, "" or undefined when it has none
  * @param to - The filter's last day, "" or undefined when it has none
@@ -87,5 +108,7 @@ export function getOverviewRangeSpanError(
   to: string | undefined,
   todayYmd: string,
 ): string | null {
-  return getRangeSpanError(from || `${todayYmd.slice(0, 7)}-01`, to || todayYmd)
+  const range = getOverviewRange(from, to, todayYmd)
+
+  return getRangeSpanError(range.from, range.to)
 }
