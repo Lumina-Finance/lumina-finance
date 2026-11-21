@@ -33,7 +33,7 @@ EmailChangeObserver = Callable[[EmailChange], None]
 _observers: list[EmailChangeObserver] = []
 
 
-def observe_email_changes(observer: Callable[[EmailChange], None]) -> None:
+def observe_email_changes(observer: EmailChangeObserver) -> None:
     """Call the observer with the change every time an account's email address changes
 
     Args:

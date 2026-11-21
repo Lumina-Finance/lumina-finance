@@ -1,6 +1,11 @@
 """Every field a request body, path or query string can carry has an upper bound, so no request stores more than a column can take"""
 
+import pytest
+from pydantic import ValidationError
+
 from app.main import app
+from app.schemas.auth import RequestEmailChangeRequest
+from app.schemas.limits import MAX_EMAIL_LENGTH
 
 # String formats whose values the parser bounds itself
 BOUNDED_STRING_FORMATS = {"uuid", "date", "date-time", "time", "duration"}
@@ -119,3 +124,25 @@ def test_the_walk_flags_what_it_is_meant_to_and_nothing_bounded():
         "body.choice.note is a string with no maxLength",
         "body.rows[] is a string with no maxLength",
     ]
+
+
+def _address_of_length(length: int) -> str:
+    """Return a well-formed address of exactly this many characters, with a full local part and labels no longer than allowed"""
+    local = "a" * 64
+    labels = ["b" * 63, "c" * 63]
+    last = "d" * (length - len(local) - len("@") - sum(len(label) + 1 for label in labels) - len(".com"))
+    return f"{local}@{'.'.join([*labels, last])}.com"
+
+
+def test_request_email_change_address_at_the_column_length_accepted():
+    """The longest address the column stores is a valid new address"""
+    address = _address_of_length(MAX_EMAIL_LENGTH)
+
+    assert RequestEmailChangeRequest(new_email=address).new_email == address
+
+
+@pytest.mark.parametrize("new_email", ["not-an-address", _address_of_length(MAX_EMAIL_LENGTH + 1)], ids=["malformed", "over the column"])
+def test_request_email_change_bad_new_email_refused(new_email):
+    """A new address that is not an address, or longer than the column, is refused before anything is looked up or stored"""
+    with pytest.raises(ValidationError, match="new_email"):
+        RequestEmailChangeRequest(new_email=new_email)

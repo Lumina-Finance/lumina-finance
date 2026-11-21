@@ -21,6 +21,7 @@ from app.models.user import User
 from app.services.auth.account_lockout import reset_failed_attempts
 from app.services.auth.password_reset import hold_reset_issuance
 from app.services.auth.sessions import delete_all_user_auth_sessions
+from app.services.auth.signup import INVALID_LINK_DETAIL
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.user_lookup import find_user_id_by_email
 from app.services.email import get_email_sender, render_email_change_email, render_email_change_notice_email
@@ -31,8 +32,8 @@ logger = logging.getLogger(__name__)
 _TOKEN_BYTES = 32
 _CONFIRM_PATH = "/confirm-new-email"
 
-# One message for every way a link can fail, so a response never says whether the address was taken
-_INVALID_LINK_DETAIL = "Invalid or expired confirmation link"
+# Shown under the Email field as the server sends it
+_UNCHANGED_EMAIL_DETAIL = "This is already your email address. Please enter a different one"
 
 
 def reject_unchanged_email(user: User, new_email: str) -> None:
@@ -49,7 +50,7 @@ def reject_unchanged_email(user: User, new_email: str) -> None:
         HTTPException: The address is the account's current one
     """
     if new_email == user.email:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Enter a different email address")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=_UNCHANGED_EMAIL_DETAIL)
 
 
 async def request_email_change(db: AsyncSession, user: User, new_email: str, background_tasks: BackgroundTasks) -> None:
@@ -104,8 +105,8 @@ async def _send_confirmation_email(recipient: str, raw_token: str) -> None:
         await get_email_sender().send(recipient, message)
     except Exception as error:
         # Best-effort after the response. Only the class is logged, since the mail library's error text can
-        # quote the address. The request stays stored, because dropping it would change what a repeated
-        # request shows
+        # quote the address. The request stays stored, because a taken address is sent nothing and keeps
+        # its row, so dropping the row here would make a free address's stored state differ from a taken one's
         logger.warning("Email change confirmation failed to send: %s", type(error).__name__)
 
 
@@ -135,7 +136,7 @@ async def confirm_email_change(db: AsyncSession, token: str, background_tasks: B
     )
     live = (await db.execute(request_query)).first()
     if live is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_LINK_DETAIL)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=INVALID_LINK_DETAIL)
 
     # The lookup ran before any identity existed, so close that transaction and adopt the account's, since
     # the transaction that follows is stamped with it for the self-only users policy
@@ -154,7 +155,7 @@ async def confirm_email_change(db: AsyncSession, token: str, background_tasks: B
     )
     claimed = (await db.execute(claim_query)).first()
     if claimed is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_LINK_DETAIL)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=INVALID_LINK_DETAIL)
 
     user_id, new_email = claimed
     old_email = await db.scalar(select(User.email).where(User.id == user_id))
@@ -172,7 +173,7 @@ async def confirm_email_change(db: AsyncSession, token: str, background_tasks: B
     except IntegrityError as error:
         await db.rollback()
         await _drop_request(db, token)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_LINK_DETAIL) from error
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=INVALID_LINK_DETAIL) from error
 
     await reset_failed_attempts(db, old_email)
     await reset_failed_attempts(db, new_email)
@@ -210,7 +211,7 @@ async def _send_change_notice(recipient: str, new_email: str) -> None:
 
 
 async def delete_expired_email_change_requests(db: AsyncSession) -> None:
-    """Delete email change requests whose link has expired, so no typed address outlives its request
+    """Delete email change requests whose link has expired, so a typed address is stored only until the next cleanup after its expiry
 
     Args:
         db: Active database session

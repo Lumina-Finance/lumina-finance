@@ -136,10 +136,11 @@ class EmailChangeRequest(Base):
 
     Each stored piece has a use. The address typed is kept because applying the change needs it, and
     nothing else knows it until the link is opened. The token is kept as a hash only, so a leaked table
-    cannot confirm a change. The expiry limits how long the link works. The row is deleted when the
-    link claims it, when a newer request replaces it, and once it has expired, so no address outlives
-    its request. A request for an address another account uses stores a row too, so the request does
-    the same work whether or not the address is taken
+    cannot confirm a change. The expiry limits how long the link works. The link claiming the row
+    deletes it, a newer request overwrites it, and the scheduled cleanup deletes it once it has
+    expired, so an expired address stays stored until that cleanup runs. A request for an address
+    another account uses stores a row too, so the request does the same work whether or not the address
+    is taken
     """
 
     __tablename__ = "email_change_requests"

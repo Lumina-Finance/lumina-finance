@@ -11,8 +11,8 @@ import pytest
 from sqlalchemy import delete, func, select, update
 
 from app.config.email_change import EMAIL_CHANGE_TOKEN_EXPIRE_SECONDS
-from app.email_change_hook import EmailChange
-from app.models.auth import EmailChangeRequest, PasswordCredential, PasswordResetToken
+from app.email_change_hook import EmailChange, observe_email_changes
+from app.models.auth import EmailChangeRequest, PasswordCredential, PasswordResetToken, TotpCredential
 from app.services.auth import email_change
 from app.services.auth.mfa_challenge import issue_reauth_stepup_proof
 from tests.conftest import TestSession
@@ -21,6 +21,8 @@ from tests.routes.support import (
     _assert_session_works,
     _count_sign_in_provider_links,
     _create_user,
+    _enroll,
+    _fresh_totp_code,
     _get_auth_header,
     _get_login_lockout,
     _link_sign_in_providers,
@@ -37,6 +39,7 @@ _CONFIRM = "/auth/email/change/confirm"
 _OLD_EMAIL = SIGNUP_PAYLOAD["email"]
 _NEW_EMAIL = "new.address@example.com"
 _PASSWORD = SIGNUP_PAYLOAD["password"]
+_WRONG_PASSWORD = "WrongPassword123!"
 _INVALID_LINK = "Invalid or expired confirmation link"
 
 
@@ -67,6 +70,13 @@ async def _stored_requests() -> list[EmailChangeRequest]:
     """Return every pending email change request"""
     async with TestSession() as session:
         return list((await session.scalars(select(EmailChangeRequest))).all())
+
+
+async def _set_link_expiry(seconds_left: int) -> None:
+    """Move every pending link's expiry to this many seconds from now"""
+    async with TestSession() as session:
+        await session.execute(update(EmailChangeRequest).values(expires_at=datetime.now(UTC) + timedelta(seconds=seconds_left)))
+        await session.commit()
 
 
 async def _drop_password(user_id: str) -> None:
@@ -142,7 +152,7 @@ async def _confirm_while_queueing(client, hold: _HeldConfirmation, token: str, q
         await _cancel_unfinished(requests)
 
 
-async def test_following_the_emailed_link_shows_the_new_address_after_logging_in(client):
+async def test_confirm_emailed_link_signs_in_and_shows_the_new_address(client):
     """The link goes to the new address only, and once confirmed the account signs in with it and shows it"""
     _, _, token = await _signed_up_and_requested(client)
     assert mailbox.sent_to(_OLD_EMAIL) == [], "nothing goes to the old address until the change is confirmed"
@@ -157,7 +167,7 @@ async def test_following_the_emailed_link_shows_the_new_address_after_logging_in
     assert me.json()["email"] == _NEW_EMAIL
 
 
-async def test_a_request_never_confirmed_leaves_the_old_address_and_sign_in_unchanged(client):
+async def test_request_never_confirmed_keeps_the_old_address_and_sign_in(client):
     """Asking is not changing: the account keeps its address and signs in as before until the link is opened"""
     await _signed_up_and_requested(client)
 
@@ -169,7 +179,7 @@ async def test_a_request_never_confirmed_leaves_the_old_address_and_sign_in_unch
     assert new.status_code == 401
 
 
-async def test_after_confirmation_the_old_address_no_longer_signs_in(client):
+async def test_sign_in_with_the_old_address_after_confirm_refused(client):
     """The account has one address, so the old one is refused like any address with no account"""
     _, _, token = await _signed_up_and_requested(client)
     await _confirm(client, token)
@@ -181,7 +191,7 @@ async def test_after_confirmation_the_old_address_no_longer_signs_in(client):
 
 
 @pytest.mark.parametrize("taken_spelling", ["taken@example.com", "TAKEN@example.com"])
-async def test_an_address_another_account_uses_gets_the_same_answer_and_no_email(client, taken_spelling):
+async def test_request_address_another_account_uses_answers_alike_and_sends_nothing(client, taken_spelling):
     """A free address and a taken one, in any capitals, answer alike, so the endpoint never says which addresses have accounts"""
     auth = _get_auth_header(await _create_user(client))
     await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "taken@example.com"})
@@ -197,7 +207,7 @@ async def test_an_address_another_account_uses_gets_the_same_answer_and_no_email
     assert [row.new_email for row in await _stored_requests()] == [taken_spelling], "the request stores the same row either way"
 
 
-async def test_changing_only_the_capitals_of_the_address_is_a_change(client):
+async def test_request_only_the_capitals_changed_confirms_the_new_spelling(client):
     """The address belongs to the account itself in other capitals, so it is free and the link is sent"""
     auth = _get_auth_header(await _create_user(client))
     shouted = "TEST@example.com"
@@ -210,24 +220,24 @@ async def test_changing_only_the_capitals_of_the_address_is_a_change(client):
     assert (await client.get("/me", headers=_get_auth_header(login))).json()["email"] == shouted
 
 
-async def test_the_address_the_account_already_has_is_refused_before_the_step_up_is_spent(client):
+async def test_request_current_spelling_refused_before_the_step_up_is_spent(client):
     """The same spelling changes nothing, so it is refused without counting a wrong password toward the lockout"""
     auth = _get_auth_header(await _create_user(client))
 
-    resp = await _request_change(client, auth, _OLD_EMAIL, password="WrongPassword123!")
+    resp = await _request_change(client, auth, _OLD_EMAIL, password=_WRONG_PASSWORD)
 
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "Enter a different email address"
+    assert resp.json()["detail"] == "This is already your email address. Please enter a different one"
     assert await _get_login_lockout(_OLD_EMAIL) is None
     assert mailbox.sent == []
 
 
 @pytest.mark.parametrize(
     ("step_up", "detail"),
-    [(None, "Reauthentication required"), ({"password": "WrongPassword123!"}, "Invalid credentials")],
+    [(None, "Reauthentication required"), ({"password": _WRONG_PASSWORD}, "Invalid credentials")],
     ids=["missing", "wrong password"],
 )
-async def test_without_the_step_up_nothing_is_stored_or_sent(client, step_up, detail):
+async def test_request_without_a_valid_step_up_stores_and_sends_nothing(client, step_up, detail):
     """A signed-in session alone cannot redirect the account's recovery mail"""
     auth = _get_auth_header(await _create_user(client))
 
@@ -239,7 +249,27 @@ async def test_without_the_step_up_nothing_is_stored_or_sent(client, step_up, de
     assert await _stored_requests() == []
 
 
-async def test_asking_without_a_session_is_refused(client):
+async def test_request_with_a_second_factor_on_needs_its_code(client):
+    """The password alone does not step up an account with a second factor, and the password with a current code does"""
+    auth, secret, _ = await _enroll(client)
+
+    password_only = await _request_change(client, auth)
+    assert password_only.status_code == 400
+    assert password_only.json()["detail"] == "A second factor is required"
+    assert mailbox.sent_to(_NEW_EMAIL) == []
+    assert await _stored_requests() == []
+
+    # Enrolment spent the code's step, so free it for the step-up
+    async with TestSession() as db:
+        await db.execute(update(TotpCredential).values(last_used_step=None))
+        await db.commit()
+    step_up = {"password": _PASSWORD, "code": _fresh_totp_code(secret)}
+    accepted = await client.post(_CHANGE, headers=auth, json={"new_email": _NEW_EMAIL, "step_up": step_up})
+    assert accepted.status_code == 204
+    assert len(mailbox.sent_to(_NEW_EMAIL)) == 1
+
+
+async def test_request_without_a_session_refused(client):
     """Only a signed-in account can ask"""
     await _create_user(client)
 
@@ -248,7 +278,7 @@ async def test_asking_without_a_session_is_refused(client):
     assert resp.status_code == 401
 
 
-async def test_a_passwordless_account_asks_with_a_fresh_provider_proof_that_works_once(client):
+async def test_request_passwordless_with_a_fresh_provider_proof_works_once(client):
     """With no password to send, the proof of a fresh provider sign-in authorizes one request"""
     signup = await _create_user(client)
     auth = _get_auth_header(signup)
@@ -273,7 +303,7 @@ async def test_a_passwordless_account_asks_with_a_fresh_provider_proof_that_work
     assert replayed.status_code == 401
 
 
-async def test_the_link_works_once(client):
+async def test_confirm_reused_or_guessed_link_refused(client):
     """A second use of the same link is refused, and so is a guess"""
     _, _, token = await _signed_up_and_requested(client)
     assert (await _confirm(client, token)).status_code == 200
@@ -286,34 +316,44 @@ async def test_the_link_works_once(client):
         assert refused.json()["detail"] == _INVALID_LINK
 
 
-async def test_two_simultaneous_confirmations_change_the_address_once(client):
-    """Of two people opening the same link at once, one gets the change and the other the refusal"""
+async def test_confirm_twice_at_once_changes_the_address_once(client, monkeypatch):
+    """The second opening of the link queues behind the first one's claim, then finds the link spent"""
     _, _, token = await _signed_up_and_requested(client)
+    hold = _hold_first_confirmation(monkeypatch)
 
-    responses = await asyncio.gather(_confirm(client, token), _confirm(client, token))
+    first, second = await _confirm_while_queueing(client, hold, token, lambda: _confirm(client, token))
 
-    assert sorted(response.status_code for response in responses) == [200, 400]
-    assert {response.json().get("detail") for response in responses if response.status_code == 400} == {_INVALID_LINK}
+    assert first.status_code == 200
+    assert first.json() == {"email": _NEW_EMAIL}
+    assert second.status_code == 400
+    assert second.json()["detail"] == _INVALID_LINK
     assert (await _sign_in(client, _NEW_EMAIL)).status_code == 200
 
 
-@pytest.mark.parametrize(("seconds_left", "status_code"), [(-1, 400), (60, 200)])
-async def test_the_link_stops_working_when_it_expires(client, seconds_left, status_code):
-    """A link a minute from its end still works, and one past it is refused like any other bad link"""
+async def test_confirm_a_minute_before_expiry_changes_the_address(client):
+    """A link near the end of its time still works"""
     _, _, token = await _signed_up_and_requested(client)
-    async with TestSession() as session:
-        await session.execute(update(EmailChangeRequest).values(expires_at=datetime.now(UTC) + timedelta(seconds=seconds_left)))
-        await session.commit()
+    await _set_link_expiry(60)
 
     resp = await _confirm(client, token)
 
-    assert resp.status_code == status_code
-    if status_code == 400:
-        assert resp.json()["detail"] == _INVALID_LINK
-        assert (await _sign_in(client, _OLD_EMAIL)).status_code == 200
+    assert resp.status_code == 200
+    assert resp.json() == {"email": _NEW_EMAIL}
 
 
-async def test_a_new_request_replaces_the_pending_one(client):
+async def test_confirm_past_expiry_refused_and_keeps_the_old_address(client):
+    """A link past its end is refused like any other bad link, and the account keeps its address"""
+    _, _, token = await _signed_up_and_requested(client)
+    await _set_link_expiry(-1)
+
+    resp = await _confirm(client, token)
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == _INVALID_LINK
+    assert (await _sign_in(client, _OLD_EMAIL)).status_code == 200
+
+
+async def test_request_again_replaces_the_pending_link(client):
     """The account has one pending request, so the link of an earlier one is dead"""
     auth, _, first_token = await _signed_up_and_requested(client)
     assert (await _request_change(client, auth, "second.choice@example.com")).status_code == 204
@@ -326,11 +366,15 @@ async def test_a_new_request_replaces_the_pending_one(client):
     assert (await _confirm(client, second_token)).json() == {"email": "second.choice@example.com"}
 
 
-async def test_an_address_taken_between_the_request_and_the_link_is_refused_and_changes_nothing(client):
+async def test_confirm_address_taken_meanwhile_refused_and_changes_nothing(client):
     """Another account can register the address while the link waits, and the refusal looks like any other bad link"""
     auth, user_id, token = await _signed_up_and_requested(client)
     reset_token = await _seed_reset_token(uuid.UUID(user_id))
     await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "New.Address@example.com"})
+    for address in (_OLD_EMAIL, _NEW_EMAIL):
+        await _sign_in(client, address, _WRONG_PASSWORD)
+    lockouts = [(await _get_login_lockout(address)).failed_attempt_count for address in (_OLD_EMAIL, _NEW_EMAIL)]
+    assert lockouts == [1, 1]
 
     resp = await _confirm(client, token)
 
@@ -340,9 +384,11 @@ async def test_an_address_taken_between_the_request_and_the_link_is_refused_and_
     assert (await client.get("/me", headers=auth)).json()["email"] == _OLD_EMAIL
     await _assert_session_works(client, (auth, ""))
     assert (await client.post("/auth/password/reset/check", json={"token": reset_token})).status_code == 200, "a refused change ends nothing"
+    for address in (_OLD_EMAIL, _NEW_EMAIL):
+        assert (await _get_login_lockout(address)).failed_attempt_count == 1, f"a refused change keeps the lockout count of {address}"
 
 
-async def test_confirming_ends_every_session_of_the_account_and_no_other_users(client):
+async def test_confirm_ends_every_session_of_the_account_and_no_other_users(client):
     """Whoever opens the link, every device of the account is signed out, the requester's included"""
     signup = await _create_user(client)
     requester = (_get_auth_header(signup), signup.cookies["refresh_token"])
@@ -360,7 +406,7 @@ async def test_confirming_ends_every_session_of_the_account_and_no_other_users(c
     assert (await _refresh_session(client, bystander[1])).status_code == 200
 
 
-async def test_confirming_ends_the_unused_password_reset_links_of_the_account_only(client):
+async def test_confirm_ends_the_unused_reset_links_of_the_account_only(client):
     """A reset link emailed to the old address must not sign anyone in once the address has moved on"""
     _, user_id, token = await _signed_up_and_requested(client)
     old_mailbox_link = await _seed_reset_token(uuid.UUID(user_id))
@@ -391,11 +437,23 @@ async def test_confirm_with_a_reset_request_for_the_old_address_at_once_sends_it
     assert await _live_reset_tokens(user_id) == [], "the account has no reset link that would still be accepted"
 
 
-async def test_confirming_clears_the_sign_in_lockout_of_both_addresses(client):
+async def test_confirm_leaves_another_users_pending_request_working(client):
+    """Confirming claims only the link's own request, so another account's link still confirms afterwards"""
+    _, _, token = await _signed_up_and_requested(client)
+    bystander = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "bystander@example.com"})
+    assert (await _request_change(client, _get_auth_header(bystander), "bystander.new@example.com")).status_code == 204
+    bystander_token = mailbox.confirmation_token("bystander.new@example.com")
+
+    assert (await _confirm(client, token)).status_code == 200
+
+    assert (await _confirm(client, bystander_token)).json() == {"email": "bystander.new@example.com"}
+
+
+async def test_confirm_clears_the_sign_in_lockout_of_both_addresses(client):
     """Failures counted against either address before the change do not lock the account out of the new one"""
     _, _, token = await _signed_up_and_requested(client)
-    await _sign_in(client, _OLD_EMAIL, "WrongPassword123!")
-    await _sign_in(client, _NEW_EMAIL, "WrongPassword123!")
+    await _sign_in(client, _OLD_EMAIL, _WRONG_PASSWORD)
+    await _sign_in(client, _NEW_EMAIL, _WRONG_PASSWORD)
     assert await _get_login_lockout(_OLD_EMAIL) is not None
     assert await _get_login_lockout(_NEW_EMAIL) is not None
 
@@ -405,7 +463,7 @@ async def test_confirming_clears_the_sign_in_lockout_of_both_addresses(client):
     assert await _get_login_lockout(_NEW_EMAIL) is None
 
 
-async def test_confirming_keeps_the_accounts_linked_sign_in_providers(client):
+async def test_confirm_keeps_the_accounts_linked_sign_in_providers(client):
     """A provider identity is keyed by its subject, so it keeps signing the account in under the new address"""
     _, user_id, token = await _signed_up_and_requested(client)
     await _link_sign_in_providers(uuid.UUID(user_id), 1)
@@ -415,7 +473,7 @@ async def test_confirming_keeps_the_accounts_linked_sign_in_providers(client):
     assert await _count_sign_in_provider_links(uuid.UUID(user_id)) == (1, 1)
 
 
-async def test_the_emails_say_only_what_each_recipient_needs(client):
+async def test_emails_of_a_change_say_only_what_each_recipient_needs(client):
     """The new address gets the link and how long it works, and the old address learns of the change afterwards with no link"""
     _, _, token = await _signed_up_and_requested(client)
     (confirmation,) = mailbox.sent_to(_NEW_EMAIL)
@@ -439,7 +497,7 @@ async def test_the_emails_say_only_what_each_recipient_needs(client):
         assert "http" not in body, "the notice has no link to act on"
 
 
-async def test_observers_hear_of_the_confirmed_change_and_only_then(client, email_changes):
+async def test_observers_after_a_confirm_hear_of_the_change_once(client, email_changes):
     """Code outside the app is told once the change is saved, with both addresses and the account"""
     _, user_id, token = await _signed_up_and_requested(client)
     assert email_changes == []
@@ -450,7 +508,27 @@ async def test_observers_hear_of_the_confirmed_change_and_only_then(client, emai
     assert email_changes == [EmailChange(user_id=uuid.UUID(user_id), old_email=_OLD_EMAIL, new_email=_NEW_EMAIL)]
 
 
-async def test_a_failed_confirmation_send_is_logged_by_class_and_keeps_the_request(client, caplog, monkeypatch):
+async def test_confirm_with_a_failing_observer_still_changes_the_address_and_logs_no_address(client, email_changes, caplog):
+    """An observer's error is logged by its class alone, even when it quotes an address, and never fails the confirmation"""
+
+    def broken(change: EmailChange) -> None:
+        raise ValueError(f"cannot reach {change.old_email} or {change.new_email}")
+
+    observe_email_changes(broken)
+    _, _, token = await _signed_up_and_requested(client)
+
+    with caplog.at_level(logging.DEBUG):
+        resp = await _confirm(client, token)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"email": _NEW_EMAIL}
+    assert "ValueError" in caplog.text
+    for address in (_OLD_EMAIL, _NEW_EMAIL):
+        assert address not in caplog.text
+    assert (await _sign_in(client, _NEW_EMAIL)).status_code == 200
+
+
+async def test_request_failed_send_logs_the_class_and_keeps_the_row(client, caplog, monkeypatch):
     """The mail library's error quotes the address, so only its class is logged, and the answer is the one a working send gives"""
     auth = _get_auth_header(await _create_user(client))
     error = aiosmtplib.SMTPRecipientsRefused([aiosmtplib.SMTPRecipientRefused(550, "Mailbox unavailable", _NEW_EMAIL)])
@@ -466,10 +544,10 @@ async def test_a_failed_confirmation_send_is_logged_by_class_and_keeps_the_reque
     assert resp.status_code == 204
     assert "SMTPRecipientsRefused" in caplog.text
     assert _NEW_EMAIL not in caplog.text
-    assert len(await _stored_requests()) == 1, "a failed send must not change what a repeated request shows"
+    assert len(await _stored_requests()) == 1, "a free address keeps its row after a failed send, as a taken one keeps its row"
 
 
-async def test_a_failed_notice_is_logged_by_class_and_the_change_still_stands(client, caplog, monkeypatch):
+async def test_confirm_failed_notice_logs_the_class_and_the_change_stands(client, caplog, monkeypatch):
     """The old mailbox may be gone, and that must not undo the change or put either address in the log"""
     _, _, token = await _signed_up_and_requested(client)
     error = aiosmtplib.SMTPRecipientsRefused([aiosmtplib.SMTPRecipientRefused(550, "Mailbox unavailable", _OLD_EMAIL)])
