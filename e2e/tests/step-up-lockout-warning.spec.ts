@@ -5,7 +5,7 @@ import { logInViaApi, openPage } from '../support/app'
 import { ACROSS_ORIGINS } from '../support/origins'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
-// Runs in the cross-origin project only: the warning reads the same at every size, but it needs the API on another origin
+// Runs on desktop only, against an API on another origin: the warning reads the same at every size, but it needs that origin
 
 // The browser can read the attempts count only when the API lists the header as exposed to another
 // origin, so the warning shows nothing unless the two origins differ, as they do on the dev instance
