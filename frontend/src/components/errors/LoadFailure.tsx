@@ -1,9 +1,9 @@
-import { ApiError } from '@/api/auth';
-import FailureBlock from '@/components/errors/FailureBlock';
+import { ApiError } from '@/api/auth'
+import FailureBlock from '@/components/errors/FailureBlock'
 
 // Wide enough for the sentence to break in a readable place, narrow enough that a card has room
 // left to centre it in. Below this width the box simply fills what it is given
-const STANDALONE_WIDTH_CLASS = 'w-full max-w-sm';
+const STANDALONE_WIDTH_CLASS = 'w-full max-w-sm'
 
 /**
  * Says why part of a working page is missing, in place of an empty state that would otherwise tell
@@ -44,7 +44,7 @@ export default function LoadFailure({
   const block = (
     <FailureBlock
       compact={compact}
-      detail={serverAnswered ? error.detail ?? null : null}
+      detail={serverAnswered ? (error.detail ?? null) : null}
       error={error}
       heading={`${subject} could not load`}
       // The failure is a request that failed rather than saved state that broke a render, so
