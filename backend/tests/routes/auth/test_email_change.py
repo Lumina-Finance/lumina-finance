@@ -8,14 +8,15 @@ from datetime import UTC, datetime, timedelta
 
 import aiosmtplib
 import pytest
-from sqlalchemy import delete, func, select, update
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import delete, event, func, select, update
 
-from app.config.email_change import EMAIL_CHANGE_TOKEN_EXPIRE_SECONDS
 from app.email_change_hook import EmailChange, observe_email_changes
+from app.main import app
 from app.models.auth import EmailChangeRequest, PasswordCredential, PasswordResetToken, TotpCredential
 from app.services.auth import email_change
 from app.services.auth.mfa_challenge import issue_reauth_stepup_proof
-from tests.conftest import TestSession
+from tests.conftest import TestSession, scoped_engine
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
     _assert_session_works,
@@ -205,6 +206,60 @@ async def test_request_address_another_account_uses_answers_alike_and_sends_noth
     assert set(taken.headers) == set(free.headers)
     assert mailbox.sent == [], "nothing is sent to an address another account uses"
     assert [row.new_email for row in await _stored_requests()] == [taken_spelling], "the request stores the same row either way"
+
+
+async def _statements_before_response(client_headers, new_email: str) -> list[str]:
+    """Return the database statements and commits a change request runs before its response starts"""
+    statements: list[str] = []
+    answered = False
+
+    def record_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        """Note a statement, normalising whitespace so only its text is compared"""
+        if not answered:
+            statements.append(" ".join(statement.split()))
+
+    def record_commit(_conn):
+        """Note a commit, since two commits cost more than one"""
+        if not answered:
+            statements.append("COMMIT")
+
+    async def tracked_app(scope, receive, send):
+        """Run the app, noting when its response starts"""
+
+        async def tracked_send(message):
+            nonlocal answered
+            if message["type"] == "http.response.start":
+                answered = True
+            await send(message)
+
+        await app(scope, receive, tracked_send)
+
+    event.listen(scoped_engine.sync_engine, "before_cursor_execute", record_statement)
+    event.listen(scoped_engine.sync_engine, "commit", record_commit)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=tracked_app), base_url="http://test") as tracked_client:
+            response = await _request_change(tracked_client, client_headers, new_email)
+    finally:
+        event.remove(scoped_engine.sync_engine, "before_cursor_execute", record_statement)
+        event.remove(scoped_engine.sync_engine, "commit", record_commit)
+    assert response.status_code == 204
+    return statements
+
+
+@pytest.mark.parametrize("taken_spelling", ["taken@example.com", "TAKEN@example.com"])
+async def test_request_address_another_account_uses_runs_the_same_statements_before_answering(client, taken_spelling):
+    """Timing can't tell a taken address from a free one when both run identical statements and the same commit"""
+    auth = _get_auth_header(await _create_user(client))
+    await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "taken@example.com"})
+
+    free = await _statements_before_response(auth, "free@example.com")
+    taken = await _statements_before_response(auth, taken_spelling)
+
+    # The listeners saw the stored request and the commits, so the comparison is not empty. Commits count
+    # in the comparison too, since a second one costs more time than one
+    assert any("INSERT INTO email_change_requests" in statement for statement in free)
+    assert "COMMIT" in free
+    assert taken == free
 
 
 async def test_request_only_the_capitals_changed_confirms_the_new_spelling(client):
@@ -480,14 +535,10 @@ async def test_emails_of_a_change_say_only_what_each_recipient_needs(client):
     (confirmation,) = mailbox.sent_to(_NEW_EMAIL)
     assert confirmation.message.subject == "Confirm your new email"
     assert f"/confirm-new-email?token={token}" in confirmation.message.text_body
-    assert f"{EMAIL_CHANGE_TOKEN_EXPIRE_SECONDS // 60} minutes" in confirmation.message.text_body
+    assert "15 minutes" in confirmation.message.text_body
     assert _OLD_EMAIL not in confirmation.message.text_body + (confirmation.message.html_body or "")
     (stored,) = await _stored_requests()
-    assert (
-        timedelta(seconds=EMAIL_CHANGE_TOKEN_EXPIRE_SECONDS - 60)
-        < stored.expires_at - datetime.now(UTC)
-        <= timedelta(seconds=EMAIL_CHANGE_TOKEN_EXPIRE_SECONDS)
-    )
+    assert timedelta(seconds=840) < stored.expires_at - datetime.now(UTC) <= timedelta(seconds=900), "the link lasts 15 minutes"
 
     await _confirm(client, token)
 
