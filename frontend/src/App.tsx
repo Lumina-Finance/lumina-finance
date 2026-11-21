@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Locat
 import { AnimatePresence, motion } from 'motion/react'
 import { useBankSyncHeartbeat } from '@/api/bank-sync'
 import { useCurrencies } from '@/api/currency'
+import { useServerNotice } from '@/api/version'
 import { AuthProvider } from '@/contexts/AuthProvider'
 import { DateFormatProvider } from '@/contexts/DateFormatProvider'
 import { NavCollapseProvider } from '@/contexts/NavCollapseProvider'
@@ -16,6 +17,7 @@ import { useLabelFocus } from '@/hooks/useLabelFocus'
 import Navigation from '@/components/navigation/Navigation'
 import ErrorBoundary from '@/components/errors/Boundary'
 import Fallback from '@/components/errors/Fallback'
+import { MaintenanceScreen } from '@/components/errors/MaintenanceScreen'
 import { ServerNotice } from '@/components/feedback/ServerNotice'
 import LoadingScreen from '@/components/loading/Screen'
 import ForcedReenrollScreen from '@/components/two-factor/ForcedReenrollScreen'
@@ -313,6 +315,7 @@ function PublicRoute() {
 function AnimatedRoutes() {
   const location = useLocation()
   const { user } = useAuth()
+  const serverNotice = useServerNotice()
   const [displayLocation, setDisplayLocation] = useState(location)
 
   // Start in the loading phase so the very first route fades in through the same
@@ -502,6 +505,8 @@ function AnimatedRoutes() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {/* Signed out, the sign-in forms say it in a banner instead, since there is nothing to keep */}
+      <MaintenanceScreen shown={Boolean(user) && serverNotice === 'maintenance'} />
     </>
   )
 }

@@ -1,9 +1,7 @@
-import { MAINTENANCE_MESSAGE } from '@/api/auth'
 import FailureBlock from '@/components/errors/FailureBlock'
+import { MaintenanceMessage } from '@/components/errors/MaintenanceMessage'
 import { useMaintenanceFailure } from '@/components/errors/useMaintenanceFailure'
 import { useServerReachability } from '@/hooks/useServerReachability'
-
-const MAINTENANCE_HEADING = "We'll be back soon"
 
 export type FallbackVariant = 'card' | 'screen'
 
@@ -34,27 +32,25 @@ export default function Fallback({ componentStack, error, preserveStoredData = f
   // A server in maintenance is no bug and no unreachable server
   const isMaintenance = useMaintenanceFailure(error)
 
-  const content = (
+  const content = isMaintenance ? (
+    // The same message as the screen covering a signed-in app during a maintenance
+    <MaintenanceMessage error={error} size={variant} />
+  ) : (
     <FailureBlock
       componentStack={componentStack}
-      detail={isMaintenance ? MAINTENANCE_MESSAGE : null}
       error={error}
       // The last word and the face are held together, or a narrow screen breaks between them and
       // leaves the bracket opening the next line as stray punctuation
       heading={
-        isMaintenance ? (
-          MAINTENANCE_HEADING
-        ) : (
-          <>
-            OK this was not in the{' '}
-            <span className="whitespace-nowrap">
-              plan <span aria-hidden>:(</span>
-            </span>
-          </>
-        )
+        <>
+          OK this was not in the{' '}
+          <span className="whitespace-nowrap">
+            plan <span aria-hidden>:(</span>
+          </span>
+        </>
       }
       preserveStoredData={preserveStoredData}
-      serverUnreachable={serverUnreachable && !isMaintenance}
+      serverUnreachable={serverUnreachable}
       size={variant}
     />
   )

@@ -1,6 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { RefreshCw, Wrench } from 'lucide-react'
-import { MAINTENANCE_MESSAGE } from '@/api/auth'
+import { RefreshCw } from 'lucide-react'
 import { useServerNotice, type ServerNotice as Notice } from '@/api/version'
 import { INFO_CALLOUT_ACTION_CLASS, InfoCallout } from '@/components/InfoCallout'
 
@@ -15,19 +14,18 @@ function reload() {
 }
 
 /**
- * Tells the user when the server runs another version than this page, or is in maintenance, at the top
- * of the page content
+ * Tells the user when the server runs another version than this page, at the top of the page content
  *
  * It never interrupts what the user is doing: it takes no focus, covers nothing and doesn't reload by
  * itself, so a form keeps its input until the user presses Reload. The region is always present and
  * empty while there is nothing to say, so a screen reader announces the notice as it appears. A
- * maintenance has no button, since it ends by itself and the page asks the server again on its own
+ * maintenance shows nothing here, since the maintenance screen covers the whole app instead
  */
 export function ServerNotice() {
   return <ServerNoticeView notice={useServerNotice()} />
 }
 
-/** Draws the notice for what the page should say, or nothing for null */
+/** Draws the update notice, or nothing for any other notice */
 export function ServerNoticeView({ notice }: { notice: Notice | null }) {
   const shouldReduceMotion = useReducedMotion() ?? false
   const duration = shouldReduceMotion ? 0 : NOTICE_SECONDS
@@ -37,9 +35,9 @@ export function ServerNoticeView({ notice }: { notice: Notice | null }) {
   return (
     <div role="status" className="max-[1049px]:pr-14">
       <AnimatePresence initial={false}>
-        {notice && (
+        {notice === 'update' && (
           <motion.div
-            key={notice}
+            key="update"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -47,34 +45,20 @@ export function ServerNoticeView({ notice }: { notice: Notice | null }) {
             className="overflow-hidden"
           >
             <div className="pb-4 text-pretty">
-              <NoticeCallout notice={notice} />
+              <InfoCallout
+                icon={RefreshCw}
+                action={
+                  <button type="button" className={INFO_CALLOUT_ACTION_CLASS} onClick={reload}>
+                    Reload
+                  </button>
+                }
+              >
+                {UPDATE_MESSAGE}
+              </InfoCallout>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
-  )
-}
-
-function NoticeCallout({ notice }: { notice: Notice }) {
-  if (notice === 'maintenance') {
-    return (
-      <InfoCallout tone="review" icon={Wrench}>
-        {MAINTENANCE_MESSAGE}
-      </InfoCallout>
-    )
-  }
-
-  return (
-    <InfoCallout
-      icon={RefreshCw}
-      action={
-        <button type="button" className={INFO_CALLOUT_ACTION_CLASS} onClick={reload}>
-          Reload
-        </button>
-      }
-    >
-      {UPDATE_MESSAGE}
-    </InfoCallout>
   )
 }

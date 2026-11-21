@@ -72,6 +72,9 @@ interface FailureBlockProps {
   // with it for nothing
   preserveStoredData?: boolean
 
+  /** Offers to copy the error details for a bug report. Off for a maintenance, where nothing broke */
+  reportable?: boolean
+
   /** Chooses the lost-connection wording over the general one, the caller having decided which fits */
   serverUnreachable: boolean
 
@@ -102,6 +105,7 @@ export default function FailureBlock({
   error,
   heading,
   preserveStoredData = false,
+  reportable = true,
   serverUnreachable,
   size,
 }: FailureBlockProps) {
@@ -203,19 +207,21 @@ export default function FailureBlock({
           Reload
         </button>
 
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 text-xs font-medium underline underline-offset-2 transition-control [--link-underline-start:20px]"
-          style={{ color: 'var(--app-text-muted)' }}
-          onClick={handleCopy}
-        >
-          {copyStatus === 'copied' ? (
-            <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-positive)' }} aria-hidden />
-          ) : (
-            <Copy size={14} strokeWidth={2} aria-hidden />
-          )}
-          {COPY_LABELS[copyStatus]}
-        </button>
+        {reportable && (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 text-xs font-medium underline underline-offset-2 transition-control [--link-underline-start:20px]"
+            style={{ color: 'var(--app-text-muted)' }}
+            onClick={handleCopy}
+          >
+            {copyStatus === 'copied' ? (
+              <Check size={14} strokeWidth={2.5} style={{ color: 'var(--app-positive)' }} aria-hidden />
+            ) : (
+              <Copy size={14} strokeWidth={2} aria-hidden />
+            )}
+            {COPY_LABELS[copyStatus]}
+          </button>
+        )}
       </div>
     </>
   )

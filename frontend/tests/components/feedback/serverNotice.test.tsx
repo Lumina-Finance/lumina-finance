@@ -1,7 +1,8 @@
 /**
  * Guards what a user reads when the page and the server differ in version or the server is in
- * maintenance: the update notice offers a Reload button, the maintenance notice has no button, and
- * a screen that failed to load during maintenance never says the server couldn't be reached
+ * maintenance: the update notice offers a Reload button, a maintenance gets the screen with Reload
+ * and no error details, and a screen that failed to load during maintenance never says the server
+ * couldn't be reached
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -10,6 +11,7 @@ import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
 import { reportMaintenance } from '@/api/version'
 import Fallback from '@/components/errors/Fallback'
 import LoadFailure from '@/components/errors/LoadFailure'
+import { MAINTENANCE_HEADING, MaintenanceMessage } from '@/components/errors/MaintenanceMessage'
 import { ServerNoticeView } from '@/components/feedback/ServerNotice'
 
 const UPDATE_MESSAGE = 'A new version of Lumina Finance is available. Please save your work and reload to update.'
@@ -22,12 +24,10 @@ describe('the notice about the server', () => {
     expect(markup).toMatch(/<button[^>]*>Reload<\/button>/)
   })
 
-  it('says the server is in maintenance, with nothing to press', () => {
+  it('leaves a maintenance to the screen covering the app', () => {
     const markup = renderToStaticMarkup(<ServerNoticeView notice="maintenance" />)
 
-    expect(markup).toContain(MAINTENANCE_MESSAGE)
-    expect(markup).not.toContain('<button')
-    expect(markup).not.toContain('Couldn&#x27;t reach the server')
+    expect(markup).toMatch(/^<div role="status"[^>]*><\/div>$/)
   })
 
   it('shows nothing, in a region a screen reader is already watching, when there is nothing to say', () => {
@@ -75,6 +75,17 @@ describe('a card that failed to load when the maintenance file says the server i
   })
 })
 
+describe('the maintenance message', () => {
+  it('offers a reload and no error details, since nothing broke', () => {
+    const markup = renderToStaticMarkup(<MaintenanceMessage size="screen" />)
+
+    expect(markup).toContain(MAINTENANCE_HEADING.replace("'", '&#x27;'))
+    expect(markup).toContain(MAINTENANCE_MESSAGE)
+    expect(markup).toMatch(/<button[^>]*>.*Reload<\/button>/)
+    expect(markup).not.toContain('Copy error details')
+  })
+})
+
 describe('the screen shown when opening the app fails during maintenance', () => {
   it('says the server is in maintenance, not that something is broken or unreachable', () => {
     const error = buildApiError(503, { maintenance: true })
@@ -84,6 +95,15 @@ describe('the screen shown when opening the app fails during maintenance', () =>
     expect(markup).toContain(MAINTENANCE_MESSAGE)
     expect(markup).not.toContain('reach the server')
     expect(markup).not.toContain('not in the')
+    expect(markup).not.toContain('Copy error details')
+  })
+
+  it('still offers the error details when something broke', () => {
+    const markup = renderToStaticMarkup(
+      <Fallback componentStack={null} error={new TypeError('x is undefined')} variant="screen" />,
+    )
+
+    expect(markup).toContain('Copy error details')
   })
 })
 
