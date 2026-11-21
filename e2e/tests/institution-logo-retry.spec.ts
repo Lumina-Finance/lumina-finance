@@ -42,7 +42,7 @@ async function seedAccount(request: Parameters<typeof createAccount>[0], user: T
 // Opens the accounts list while the icon service drops every load, and waits for the placeholder
 async function openFailedAccountRow(page: Page, request: Parameters<typeof createAccount>[0]) {
   const user = await signUpUser(request)
-  // A name is taken once per country across the database, so each test and retry needs one of its own
+  // A name is taken once per country across the database, so each test needs one of its own
   const bank = `Retry Bank ${crypto.randomUUID().slice(0, 8)}`
   await seedAccount(request, user, bank)
   const service = await stubIconService(page)

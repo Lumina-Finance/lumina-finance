@@ -31,9 +31,8 @@ const otherAddressesTests = IS_API_ON_OTHER_ORIGIN ? ONE_ADDRESS_TESTS : ACROSS_
 const leftOutTests = [otherAddressesTests, ...otherServersTests]
 
 // Set by the development runner for a screenshot or visual check run, whose throwaway specs fail
-// fast: a test over the limit fails, one that outlasts it by the teardown allowance stops the run,
-// and a failed test is not retried. A test that cannot finish in that time is broken, and waiting
-// it out only delays the report
+// fast: a test over the limit fails and one that outlasts it by the teardown allowance stops the run.
+// A test that cannot finish in that time is broken, and waiting it out only delays the report
 const isVisualRun = process.env.E2E_VISUAL === '1'
 
 // What Playwright's headless Chromium passes as `--blink-settings` to report a mouse that hovers
@@ -61,9 +60,10 @@ export default defineConfig({
 
   forbidOnly: Boolean(process.env.CI),
 
-  // Three everywhere, so one slow moment on a busy runner doesn't fail a whole run. A spec that
-  // passes only on a retry is still listed as flaky in the report, so the race stays visible
-  retries: isVisualRun ? 0 : 3,
+  // None in any kind of run: a retry turns a failure that passes the second time into a green run
+  // and costs minutes on the job that sets how long a pull request waits. A test that fails once
+  // fails its job, and the failure is fixed at its cause
+  retries: 0,
 
   // Long real flows need a total budget that tolerates CPU contention at high worker counts.
   // Each assertion still bounds the expected UI update independently
