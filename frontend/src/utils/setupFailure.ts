@@ -17,9 +17,6 @@ const TOO_MANY_REQUESTS_STATUS = 429
  */
 export function isSetupRefused(error: unknown): boolean {
   return (
-    error instanceof ApiError &&
-    error.status >= 400 &&
-    error.status < 500 &&
-    error.status !== TOO_MANY_REQUESTS_STATUS
+    error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== TOO_MANY_REQUESTS_STATUS
   )
 }

@@ -45,20 +45,30 @@ describe('auth form helpers', () => {
       password: 'Password is required',
     })
 
-    expect(validateAuthFields({
-      ...buildInitialAuthForm('America/Toronto'),
-      email: 'bad-email',
-    }, 'signup')).toEqual({
+    expect(
+      validateAuthFields(
+        {
+          ...buildInitialAuthForm('America/Toronto'),
+          email: 'bad-email',
+        },
+        'signup',
+      ),
+    ).toEqual({
       email: 'Enter a valid email address',
       first_name: 'First name is required',
     })
 
     // Sign-up asks for no password, since it is chosen on the emailed link's page
-    expect(validateAuthFields({
-      ...buildInitialAuthForm('America/Toronto'),
-      email: 'user@example.com',
-      first_name: 'Dana',
-    }, 'signup')).toEqual({})
+    expect(
+      validateAuthFields(
+        {
+          ...buildInitialAuthForm('America/Toronto'),
+          email: 'user@example.com',
+          first_name: 'Dana',
+        },
+        'signup',
+      ),
+    ).toEqual({})
     expect(isAuthFieldErrorKey('email')).toBe(true)
     expect(isAuthFieldErrorKey('last_name')).toBe(false)
   })
@@ -101,7 +111,9 @@ describe('auth form helpers', () => {
   })
 
   it('gives the submit button a reason only when the form holds it off, not its own request', () => {
-    expect(getAuthSubmitBlockReason(false, { email: 'Enter a valid email' }, 'login', 2)).toBe('Fix the fields with errors first')
+    expect(getAuthSubmitBlockReason(false, { email: 'Enter a valid email' }, 'login', 2)).toBe(
+      'Fix the fields with errors first',
+    )
     expect(getAuthSubmitBlockReason(true, { email: 'Enter a valid email' }, 'login', 2)).toBeUndefined()
   })
 
@@ -111,7 +123,9 @@ describe('auth form helpers', () => {
 
     expect(isAuthLockoutError(lockoutError)).toBe(true)
     expect(isAuthLockoutError(genericError)).toBe(false)
-    expect(getAuthErrorMessage(new ApiError('Invalid credentials', 401))).toBe('Incorrect email or password. Please try again.')
+    expect(getAuthErrorMessage(new ApiError('Invalid credentials', 401))).toBe(
+      'Incorrect email or password. Please try again.',
+    )
 
     // A sign-up form left open after registration closed must say so rather than invite a retry
     expect(getAuthErrorMessage(new ApiError('Registration is closed on this instance', 403))).toBe(
@@ -123,13 +137,17 @@ describe('auth form helpers', () => {
   })
 
   it("puts each field a validation refusal named on that field, in the form's words where it has them", () => {
-    const refusal = new ApiError("Oops, the email, first name and tz weren't accepted. Please check them and try again.", 422, {
-      fieldErrors: [
-        { field: 'email', message: 'value is not a valid email address' },
-        { field: 'first_name', message: 'String should have at most 100 characters' },
-        { field: 'tz', message: 'Invalid timezone' },
-      ],
-    })
+    const refusal = new ApiError(
+      "Oops, the email, first name and tz weren't accepted. Please check them and try again.",
+      422,
+      {
+        fieldErrors: [
+          { field: 'email', message: 'value is not a valid email address' },
+          { field: 'first_name', message: 'String should have at most 100 characters' },
+          { field: 'tz', message: 'Invalid timezone' },
+        ],
+      },
+    )
 
     expect(getRefusedAuthFields(refusal)).toEqual({
       email: 'Enter a valid email address',
@@ -161,10 +179,13 @@ describe('auth form helpers', () => {
 })
 
 describe('emailFromConfirmationToken', () => {
-  const encode = (payload: object) => btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  const encode = (payload: object) =>
+    btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 
   it('reads the email from the token payload', () => {
-    expect(emailFromConfirmationToken(`header.${encode({ email: 'ada@example.com' })}.signature`)).toBe('ada@example.com')
+    expect(emailFromConfirmationToken(`header.${encode({ email: 'ada@example.com' })}.signature`)).toBe(
+      'ada@example.com',
+    )
   })
 
   it('reads an address with non-ASCII characters', () => {
