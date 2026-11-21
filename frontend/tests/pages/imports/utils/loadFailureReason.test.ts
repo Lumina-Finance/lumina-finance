@@ -3,7 +3,7 @@
  * a request fails, so it never repeats the panel's title or its Try again button
  */
 import { describe, expect, it } from 'vitest'
-import { buildApiError, MAINTENANCE_MESSAGE } from '@/api/auth'
+import { buildApiError } from '@/api/auth'
 import { explainRequestFailure } from '@/api/server'
 import { reportMaintenance } from '@/api/version'
 import { getLoadFailureReason } from '@/pages/imports/utils'
@@ -50,8 +50,9 @@ describe('the reason a lookup on the import page failed', () => {
     reportMaintenance(true)
 
     try {
-      expect(getLoadFailureReason(lost, REFUSED)).toBe(MAINTENANCE_MESSAGE)
-      expect(getLoadFailureReason(buildApiError(504, null), REFUSED)).toBe(MAINTENANCE_MESSAGE)
+      // The panel's Try again button asks the user to try again, so the sentence leaves that out
+      expect(getLoadFailureReason(lost, REFUSED)).toBe('Lumina Finance is down for maintenance.')
+      expect(getLoadFailureReason(buildApiError(504, null), REFUSED)).toBe('Lumina Finance is down for maintenance.')
     } finally {
       reportMaintenance(false)
     }

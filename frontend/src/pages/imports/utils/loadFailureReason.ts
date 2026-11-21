@@ -1,8 +1,10 @@
-import { ApiError, MAINTENANCE_MESSAGE } from '@/api/auth'
+import { ApiError } from '@/api/auth'
 import { isMaintenanceFailure } from '@/api/version'
 
 // What a failure shows when the server or the page gave no reason a user could use
 const GENERAL_REASON = 'Something went wrong.'
+// The panel's Try again button asks the user to try again, so the sentence stops at the reason
+const MAINTENANCE_REASON = 'Lumina Finance is down for maintenance.'
 const TIMEOUT_REASON = 'The server took too long to answer.'
 const UNREACHABLE_REASON = "Couldn't reach the server."
 
@@ -12,15 +14,16 @@ const UNREACHABLE_REASON = "Couldn't reach the server."
  *
  * A server in maintenance gets the maintenance sentence. The server's own reason is shown where it
  * gave one, with a full stop where it ends in no punctuation. A validation refusal is the page's own
- * wording for what it sent, since the fields the server names mean nothing to a user. A timeout and a lost connection each get a sentence, and
- * every other failure, a server fault with no body or an answer that could not be read included,
- * gets the general one, since the browser's own wording for it means nothing to a user
+ * wording for what it sent, since the fields the server names mean nothing to a user. A timeout and
+ * a lost connection each get a sentence, and every other failure, a server fault with no body or an
+ * answer that could not be read included, gets the general one, since the browser's own wording for
+ * it means nothing to a user
  *
  * @param error - What the lookup rejected with
  * @param refusedReason - The sentence for the server refusing what the page sent
  */
 export function getLoadFailureReason(error: unknown, refusedReason: string): string {
-  if (isMaintenanceFailure(error)) return MAINTENANCE_MESSAGE
+  if (isMaintenanceFailure(error)) return MAINTENANCE_REASON
   if (error instanceof ApiError) {
     if (error.fieldErrors) return refusedReason
     const detail = error.detail?.trim()
