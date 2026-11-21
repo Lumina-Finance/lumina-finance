@@ -26,6 +26,13 @@ SUPPORTED_POINTS: dict[str, str] = {
     "run_jobs": "app.services.bank_sync.worker:run_jobs",
     "prune_expired_records": "app.services.maintenance.expired_records:prune_expired_records",
     "run_migrate": "app.db.jobs:run_migrate",
+    "verify_app_role_is_unprivileged": "app.database:verify_app_role_is_unprivileged",
+    "verify_database_keys": "app.startup:verify_database_keys",
+    "sync_sign_in_providers": "app.startup:sync_sign_in_providers",
+    "run_startup_checks": "app.services.bank_sync.providers.registry:run_startup_checks",
+    "use_valkey": "app.valkey_store:use_valkey",
+    "run_cleanup_timer": "app.services.maintenance.expired_records:run_cleanup_timer",
+    "set_cleanup_timer_enabled": "app.services.maintenance.expired_records:set_cleanup_timer_enabled",
 }
 
 __all__ = list(SUPPORTED_POINTS)

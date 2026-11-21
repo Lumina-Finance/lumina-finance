@@ -1,8 +1,7 @@
 """Application entrypoint"""
 
-import asyncio
 import logging
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -12,11 +11,8 @@ from sqlalchemy.exc import DBAPIError
 from app.abuse_log import log_source_address
 from app.config.email import EMAIL_BACKEND, EMAIL_BACKEND_LOGGING
 from app.config.log_level import LOG_LEVEL
-from app.config.oidc import OIDC_PROVIDER_CONFIGS
 from app.config.runtime import ALLOWED_ORIGINS
-from app.database import async_session, engine, verify_app_role_is_unprivileged
-from app.db.bank_transaction_key import verify_key_matches_hashes
-from app.db.encryption_key import verify_key_matches_data
+from app.database import verify_app_role_is_unprivileged
 from app.log_setup import configure_logging
 from app.null_characters import refuse_null_characters
 from app.request_hook import RequestObserverMiddleware, observe_requests
@@ -42,13 +38,13 @@ from app.routes.tags import router as tag_router
 from app.routes.tax_advantaged_categories import router as tax_advantaged_category_router
 from app.routes.transactions import router as transaction_router
 from app.routes.users import router as user_router
-from app.services.auth.oidc_providers import sync_oidc_providers
 from app.services.auth.step_up import ATTEMPTS_REMAINING_HEADER
 from app.services.bank_sync.providers.contract import REFUSED_FIELDS_HEADER
 from app.services.bank_sync.providers.registry import run_startup_checks
 from app.services.email import build_email_sender, set_email_sender
 from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
-from app.services.maintenance.expired_records import prune_expired_records_on_schedule
+from app.services.maintenance.expired_records import run_cleanup_timer
+from app.startup import sync_sign_in_providers, verify_database_keys
 from app.statement_timeout import handle_statement_timeout
 from app.valkey_store import use_valkey
 
@@ -65,41 +61,18 @@ _LOGGING_BACKEND_WARNING = (
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """Verify the runtime, its keys and each bank provider's settings, seed OIDC providers, then prune expired records while serving"""
+    """Verify the runtime, its database keys and each bank provider's settings, seed OIDC providers, then prune expired records while serving
+
+    Code outside the app can turn the cleanup timer off, as the cleanup module says
+    """
     await verify_app_role_is_unprivileged()
-
-    # The seeding below rewrites the OIDC client secret under whatever key resolved, so a
-    # process holding the wrong one would mix two keys inside that column. The container
-    # entrypoint checks this too, and this covers every other way the app starts
-    async with engine.connect() as connection:
-        await verify_key_matches_data(connection)
-
-        # A missing key would refuse every OFX import, and another key than the hashes were made
-        # with would let every statement imported again bring back what is already saved
-        await verify_key_matches_hashes(connection)
-
-    # Reconcile the provider table with the environment on every boot so credential
-    # rotations and removals apply without a migration
-    async with async_session() as session:
-        await sync_oidc_providers(session, OIDC_PROVIDER_CONFIGS)
-
-    if OIDC_PROVIDER_CONFIGS:
-        enabled_slugs = ", ".join(provider.slug for provider in OIDC_PROVIDER_CONFIGS)
-        logger.info("OIDC sign-in enabled for: %s", enabled_slugs)
-    else:
-        logger.info("OIDC sign-in is not configured")
-
+    await verify_database_keys()
+    await sync_sign_in_providers()
     run_startup_checks()
 
     # The cache's pool lives as long as the app, and a server without ValKey starts as usual
-    async with use_valkey():
-        pruning = asyncio.create_task(prune_expired_records_on_schedule())
-        try:
-            yield
-        finally:
-            pruning.cancel()
-            with suppress(asyncio.CancelledError):
-                await pruning
+    async with use_valkey(), run_cleanup_timer():
+        yield
 
 
 # The API publishes no map of its routes, and no setting brings one back
