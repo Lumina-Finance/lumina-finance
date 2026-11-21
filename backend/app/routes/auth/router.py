@@ -2,14 +2,14 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Body, Cookie, Depends, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import current_session_id_ctx, get_db, get_session_factory
 from app.dependencies import get_authenticated_user, get_current_user
 from app.models.user import User
-from app.routes.auth.cookie_helpers import OIDC_REAUTH_STEPUP_COOKIE_KEY
+from app.routes.auth.cookie_helpers import read_oidc_reauth_stepup_cookie, read_refresh_cookie
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
 from app.routes.auth.native import router as native_router
@@ -216,10 +216,11 @@ async def change_password_route(
 @router.post("/password/set", status_code=status.HTTP_204_NO_CONTENT)
 async def set_password_route(
     data: SetPasswordRequest,
+    request: Request,
     response: Response,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    oidc_reauth_stepup: Annotated[str | None, Cookie(alias=OIDC_REAUTH_STEPUP_COOKIE_KEY)] = None,
+    oidc_reauth_stepup: Annotated[str | None, Depends(read_oidc_reauth_stepup_cookie)] = None,
 ):
     """Set the first password for an account authorized by a provider reauth
 
@@ -228,6 +229,7 @@ async def set_password_route(
 
     Args:
         data: New password payload
+        request: FastAPI request object
         response: FastAPI response object for clearing the authorization cookie
         user: Authenticated user resolved from the access token
         db: Active database session
@@ -243,6 +245,7 @@ async def set_password_route(
     await spend_reauth_stepup_proof(
         db,
         user.id,
+        request,
         response,
         oidc_reauth_stepup,
         lambda: set_first_password(db, user, current_session_id_ctx.get(), data.new_password),
@@ -251,11 +254,12 @@ async def set_password_route(
 
 @router.post("/sessions/end-others", status_code=status.HTTP_204_NO_CONTENT)
 async def end_other_sessions_route(
+    request: Request,
     response: Response,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     data: StepUpRequest | None = None,
-    oidc_reauth_stepup: Annotated[str | None, Cookie(alias=OIDC_REAUTH_STEPUP_COOKIE_KEY)] = None,
+    oidc_reauth_stepup: Annotated[str | None, Depends(read_oidc_reauth_stepup_cookie)] = None,
 ):
     """Sign the authenticated user out of every other device after step-up
 
@@ -263,6 +267,7 @@ async def end_other_sessions_route(
     instead presents the proof from a fresh provider reauth
 
     Args:
+        request: FastAPI request object
         response: FastAPI response object for clearing a spent proof cookie
         user: Authenticated user resolved from the access token
         db: Active database session
@@ -274,7 +279,9 @@ async def end_other_sessions_route(
     """
     # get_current_user has already resolved, so the session id is set for this request
     current_session_id = current_session_id_ctx.get()
-    await authorize_sensitive_action(db, user, response, data, oidc_reauth_stepup, lambda: end_other_sessions(db, user.id, current_session_id))
+    await authorize_sensitive_action(
+        db, user, request, response, data, oidc_reauth_stepup, lambda: end_other_sessions(db, user.id, current_session_id)
+    )
 
 
 @router.post("/password/forgot", status_code=status.HTTP_204_NO_CONTENT)
@@ -575,7 +582,7 @@ async def refresh_route(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
     body: Annotated[NativeRefreshTokenRequest | None, Body()] = None,
-    refresh_token: str | None = Cookie(None),
+    refresh_token: Annotated[str | None, Depends(read_refresh_cookie)] = None,
 ):
     """Exchange a valid refresh token for a new token pair
 
@@ -600,11 +607,12 @@ async def refresh_route(
 
 @router.post("/logout")
 async def logout_route(
+    request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_security)] = None,
     body: Annotated[NativeRefreshTokenRequest | None, Body()] = None,
-    refresh_token: str | None = Cookie(None),
+    refresh_token: Annotated[str | None, Depends(read_refresh_cookie)] = None,
 ):
     """Revoke the caller's active auth session
 
@@ -612,6 +620,7 @@ async def logout_route(
     still clears the refresh cookie
 
     Args:
+        request: FastAPI request object
         response: FastAPI response object
         db: Active database session
         credentials: Optional bearer token from the Authorization header
@@ -623,8 +632,8 @@ async def logout_route(
     """
     access_token = credentials.credentials if credentials else None
     if body is not None:
-        return await logout_auth_session(db, response, access_token, body.refresh_token, clears_cookie=False)
-    logout_response = await logout_auth_session(db, response, access_token, refresh_token)
+        return await logout_auth_session(db, request, response, access_token, body.refresh_token, clears_cookie=False)
+    logout_response = await logout_auth_session(db, request, response, access_token, refresh_token)
     return logout_response
 
 

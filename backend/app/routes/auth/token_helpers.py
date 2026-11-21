@@ -249,6 +249,7 @@ def verify_reauth_stepup_proof(user_id: uuid.UUID, proof: str) -> uuid.UUID:
 async def spend_reauth_stepup_proof[T](
     db: AsyncSession,
     user_id: uuid.UUID,
+    request: Request,
     response: Response,
     proof: str | None,
     action: Callable[[], Awaitable[T]],
@@ -261,6 +262,7 @@ async def spend_reauth_stepup_proof[T](
     Args:
         db: Active database session
         user_id: Account the action is for
+        request: FastAPI request object, read for the name of the proof cookie
         response: FastAPI response object for removing the proof cookie on success
         proof: Encoded reauth step-up token read from the cookie, if any
         action: The sensitive action the proof authorizes
@@ -271,8 +273,8 @@ async def spend_reauth_stepup_proof[T](
     Raises:
         HTTPException: The proof is missing, invalid, spent or for another account, or the action failed
     """
-    clear_oidc_reauth_stepup_cookie(response)
-    with removing_cookie_on_failure(clear_oidc_reauth_stepup_cookie):
+    clear_oidc_reauth_stepup_cookie(request, response)
+    with removing_cookie_on_failure(request, clear_oidc_reauth_stepup_cookie):
         if proof is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Reauthentication required")
         proof_id = verify_reauth_stepup_proof(user_id, proof)
@@ -288,6 +290,7 @@ async def spend_reauth_stepup_proof[T](
 async def authorize_sensitive_action[T](
     db: AsyncSession,
     user: User,
+    request: Request,
     response: Response,
     step_up: StepUpRequest | None,
     reauth_stepup_proof: str | None,
@@ -302,6 +305,7 @@ async def authorize_sensitive_action[T](
     Args:
         db: Active database session
         user: Authenticated user performing the action
+        request: FastAPI request object, read for the name of the proof cookie
         response: FastAPI response object for clearing a spent proof cookie
         step_up: Password and current factor, sent by an account that has a password
         reauth_stepup_proof: Proof cookie, sent by a passwordless account after a reauth
@@ -315,15 +319,15 @@ async def authorize_sensitive_action[T](
     """
     has_password = await get_password_credential(db, user.id) is not None
     if reauth_stepup_proof is not None and not has_password:
-        return await spend_reauth_stepup_proof(db, user.id, response, reauth_stepup_proof, action)
+        return await spend_reauth_stepup_proof(db, user.id, request, response, reauth_stepup_proof, action)
 
     if reauth_stepup_proof is None:
         return await _step_up_then_act(db, user, step_up, action)
 
     # An account with a password steps up with it whatever else it sends, so a proof it holds, from
     # before it had a password, authorizes nothing and is only cleared away
-    clear_oidc_reauth_stepup_cookie(response)
-    with removing_cookie_on_failure(clear_oidc_reauth_stepup_cookie):
+    clear_oidc_reauth_stepup_cookie(request, response)
+    with removing_cookie_on_failure(request, clear_oidc_reauth_stepup_cookie):
         return await _step_up_then_act(db, user, step_up, action)
 
 

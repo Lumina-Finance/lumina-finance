@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.database import current_session_id_ctx, current_user_id_ctx, get_db
 from app.dependencies import get_authenticated_user
 from app.models.user import User
-from app.routes.auth.cookie_helpers import REFRESH_COOKIE_KEY
+from app.routes.auth.cookie_helpers import read_refresh_cookie
 from app.routes.auth.token_helpers import (
     decode_native_handoff_token,
     get_refresh_token_session_id,
@@ -176,7 +176,7 @@ async def _holds_session_cookie(request: Request, db: AsyncSession, session_id: 
     Returns:
         Whether the cookie is an active refresh token of that session
     """
-    cookie = request.cookies.get(REFRESH_COOKIE_KEY)
+    cookie = read_refresh_cookie(request)
     return bool(cookie) and await get_refresh_token_session_id(db, cookie) == session_id
 
 

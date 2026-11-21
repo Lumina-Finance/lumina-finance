@@ -29,7 +29,7 @@ from app.models.user import User
 from app.services.auth import native_handoff as native_handoff_service
 from app.services.auth import tokens
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _resend_cookie
 
 
 def _clock_set_back(age: timedelta) -> type[datetime]:
@@ -109,6 +109,24 @@ async def test_handoff_without_a_usable_session_cookie_is_refused_and_leaves_the
     assert query == {"error": "handoff_failed"}
     client.cookies.set("refresh_token", web_cookie)
     assert (await client.post("/auth/refresh")).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("sent_as", "handed_off"),
+    [("__Host-refresh_token", True), ("refresh_token", False)],
+    ids=["host-bound-name", "bare-name"],
+)
+async def test_handoff_over_https_takes_the_session_cookie_only_under_its_host_bound_name(client, sent_as, handed_off):
+    """Over HTTPS the sheet's sign-in cookie is the host-bound one, so a bare-name copy proves no session"""
+    client.headers["x-forwarded-proto"] = "https"
+    signup = await _create_user(client)
+    _resend_cookie(client, "__Host-refresh_token", send_as=sent_as)
+    _, challenge = _pkce_pair()
+
+    query = await _hand_off(client, signup.json()["access_token"], challenge)
+
+    assert ("code" in query) is handed_off
+    assert query.get("error") == (None if handed_off else "handoff_failed")
 
 
 async def test_handoff_with_the_cookie_of_another_session_is_refused(client):

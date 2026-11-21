@@ -4,7 +4,7 @@ import uuid
 from typing import Annotated
 
 import jwt
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Path, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import current_session_id_ctx, get_db
@@ -12,9 +12,9 @@ from app.dependencies import get_current_user
 from app.models.oidc import OidcIdentity, OidcProvider
 from app.models.user import User
 from app.routes.auth.cookie_helpers import (
-    OIDC_BINDING_COOKIE_KEY,
-    OIDC_REAUTH_STEPUP_COOKIE_KEY,
     clear_oidc_login_binding_cookie,
+    read_oidc_login_binding_cookie,
+    read_oidc_reauth_stepup_cookie,
     removing_cookie_on_failure,
     set_oidc_login_binding_cookie,
     set_oidc_reauth_stepup_cookie,
@@ -127,7 +127,7 @@ async def oidc_callback_route(
     request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
-    oidc_login_binding: Annotated[str | None, Cookie(alias=OIDC_BINDING_COOKIE_KEY)] = None,
+    oidc_login_binding: Annotated[str | None, Depends(read_oidc_login_binding_cookie)] = None,
 ):
     """Finish a provider sign-in, issuing tokens or the onboarding step for a new user
 
@@ -154,8 +154,8 @@ async def oidc_callback_route(
     """
     # The binding cookie is single-use, so remove it whatever the outcome of this callback, a refused
     # one included
-    clear_oidc_login_binding_cookie(response)
-    with removing_cookie_on_failure(clear_oidc_login_binding_cookie):
+    clear_oidc_login_binding_cookie(request, response)
+    with removing_cookie_on_failure(request, clear_oidc_login_binding_cookie):
         result = await complete_oidc_sign_in(db, data.code, data.state, oidc_login_binding)
 
     if isinstance(result, OidcOnboardingClaims):
@@ -236,11 +236,12 @@ async def list_oidc_identities_route(
 @router.post("/{slug}/link", response_model=OidcAuthorizeResponse)
 async def link_oidc_route(
     slug: Annotated[str, Path(max_length=MAX_OIDC_SLUG_LENGTH)],
+    request: Request,
     response: Response,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     data: StepUpRequest | None = None,
-    oidc_reauth_stepup: Annotated[str | None, Cookie(alias=OIDC_REAUTH_STEPUP_COOKIE_KEY)] = None,
+    oidc_reauth_stepup: Annotated[str | None, Depends(read_oidc_reauth_stepup_cookie)] = None,
 ):
     """Reauthorize, then start linking a provider to the signed-in account
 
@@ -250,6 +251,7 @@ async def link_oidc_route(
 
     Args:
         slug: Provider being linked
+        request: FastAPI request object
         response: FastAPI response object for clearing a spent proof cookie
         user: Authenticated user resolved from the access token
         db: Active database session
@@ -267,7 +269,7 @@ async def link_oidc_route(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown sign-in provider")
 
     authorization_url = await authorize_sensitive_action(
-        db, user, response, data, oidc_reauth_stepup, lambda: begin_oidc_link(db, user, provider)
+        db, user, request, response, data, oidc_reauth_stepup, lambda: begin_oidc_link(db, user, provider)
     )
     return OidcAuthorizeResponse(authorization_url=authorization_url)
 
@@ -362,11 +364,12 @@ async def oidc_reauth_callback_route(
 @router.post("/identities/{identity_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_oidc_identity_route(
     identity_id: uuid.UUID,
+    request: Request,
     response: Response,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     data: StepUpRequest | None = None,
-    oidc_reauth_stepup: Annotated[str | None, Cookie(alias=OIDC_REAUTH_STEPUP_COOKIE_KEY)] = None,
+    oidc_reauth_stepup: Annotated[str | None, Depends(read_oidc_reauth_stepup_cookie)] = None,
 ):
     """Remove a linked provider after step-up and sign out every other session
 
@@ -375,6 +378,7 @@ async def remove_oidc_identity_route(
 
     Args:
         identity_id: Identity row being removed
+        request: FastAPI request object
         response: FastAPI response object for clearing a spent proof cookie
         user: Authenticated user resolved from the access token
         db: Active database session
@@ -388,7 +392,13 @@ async def remove_oidc_identity_route(
     # get_current_user has already resolved, so the session id is set for this request
     current_session_id = current_session_id_ctx.get()
     await authorize_sensitive_action(
-        db, user, response, data, oidc_reauth_stepup, lambda: unlink_oidc_identity(db, user, current_session_id, identity_id)
+        db,
+        user,
+        request,
+        response,
+        data,
+        oidc_reauth_stepup,
+        lambda: unlink_oidc_identity(db, user, current_session_id, identity_id),
     )
 
 
