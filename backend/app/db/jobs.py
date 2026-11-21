@@ -35,12 +35,10 @@ logger = logging.getLogger(__name__)
 SETUP_LOCK_ID = 4_081_217_653
 
 # Limits a role or database may set that would end a wait for the lock, or end the connection holding
-# it while a migration runs. A migration may take as long as it needs, so none of them applies
-_WAIT_LIMITS = (
-    "SET LOCAL lock_timeout = 0",
-    "SET LOCAL statement_timeout = 0",
-    "SET LOCAL idle_in_transaction_session_timeout = 0",
-)
+# it while a migration runs. A migration may take as long as it needs, so none of them applies.
+# PostgreSQL 17 added transaction_timeout, and an older server refuses a setting it lacks, so each is
+# turned off only where the server has it
+_WAIT_LIMITS = ("lock_timeout", "statement_timeout", "idle_in_transaction_session_timeout", "transaction_timeout")
 
 # Found from this file, not the working directory, so the jobs run from wherever code imports them.
 # Given with no ini file, since the migration environment would then reset the logging a caller set up
@@ -59,8 +57,10 @@ async def _one_run_at_a_time(engine: AsyncEngine, job: str) -> AsyncIterator[Non
         job: The job's name, for the log
     """
     async with engine.begin() as connection:
-        for statement in _WAIT_LIMITS:
-            await connection.execute(text(statement))
+        # The same as SET LOCAL <name> = 0 for each limit the server has
+        await connection.execute(
+            text("SELECT set_config(name, '0', true) FROM pg_settings WHERE name = ANY(:names)"), {"names": list(_WAIT_LIMITS)}
+        )
         if not await connection.scalar(text("SELECT pg_try_advisory_xact_lock(:id)"), {"id": SETUP_LOCK_ID}):
             logger.info("Another set-up run is going, so the %s job waits for it to finish", job)
             await connection.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": SETUP_LOCK_ID})

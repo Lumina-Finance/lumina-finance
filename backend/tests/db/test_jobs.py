@@ -247,8 +247,8 @@ async def test_migrate_with_another_encryption_key_refuses_before_it_seeds_anyth
 @pytest.mark.parametrize(
     ("job", "admin_login", "limited_login", "limits"),
     [
-        (run_bootstrap, RESTRICTED_ADMIN_LOGIN, RESTRICTED_ADMIN_LOGIN, ("statement_timeout",)),
-        (run_migrate, SUPERUSER_LOGIN, MIGRATOR_DB_USER, ("lock_timeout", "statement_timeout")),
+        (run_bootstrap, RESTRICTED_ADMIN_LOGIN, RESTRICTED_ADMIN_LOGIN, ("statement_timeout", "transaction_timeout")),
+        (run_migrate, SUPERUSER_LOGIN, MIGRATOR_DB_USER, ("lock_timeout", "statement_timeout", "transaction_timeout")),
     ],
     ids=["bootstrap", "migrate"],
 )
@@ -257,7 +257,7 @@ async def test_a_job_waits_for_a_set_up_run_going_and_then_does_its_work(
 ):
     """A second run says it waits, keeps waiting past each limit its login's settings put on a wait, then finishes
 
-    The login cancels any statement or lock wait that lasts more than a few seconds, and a migration
+    The login cancels any statement, lock wait or transaction that lasts more than a few seconds, and a migration
     may hold the lock for as long as it takes. The restricted admin carries a lock limit from the server
     """
     caplog.set_level(logging.INFO, logger="app.db.jobs")
