@@ -35,6 +35,16 @@ ADMIN_LOCK_TIMEOUT_SECONDS = 3
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
+# The settings a set-up job takes a credential or a key from
+_CREDENTIAL_SETTINGS = (
+    "DB_USER",
+    "DB_PASSWORD",
+    "MIGRATOR_DB_PASSWORD",
+    "APP_DB_PASSWORD",
+    "APP_ENCRYPTION_KEY",
+    "BANK_TRANSACTION_HASH_KEY",
+)
+
 
 @dataclass(frozen=True)
 class Cluster:
@@ -89,10 +99,13 @@ class Target:
         """Return the environment of a process that reaches this database, holding only what is given
 
         Nothing of the test run's own environment is carried over, so a process started with it holds
-        no credential the caller did not hand it
+        no credential the caller did not hand it. Each credential not given is set empty, since the
+        backend fills a setting that is absent from the `.env` file of its folder, where a developer
+        keeps the real ones
         """
         return {
             "PATH": os.environ["PATH"],
+            **dict.fromkeys(_CREDENTIAL_SETTINGS, ""),
             "DB_HOST": self.cluster.host,
             "DB_PORT": str(self.cluster.port),
             "DB_NAME": self.database_name,

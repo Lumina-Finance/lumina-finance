@@ -5,6 +5,7 @@ their own, with a login of each kind (tests/db/conftest.py). Each test gets a da
 """
 
 import os
+import secrets
 import traceback
 
 import pytest
@@ -49,7 +50,12 @@ async def _build_schema_as(engine: AsyncEngine) -> None:
 
 def _migrate_as_migrator(target: Target) -> None:
     """Run every migration against the database in a process of its own, as the migrator the app uses"""
-    environment = {**os.environ, **target.environment(MIGRATOR_DB_PASSWORD=MIGRATOR_PASSWORD, APP_DB_PASSWORD=APP_PASSWORD)}
+    environment = {
+        **os.environ,
+        **target.environment(
+            MIGRATOR_DB_PASSWORD=MIGRATOR_PASSWORD, APP_DB_PASSWORD=APP_PASSWORD, BANK_TRANSACTION_HASH_KEY=secrets.token_hex(32)
+        ),
+    }
     completed = run_module("alembic", "upgrade", "head", environment=environment)
     assert completed.returncode == 0, completed.stdout + completed.stderr
 

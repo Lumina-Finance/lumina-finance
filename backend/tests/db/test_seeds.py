@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.base import CategoryKind
 from app.services.categories.defaults import SYSTEM_CATEGORY_DEFAULTS, seed_system_categories
 from app.services.merchants.defaults import SYSTEM_MERCHANT_NAMES, UNKNOWN_MERCHANT_NAME, seed_system_merchants
 from tests.conftest import TestSession, engine
@@ -61,11 +62,13 @@ async def test_a_seed_started_while_another_has_not_committed_waits_and_adds_not
 
 
 async def test_a_system_category_kept_in_other_capitals_is_updated_in_place():
-    """A stored name that differs from the default only in capitals is the same category, so it takes the default's spelling and icon"""
+    """A stored name that differs from the default only in capitals is the same category, so it takes the default's spelling, icon and kind"""
     default = SYSTEM_CATEGORY_DEFAULTS[0]
+    assert default.kind != CategoryKind.INCOME, "the stored kind below differs from the default's"
     async with TestSession() as session:
         await session.execute(
-            text("UPDATE categories SET name = upper(name), icon = 'x' WHERE is_system AND name = :name"), {"name": default.name}
+            text("UPDATE categories SET name = upper(name), icon = 'x', kind = :kind WHERE is_system AND name = :name"),
+            {"name": default.name, "kind": CategoryKind.INCOME.name},
         )
         await session.commit()
         original_id = await session.scalar(
@@ -77,10 +80,10 @@ async def test_a_system_category_kept_in_other_capitals_is_updated_in_place():
 
         rows = (
             await session.execute(
-                text("SELECT id, name, icon FROM categories WHERE is_system AND lower(name) = lower(:name)"), {"name": default.name}
+                text("SELECT id, name, icon, kind FROM categories WHERE is_system AND lower(name) = lower(:name)"), {"name": default.name}
             )
         ).all()
-    assert [tuple(row) for row in rows] == [(original_id, default.name, default.icon)]
+    assert [tuple(row) for row in rows] == [(original_id, default.name, default.icon, default.kind.name)]
 
 
 async def test_seeding_the_merchants_reports_only_the_ones_it_created():
