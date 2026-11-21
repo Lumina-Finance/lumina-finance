@@ -10,7 +10,7 @@ person or a one-off command
 
 Either is safe to run again, since every step it takes leaves an up-to-date database as it is. Only
 one run of either goes on at a time: a run that finds another going says so and waits for it, then
-finds its work done
+carries on, doing only what is left
 """
 
 import asyncio
