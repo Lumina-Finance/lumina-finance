@@ -20,7 +20,8 @@ DateFilter = Annotated[WindowDate | None, Query()]
 # compares it with a 64-bit column, and the database refuses a larger number outright
 AmountFilter = Annotated[NonNegativeMinorUnits | None, Query()]
 
-# Transaction currencies to keep, each a three-letter code
+# Transaction currencies to keep, each three characters long. Only the length is checked, so a value
+# naming no currency matches no transaction, like a code that belongs to none of the user's accounts
 CurrencyFilter = Annotated[
     list[Annotated[str, Field(min_length=3, max_length=3)]] | None,
     Query(max_length=MAX_CURRENCY_FILTER_VALUES),
