@@ -76,7 +76,9 @@ function isUnanswered(error: unknown) {
 
 // The app itself answers a gateway status with a detail, such as a 502 for a provider it couldn't reach
 function hasDetail(body: unknown) {
-  return typeof body === 'object' && body !== null && typeof (body as { detail?: unknown }).detail === 'string'
+  if (typeof body !== 'object' || body === null) return false
+  const { detail } = body as { detail?: unknown }
+  return typeof detail === 'string' && detail.trim() !== ''
 }
 
 /**

@@ -10,8 +10,6 @@ import { vi } from 'vitest'
 // and none to the next, so counts of requests would depend on the order tests run in. The tests of the
 // file itself unmock it
 vi.mock('@/api/version/maintenanceFile', () => ({
-  MAINTENANCE_FILE_MIN_INTERVAL_MS: 15_000,
-  MAINTENANCE_FILE_TIMEOUT_MS: 10_000,
   checkMaintenanceFile: () => Promise.resolve(),
 }))
 

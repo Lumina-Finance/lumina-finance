@@ -48,6 +48,33 @@ describe('a card that failed to load during maintenance', () => {
   })
 })
 
+describe('a card that failed to load when the maintenance file says the server is in maintenance', () => {
+  afterEach(() => {
+    reportMaintenance(false)
+  })
+
+  it.each([
+    ['a request the server never answered', () => new TypeError(SERVER_UNREACHABLE_MESSAGE)],
+    ['a gateway error page', () => buildApiError(504, null)],
+  ])('says the server is in maintenance after %s', (_label, makeError) => {
+    reportMaintenance(true)
+
+    const markup = renderToStaticMarkup(<LoadFailure error={makeError()} subject="Accounts" />)
+
+    expect(markup).toContain(MAINTENANCE_MESSAGE)
+    expect(markup).not.toContain('reach the server')
+  })
+
+  it('still says the server could not be reached when there is no maintenance', () => {
+    const markup = renderToStaticMarkup(
+      <LoadFailure error={new TypeError(SERVER_UNREACHABLE_MESSAGE)} subject="Accounts" />,
+    )
+
+    expect(markup).not.toContain(MAINTENANCE_MESSAGE)
+    expect(markup).toContain('reach the server')
+  })
+})
+
 describe('the screen shown when opening the app fails during maintenance', () => {
   it('says the server is in maintenance, not that something is broken or unreachable', () => {
     const error = buildApiError(503, { maintenance: true })
@@ -74,6 +101,32 @@ describe('the screen shown when the server answers nothing during a maintenance'
     expect(markup).toContain(MAINTENANCE_MESSAGE)
     expect(markup).not.toContain('reach the server')
     expect(markup).not.toContain('not in the')
+  })
+
+  it.each([
+    ['a gateway error page', () => buildApiError(502, null)],
+    ['a request that ran out of time', () => new DOMException('Too slow', 'TimeoutError')],
+  ])('says the server is in maintenance after %s when the maintenance file says so', (_label, makeError) => {
+    reportMaintenance(true)
+
+    const markup = renderToStaticMarkup(<Fallback componentStack={null} error={makeError()} variant="screen" />)
+
+    expect(markup).toContain(MAINTENANCE_MESSAGE)
+    expect(markup).not.toContain('not in the')
+  })
+
+  it('says something broke when the app itself answered with an error during a maintenance', () => {
+    reportMaintenance(true)
+
+    const markup = renderToStaticMarkup(
+      <Fallback
+        componentStack={null}
+        error={buildApiError(502, { detail: 'Provider unreachable' })}
+        variant="screen"
+      />,
+    )
+
+    expect(markup).not.toContain(MAINTENANCE_MESSAGE)
   })
 
   it('keeps saying something broke when the screen failed for another reason', () => {

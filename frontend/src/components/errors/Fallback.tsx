@@ -1,7 +1,6 @@
-import { ApiError, MAINTENANCE_MESSAGE } from '@/api/auth'
-import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
-import { useServerNotice } from '@/api/version'
+import { MAINTENANCE_MESSAGE } from '@/api/auth'
 import FailureBlock from '@/components/errors/FailureBlock'
+import { useMaintenanceFailure } from '@/components/errors/useMaintenanceFailure'
 import { useServerReachability } from '@/hooks/useServerReachability'
 
 const MAINTENANCE_HEADING = "We'll be back soon"
@@ -32,13 +31,8 @@ export default function Fallback({ componentStack, error, preserveStoredData = f
   // can act on. An unreachable server rewrites it rather than the other way round
   const serverUnreachable = useServerReachability() === 'unreachable'
 
-  // A server in maintenance is no bug and no unreachable server. That holds when its answer carries the
-  // maintenance marker, and when the maintenance file reports it for a request the server never answered
-  const notice = useServerNotice()
-  const isUnanswered =
-    (error instanceof TypeError && error.message === SERVER_UNREACHABLE_MESSAGE) ||
-    (error instanceof DOMException && error.name === 'TimeoutError')
-  const isMaintenance = (error instanceof ApiError && error.isMaintenance) || (isUnanswered && notice === 'maintenance')
+  // A server in maintenance is no bug and no unreachable server
+  const isMaintenance = useMaintenanceFailure(error)
 
   const content = (
     <FailureBlock

@@ -1,5 +1,6 @@
-import { ApiError } from '@/api/auth'
+import { ApiError, MAINTENANCE_MESSAGE } from '@/api/auth'
 import FailureBlock from '@/components/errors/FailureBlock'
+import { useMaintenanceFailure } from '@/components/errors/useMaintenanceFailure'
 
 // Wide enough for the sentence to break in a readable place, narrow enough that a card has room
 // left to centre it in. Below this width the box simply fills what it is given
@@ -41,17 +42,21 @@ export default function LoadFailure({
   // a page carrying eight of these say the right thing without each one probing the server
   const serverAnswered = error instanceof ApiError
 
+  // A server in maintenance is worded as one, whether its answer carries the marker or the maintenance file reports it
+  const isMaintenance = useMaintenanceFailure(error)
+  const quotedDetail = serverAnswered ? (error.detail ?? null) : null
+
   const block = (
     <FailureBlock
       compact={compact}
-      detail={serverAnswered ? (error.detail ?? null) : null}
+      detail={isMaintenance ? MAINTENANCE_MESSAGE : quotedDetail}
       error={error}
       heading={`${subject} could not load`}
       // The failure is a request that failed rather than saved state that broke a render, so
       // wiping this browser's storage would cost the reader their theme, their sidebar width and
       // every cached response for nothing
       preserveStoredData
-      serverUnreachable={!serverAnswered}
+      serverUnreachable={!serverAnswered && !isMaintenance}
       size="inline"
     />
   )
