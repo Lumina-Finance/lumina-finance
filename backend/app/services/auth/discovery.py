@@ -6,8 +6,10 @@ from fastapi import HTTPException, status
 
 from app.config.jwt import JWT_ALGORITHM, JWT_ISSUER
 
-# The key set is served under /auth. An issuer ending there puts the document and the keys at one address,
-# the one a verifier reaches by adding the well-known path to the issuer
+# The key set is served under /auth. An issuer ending there puts the document and the keys under the issuer's
+# path, where a verifier looks once it drops a trailing slash and adds the well-known path, as the OpenID
+# Connect Discovery standard says. A verifier that adds the path without dropping the slash asks for a
+# doubled slash and finds nothing there, so only an issuer without one reaches the document either way
 ISSUER_PATH_SUFFIXES = ("/auth", "/auth/")
 
 JWKS_PATH = "/.well-known/jwks.json"
@@ -19,10 +21,14 @@ REFUSED_ISSUER_CHARACTERS = frozenset("?#@")
 def build_discovery_document(issuer: str) -> dict[str, str | list[str]] | None:
     """Return the discovery document a token verifier reads, or None when the issuer cannot carry one
 
-    A verifier requests the issuer string followed by /.well-known/openid-configuration and requires a
-    token's iss claim to equal the document's issuer character for character, so the issuer is returned
-    exactly as configured, trailing slash included. The document names no endpoint besides the key set
-    and no capability the verifier doesn't read, so it never maps the API
+    A verifier requests the issuer followed by /.well-known/openid-configuration and requires a token's iss
+    claim to equal the document's issuer character for character, so the issuer is returned exactly as
+    configured, trailing slash included
+
+    The app is no OpenID provider and issues no ID tokens, so this is not a full provider document. A verifier
+    reads only the issuer and the key set address. RS256 is named under the field the standard gives the
+    signing algorithm. The fields the standard requires of a provider, such as the authorization endpoint,
+    are left out, since the app serves none and naming routes would map the API
 
     Args:
         issuer: The configured token issuer
