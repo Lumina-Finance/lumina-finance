@@ -20,7 +20,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from alembic import command
+from alembic.command import upgrade
 from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -79,7 +79,7 @@ def _upgrade_schema() -> None:
     """Apply every pending migration as the migrator, in the thread this runs in"""
     configuration = Config()
     configuration.set_main_option("script_location", str(_ALEMBIC_DIRECTORY))
-    command.upgrade(configuration, "head")
+    upgrade(configuration, "head")
 
 
 async def run_bootstrap() -> None:
