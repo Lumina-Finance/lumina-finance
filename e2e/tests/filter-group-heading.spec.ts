@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { withBlankPage } from '../support/blankPage'
 import { openFilters, selectFacet } from '../support/filters'
 
 // Runs on desktop only: the pinned heading sits on the translucent desktop panel, and the phone sheet and
@@ -19,7 +20,7 @@ type Rgb = [number, number, number]
 /** Reads the colour on screen at a point, through a canvas, once the page has stopped moving */
 async function pixelAt(page: Page, x: number, y: number): Promise<Rgb> {
   const png = await page.screenshot({ clip: { x: Math.floor(x), y: Math.floor(y), width: 1, height: 1 }, animations: 'disabled' })
-  return page.evaluate(async (base64) => {
+  return withBlankPage(page, (blank) => blank.evaluate(async (base64) => {
     const image = new Image()
     image.src = `data:image/png;base64,${base64}`
     await image.decode()
@@ -30,7 +31,7 @@ async function pixelAt(page: Page, x: number, y: number): Promise<Rgb> {
     context.drawImage(image, 0, 0)
     const [red, green, blue] = context.getImageData(0, 0, 1, 1).data
     return [red, green, blue] as Rgb
-  }, png.toString('base64'))
+  }, png.toString('base64')))
 }
 
 function expectSameColour(actual: Rgb, expected: Rgb, message: string) {

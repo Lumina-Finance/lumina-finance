@@ -264,18 +264,24 @@ export async function createGroup(request: APIRequestContext, user: TestUser, na
 }
 
 /**
- * Create an institution over the API, in Canada with an example.com website.
+ * Create an institution over the API, in Canada with an example.com website unless `details` say otherwise.
  *
  * @param request - Playwright request context
  * @param user - Who adds the institution
  * @param name - Institution name
+ * @param details - A website and logo address to use in place of the default website
  * @returns The institution's id
  * @throws When creation does not answer 201
  */
-export async function createInstitution(request: APIRequestContext, user: TestUser, name: string): Promise<string> {
+export async function createInstitution(
+  request: APIRequestContext,
+  user: TestUser,
+  name: string,
+  details: { website?: string; logo_url?: string } = {},
+): Promise<string> {
   const response = await request.post(`${API_BASE_URL}/institutions`, {
     headers: asUser(user),
-    data: { name, country_code: 'CA', website: 'https://example.com' },
+    data: { name, country_code: 'CA', website: 'https://example.com', ...details },
   })
   if (response.status() !== 201) {
     throw new Error(`creating institution ${name} answered ${response.status()}: ${await response.text()}`)

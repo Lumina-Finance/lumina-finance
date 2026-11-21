@@ -1,0 +1,25 @@
+# Browser security headers sent on every response. A Caddyfile that serves the frontend imports this file
+#
+# Sources the Content-Security-Policy allows:
+#   script-src   the build's own scripts, and WebAssembly for the Actual Budget importer. No inline scripts or eval
+#   style-src    the build's own stylesheet, and inline styles from the UI libraries
+#   img-src      the build's own images, and an institution's logo at any https address
+#   font-src     the build's own fonts
+#   connect-src  the API at /api and the emoji data. CSP_CONNECT_SRC_EXTRA adds origins for a frontend built to call an API elsewhere
+#
+# No form-action: a browser also applies it to the redirect a form post is answered with, and the native apps' sign-in hand-off redirects into the app
+# No Strict-Transport-Security: the image listens on plain HTTP, so it belongs where TLS ends
+header {
+	Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https:; font-src 'self'; connect-src 'self' {$CSP_CONNECT_SRC_EXTRA:}; base-uri 'self'; object-src 'none'; frame-ancestors 'none'"
+
+	# Older browsers ignore frame-ancestors
+	X-Frame-Options "DENY"
+
+	# A reset link carries its token in the address, and a sign-in provider's callback carries its code
+	Referrer-Policy "no-referrer"
+
+	X-Content-Type-Options "nosniff"
+
+	# Passkeys stay on for the app's own pages, and the features the app never uses are off
+	Permissions-Policy "publickey-credentials-get=(self), publickey-credentials-create=(self), camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+}

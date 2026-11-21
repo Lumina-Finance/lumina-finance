@@ -262,6 +262,7 @@ jobs:
           VITE_API_URL: ${{ env.API_URL }}
         run: npm run build:app
 
+      # The policy lets the app connect only to its own origin, so the second one is named too
       - name: Mount that build and open the second port
         run: |
           cat > docker/compose.cross-origin.yml <<EOF
@@ -269,6 +270,8 @@ jobs:
             app:
               ports:
                 - "8081:80"
+              environment:
+                CSP_CONNECT_SRC_EXTRA: http://localhost:8081
               volumes:
                 - ${GITHUB_WORKSPACE}/frontend/dist:/srv/lumina/frontend:ro
           EOF
