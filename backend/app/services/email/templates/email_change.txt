@@ -1,0 +1,6 @@
+Please confirm this email address to use it with {{ app_name }}.
+
+Use this link within {{ expiry_minutes }} minutes:
+{{ confirm_link }}
+
+If you did not expect this, you can ignore this email

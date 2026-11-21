@@ -11,6 +11,8 @@ from app.services.email.contract import RenderedEmail
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _RESET_SUBJECT = "Reset your password"
 _SIGNUP_CONFIRMATION_SUBJECT = "Confirm your email"
+_EMAIL_CHANGE_SUBJECT = "Confirm your new email"
+_EMAIL_CHANGE_NOTICE_SUBJECT = "Your email was changed"
 
 # Autoescaping guards the HTML parts while leaving plain-text templates untouched
 _environment = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=select_autoescape(["html"]))
@@ -46,6 +48,39 @@ def render_signup_confirmation_email(confirm_link: str, expiry_hours: int) -> Re
     html_body = _environment.get_template("signup_confirmation.html").render(context)
     text_body = _environment.get_template("signup_confirmation.txt").render(context)
     return RenderedEmail(subject=_SIGNUP_CONFIRMATION_SUBJECT, text_body=text_body, html_body=html_body)
+
+
+def render_email_change_email(confirm_link: str, expiry_minutes: int) -> RenderedEmail:
+    """Render the email that carries a new address its confirmation link
+
+    It holds only the link and how long it works, since the address may not belong to the person asking
+
+    Args:
+        confirm_link: One-time URL carrying the raw token
+        expiry_minutes: Minutes until the confirmation link expires
+
+    Returns:
+        The rendered subject and both body parts
+    """
+    context = {"app_name": EMAIL_SENDER_NAME, "confirm_link": confirm_link, "expiry_minutes": expiry_minutes}
+    html_body = _environment.get_template("email_change.html").render(context)
+    text_body = _environment.get_template("email_change.txt").render(context)
+    return RenderedEmail(subject=_EMAIL_CHANGE_SUBJECT, text_body=text_body, html_body=html_body)
+
+
+def render_email_change_notice_email(new_email: str) -> RenderedEmail:
+    """Render the notice the old address gets once an account's email has changed, with no link to act on
+
+    Args:
+        new_email: The address the account has now
+
+    Returns:
+        The rendered subject and both body parts
+    """
+    context = {"app_name": EMAIL_SENDER_NAME, "new_email": new_email}
+    html_body = _environment.get_template("email_change_notice.html").render(context)
+    text_body = _environment.get_template("email_change_notice.txt").render(context)
+    return RenderedEmail(subject=_EMAIL_CHANGE_NOTICE_SUBJECT, text_body=text_body, html_body=html_body)
 
 
 def render_action_needed_email(subject: str, lead: str, accounts: Sequence[str], closing: str) -> RenderedEmail:

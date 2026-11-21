@@ -13,6 +13,7 @@ from app.config.imports import ABANDONED_RUN_AGE, IMPORT_UNDO_WINDOW
 from app.config.two_factor import TWO_FACTOR_STAGING_EXPIRE_SECONDS
 from app.encryption import encrypt
 from app.models.auth import (
+    EmailChangeRequest,
     LoginLockout,
     MfaChallenge,
     PasswordResetToken,
@@ -130,6 +131,8 @@ async def test_prunes_expired_records_of_every_kind_across_users_and_keeps_live_
             expires_at=past,
             created_at=now - timedelta(hours=23),
         )
+        expired_email_change = EmailChangeRequest(user_id=first.id, new_email="old@example.org", token_hash="old", expires_at=past)
+        live_email_change = EmailChangeRequest(user_id=second.id, new_email="new@example.org", token_hash="new", expires_at=future)
         stale_passkey = WebauthnCredential(
             user_id=first.id,
             credential_id=b"stale",
@@ -166,6 +169,8 @@ async def test_prunes_expired_records_of_every_kind_across_users_and_keeps_live_
                 live_oidc,
                 stale_reset,
                 recent_reset,
+                expired_email_change,
+                live_email_change,
                 stale_passkey,
                 confirmed_passkey,
                 stale_totp,
@@ -184,6 +189,7 @@ async def test_prunes_expired_records_of_every_kind_across_users_and_keeps_live_
     assert await _remaining_ids(MfaChallenge, "jti") == {live_mfa.jti}
     assert await _remaining_ids(OidcAuthorizationRequest) == {live_oidc.id}
     assert await _remaining_ids(PasswordResetToken) == {recent_reset.id}
+    assert await _remaining_ids(EmailChangeRequest) == {live_email_change.id}
     assert await _remaining_ids(WebauthnCredential) == {confirmed_passkey.id}
     assert await _remaining_ids(TotpCredential, "user_id") == {second.id}
     assert await _remaining_ids(RecoveryCode) == {active_code.id}
@@ -452,6 +458,16 @@ async def _seed_password_reset_tokens() -> None:
     await _save(live, [token(owners[LIVE_ROWS], "stale", timedelta(hours=25))])
 
 
+async def _seed_email_change_requests() -> None:
+    owners, now = await _seed_crowd(), datetime.now(UTC)
+
+    def request(owner: uuid.UUID, token_hash: str, expires_at: datetime) -> EmailChangeRequest:
+        return EmailChangeRequest(user_id=owner, new_email=f"{token_hash}@example.org", token_hash=token_hash, expires_at=expires_at)
+
+    live = [request(owner, f"live{index}", now + timedelta(minutes=5)) for index, owner in enumerate(owners[:LIVE_ROWS])]
+    await _save(live, [request(owners[LIVE_ROWS], "expired", now - timedelta(minutes=1))])
+
+
 async def _seed_login_lockouts() -> None:
     now = datetime.now(UTC)
     live = [LoginLockout(email_hash=f"live{index}", failed_attempt_count=1, last_failed_at=now) for index in range(LIVE_ROWS)]
@@ -530,6 +546,7 @@ _ROWS_READ_CASES = {
     "MFA challenges": _RowsReadCase(_seed_mfa_challenges, {"mfa_challenges": 1}),
     "OIDC authorization requests": _RowsReadCase(_seed_oidc_authorization_requests, {"oidc_authorization_requests": 1}),
     "password reset tokens": _RowsReadCase(_seed_password_reset_tokens, {"password_reset_tokens": 1}),
+    "email change requests": _RowsReadCase(_seed_email_change_requests, {"email_change_requests": 1}),
     "idle sign-in lockouts": _RowsReadCase(_seed_login_lockouts, {"login_lockouts": 1}),
     "sign-up email records": _RowsReadCase(_seed_signup_email_sends, {"signup_email_sends": 1}),
     "two-factor staging": _RowsReadCase(_seed_factor_staging, {"webauthn_credentials": 1, "totp_credentials": 1, "recovery_codes": 1}),

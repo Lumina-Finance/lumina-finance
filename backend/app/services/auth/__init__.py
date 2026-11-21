@@ -1,6 +1,7 @@
 """Auth service exports"""
 
 from app.services.auth.change_password import change_password
+from app.services.auth.email_change import confirm_email_change, reject_unchanged_email, request_email_change
 from app.services.auth.login import login
 from app.services.auth.mfa_challenge import MFA_PURPOSE_LOGIN, MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from app.services.auth.oidc_login import (
@@ -84,6 +85,7 @@ __all__ = [
     "complete_oidc_signup",
     "complete_password_reset",
     "complete_totp_enrollment",
+    "confirm_email_change",
     "confirm_passkey_registration",
     "confirm_recovery_codes",
     "confirm_signup",
@@ -110,9 +112,11 @@ __all__ = [
     "login",
     "regenerate_recovery_codes",
     "register_passkey",
+    "reject_unchanged_email",
     "remove_passkey",
     "remove_passkey_with_step_up",
     "rename_passkey",
+    "request_email_change",
     "request_password_reset",
     "request_signup",
     "set_first_password",

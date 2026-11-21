@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from app.services.email import RenderedEmail
 
-_CONFIRM_LINK_PATTERN = re.compile(r"/confirm-email\?token=(\S+)")
+_CONFIRM_LINK_PATTERN = re.compile(r"/confirm-(?:new-)?email\?token=(\S+)")
 
 
 @dataclass(frozen=True)

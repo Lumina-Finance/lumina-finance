@@ -10,6 +10,7 @@ from app.database import current_session_id_ctx, get_db, get_session_factory
 from app.dependencies import get_authenticated_user, get_current_user
 from app.models.user import User
 from app.routes.auth.cookie_helpers import read_oidc_reauth_stepup_cookie, read_refresh_cookie
+from app.routes.auth.email_change import router as email_change_router
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
 from app.routes.auth.native import router as native_router
@@ -91,6 +92,9 @@ router.include_router(oidc_router)
 
 # The web sign-in's handoff to a native app shares the /auth prefix through its own router
 router.include_router(native_router)
+
+# Changing the account's email shares the /auth prefix through its own router
+router.include_router(email_change_router)
 
 
 @router.post("/signup", status_code=status.HTTP_204_NO_CONTENT)

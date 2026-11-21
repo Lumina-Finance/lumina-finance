@@ -1,6 +1,6 @@
 """Log lines for the requests an abuse ban acts on, each holding the request's source address
 
-A line is written only for sign-up, sign-in and reset requests, in one fixed JSON form a fail2ban
+A line is written only for sign-up, sign-in, reset and email change requests, in one fixed JSON form a fail2ban
 filter matches. The source address is personal data, so it is on as few lines as can still drive a
 ban, and never beside a user ID or anything else that names a person: no email, name, body, query
 string or path parameter value is ever written
@@ -15,7 +15,7 @@ from app.request_hook import RequestRecord
 
 # Requests logged whatever the outcome: each one sends an email or creates a record, so the count of
 # them from one address is the abuse
-SOURCE_ADDRESS_ALWAYS_ROUTES = frozenset({"/auth/signup", "/auth/password/forgot"})
+SOURCE_ADDRESS_ALWAYS_ROUTES = frozenset({"/auth/signup", "/auth/password/forgot", "/auth/email/change"})
 
 # Requests logged only when they fail, so a person who signs in correctly is never counted against
 # the ban threshold
@@ -26,6 +26,7 @@ SOURCE_ADDRESS_ON_FAILURE_ROUTES = frozenset(
         "/auth/passkeys/authenticate",
         "/auth/passkeys/mfa/verify",
         "/auth/signup/confirm",
+        "/auth/email/change/confirm",
         "/auth/password/reset",
         "/auth/password/reset/check",
         "/auth/password/reset/verify",

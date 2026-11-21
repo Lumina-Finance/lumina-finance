@@ -47,13 +47,21 @@ def test_a_server_error_on_a_sign_in_route_logs_nothing(abuse_log_lines, status)
     assert abuse_log_lines == []
 
 
-@pytest.mark.parametrize("route", ["/auth/signup", "/auth/password/forgot"])
+@pytest.mark.parametrize("route", ["/auth/signup", "/auth/password/forgot", "/auth/email/change"])
 @pytest.mark.parametrize("status", [204, 422])
-def test_sign_up_and_reset_requests_are_logged_whatever_the_outcome(abuse_log_lines, route, status):
+def test_sign_up_reset_and_email_change_requests_are_logged_whatever_the_outcome(abuse_log_lines, route, status):
     """Each of these sends an email or creates a record, so every one counts toward a ban"""
     log_source_address(_record(route, status))
 
     assert json.loads(abuse_log_lines[0])["ip"] == "203.0.113.9"
+
+
+@pytest.mark.parametrize(("status", "is_logged"), [(200, False), (400, True)])
+def test_a_confirmed_email_change_is_not_counted_but_a_refused_link_is(abuse_log_lines, status, is_logged):
+    """Guessing at confirmation links counts toward a ban, while a person confirming their own does not"""
+    log_source_address(_record("/auth/email/change/confirm", status))
+
+    assert bool(abuse_log_lines) is is_logged
 
 
 def test_a_connection_with_no_client_address_logs_nothing(abuse_log_lines):
