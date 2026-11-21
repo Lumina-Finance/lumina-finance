@@ -97,7 +97,7 @@ describe('a request the server never answered', () => {
   // A file read that landed after the app answered once brought the notice back until the next retry
   it('leaves the page as it was when the app answers while the file is on its way', async () => {
     let answerFile: (response: Response) => void = () => undefined
-    let api = NEVER_ANSWERED
+    let api: () => Promise<Response> = NEVER_ANSWERED
     serve({ api: () => api(), file: () => new Promise<Response>((resolve) => (answerFile = resolve)) })
 
     await expect(fetchFromServer('/accounts')).rejects.toBeInstanceOf(TypeError)
