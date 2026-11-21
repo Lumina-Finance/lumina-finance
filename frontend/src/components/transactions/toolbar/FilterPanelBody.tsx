@@ -22,10 +22,9 @@ import {
 } from '@/utils/currencyStatus'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { ReferenceFacet } from '@/components/transactions/toolbar/ReferenceFacet'
-import type { AmountDraft } from '@/components/transactions/utils/amountRange'
+import { MAX_FILTER_MINOR_UNITS, type AmountDraft } from '@/components/transactions/utils/amountRange'
 import { buildAmountRangeLabel } from '@/components/transactions/utils/amountRangeLabel'
 import {
-  CROSSED_AMOUNT_RANGE_MESSAGE,
   CROSSED_DATE_RANGE_MESSAGE,
   FILTER_FACETS,
   type FacetConfig,
@@ -221,7 +220,7 @@ export function FilterPanelBody({
               isAmountLocked={draft.isAmountLocked}
               isAmountCurrencyLocked={draft.isAmountCurrencyLocked}
               currencyListState={draft.currencyListState}
-              hasCrossedAmountBounds={draft.hasCrossedAmountBounds}
+              invalidAmountBounds={draft.invalidAmountBounds}
               amountRangeMessageId={amountRangeMessageId}
               hasCrossedDateRange={draft.hasCrossedDateRange}
               dateWindowErrors={draft.dateWindowErrors}
@@ -258,14 +257,15 @@ export function FilterPanelBody({
       </motion.div>
 
       <motion.div layout={blockLayout} transition={transition}>
-        {/* The crossed amount range takes this line rather than sitting in its own editor. A crossed date
-            range is said on the From field's label row, as the importer says it, and takes this line only
-            while another facet is open, so every reason Apply is unavailable stays on screen */}
-        {draft.hasCrossedAmountBounds || (hiddenDateProblem && activeFacet.kind !== 'date') ? (
+        {/* An amount problem, a crossed range or a bound too large, takes this line rather than sitting in its
+            own editor. A crossed date range is said on the From field's label row, as the importer says it,
+            and takes this line only while another facet is open, so every reason Apply is unavailable stays
+            on screen */}
+        {draft.amountError || (hiddenDateProblem && activeFacet.kind !== 'date') ? (
           <>
-            {draft.hasCrossedAmountBounds && (
+            {draft.amountError && (
               <p id={amountRangeMessageId} className="mt-2 px-0.5 text-xs" style={{ color: 'var(--app-negative)' }}>
-                {CROSSED_AMOUNT_RANGE_MESSAGE}
+                {draft.amountError}
               </p>
             )}
             {hiddenDateProblem && activeFacet.kind !== 'date' && (
@@ -358,10 +358,10 @@ type SectionEditorProps = {
   isAmountCurrencyLocked: boolean
   // Which of the reasons the fields are locked, for the note under them
   currencyListState: CurrencyListState
-  // True while the minimum sits above the maximum once both are rounded to the currency's minor
-  // units, which no transaction can satisfy
-  hasCrossedAmountBounds: boolean
-  // Names the message explaining the crossed bounds, which the panel renders outside this editor
+  // Which bounds the message under the fields is about: both while the minimum sits above the
+  // maximum, a range no transaction can satisfy, and each one naming more than the filter can send
+  invalidAmountBounds: { min: boolean; max: boolean }
+  // Names the message explaining the invalid bounds. The panel renders it outside this editor
   amountRangeMessageId: string
   // True while the from date sits after the to date, leaving a range no transaction can satisfy
   hasCrossedDateRange: boolean
@@ -406,7 +406,7 @@ function SectionEditor({
   isAmountLocked,
   isAmountCurrencyLocked,
   currencyListState,
-  hasCrossedAmountBounds,
+  invalidAmountBounds,
   amountRangeMessageId,
   hasCrossedDateRange,
   dateWindowErrors,
@@ -431,11 +431,13 @@ function SectionEditor({
     value: amount.min,
     exponent: amountExponent,
     onChange: (value) => onAmountChange((current) => ({ ...current, min: value })),
+    settleCeiling: MAX_FILTER_MINOR_UNITS,
   })
   const maxAmountInput = useMoneyInput({
     value: amount.max,
     exponent: amountExponent,
     onChange: (value) => onAmountChange((current) => ({ ...current, max: value })),
+    settleCeiling: MAX_FILTER_MINOR_UNITS,
   })
 
   if (facet.kind === 'amount') {
@@ -511,13 +513,13 @@ function SectionEditor({
                   className={joinClassNames(
                     'app-input disabled:cursor-not-allowed disabled:opacity-60',
                     amountSymbol && 'pl-8',
-                    hasCrossedAmountBounds && 'app-input-error',
+                    invalidAmountBounds.min && 'app-input-error',
                   )}
                   style={getSymbolInputStyle(amountSymbol, AMOUNT_SYMBOL_PLACEMENT)}
                   placeholder={isAmountLocked ? undefined : getMoneyPlaceholder(amountExponent)}
                   disabled={isAmountLocked}
-                  aria-invalid={hasCrossedAmountBounds}
-                  aria-describedby={hasCrossedAmountBounds ? amountRangeMessageId : undefined}
+                  aria-invalid={invalidAmountBounds.min}
+                  aria-describedby={invalidAmountBounds.min ? amountRangeMessageId : undefined}
                   {...minAmountInput}
                 />
               </div>
@@ -537,13 +539,13 @@ function SectionEditor({
                   className={joinClassNames(
                     'app-input disabled:cursor-not-allowed disabled:opacity-60',
                     amountSymbol && 'pl-8',
-                    hasCrossedAmountBounds && 'app-input-error',
+                    invalidAmountBounds.max && 'app-input-error',
                   )}
                   style={getSymbolInputStyle(amountSymbol, AMOUNT_SYMBOL_PLACEMENT)}
                   placeholder={isAmountLocked ? undefined : 'Any'}
                   disabled={isAmountLocked}
-                  aria-invalid={hasCrossedAmountBounds}
-                  aria-describedby={hasCrossedAmountBounds ? amountRangeMessageId : undefined}
+                  aria-invalid={invalidAmountBounds.max}
+                  aria-describedby={invalidAmountBounds.max ? amountRangeMessageId : undefined}
                   {...maxAmountInput}
                 />
               </div>

@@ -1,6 +1,7 @@
 import { SKIPPED_TABLE_CELL_DISPLAY_LIMIT } from '@/pages/imports/constants'
 import type { ImportAmountDirection } from '@/pages/imports/types'
 import { DATE_FORMATS, formatDate, parseYmd } from '@/utils/date'
+import { MAX_MINOR_UNITS, MIN_MINOR_UNITS } from '@/utils/moneyInput'
 
 /**
  * The shapes a date column can be read in. One is chosen for the whole import, because a file that
@@ -293,13 +294,6 @@ const IMPORT_NUMBER_PATTERN = /^([+-]?)([0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.([0
 // Paired with backend _NORMALIZED_DECIMAL_AMOUNT_RE: no grouping or surrounding whitespace
 const NORMALIZED_IMPORT_NUMBER_PATTERN = /^([+-]?)([0-9]+)(?:\.([0-9]+))?$/
 
-// The bounds of the signed 64-bit column the backend stores an amount in. The negative side
-// reaches one further than the positive, which is what two's complement holds, so a caller that
-// negates an amount has to bound its own result. The same two values are written out again in
-// backend/app/utils/money.py, and the two have to agree
-const MIN_IMPORT_MINOR_UNITS = -(2n ** 63n)
-export const MAX_IMPORT_MINOR_UNITS = 2n ** 63n - 1n
-
 /**
  * Why an amount cell could not be converted, so the caller can say which rule it broke rather
  * than only that it failed
@@ -333,7 +327,7 @@ export function toImportMinorUnits(rawValue: string, exponent: number): bigint |
   const scaled = BigInt(`${whole}${kept.padEnd(exponent, '0')}`)
   const minorUnits = sign === '-' ? -scaled : scaled
 
-  return minorUnits >= MIN_IMPORT_MINOR_UNITS && minorUnits <= MAX_IMPORT_MINOR_UNITS ? minorUnits : 'tooLarge'
+  return minorUnits >= MIN_MINOR_UNITS && minorUnits <= MAX_MINOR_UNITS ? minorUnits : 'tooLarge'
 }
 
 /**

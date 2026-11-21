@@ -72,7 +72,12 @@ from app.services.bank_sync.review_decisions import (
     remove_from_ledger,
     restore_bank_value,
 )
-from app.services.bank_sync.review_items import REVIEW_PAGE_SIZE, list_review_backlogs, list_review_items
+from app.services.bank_sync.review_items import (
+    MAX_REVIEW_CURSOR_LENGTH,
+    REVIEW_PAGE_SIZE,
+    list_review_backlogs,
+    list_review_items,
+)
 from app.services.bank_sync.sync_now import sync_account_now
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
@@ -523,7 +528,7 @@ async def list_bank_review_items(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
-    cursor: Annotated[str | None, Query()] = None,
+    cursor: Annotated[str | None, Query(max_length=MAX_REVIEW_CURSOR_LENGTH)] = None,
     limit: Annotated[int, Query(ge=1, le=REVIEW_PAGE_SIZE)] = REVIEW_PAGE_SIZE,
 ):
     """Return a page of the items waiting for review, newest first, with counts by kind

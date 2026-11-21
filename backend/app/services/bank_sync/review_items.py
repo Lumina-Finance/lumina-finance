@@ -37,6 +37,10 @@ from app.services.bank_sync.sources import read_bank_values
 # The most items one page holds, so an import that leaves hundreds waiting loads a page at a time
 REVIEW_PAGE_SIZE = 50
 
+# The longest cursor a request may carry. A cursor a page returns is a date, a separator and an id, 47
+# characters, and the parsers that read one take a few more spellings of each, to 56
+MAX_REVIEW_CURSOR_LENGTH = 64
+
 # Why the reads of bank items refuse an account the user can see but doesn't own alone
 REVIEW_NOT_OWN_DETAIL = "Bank items aren't listed for accounts shared with a group"
 

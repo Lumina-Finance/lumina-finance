@@ -1,6 +1,12 @@
-import { findCurrencyExponent, fromMinorUnits, toMinorUnits } from '@/utils/moneyInput'
+import { findCurrencyExponent, fromMinorUnits, isMinorUnitsAbove, toMinorUnits } from '@/utils/moneyInput'
 import type { Currency } from '@/api/currency'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
+
+// The largest bound the filter sends and shows exactly is fifteen digits of minor units. The API takes
+// more, up to its 64-bit limit, but a bound is carried as a number from here on, and a number gives
+// back a decimal of fifteen digits and no more as it was typed. Past that the amount would be sent,
+// and written on the chip, as a different one
+export const MAX_FILTER_MINOR_UNITS = 10n ** 15n - 1n
 
 /** The minimum and maximum as the fields hold them, in the plain format a money field takes */
 export type AmountDraft = { min: string; max: string }
@@ -26,6 +32,20 @@ export function isAmountRangeCrossed(amount: AmountDraft, exponent: number): boo
 }
 
 /**
+ * Reports which of the bounds name an amount past the largest the filter can send exactly. That is
+ * short of the largest the API stores, and the API refuses a bound past its own limit instead of listing
+ *
+ * @param amount - The minimum and maximum as the fields hold them
+ * @param exponent - Decimal places of the currency the range matches in
+ */
+export function findTooLargeAmountBounds(amount: AmountDraft, exponent: number): { min: boolean; max: boolean } {
+  return {
+    min: isMinorUnitsAbove(amount.min, exponent, MAX_FILTER_MINOR_UNITS),
+    max: isMinorUnitsAbove(amount.max, exponent, MAX_FILTER_MINOR_UNITS),
+  }
+}
+
+/**
  * Reports whether the fields have to refuse input, which they do while the decimal places they would
  * be edited in are unknown, and while an applied bound cannot be shown
  *
@@ -39,8 +59,9 @@ export function isAmountRangeLocked(
   currencies: Currency[],
   amountCurrency: string,
 ): boolean {
-  return findCurrencyExponent(currencies, amountCurrency) === null
-    || isAppliedRangeWaitingOnCurrency(filters, currencies)
+  return (
+    findCurrencyExponent(currencies, amountCurrency) === null || isAppliedRangeWaitingOnCurrency(filters, currencies)
+  )
 }
 
 /**
@@ -50,10 +71,7 @@ export function isAmountRangeLocked(
  * @param filters - The applied bounds and the currency their minor units belong to
  * @param currencies - The currency table, which is empty until it downloads
  */
-export function isAppliedRangeWaitingOnCurrency(
-  filters: AppliedAmountRange,
-  currencies: Currency[],
-): boolean {
+export function isAppliedRangeWaitingOnCurrency(filters: AppliedAmountRange, currencies: Currency[]): boolean {
   const hasBound = filters.min_amount !== undefined || filters.max_amount !== undefined
 
   return hasBound && findAmountRangeDraft(filters, currencies) === null

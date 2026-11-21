@@ -9,6 +9,7 @@ import type { Currency } from '@/api/currency'
 import {
   buildAmountFilterPatch,
   findAmountRangeDraft,
+  findTooLargeAmountBounds,
   isAmountRangeCrossed,
   isAmountRangeLocked,
   isAppliedRangeWaitingOnCurrency,
@@ -92,6 +93,43 @@ describe('bounds that exclude each other', () => {
 
   it('leaves a range of 10 to blank uncrossed', () => {
     expect(isAmountRangeCrossed({ min: '10', max: '' }, CENTS)).toBe(false)
+  })
+})
+
+describe('bounds past the largest amount the filter sends exactly', () => {
+  // Fifteen digits of minor units is 9999999999999.99 in a currency with two decimal places
+  it('reports a bound exactly when it is one minor unit past the largest amount, in a currency of any decimal places', () => {
+    expect(findTooLargeAmountBounds({ min: '9999999999999.99', max: '10000000000000.00' }, CENTS)).toStrictEqual({
+      min: false,
+      max: true,
+    })
+    expect(findTooLargeAmountBounds({ min: '999999999999999', max: '1000000000000000' }, WHOLE_UNITS)).toStrictEqual({
+      min: false,
+      max: true,
+    })
+  })
+
+  it('counts a dropped digit that rounds the amount up', () => {
+    expect(findTooLargeAmountBounds({ min: '9999999999999.994', max: '9999999999999.995' }, CENTS)).toStrictEqual({
+      min: false,
+      max: true,
+    })
+  })
+
+  it('reports a figure too long for a number to hold, which a conversion would have dropped as no amount', () => {
+    expect(findTooLargeAmountBounds({ min: '9'.repeat(400), max: `${'9'.repeat(400)}.99` }, CENTS)).toStrictEqual({
+      min: true,
+      max: true,
+    })
+  })
+
+  it('leaves a blank bound, text naming no amount and any amount in range alone', () => {
+    expect(findTooLargeAmountBounds({ min: '', max: 'abc' }, CENTS)).toStrictEqual({ min: false, max: false })
+    expect(findTooLargeAmountBounds({ min: '0', max: '1,000.00' }, CENTS)).toStrictEqual({ min: false, max: false })
+    expect(findTooLargeAmountBounds({ min: '10.00', max: '1000000000.00' }, CENTS)).toStrictEqual({
+      min: false,
+      max: false,
+    })
   })
 })
 

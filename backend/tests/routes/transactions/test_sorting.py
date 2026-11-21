@@ -5,7 +5,6 @@ from sqlalchemy import update
 
 from app.models.transaction import Transaction
 from tests.conftest import TestSession
-from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import (
     _create_category,
     _create_merchant,
@@ -237,25 +236,3 @@ async def test_list_transactions_sort_by_updated_at(client):
 
     ids = [t["id"] for t in resp.json()]
     assert ids[0] == resp1.json()["id"]
-
-
-async def test_list_transactions_invalid_sort_by_returns_422(client):
-    """Invalid sort_by field returns 422."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await client.get("/transactions?sort_by=invalid", headers=headers)
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Invalid sort field"
-
-
-async def test_list_transactions_invalid_sort_order_returns_422(client):
-    """Invalid sort_order returns 422."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-
-    resp = await client.get("/transactions?sort_order=sideways", headers=headers)
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Sort order must be 'asc' or 'desc'"

@@ -12,6 +12,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.import_run import ImportRunSource
 from app.models.user import User
+from app.routes.transactions.query_types import AmountFilter, CurrencyFilter, DateFilter
 from app.schemas.import_run import (
     AccountImportSourceResponse,
     CheckHeldBankTransactionsRequest,
@@ -65,8 +66,10 @@ from app.services.transactions.export import TransactionCsvExport, export_select
 from app.services.transactions.link_candidates import CandidateFilters, list_refund_link_candidates
 from app.services.transactions.links import link_existing_refund, unlink_refund
 from app.services.transactions.listing import list_transaction_responses
+from app.services.transactions.listing.queries import SortOrder, TagMatch, TransactionSortField
 from app.services.transactions.overview import get_transactions_overview as get_transactions_overview_response
 from app.services.transactions.update import update_transaction_and_get_response
+from app.utils.pagination import MAX_LIST_OFFSET
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -110,19 +113,19 @@ async def list_transactions(
     account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
     category_id: Annotated[list[uuid.UUID] | None, Query()] = None,
     merchant_id: Annotated[list[uuid.UUID] | None, Query()] = None,
-    currency: Annotated[list[str] | None, Query()] = None,
+    currency: CurrencyFilter = None,
     tag_id: Annotated[list[uuid.UUID] | None, Query()] = None,
-    tag_match: Annotated[str, Query()] = "all",
-    min_amount: Annotated[int | None, Query(ge=0)] = None,
-    max_amount: Annotated[int | None, Query(ge=0)] = None,
+    tag_match: Annotated[TagMatch, Query()] = "all",
+    min_amount: AmountFilter = None,
+    max_amount: AmountFilter = None,
     amount_currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
-    from_date: Annotated[date | None, Query()] = None,
-    to_date: Annotated[date | None, Query()] = None,
+    from_date: DateFilter = None,
+    to_date: DateFilter = None,
     search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
-    sort_by: Annotated[str, Query()] = "dt",
-    sort_order: Annotated[str, Query()] = "desc",
+    sort_by: Annotated[TransactionSortField, Query()] = "dt",
+    sort_order: Annotated[SortOrder, Query()] = "desc",
     limit: Annotated[int, Query(ge=1, le=50)] = 15,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Annotated[int, Query(ge=0, le=MAX_LIST_OFFSET)] = 0,
 ):
     """Return paginated transactions with sorting and filtering
 
@@ -150,8 +153,8 @@ async def list_transactions(
         Matching transaction responses for the requested page
 
     Raises:
-        HTTPException: Raised with 422 for invalid sort fields, sort order, date
-            range, tag match mode, or an amount range missing its currency
+        HTTPException: Raised with 422 for a reversed date or amount range, or an amount range
+            missing its currency
     """
     return await list_transaction_responses(
         db,
@@ -183,14 +186,14 @@ async def list_refund_link_candidates_route(
     account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
     category_id: Annotated[list[uuid.UUID] | None, Query()] = None,
     merchant_id: Annotated[list[uuid.UUID] | None, Query()] = None,
-    currency: Annotated[list[str] | None, Query()] = None,
+    currency: CurrencyFilter = None,
     tag_id: Annotated[list[uuid.UUID] | None, Query()] = None,
-    tag_match: Annotated[str, Query()] = "all",
-    min_amount: Annotated[int | None, Query(ge=0)] = None,
-    max_amount: Annotated[int | None, Query(ge=0)] = None,
+    tag_match: Annotated[TagMatch, Query()] = "all",
+    min_amount: AmountFilter = None,
+    max_amount: AmountFilter = None,
     amount_currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
-    from_date: Annotated[date | None, Query()] = None,
-    to_date: Annotated[date | None, Query()] = None,
+    from_date: DateFilter = None,
+    to_date: DateFilter = None,
     search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
     unlinked_id: Annotated[list[uuid.UUID] | None, Query()] = None,
 ):
@@ -241,14 +244,14 @@ async def export_transactions(
     account_id: Annotated[list[uuid.UUID] | None, Query()] = None,
     category_id: Annotated[list[uuid.UUID] | None, Query()] = None,
     merchant_id: Annotated[list[uuid.UUID] | None, Query()] = None,
-    currency: Annotated[list[str] | None, Query()] = None,
+    currency: CurrencyFilter = None,
     tag_id: Annotated[list[uuid.UUID] | None, Query()] = None,
-    tag_match: Annotated[str, Query()] = "all",
-    min_amount: Annotated[int | None, Query(ge=0)] = None,
-    max_amount: Annotated[int | None, Query(ge=0)] = None,
+    tag_match: Annotated[TagMatch, Query()] = "all",
+    min_amount: AmountFilter = None,
+    max_amount: AmountFilter = None,
     amount_currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
-    from_date: Annotated[date | None, Query()] = None,
-    to_date: Annotated[date | None, Query()] = None,
+    from_date: DateFilter = None,
+    to_date: DateFilter = None,
     search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
 ):
     """Stream every transaction matching the list's filters as a CSV file, newest first
@@ -275,8 +278,8 @@ async def export_transactions(
         A CSV download with a header row and one row per matching transaction
 
     Raises:
-        HTTPException: Raised with 422 for an invalid date range, tag match mode, or an
-            amount range missing its currency
+        HTTPException: Raised with 422 for a reversed date or amount range, or an amount range
+            missing its currency
     """
     export = await export_transactions_csv(
         db,

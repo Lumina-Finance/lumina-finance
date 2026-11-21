@@ -2,7 +2,7 @@
 
 A request field with no upper bound lets one request store or hash as much as the body limit
 allows, or reach the database with a number its column cannot hold. The sweep in
-`tests/schemas/test_request_field_limits.py` fails for any body or path field that has none
+`tests/schemas/test_request_field_limits.py` fails for any body, path or query field that has none
 """
 
 from typing import Annotated

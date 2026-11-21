@@ -197,6 +197,37 @@ test('retains Tags explanations and invalid amount and date blocking', AT_EVERY_
   await panel.getByRole('textbox', { name: /^Max(?:\s|$)/ }).fill('30')
   await expect(apply).toBeEnabled()
   await expect(apply).not.toHaveAttribute('aria-describedby', /.+/)
+  // One minor unit past the largest amount the filter can send exactly is refused on its own field
+  const minAmount = panel.getByRole('textbox', { name: /^Min(?:\s|$)/ })
+  const maxAmount = panel.getByRole('textbox', { name: /^Max(?:\s|$)/ })
+  const tooLargeAmount = 'Enter a smaller amount'
+  await maxAmount.fill('10000000000000.00')
+  await expect(maxAmount).toHaveAttribute('aria-invalid', 'true')
+  await expect(minAmount).not.toHaveAttribute('aria-invalid', 'true')
+  await expect(panel.locator(`[id="${await maxAmount.getAttribute('aria-describedby')}"]`)).toHaveText(tooLargeAmount)
+  await expect(apply).toBeDisabled()
+  await expect(apply).toHaveAccessibleDescription(tooLargeAmount)
+  // Leaving the field keeps the digits typed and the refusal, where a number would have rounded them
+  await maxAmount.fill('10000000000000000000')
+  await maxAmount.blur()
+  await expect(maxAmount).toHaveValue('10000000000000000000')
+  await expect(maxAmount).toHaveAttribute('aria-invalid', 'true')
+  await expect(apply).toBeDisabled()
+  // The largest amount the filter sends exactly is taken, and leaving the field keeps it as typed
+  await maxAmount.fill('9999999999999.99')
+  await maxAmount.blur()
+  await expect(maxAmount).toHaveValue('9999999999999.99')
+  await expect(maxAmount).not.toHaveAttribute('aria-invalid', 'true')
+  await expect(apply).toBeEnabled()
+  // The minimum is refused the same way, and a maximum below it is not also called crossed
+  await minAmount.fill('10000000000000.00')
+  await maxAmount.fill('30')
+  await expect(minAmount).toHaveAttribute('aria-invalid', 'true')
+  await expect(maxAmount).not.toHaveAttribute('aria-invalid', 'true')
+  await expect(panel.locator(`[id="${await minAmount.getAttribute('aria-describedby')}"]`)).toHaveText(tooLargeAmount)
+  await expect(apply).toHaveAccessibleDescription(tooLargeAmount)
+  await minAmount.fill('20')
+  await expect(apply).toBeEnabled()
   await selectFacet(page, panel, 'Date')
   for (const [label, day] of [['From', '20'], ['To', '10']] as const) {
     const date = panel.getByRole('group', { name: label, exact: true })

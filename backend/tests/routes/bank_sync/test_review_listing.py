@@ -138,6 +138,20 @@ async def test_review_list_refuses_a_page_of_none_or_more_than_50_and_a_cursor_n
     assert bad_cursor.json()["detail"] == "Unknown review list cursor"
 
 
+async def test_review_list_refuses_a_cursor_longer_than_any_page_returns_on_its_field(client):
+    """A cursor is a date and an item id, so a text of 65 characters is refused on its field before it is read"""
+    headers, _, _ = await _everyday(client)
+
+    last_taken = await client.get("/bank-review/items", params={"cursor": "x" * 64}, headers=headers)
+    refused = await client.get("/bank-review/items", params={"cursor": "x" * 65}, headers=headers)
+
+    assert last_taken.status_code == 422, last_taken.text
+    assert last_taken.json()["detail"] == "Unknown review list cursor"
+    assert refused.status_code == 422, refused.text
+    [error] = refused.json()["detail"]
+    assert (error["loc"], error["type"]) == (["query", "cursor"], "string_too_long")
+
+
 async def test_review_list_shows_each_kind_with_the_values_its_review_compares(client):
     """New items, one in USD that cents can't hold, a date-moving correction and a removal wait, but settled and dismissed ones don't"""
     headers, user_id, account_id = await _everyday(client)

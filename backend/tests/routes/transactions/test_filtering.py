@@ -1,5 +1,3 @@
-
-
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import (
     _create_account,
@@ -245,18 +243,6 @@ async def test_list_transactions_filter_by_tags_any_matches_either(client):
 
     assert len(resp.json()) == 2
     assert {transaction["amount"] for transaction in resp.json()} == {-1000, -2000}
-
-
-async def test_list_transactions_invalid_tag_match_returns_422(client):
-    """A tag filter with an unsupported match mode returns 422."""
-    signup_resp = await _create_user(client)
-    headers = _get_auth_header(signup_resp)
-    work = (await _create_tag(client, headers, name="work")).json()["id"]
-
-    resp = await client.get(f"/transactions?tag_id={work}&tag_match=some", headers=headers)
-
-    assert resp.status_code == 422
-    assert resp.json()["detail"] == "Tag match must be 'all' or 'any'"
 
 
 # --- Amount filtering ---

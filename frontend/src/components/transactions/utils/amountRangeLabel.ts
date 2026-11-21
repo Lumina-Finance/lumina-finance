@@ -1,4 +1,4 @@
-import type { AmountDraft } from '@/components/transactions/utils/amountRange'
+import { findTooLargeAmountBounds, type AmountDraft } from '@/components/transactions/utils/amountRange'
 import { formatMajorUnits } from '@/utils/formatCurrency'
 
 /**
@@ -29,6 +29,11 @@ export function buildAmountRangeLabel({
   amountExponent: number
 }): string | null {
   if (!amount.min && !amount.max) return null
+
+  // A bound past what the filter can send is refused on its field, and a number would round it here into
+  // an amount nobody typed
+  const tooLarge = findTooLargeAmountBounds(amount, amountExponent)
+  if (tooLarge.min || tooLarge.max) return null
 
   const lower = formatMajorUnits(Number(amount.min || '0'), amountCurrency, amountExponent)
 
