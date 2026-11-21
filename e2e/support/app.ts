@@ -193,8 +193,10 @@ export async function logInViaApi(page: Page, user: TestUser): Promise<void> {
   const body = await response.json() as { access_token?: string }
   expect(body.access_token).toEqual(expect.any(String))
   const cookies = await page.context().cookies(`${API_BASE_URL}/auth/refresh`)
-  // A target served over HTTPS names the cookie with the host-bound prefix, and a plain HTTP one doesn't
-  expect(cookies.some((cookie) => cookie.name === 'refresh_token' || cookie.name === '__Host-refresh_token')).toBe(true)
+  // A target served over HTTPS names the cookie with the host-bound prefix, and a plain HTTP one doesn't. An
+  // HTTPS target whose proxy doesn't pass the scheme on gets the bare name and fails here
+  const refreshCookieName = new URL(API_BASE_URL).protocol === 'https:' ? '__Host-refresh_token' : 'refresh_token'
+  expect(cookies.map((cookie) => cookie.name)).toContain(refreshCookieName)
 
   // The session flag makes AuthProvider exchange the real HttpOnly cookie through /auth/refresh. The
   // app then replaces it with the user's id, which a later load keeps, since the saved query cache

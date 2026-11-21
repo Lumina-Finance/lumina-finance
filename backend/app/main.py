@@ -41,7 +41,7 @@ from app.routes.users import router as user_router
 from app.services.auth.step_up import ATTEMPTS_REMAINING_HEADER
 from app.services.bank_sync.providers.contract import REFUSED_FIELDS_HEADER
 from app.services.bank_sync.providers.registry import run_startup_checks
-from app.services.email import build_email_sender, set_email_sender
+from app.services.email import build_email_sender, is_email_sender_installed, set_email_sender
 from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
 from app.services.maintenance.expired_records import run_cleanup_timer
 from app.startup import sync_sign_in_providers, verify_database_keys
@@ -86,13 +86,15 @@ app = FastAPI(
     dependencies=[Depends(refuse_null_characters)],
 )
 
-# Install the configured email sender before any request can send mail
-set_email_sender(build_email_sender())
+# Install the configured email sender before any request can send mail. A sender that code outside the
+# app installed before reading the app stays in place
+if not is_email_sender_installed():
+    set_email_sender(build_email_sender())
 
-# Said on every start, since logging is the default and a first run works without mail, so an install
-# can run for months writing live links where anyone reading its log can use them
-if EMAIL_BACKEND == EMAIL_BACKEND_LOGGING:
-    logger.warning(_LOGGING_BACKEND_WARNING)
+    # Said on every start, since logging is the default and a first run works without mail, so an install
+    # can run for months writing live links where anyone reading its log can use them
+    if EMAIL_BACKEND == EMAIL_BACKEND_LOGGING:
+        logger.warning(_LOGGING_BACKEND_WARNING)
 
 app.add_exception_handler(RequestValidationError, handle_request_validation_error)
 app.add_exception_handler(DBAPIError, handle_statement_timeout)

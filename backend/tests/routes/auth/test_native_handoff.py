@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import jwt
 import pytest
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select, update
@@ -259,6 +259,25 @@ async def test_handoff_refused_by_the_signed_in_user_override_tells_app_it_faile
         raise refusal(status_code=401, detail="Refused")
 
     app.dependency_overrides[get_authenticated_user] = refusing_user_check
+    try:
+        query = await _hand_off(client, signup.json()["access_token"], _pkce_pair()[1])
+    finally:
+        app.dependency_overrides.pop(get_authenticated_user, None)
+
+    assert query == {"error": "handoff_failed"}
+
+
+async def test_handoff_whose_user_check_override_fails_validation_tells_app_it_failed(client):
+    """A replacement needing an input the form post lacks ends the sheet in the app, never in an error page"""
+    signup = await _create_user(client)
+
+    async def header_reading_user_check(
+        credentials: Annotated[HTTPAuthorizationCredentials, Depends(HTTPBearer())],
+        x_device: Annotated[str, Header()],
+    ) -> User:
+        raise AssertionError("The check needs a header the form post never sends")
+
+    app.dependency_overrides[get_authenticated_user] = header_reading_user_check
     try:
         query = await _hand_off(client, signup.json()["access_token"], _pkce_pair()[1])
     finally:

@@ -8,8 +8,9 @@ Importing this module loads nothing else. A name is imported from its home modul
 asked for, since some homes read the signing keys or the database password as they load
 """
 
-import importlib
-from typing import Any
+# Imported under private names, so the module offers no public name besides the points and their table
+import importlib as _importlib
+from typing import Any as _Any
 
 # Each supported name and where it lives, as "module:attribute"
 SUPPORTED_POINTS: dict[str, str] = {
@@ -38,7 +39,7 @@ SUPPORTED_POINTS: dict[str, str] = {
 __all__ = list(SUPPORTED_POINTS)
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> _Any:
     """Import a supported point from its home when it is first asked for
 
     Raises:
@@ -48,7 +49,7 @@ def __getattr__(name: str) -> Any:
     if location is None:
         raise AttributeError(f"module {__name__!r} has no supported point {name!r}")
     module_name, attribute = location.split(":")
-    return getattr(importlib.import_module(module_name), attribute)
+    return getattr(_importlib.import_module(module_name), attribute)
 
 
 def __dir__() -> list[str]:

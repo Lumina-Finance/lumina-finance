@@ -9,12 +9,16 @@ from urllib.parse import urlsplit
 
 import httpx
 import jwt
+import pytest
 
 from app.main import app
 from app.services.auth.tokens import SignupConfirmationClaims, create_signup_confirmation_token
 from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD, _assert_host_bound_cookie, _create_user, _resend_cookie
 
 ISSUER = "https://api.example.test/auth/"
+
+# What a verifier adds to the issuer to find the document
+DISCOVERY_PATH = "/.well-known/openid-configuration"
 
 
 async def test_default_issuer_publishes_no_discovery_document(client):
@@ -25,15 +29,19 @@ async def test_default_issuer_publishes_no_discovery_document(client):
     assert resp.json()["detail"] == "Discovery document not found"
 
 
-async def test_https_issuer_publishes_a_document_that_leads_to_the_key_set(client, issuer_set_to):
-    """Asked with no access token, the document names the configured issuer and a key set address the app serves"""
-    issuer_set_to(ISSUER)
+@pytest.mark.parametrize("issuer", [ISSUER, ISSUER.removesuffix("/")], ids=["trailing slash", "no trailing slash"])
+async def test_https_issuer_publishes_a_document_that_leads_to_the_key_set(client, issuer_set_to, issuer):
+    """Asked with no access token where a standard verifier looks, the document names the issuer and a key set the app serves
 
-    resp = await client.get("/auth/.well-known/openid-configuration")
+    The standard drops a trailing slash from the issuer before adding the well-known path
+    """
+    issuer_set_to(issuer)
+
+    resp = await client.get(urlsplit(issuer.removesuffix("/") + DISCOVERY_PATH).path)
 
     assert resp.status_code == 200
     document = resp.json()
-    assert document["issuer"] == ISSUER
+    assert document["issuer"] == issuer
     assert document["id_token_signing_alg_values_supported"] == ["RS256"]
     keys_resp = await client.get(urlsplit(document["jwks_uri"]).path)
     assert keys_resp.status_code == 200
