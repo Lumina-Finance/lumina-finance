@@ -60,6 +60,8 @@ UVICORN_COMMAND = (
 )
 CADDY_COMMAND = ("caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile")
 WORKER_COMMAND = (sys.executable, "-m", "app.worker")
+BOOTSTRAP_COMMAND = (sys.executable, "-m", "app.db.jobs", "bootstrap")
+MIGRATE_COMMAND = (sys.executable, "-m", "app.db.jobs", "migrate")
 
 
 class StopRequested(Exception):
@@ -233,8 +235,7 @@ def run_command(arguments: list[str]) -> None:
     # never automatic. The reset records the key as the migrator, the record's owner. A lost data
     # volume or a dump restored onto a new host has neither the migrator's password nor its ownership
     # yet, so they are set up as a normal start would, as the admin role
-    run(sys.executable, "-m", "app.db.provision", "ensure-roles")
-    run(sys.executable, "-m", "app.db.provision", "transfer-ownership")
+    run(*BOOTSTRAP_COMMAND)
     os.execv(sys.executable, (sys.executable, "-m", "app.db.bank_transaction_key", "reset-key"))
 
 
@@ -305,26 +306,13 @@ def prepare() -> bool:
     # is not the one recorded. The migrations need it to hash transactions saved before
     run(sys.executable, "-m", "app.db.bank_transaction_key", "ensure-key")
 
-    # Create the migrator and app roles and hand them schema ownership while still connected as the
-    # admin role, before migrations run as the migrator
-    run(sys.executable, "-m", "app.db.provision", "ensure-roles")
-    run(sys.executable, "-m", "app.db.provision", "transfer-ownership")
-
-    run(sys.executable, "-m", "alembic", "upgrade", "head")
-
-    # A restored backup arrives at migration head with its ACLs stripped so the bootstrap RLS migration
-    # never re-runs, and this re-applies the policies and app role grants from the app source. It is
-    # also what installs any policy that reads a column added after the bootstrap, since the bootstrap
-    # replays against a schema without it, so a freshly migrated database needs this too
-    run(sys.executable, "-m", "app.db.provision", "apply-rls")
-
-    # Bind the database to its encryption key, and refuse to serve when the key in hand is not the one the
-    # data is under. An upgrading deployment records the key here for the first time
-    run(sys.executable, "-m", "app.db.encryption_key", "verify-fingerprint")
-
-    run(sys.executable, "-m", "scripts.seed_currencies")
-    run(sys.executable, "-m", "scripts.seed_categories")
-    run(sys.executable, "-m", "scripts.seed_merchants")
+    # The two set-up jobs a deployment without this entrypoint runs on its own. The first creates the
+    # migrator and app roles and hands them schema ownership while connected as the admin role. The
+    # second runs as the migrator: migrations, then the row-level security policies, then the
+    # encryption key's fingerprint, and then the reference data. The fingerprint step stops the start
+    # when the key in hand is not the one the data is under
+    run(*BOOTSTRAP_COMMAND)
+    run(*MIGRATE_COMMAND)
 
     if not is_worker_enabled:
         return False

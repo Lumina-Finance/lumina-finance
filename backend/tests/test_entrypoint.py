@@ -1,4 +1,4 @@
-"""The container start-up's handling of a data folder the app can't use
+"""The container start-up's handling of a data folder the app can't use, and the order of its steps
 
 Loaded from its file, since the image's start-up script isn't part of the backend package. Owners and
 permissions are stood in for, since the tests may run as root, and no permission refuses root
@@ -173,3 +173,40 @@ def test_a_usable_data_folder_lets_the_start_carry_on(entrypoint, capsys):
     """A folder the app's user can use passes without a message"""
     assert entrypoint.check_data_folder() is None
     assert capsys.readouterr().err == ""
+
+
+def _record_steps(entrypoint, monkeypatch) -> list[tuple[str, ...]]:
+    """Stand in for every step the start-up takes, returning the list each is added to as it runs"""
+    steps: list[tuple[str, ...]] = []
+    monkeypatch.setenv("RUN_BANK_SYNC_WORKER", "false")
+    monkeypatch.setenv("JWT_ACCESS_PRIVATE_KEY_PATH", "/keys/access.pem")
+    monkeypatch.setenv("JWT_REFRESH_PRIVATE_KEY_PATH", "/keys/refresh.pem")
+    monkeypatch.setattr(entrypoint, "ensure_private_key", lambda name, _path: steps.append((f"{name} signing key",)))
+    monkeypatch.setattr(entrypoint, "run", lambda _interpreter, *arguments: steps.append(arguments))
+    monkeypatch.setattr(os, "execv", lambda _interpreter, command: steps.append(tuple(command[1:])))
+    return steps
+
+
+def test_start_up_takes_its_steps_in_the_order_the_image_always_has(entrypoint, monkeypatch):
+    """Keys first, then the roles and the schema, so a release that moved set-up into jobs starts the app as it did"""
+    steps = _record_steps(entrypoint, monkeypatch)
+
+    entrypoint.prepare()
+
+    assert steps == [
+        ("Access signing key",),
+        ("Refresh signing key",),
+        ("-m", "app.db.encryption_key", "ensure-key"),
+        ("-m", "app.db.bank_transaction_key", "ensure-key"),
+        ("-m", "app.db.jobs", "bootstrap"),
+        ("-m", "app.db.jobs", "migrate"),
+    ]
+
+
+def test_resetting_the_bank_transaction_hash_key_sets_up_the_roles_first(entrypoint, monkeypatch):
+    """A lost data volume has neither role password nor ownership, so the reset gets the roles as a start would"""
+    steps = _record_steps(entrypoint, monkeypatch)
+
+    entrypoint.run_command(["reset-bank-transaction-hash-key"])
+
+    assert steps == [("-m", "app.db.jobs", "bootstrap"), ("-m", "app.db.bank_transaction_key", "reset-key")]
