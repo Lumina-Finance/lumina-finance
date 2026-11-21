@@ -1,15 +1,13 @@
 """Caching headers of the sign-in routes"""
 
 import re
-from collections.abc import Iterator
 
 import pyotp
 import pytest
-from fastapi.routing import APIRoute
 
-from app.main import app
 from app.request_security import MAX_REQUEST_BODY_BYTES
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
+from tests.routes.support.route_helpers import served_routes
 
 _NO_STORE = "no-store"
 
@@ -19,25 +17,13 @@ _A_ID = "00000000-0000-4000-8000-000000000001"
 _STEP_UP = {"password": SIGNUP_PAYLOAD["password"]}
 
 
-def _served_routes(routes, prefix: str = "") -> Iterator[tuple[str, set[str]]]:
-    """Yield the path and methods of every route the app serves, through however many routers it is nested in
-
-    The schema is no help here, since a route can be left out of it, as the app handoff is
-    """
-    for route in routes:
-        if hasattr(route, "original_router"):
-            yield from _served_routes(route.original_router.routes, prefix + route.include_context.prefix)
-        elif isinstance(route, APIRoute):
-            yield prefix + route.path, route.methods
-
-
 def _sign_in_routes() -> list[tuple[str, str]]:
     """Return every method and path the app serves under /auth, with path parameters filled in"""
     routes = []
-    for template, methods in _served_routes(app.routes):
+    for template, route in served_routes():
         if template.startswith("/auth/"):
             path = re.sub(r"\{[^}]+\}", _A_ID, template)
-            routes.extend((method, path) for method in sorted(methods))
+            routes.extend((method, path) for method in sorted(route.methods))
     return routes
 
 
