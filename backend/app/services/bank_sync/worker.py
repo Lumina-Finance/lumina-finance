@@ -192,14 +192,15 @@ async def run_worker() -> None:
     Waits until the database is reachable and migrated, then scans for due work every 5 minutes
     while BANK_SYNC_WORKER_CONCURRENCY runners claim and run jobs. The claim never hands two
     runners jobs for one connection. On SIGTERM or SIGINT it claims no more jobs, lets each job
-    already running finish within its time limit, and returns. Jobs send their action-needed
+    already running finish within its time limit, and returns. It takes over both signals on the
+    running loop, so it runs in a process of its own. Jobs send their action-needed
     emails through the sender installed before the call, or else the one EMAIL_BACKEND names, as
     the app sends its own. They name the service as set in this process before the call
 
     Raises:
         RuntimeError: Jobs would run as a role row-level security doesn't constrain, the
-            encryption key isn't the one the stored secrets are under, or EMAIL_BACKEND names an
-            unknown backend
+            encryption key isn't the one the stored secrets are under, or, with no sender installed
+            before the call, EMAIL_BACKEND names an unknown backend
     """
     run_startup_checks()
     # A sender that code outside the app installed before starting the worker stays in place
