@@ -101,7 +101,10 @@ def test_the_app_point_is_an_application_taking_dependency_overrides():
 
 
 def test_a_name_that_is_not_a_point_is_not_there():
-    """Only the listed points are supported, so another name of the app is not reachable through the module"""
+    """Only the listed points and their table are reachable through the module, and another name of the app is refused"""
+    public_names = {name for name in vars(extension) if not name.startswith("_")}
+
+    assert public_names == {"SUPPORTED_POINTS"}, "the module offers a public name that is not a point"
     with pytest.raises(AttributeError):
         extension.get_db  # noqa: B018
 
