@@ -25,7 +25,6 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       frontend-image: ${{ steps.image-filter.outputs.frontend }}
       docker: ${{ steps.filter.outputs.docker }}
-      lockfiles: ${{ steps.filter.outputs.lockfiles }}
       backend-tests: ${{ steps.tests.outputs.backend }}
       frontend-tests: ${{ steps.tests.outputs.frontend }}
       e2e-specs: ${{ steps.tests.outputs.e2e }}
@@ -41,7 +40,9 @@ jobs:
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
-            # Workflow edits exercise the pipeline they change
+            # Workflow edits exercise the pipeline they change. Each side's lockfile sits in its own
+            # folder, so a dependency bump runs that side's checks, the image build and the browser
+            # suite, and leaves the other side's checks out
             backend:
               - 'backend/**'
               - '.github/workflows/**'
@@ -56,11 +57,6 @@ jobs:
               - 'backend/tests/fake_*/**'
               - '.github/workflows/**'
               - '.github/actions/**'
-
-            # Dependency changes exercise the full pipeline
-            lockfiles:
-              - 'backend/uv.lock'
-              - 'frontend/package-lock.json'
 
       # The app image holds none of the backend's or frontend's tests, so a change to those alone
       # builds the same image and gets the same browser result as main. The exclusions need their own
@@ -127,7 +123,7 @@ jobs:
 
   backend-lint:
     needs: changes
-    if: ${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
+    if: ${{ needs.changes.outputs.backend == 'true' }}
     uses: ./.github/workflows/_backend-lint.yml
 
   # The database, cache and mail catcher images are pulled once per architecture for every job that
@@ -137,8 +133,7 @@ jobs:
     if: >-
       ${{ needs.changes.outputs.backend == 'true'
         || needs.changes.outputs.frontend-image == 'true'
-        || needs.changes.outputs.docker == 'true'
-        || needs.changes.outputs.lockfiles == 'true' }}
+        || needs.changes.outputs.docker == 'true' }}
     uses: ./.github/workflows/_service-images.yml
     secrets:
       DOCKERHUB_PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
@@ -146,26 +141,26 @@ jobs:
   # Runs only when the images it loads were pulled
   backend-test:
     needs: [changes, service-images]
-    if: ${{ needs.changes.outputs.backend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
+    if: ${{ needs.changes.outputs.backend == 'true' }}
     uses: ./.github/workflows/_backend-test.yml
     with:
       tests: ${{ needs.changes.outputs.backend-tests }}
 
   frontend-lint:
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     uses: ./.github/workflows/_frontend-lint.yml
 
   frontend-test:
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     uses: ./.github/workflows/_frontend-test.yml
     with:
       tests: ${{ needs.changes.outputs.frontend-tests }}
 
   frontend-build:
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.lockfiles == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     uses: ./.github/workflows/_frontend-build.yml
 
   # The image build starts alongside lint and unit tests rather than after them, so the browser
@@ -177,8 +172,7 @@ jobs:
     if: >-
       ${{ needs.changes.outputs.backend-image == 'true'
         || needs.changes.outputs.frontend-image == 'true'
-        || needs.changes.outputs.docker == 'true'
-        || needs.changes.outputs.lockfiles == 'true' }}
+        || needs.changes.outputs.docker == 'true' }}
     uses: ./.github/workflows/_docker-build.yml
     secrets:
       DOCKERHUB_PULL_TOKEN: ${{ secrets.DOCKERHUB_PULL_TOKEN }}
@@ -190,8 +184,7 @@ jobs:
     if: >-
       ${{ needs.changes.outputs.backend-image == 'true'
         || needs.changes.outputs.frontend-image == 'true'
-        || needs.changes.outputs.docker == 'true'
-        || needs.changes.outputs.lockfiles == 'true' }}
+        || needs.changes.outputs.docker == 'true' }}
     uses: ./.github/workflows/_e2e-check.yml
 
   e2e-test:
