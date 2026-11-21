@@ -83,7 +83,7 @@ const ConfirmEmailChangePage = () => {
         <AnimatePresence mode="wait" initial={false}>
           {view.name === 'ready' ? (
             <motion.div key="ready" className="mt-5 space-y-6" {...AUTH_VIEW_TRANSITION}>
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              <p className="text-pretty text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 Please confirm to change your email. You'll be signed out of every device.
               </p>
               <AuthErrorBanner error={error} />
@@ -108,7 +108,7 @@ const ConfirmEmailChangePage = () => {
               className="mt-5 space-y-6 outline-none"
               {...AUTH_VIEW_TRANSITION}
             >
-              <p className="break-words text-sm" style={{ color: 'var(--app-text-muted)' }} role="status">
+              <p className="text-pretty break-words text-sm" style={{ color: 'var(--app-text-muted)' }} role="status">
                 Your email is now {view.email}. Please log in with it.
               </p>
               <LogInLink />
@@ -121,7 +121,7 @@ const ConfirmEmailChangePage = () => {
               className="mt-5 space-y-6 outline-none"
               {...AUTH_VIEW_TRANSITION}
             >
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }} role="alert">
+              <p className="text-pretty text-sm" style={{ color: 'var(--app-text-muted)' }} role="alert">
                 This confirmation link is invalid or has expired, or the email is unavailable. Please try again.
               </p>
               <LogInLink />
