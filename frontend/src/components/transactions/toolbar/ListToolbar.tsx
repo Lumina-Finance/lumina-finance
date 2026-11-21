@@ -70,6 +70,7 @@ export default function TransactionListToolbar({
   onSearchSubmit,
   filters,
   setFilter,
+  refusedDates,
   categories,
   accounts,
   showAccountFilter,
@@ -427,6 +428,7 @@ export default function TransactionListToolbar({
                   categoryOptions={categoryOptions}
                   filters={filters}
                   setFilter={setFilter}
+                  refusedDates={refusedDates}
                   showAccountFilter={showAccountFilter}
                   checksSummarySpan={checksSummarySpan}
                   lockedCurrency={lockedCurrency}
@@ -450,6 +452,7 @@ export default function TransactionListToolbar({
           categoryOptions={categoryOptions}
           filters={filters}
           setFilter={setFilter}
+          refusedDates={refusedDates}
           showAccountFilter={showAccountFilter}
           checksSummarySpan={checksSummarySpan}
           lockedCurrency={lockedCurrency}

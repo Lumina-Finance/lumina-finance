@@ -13,7 +13,7 @@ vi.mock('@/components/list-controls/FilterGlassPanel', () => ({
 }))
 
 function RestoredPanel() {
-  const { filters, setFilters } = useTransactionNavigationFilters()
+  const { filters, setFilters } = useTransactionNavigationFilters('2026-11-21')
   return (
     <TransactionFilterPanel
       filters={filters}

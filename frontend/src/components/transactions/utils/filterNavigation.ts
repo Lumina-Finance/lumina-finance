@@ -1,4 +1,5 @@
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
+import { getDateWindowError } from '@/utils/dateWindow'
 
 /** Filters owned by the global transaction page's address rather than its local draft state */
 export type TransactionNavigationFilters = Pick<TransactionListFilters, 'category_id' | 'from_date' | 'to_date'>
@@ -40,6 +41,29 @@ export function parseTransactionNavigationFilters(params: URLSearchParams): Tran
     delete filters.to_date
   }
   return filters
+}
+
+/** Dates from the address that the filter panel refuses, kept out of the applied filters */
+export type RefusedNavigationDates = Pick<TransactionListFilters, 'from_date' | 'to_date'>
+
+/**
+ * Sets aside each address date outside the window every date must sit in, as the filter panel refuses
+ * such a date where it is typed. Nothing is filtered by it, and the panel shows it with that error
+ */
+export function setAsideRefusedDates(
+  filters: TransactionNavigationFilters,
+  todayYmd: string,
+): { applied: TransactionNavigationFilters; refused: RefusedNavigationDates } {
+  const applied = { ...filters }
+  const refused: RefusedNavigationDates = {}
+  for (const key of ['from_date', 'to_date'] as const) {
+    const ymd = filters[key]
+    if (ymd !== undefined && getDateWindowError(ymd, todayYmd) !== null) {
+      refused[key] = ymd
+      delete applied[key]
+    }
+  }
+  return { applied, refused }
 }
 
 /** Replaces only owned address fields, retaining every unrelated query value and its repetition */

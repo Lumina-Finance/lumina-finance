@@ -33,7 +33,8 @@ export default function TransactionsPage() {
   const { data: accounts } = useAccounts()
   const displayCurrency = user!.base_currency
   const latestTransactionsRef = useRef<Transaction[]>([])
-  const { filters, setFilters } = useTransactionNavigationFilters()
+  const today = useMemo(() => getTodayYmd(user!.tz), [user])
+  const { filters, setFilters, refusedDates } = useTransactionNavigationFilters(today)
   const [filterListLoading, setFilterListLoading] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const requireCurrencies = useCurrencyGuard()
@@ -96,8 +97,6 @@ export default function TransactionsPage() {
       setOpeningOutlierId((current) => (current === transactionId ? null : current))
     }
   }
-
-  const today = useMemo(() => getTodayYmd(user!.tz), [user])
 
   // The summary needs both ends, so one the filter leaves out is filled in a way that keeps the range forward
   const { from: overviewFromDate, to: overviewToDate } = getOverviewRange(filters.from_date, filters.to_date, today)
@@ -242,6 +241,7 @@ export default function TransactionsPage() {
           currency={displayCurrency}
           filters={filters}
           onFiltersChange={setFilters}
+          refusedDates={refusedDates}
           onFilterLoadingChange={setFilterListLoading}
           onSettledTransactionsChange={handleSettledTransactionsChange}
           onCreateTransaction={openCreateModal}

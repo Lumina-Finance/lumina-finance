@@ -6,6 +6,7 @@ import { FilterPanelBody } from '@/components/transactions/toolbar/FilterPanelBo
 import { useTransactionFilterDraft } from '@/components/transactions/toolbar/useTransactionFilterDraft'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/components/transactions/toolbar/types'
+import type { RefusedNavigationDates } from '@/components/transactions/utils/filterNavigation'
 
 type MobileFilterPanelProps = {
   isOpen: boolean
@@ -16,6 +17,8 @@ type MobileFilterPanelProps = {
   categoryOptions: OptionItem[]
   filters: TransactionListFilters
   setFilter: TransactionFilterSetter
+  // Dates from the page's address that the panel refuses, seeded into the draft with their errors
+  refusedDates?: RefusedNavigationDates
   // False on an account's own transaction list, where the account facet is disabled
   showAccountFilter: boolean
   // True where a summary sits above the list, so a range over 20 years is refused
@@ -39,6 +42,7 @@ export function MobileFilterPanel({
   categoryOptions,
   filters,
   setFilter,
+  refusedDates,
   showAccountFilter,
   checksSummarySpan,
   lockedCurrency,
@@ -47,6 +51,7 @@ export function MobileFilterPanel({
   const draft = useTransactionFilterDraft({
     filters,
     setFilter,
+    refusedDates,
     accountOptions,
     categoryOptions,
     showAccountFilter,

@@ -5,7 +5,7 @@ import { useTransactionNavigationFilters } from '@/pages/transactions/hooks/useT
 
 /** Reads the real hook during the very first render, before any synchronization effect could run */
 function FirstRender() {
-  const { filters } = useTransactionNavigationFilters()
+  const { filters } = useTransactionNavigationFilters('2026-11-21')
   return <output>{JSON.stringify(filters)}</output>
 }
 

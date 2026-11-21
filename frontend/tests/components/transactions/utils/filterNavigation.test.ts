@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildCategoryTransactionsUrl,
   parseTransactionNavigationFilters,
+  setAsideRefusedDates,
   writeTransactionNavigationFilters,
 } from '@/components/transactions/utils/filterNavigation'
 
@@ -75,6 +76,21 @@ describe('transaction navigation filters', () => {
         }),
       ),
     ).toEqual([['category_id', FIRST]])
+  })
+
+  it('sets aside a date outside the window and keeps the rest applied', () => {
+    const today = '2026-11-21'
+    expect(
+      setAsideRefusedDates({ category_id: [FIRST], from_date: '1850-01-01', to_date: '2026-03-31' }, today),
+    ).toEqual({ applied: { category_id: [FIRST], to_date: '2026-03-31' }, refused: { from_date: '1850-01-01' } })
+    expect(setAsideRefusedDates({ from_date: '2026-01-01', to_date: '2037-01-02' }, today)).toEqual({
+      applied: { from_date: '2026-01-01' },
+      refused: { to_date: '2037-01-02' },
+    })
+    expect(setAsideRefusedDates({ from_date: '1900-01-01', to_date: '2036-11-21' }, today)).toEqual({
+      applied: { from_date: '1900-01-01', to_date: '2036-11-21' },
+      refused: {},
+    })
   })
 
   it('builds only category and inclusive date filters without a sign restriction', () => {
