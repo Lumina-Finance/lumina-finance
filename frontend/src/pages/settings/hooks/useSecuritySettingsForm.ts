@@ -65,10 +65,12 @@ export function useSecuritySettingsForm() {
   const isPasswordPending = passwordFeedback.isPending || changePassword.isPending
   const canSavePassword =
     isPasswordDirty && !isPasswordPending && currentPasswordFilled && newPasswordValid && confirmMatches
-  const passwordSaveBlockedReason = getPasswordSaveBlockedReason({ currentPasswordFilled, newPasswordValid, confirmMatches })
-  const passwordSaveError = changePassword.isError
-    ? getChangePasswordErrorMessage(changePassword.error)
-    : null
+  const passwordSaveBlockedReason = getPasswordSaveBlockedReason({
+    currentPasswordFilled,
+    newPasswordValid,
+    confirmMatches,
+  })
+  const passwordSaveError = changePassword.isError ? getChangePasswordErrorMessage(changePassword.error) : null
 
   /**
    * Applies a single password field change to the draft
