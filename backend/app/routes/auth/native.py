@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlencode
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import RedirectResponse
 from fastapi.routing import APIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,7 +64,8 @@ class _HandoffRoute(APIRoute):
             request.scope["headers"] = headers
             try:
                 return await handle(request)
-            except StarletteHTTPException:
+            # A replacement check may declare inputs of its own, and the form post may not carry them
+            except StarletteHTTPException, RequestValidationError:
                 return _redirect_to_app(error="handoff_failed")
             finally:
                 # The scope is the one request observers read once the request ends, and it never held a token
