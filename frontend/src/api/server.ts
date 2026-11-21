@@ -1,4 +1,4 @@
-import { GATEWAY_STATUSES, isMaintenanceAnswer } from '@/api/auth/errors'
+import { GATEWAY_STATUSES, isMaintenanceAnswer, readSentenceDetail } from '@/api/auth/errors'
 import { API_BASE } from '@/api/config'
 import { checkMaintenanceFile } from '@/api/version/maintenanceFile'
 import { reportMaintenance } from '@/api/version/serverState'
@@ -74,31 +74,25 @@ function isUnanswered(error: unknown) {
   return error instanceof TypeError || (error instanceof DOMException && error.name === 'TimeoutError')
 }
 
-// The app itself answers a gateway status with a detail, such as a 502 for a provider it couldn't reach
-function hasDetail(body: unknown) {
-  if (typeof body !== 'object' || body === null) return false
-  const { detail } = body as { detail?: unknown }
-  return typeof detail === 'string' && detail.trim() !== ''
-}
-
 /**
  * Tells the page whether the server is in maintenance from an answer, for every kind of request
- * alike, so a screen that fails to load and one that restores a session read the same state. An
- * answer the server accepts ends it. Only a gateway's failure status could be a maintenance. A 503
- * whose body carries the maintenance marker is one, read from a copy so the caller still gets the body.
- * Any other gateway failure has the page ask the maintenance file instead, as it does for a request
- * with no answer
+ * alike, so a screen that fails to load and one that restores a session read the same state. Any
+ * answer the app itself made ends it, a refusal or a server error as much as a success, since the
+ * app is running to make it. A gateway status is the app's own answer only with a detail sentence,
+ * such as a 502 for a provider it couldn't reach. A 503 whose body carries the maintenance marker
+ * starts it, read from a copy so the caller still gets the body. Any other gateway failure has the
+ * page ask the maintenance file instead, as it does for a request with no answer
  */
 async function noteMaintenance(response: Response) {
-  if (response.ok) {
+  if (!GATEWAY_STATUSES.has(response.status)) {
     reportMaintenance(false)
     return
   }
-  if (!GATEWAY_STATUSES.has(response.status)) return
   const body: unknown = await response
     .clone()
     .json()
     .catch(() => null)
   if (isMaintenanceAnswer(response.status, body)) reportMaintenance(true)
-  else if (!hasDetail(body)) void checkMaintenanceFile()
+  else if (readSentenceDetail(body) !== undefined) reportMaintenance(false)
+  else void checkMaintenanceFile()
 }

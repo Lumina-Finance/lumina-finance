@@ -152,6 +152,20 @@ export function hasMaintenanceMarker(body: unknown) {
   return typeof body === 'object' && body !== null && (body as { maintenance?: unknown }).maintenance === true
 }
 
+function readDetail(body: unknown): unknown {
+  return typeof body === 'object' && body !== null ? (body as { detail?: unknown }).detail : undefined
+}
+
+/**
+ * The sentence a response body's `detail` gives, or undefined when it gives none, as a blank one or a
+ * validation refusal's list. The app sends one with every failure it explains, so a gateway status
+ * carrying one is the app's own answer
+ */
+export function readSentenceDetail(body: unknown): string | undefined {
+  const detail = readDetail(body)
+  return typeof detail === 'string' && detail.trim() ? detail : undefined
+}
+
 /**
  * Builds the error a failed response stands for from its status and its parsed body, if any
  *
@@ -169,10 +183,10 @@ export function buildApiError(
     return new ApiError(MAINTENANCE_MESSAGE, status, { ...options, detail: MAINTENANCE_MESSAGE, isMaintenance: true })
   }
 
-  const detail = typeof body === 'object' && body !== null ? (body as { detail?: unknown }).detail : undefined
-  if (typeof detail === 'string' && detail.trim()) return new ApiError(detail, status, { ...options, detail })
+  const sentence = readSentenceDetail(body)
+  if (sentence !== undefined) return new ApiError(sentence, status, { ...options, detail: sentence })
 
-  const fieldErrors = readFieldErrors(detail)
+  const fieldErrors = readFieldErrors(readDetail(body))
   if (fieldErrors) {
     return new ApiError(describeRefusedFields(fieldErrors), status, { ...options, fieldErrors })
   }

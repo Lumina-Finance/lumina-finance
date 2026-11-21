@@ -30,8 +30,8 @@ export function reportServerVersion(serverVersion: string) {
 }
 
 /**
- * Records whether the server is in maintenance. A request the server accepted clears the flag. A
- * refusal other than the maintenance one keeps the flag as it was
+ * Records whether the server is in maintenance. Any answer the app itself made clears the flag. A
+ * gateway's own failure and a request with no answer keep the flag as it was
  */
 export function reportMaintenance(isMaintenance: boolean) {
   setState({ ...state, isMaintenance })

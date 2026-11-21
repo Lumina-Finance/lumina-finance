@@ -60,6 +60,38 @@ describe('a server in maintenance', () => {
     expect(changes.mock.calls).toEqual([[true], [false]])
   })
 
+  // A refusal from the app once kept the notice up, although the app was plainly running to make it
+  it.each([
+    [401, { detail: 'Not authenticated' }],
+    [404, { detail: 'Account not found' }],
+    [409, { detail: 'Already imported' }],
+    [500, null],
+    [502, { detail: 'Could not reach the provider' }],
+  ])('stops being told once the app answers a request with a %i', async (status, body) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(503, MAINTENANCE_ANSWER))
+    await fetchFromServer('/accounts')
+    expect(getServerNotice('1.0.0')).toBe('maintenance')
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(status, body))
+    await fetchFromServer('/accounts')
+
+    expect(getServerNotice('1.0.0')).toBeNull()
+  })
+
+  it.each([
+    [502, null],
+    [503, { detail: '  ' }],
+    [504, { detail: [{ loc: ['body'], msg: 'Field required' }] }],
+  ])('stays told through a gateway that answers a %i for the app', async (status, body) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(503, MAINTENANCE_ANSWER))
+    await fetchFromServer('/accounts')
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(status, body))
+    await fetchFromServer('/accounts')
+
+    expect(getServerNotice('1.0.0')).toBe('maintenance')
+  })
+
   it.each([
     ['a request that needs no session', () => fetchFromServer('/currencies')],
     ['the version request the error screens use', () => fetchAppVersion()],
