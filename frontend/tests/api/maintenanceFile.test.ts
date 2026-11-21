@@ -94,6 +94,22 @@ describe('a request the server never answered', () => {
     await settle()
   })
 
+  // A file read that landed after the app answered once brought the notice back until the next retry
+  it('leaves the page as it was when the app answers while the file is on its way', async () => {
+    let answerFile: (response: Response) => void = () => undefined
+    let api = NEVER_ANSWERED
+    serve({ api: () => api(), file: () => new Promise<Response>((resolve) => (answerFile = resolve)) })
+
+    await expect(fetchFromServer('/accounts')).rejects.toBeInstanceOf(TypeError)
+    await vi.waitFor(() => expect(fileRequests()).toHaveLength(1))
+    api = () => Promise.resolve(new Response('[]', { status: 200 }))
+    await fetchFromServer('/accounts')
+    answerFile(new Response(JSON.stringify({ maintenance: true }), { status: 200 }))
+    await settle()
+
+    expect(getServerNotice('1.0.0')).toBeNull()
+  })
+
   it('asks once for a burst of failures, and again only after the interval', async () => {
     serve({ api: NEVER_ANSWERED })
 

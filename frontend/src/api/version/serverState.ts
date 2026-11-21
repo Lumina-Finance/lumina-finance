@@ -13,6 +13,7 @@ type ServerState = {
 }
 
 let state: ServerState = { isMaintenance: false, serverVersion: null }
+let maintenanceEndCount = 0
 const listeners = new Set<() => void>()
 const maintenanceListeners = new Set<(isMaintenance: boolean) => void>()
 
@@ -34,7 +35,16 @@ export function reportServerVersion(serverVersion: string) {
  * gateway's own failure and a request with no answer keep the flag as it was
  */
 export function reportMaintenance(isMaintenance: boolean) {
+  if (!isMaintenance) maintenanceEndCount += 1
   setState({ ...state, isMaintenance })
+}
+
+/**
+ * How many answers from the app have cleared the maintenance flag in this page load, so a slower
+ * source of news, such as the maintenance file, can tell the app answered after it asked
+ */
+export function getMaintenanceEndCount() {
+  return maintenanceEndCount
 }
 
 /** Calls `listener` when an answer starts a maintenance or ends one, and returns a function that stops that */
