@@ -12,6 +12,7 @@ import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { getCurrencyExponent } from '@/utils/moneyInput'
 import {
   buildAmountFilterPatch,
+  describeAmountTooLarge,
   findAmountRangeDraft,
   findTooLargeAmountBounds,
   isAmountRangeCrossed,
@@ -25,12 +26,10 @@ import { getDateRangeErrors } from '@/components/transactions/utils/dateRangeErr
 import { useRestoreAmountRange } from '@/components/transactions/toolbar/hooks/useRestoreAmountRange'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/components/transactions/toolbar/types'
+import type { RefusedNavigationDates } from '@/components/transactions/utils/filterNavigation'
 
 /** What the panel says, and Apply gives as its reason, while the minimum is above the maximum */
 export const CROSSED_AMOUNT_RANGE_MESSAGE = 'Enter a minimum at or below the maximum'
-
-/** What the panel says, and Apply gives as its reason, while a bound is more than the filter can send */
-export const AMOUNT_TOO_LARGE_MESSAGE = 'Enter a smaller amount'
 
 /** What the panel says, and Apply gives as its reason, while the From date is after the To date */
 export const CROSSED_DATE_RANGE_MESSAGE = "From can't be after To"
@@ -72,6 +71,9 @@ const EMPTY_SELECTIONS: MultiSelections = {
 type UseTransactionFilterDraftArgs = {
   filters: TransactionListFilters
   setFilter: TransactionFilterSetter
+  // Dates from the page's address outside the window every date must sit in. They are no applied
+  // filter, so they are seeded in place of the missing applied dates and show with their errors
+  refusedDates?: RefusedNavigationDates
   accountOptions: OptionItem[]
   categoryOptions: OptionItem[]
   // False on an account's own transaction list, where the account scope is fixed, so the account
@@ -97,6 +99,7 @@ export type TransactionFilterDraft = ReturnType<typeof useTransactionFilterDraft
 export function useTransactionFilterDraft({
   filters,
   setFilter,
+  refusedDates,
   accountOptions,
   categoryOptions,
   showAccountFilter,
@@ -160,7 +163,7 @@ export function useTransactionFilterDraft({
   // message for that bound is the one to act on first
   const hasCrossedAmountBounds = !hasTooLargeAmountBound && isAmountRangeCrossed(amount, amountExponent)
   const amountError = hasTooLargeAmountBound
-    ? AMOUNT_TOO_LARGE_MESSAGE
+    ? describeAmountTooLarge(amountCurrency, currencies)
     : hasCrossedAmountBounds
       ? CROSSED_AMOUNT_RANGE_MESSAGE
       : null
@@ -237,13 +240,16 @@ export function useTransactionFilterDraft({
       currency: currencyLocked ? [] : filters.currency ? [filters.currency] : [],
     })
     setTagMatch(filters.tag_match ?? 'all')
-    setDateRange({ from: filters.from_date ?? '', to: filters.to_date ?? '' })
+    setDateRange({
+      from: filters.from_date ?? refusedDates?.from_date ?? '',
+      to: filters.to_date ?? refusedDates?.to_date ?? '',
+    })
     // Applied bounds are in the minor units of the currency they were applied in, which is not
     // necessarily the one the draft is now editing. They stay blank until that currency's decimal
     // places are known, and the restore above fills them in once they are
     armAmountRestore()
     setAmount(findAmountRangeDraft(filters, currencies) ?? EMPTY_AMOUNT)
-  }, [filters, currencies, showAccountFilter, currencyLocked, armAmountRestore])
+  }, [filters, refusedDates, currencies, showAccountFilter, currencyLocked, armAmountRestore])
 
   // What Apply would set, converting the amount bounds into the matched currency's minor units
   const draftPatch: TransactionListFilters = {
@@ -264,8 +270,17 @@ export function useTransactionFilterDraft({
     to_date: dateRange.to || undefined,
   }
 
-  // The account scope of a list that fixes it is no applied filter, so it is not compared
-  const isDraftApplied = isFilterPatchApplied(draftPatch, showAccountFilter ? filters : { ...filters, account_id: [] })
+  // The draft starts from a refused address date as well, so clearing it counts as a change to apply. The
+  // account scope of a list that fixes it is no applied filter, so it is not compared
+  const startingFilters = {
+    ...filters,
+    from_date: filters.from_date ?? refusedDates?.from_date,
+    to_date: filters.to_date ?? refusedDates?.to_date,
+  }
+  const isDraftApplied = isFilterPatchApplied(
+    draftPatch,
+    showAccountFilter ? startingFilters : { ...startingFilters, account_id: [] },
+  )
 
   /**
    * Adds or removes a value from a facet draft, recording the label for server-searched facets

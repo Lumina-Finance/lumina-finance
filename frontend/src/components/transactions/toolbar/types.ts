@@ -2,6 +2,7 @@ import type { Category } from '@/api/categories'
 import type { TransactionListAccount, TransactionListFilters } from '@/components/transactions/types/transactionList'
 
 import type { ExportScope } from '@/components/transactions/utils/exportFile'
+import type { RefusedNavigationDates } from '@/components/transactions/utils/filterNavigation'
 
 export type TransactionFilterSetter = (patch: Partial<TransactionListFilters>) => void
 
@@ -11,6 +12,8 @@ export type TransactionListToolbarProps = {
   onSearchSubmit: () => void
   filters: TransactionListFilters
   setFilter: TransactionFilterSetter
+  // Dates from the page's address that the filter panel refuses. The panel shows them with their errors
+  refusedDates?: RefusedNavigationDates
   categories?: Category[]
   accounts?: TransactionListAccount[]
   showAccountFilter: boolean

@@ -28,6 +28,7 @@ import {
 } from '@/components/transactions/utils/exportFile'
 import { ExportAllConfirm } from '@/components/transactions/export/ExportAllConfirm'
 import { getActiveFilterCount } from '@/components/transactions/utils/filterOptions'
+import type { RefusedNavigationDates } from '@/components/transactions/utils/filterNavigation'
 import { BulkEditModal } from '@/components/transactions/bulk-edit/BulkEditModal'
 import { BulkDeleteConfirm } from '@/components/transactions/bulk-edit/BulkDeleteConfirm'
 import { BulkEditConfirm } from '@/components/transactions/bulk-edit/BulkEditConfirm'
@@ -103,6 +104,7 @@ export default function TransactionListSection({
   currency,
   filters: controlledFilters,
   onFiltersChange,
+  refusedDates,
   onFilterLoadingChange,
   onSettledTransactionsChange,
   onCreateTransaction,
@@ -116,6 +118,8 @@ export default function TransactionListSection({
   currency: string
   filters?: TransactionListFilters
   onFiltersChange?: (filters: TransactionListFilters) => void
+  // Dates from the page's address that the filter panel refuses. The panel shows them with their errors
+  refusedDates?: RefusedNavigationDates
   onFilterLoadingChange?: (loading: boolean) => void
   onSettledTransactionsChange?: (transactions: Transaction[]) => void
   onCreateTransaction: () => void
@@ -172,7 +176,8 @@ export default function TransactionListSection({
    * Applies list filters and tells the transition hook whether rows should hold or fade while the query updates
    */
   function setFilter(patch: Partial<TransactionListFilters>) {
-    const current = filters
+    // A refused address date stays in the address until a commit leaves it out, so clearing it counts as a change
+    const current = { ...filters, ...refusedDates }
     const fixedAccountPatch = fixedAccount ? { account_id: [fixedAccount.id] } : {}
     const next = normalizeTransactionFilters({ ...current, ...patch, ...fixedAccountPatch })
     const changed = TRANSACTION_FILTER_KEYS.some((key) => !isSameFilterValue(current[key], next[key]))
@@ -671,6 +676,7 @@ export default function TransactionListSection({
         onSearchSubmit={submitSearch}
         filters={filters}
         setFilter={setFilter}
+        refusedDates={refusedDates}
         categories={categories}
         accounts={accounts}
         showAccountFilter={!fixedAccount}

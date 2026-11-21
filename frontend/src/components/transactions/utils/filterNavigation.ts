@@ -1,4 +1,5 @@
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
+import { getDateWindowError } from '@/utils/dateWindow'
 
 /** Filters owned by the global transaction page's address rather than its local draft state */
 export type TransactionNavigationFilters = Pick<TransactionListFilters, 'category_id' | 'from_date' | 'to_date'>
@@ -21,7 +22,14 @@ function isCalendarDate(value: string): boolean {
 
 /** Reads valid category IDs and inclusive calendar bounds, omitting an impossible reversed range */
 export function parseTransactionNavigationFilters(params: URLSearchParams): TransactionNavigationFilters {
-  const categoryIds = [...new Set(params.getAll('category_id').filter((id) => CATEGORY_ID.test(id)).map((id) => id.toLowerCase()))]
+  const categoryIds = [
+    ...new Set(
+      params
+        .getAll('category_id')
+        .filter((id) => CATEGORY_ID.test(id))
+        .map((id) => id.toLowerCase()),
+    ),
+  ]
   const from = params.get('from_date') ?? ''
   const to = params.get('to_date') ?? ''
   const filters: TransactionNavigationFilters = {}
@@ -35,8 +43,34 @@ export function parseTransactionNavigationFilters(params: URLSearchParams): Tran
   return filters
 }
 
+/** Dates from the address that the filter panel refuses, kept out of the applied filters */
+export type RefusedNavigationDates = Pick<TransactionListFilters, 'from_date' | 'to_date'>
+
+/**
+ * Sets aside each address date outside the window every date must sit in, as the filter panel refuses
+ * such a date where it is typed. Nothing is filtered by it, and the panel shows it with that error
+ */
+export function setAsideRefusedDates(
+  filters: TransactionNavigationFilters,
+  todayYmd: string,
+): { applied: TransactionNavigationFilters; refused: RefusedNavigationDates } {
+  const applied = { ...filters }
+  const refused: RefusedNavigationDates = {}
+  for (const key of ['from_date', 'to_date'] as const) {
+    const ymd = filters[key]
+    if (ymd !== undefined && getDateWindowError(ymd, todayYmd) !== null) {
+      refused[key] = ymd
+      delete applied[key]
+    }
+  }
+  return { applied, refused }
+}
+
 /** Replaces only owned address fields, retaining every unrelated query value and its repetition */
-export function writeTransactionNavigationFilters(params: URLSearchParams, filters: TransactionNavigationFilters): URLSearchParams {
+export function writeTransactionNavigationFilters(
+  params: URLSearchParams,
+  filters: TransactionNavigationFilters,
+): URLSearchParams {
   const next = new URLSearchParams(params)
   for (const key of ['category_id', 'from_date', 'to_date']) next.delete(key)
   const owned = new URLSearchParams()
@@ -52,6 +86,10 @@ export function writeTransactionNavigationFilters(params: URLSearchParams, filte
 
 /** Builds a category drill-down without adding a sign or chart-mode restriction */
 export function buildCategoryTransactionsUrl(categoryId: string, range: { from: string; to: string }): string {
-  const params = writeTransactionNavigationFilters(new URLSearchParams(), { category_id: [categoryId], from_date: range.from, to_date: range.to })
+  const params = writeTransactionNavigationFilters(new URLSearchParams(), {
+    category_id: [categoryId],
+    from_date: range.from,
+    to_date: range.to,
+  })
   return `/transactions?${params}`
 }

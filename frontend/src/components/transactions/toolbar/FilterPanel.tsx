@@ -6,6 +6,7 @@ import { useTransactionFilterDraft } from '@/components/transactions/toolbar/use
 import { getActiveFacetCount } from '@/components/transactions/utils/filterOptions'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
 import type { TransactionFilterSetter } from '@/components/transactions/toolbar/types'
+import type { RefusedNavigationDates } from '@/components/transactions/utils/filterNavigation'
 
 // Open width of the glass, wide enough to seat the facet tabs without crowding. The glass is
 // anchored to its collapsed right edge, so opening grows this width leftward over the toolbar
@@ -16,6 +17,8 @@ type TransactionFilterPanelProps = {
   categoryOptions: OptionItem[]
   filters: TransactionListFilters
   setFilter: TransactionFilterSetter
+  // Dates from the page's address that the panel refuses, seeded into the draft with their errors
+  refusedDates?: RefusedNavigationDates
   // False on an account's own transaction list, where the account facet is disabled
   showAccountFilter: boolean
   // True where a summary sits above the list, so a range over 20 years is refused
@@ -39,6 +42,7 @@ export function TransactionFilterPanel({
   categoryOptions,
   filters,
   setFilter,
+  refusedDates,
   showAccountFilter,
   checksSummarySpan,
   lockedCurrency,
@@ -50,6 +54,7 @@ export function TransactionFilterPanel({
   const draft = useTransactionFilterDraft({
     filters,
     setFilter,
+    refusedDates,
     accountOptions,
     categoryOptions,
     showAccountFilter,

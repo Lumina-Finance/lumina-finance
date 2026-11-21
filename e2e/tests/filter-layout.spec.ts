@@ -200,7 +200,8 @@ test('retains Tags explanations and invalid amount and date blocking', AT_EVERY_
   // One minor unit past the largest amount the filter can send exactly is refused on its own field
   const minAmount = panel.getByRole('textbox', { name: /^Min(?:\s|$)/ })
   const maxAmount = panel.getByRole('textbox', { name: /^Max(?:\s|$)/ })
-  const tooLargeAmount = 'Enter a smaller amount'
+  // The message names the largest amount the filter takes, in the user's base currency
+  const tooLargeAmount = /^Enter an amount up to \D*9,999,999,999,999\.99$/
   await maxAmount.fill('10000000000000.00')
   await expect(maxAmount).toHaveAttribute('aria-invalid', 'true')
   await expect(minAmount).not.toHaveAttribute('aria-invalid', 'true')
