@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app import database
 from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
-from app.db import provision
+from app.db import credentials, provision
 from app.db.rls import apply_rls
 from app.models.base import Base
 from tests.db.support import (
@@ -197,6 +197,23 @@ async def test_a_failed_password_change_names_the_role_and_never_shows_the_passw
         server_log = cluster.logs()
         assert f'Could not set the password of the database role "{MIGRATOR_DB_USER}"' in server_log, "the log holds the failure"
         assert _SECRET not in server_log, "the database's own log leaves the password out"
+
+
+async def test_a_password_the_database_refuses_as_text_never_shows_in_the_error(provision_into, tmp_path, monkeypatch):
+    """A saved password file edited by hand can hold a NUL, which the database refuses in the statement carrying it
+
+    The statement's bound values stay out of the error and its traceback
+    """
+    async with provision_into(RESTRICTED_ADMIN_LOGIN):
+        monkeypatch.delenv("MIGRATOR_DB_PASSWORD")
+        monkeypatch.delenv("APP_DB_PASSWORD")
+        monkeypatch.setattr(credentials, "_SECRETS_DIR", tmp_path)
+        (tmp_path / "migrator_db_password").write_text(f"{_SECRET}\x00")
+
+        with pytest.raises(DBAPIError, match="invalid byte sequence") as failure:
+            await provision.ensure_roles()
+
+        assert _SECRET not in "".join(traceback.format_exception(failure.value)), "the error and its traceback leave the password out"
 
 
 async def test_set_up_refuses_when_the_admin_cannot_give_the_roles_their_access(provision_into):
