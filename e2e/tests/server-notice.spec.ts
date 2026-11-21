@@ -103,3 +103,23 @@ test('says the server is in maintenance when the app is opened during one', asyn
   await expect(page.getByText(/reach the server/)).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Reload', exact: true })).toBeVisible()
 })
+
+test('says the server is in maintenance from the maintenance file when the app is opened and nothing answers', async ({
+  page,
+  request,
+}) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  // The whole server is out of reach, since any request it accepted would end the maintenance
+  await page.route(`${API_BASE_URL}/**`, async (route) => {
+    await route.abort('connectionrefused')
+  })
+  await page.route('**/maintenance.json', async (route) => {
+    await route.fulfill({ status: 200, json: { maintenance: true } })
+  })
+
+  await page.goto('/')
+
+  await expect(page.getByText(MAINTENANCE_NOTICE, { exact: true }).first()).toBeVisible()
+  await expect(page.getByText(/reach the server/)).toHaveCount(0)
+})
