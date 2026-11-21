@@ -215,6 +215,29 @@ class StepUpRequest(BaseModel):
     passkey: dict[str, Any] | None = None  # a passkey assertion, taking priority over a code
 
 
+class RequestEmailChangeRequest(BaseModel):
+    """The address an account wants to sign in with, and the step-up proving who asks
+
+    The step-up is sent by an account with a password. A passwordless account sends none and presents
+    the proof of a fresh provider reauthentication instead
+    """
+
+    new_email: EmailStr = Field(max_length=MAX_EMAIL_LENGTH)
+    step_up: StepUpRequest | None = None
+
+
+class ConfirmEmailChangeRequest(BaseModel):
+    """The emailed token that confirms the new address"""
+
+    token: Token
+
+
+class ConfirmEmailChangeResponse(BaseModel):
+    """The address the account has after the change"""
+
+    email: str
+
+
 class TotpSetupRequest(BaseModel):
     """Reauthorization gating the start of a TOTP enrolment
 

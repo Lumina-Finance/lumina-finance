@@ -131,6 +131,33 @@ class PasswordResetToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
 
 
+class EmailChangeRequest(Base):
+    """Holds a signed-in user's one pending request to change their email address, until it is confirmed or expires
+
+    Each stored piece has a use. The address typed is kept because applying the change needs it, and
+    nothing else knows it until the link is opened. The token is kept as a hash only, so a leaked table
+    cannot confirm a change. The expiry limits how long the link works. The link claiming the row
+    deletes it, a newer request overwrites it, and the scheduled cleanup deletes it once it has
+    expired, so an expired address stays stored until that cleanup runs. A request for an address
+    another account uses stores a row too, so the request does the same work whether or not the address
+    is taken
+    """
+
+    __tablename__ = "email_change_requests"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_email_change_requests_user_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    new_email: Mapped[str] = mapped_column(VARCHAR(254), nullable=False)
+
+    # Only the hash is stored so a leaked table cannot be used to change an account's address
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+
+    # Indexed so the scheduled cleanup finds expired requests without reading every row
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class SignupEmailSend(Base):
     """Records one sign-up request for an address, so a rolling-day cap on its emails can count them
 

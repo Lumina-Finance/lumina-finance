@@ -55,6 +55,8 @@ def _describe(label: str, callable_) -> str:
 EXPECTED_SHAPES: dict[str, str] = {
     "observe_requests": "observe_requests(observer: Callable[[RequestRecord], None]) -> None",
     "RequestRecord": "RequestRecord(scope: Mapping[str, Any], method: str, route: str, status: int, duration_seconds: float)",
+    "observe_email_changes": "observe_email_changes(observer: Callable[[EmailChange], None]) -> None",
+    "EmailChange": "EmailChange(user_id: UUID, old_email: str, new_email: str)",
     "get_authenticated_user": "async get_authenticated_user(credentials: HTTPAuthorizationCredentials, db: AsyncSession) -> User",
     "set_email_sender": "set_email_sender(sender: EmailSender) -> None",
     "EmailSender": "async EmailSender.send(self, recipient: str, message: RenderedEmail) -> None",

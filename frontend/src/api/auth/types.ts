@@ -89,6 +89,11 @@ export type RegistrationStatus = {
   enabled: boolean
 }
 
+/** The address an account has once its emailed confirmation link is used */
+export type ConfirmedEmailChange = {
+  email: string
+}
+
 export interface MfaVerifyPayload {
   mfa_token: string
   code: string

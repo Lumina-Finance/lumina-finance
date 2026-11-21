@@ -57,7 +57,7 @@ configure_logging(LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 _LOGGING_BACKEND_WARNING = (
-    "EMAIL_BACKEND is set to logging, so sign-up and password reset links go to this log, and anyone "
+    "EMAIL_BACKEND is set to logging, so sign-up, password reset and email change links go to this log, and anyone "
     "who can read the log can use the links to take over an account. Please set EMAIL_BACKEND to smtp, "
     "with your SMTP settings, before inviting anyone else"
 )

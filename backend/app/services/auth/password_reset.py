@@ -110,6 +110,25 @@ async def delete_account_stale_password_reset_tokens(db: AsyncSession, user_id: 
     )
 
 
+async def hold_reset_issuance(db: AsyncSession, email: str) -> None:
+    """Hold the address's reset issuance lock until the transaction ends
+
+    A reset request holds it from before its account lookup to its commit. The key is the address with
+    its capitals folded, as the lookup folds them, so every spelling that finds an account shares one
+    lock. That holds the account's allowance until the new token commits, including when no prior rows
+    exist, and an email with no account locks on itself, so unknown emails never queue behind one
+    another. An email change holds the lock of the address it moves the account away from until the
+    change commits. A reset request for that address then either commits first, and the change marks
+    its link used, or looks the account up after the change and finds none
+
+    Args:
+        db: Active database session
+        email: Address in any capitals
+    """
+    lock_digest = hashlib.blake2b(_ISSUANCE_LOCK_NAMESPACE + fold_email(email).encode(), digest_size=8).digest()
+    await db.execute(select(sa_func.pg_advisory_xact_lock(int.from_bytes(lock_digest, byteorder="big", signed=True))))
+
+
 @dataclass(frozen=True)
 class PendingResetEmail:
     """A reset link stored and waiting to be emailed"""
@@ -148,7 +167,7 @@ async def _issue_password_reset(db: AsyncSession, email: str, session_factory: a
     """Store a reset token for the email and return the pending email carrying its link
 
     No email is due while the last link still works, and at most the configured number go out
-    per account per rolling day, so an unauthenticated requester cannot drain the operator's
+    per account per rolling day, so an unauthenticated requester cannot drain the server's
     mail quota. Sends that fail are not counted by that limit, so a growing wait after each failure
     and a cap on the sends running at once keep a failing mail server from piling them up
 
@@ -165,18 +184,13 @@ async def _issue_password_reset(db: AsyncSession, email: str, session_factory: a
     Returns:
         The email to send, or None when no account matches or none is due
     """
+    # Taken before the lookup, so every step that depends on the account runs on the account the address
+    # names once no email change away from it is still under way
+    await hold_reset_issuance(db, email)
     account = await find_login_account(db, email)
     user_id = account.id if account else None
     owner = user_id or _NO_USER_ID
     await delete_account_stale_password_reset_tokens(db, owner)
-
-    # Hold this user's allowance until the new token commits, including when no prior rows exist.
-    # An email with no account locks on itself, so unknown emails never queue behind one another.
-    # Its capitals are folded, since the lookup above ignores them
-    lock_subject = user_id.bytes if user_id is not None else fold_email(email).encode()
-    lock_digest = hashlib.blake2b(_ISSUANCE_LOCK_NAMESPACE + lock_subject, digest_size=8).digest()
-    lock_key = int.from_bytes(lock_digest, byteorder="big", signed=True)
-    await db.execute(select(sa_func.pg_advisory_xact_lock(lock_key)))
 
     # A link whose send never started once the grace has passed belongs to a request that was cut off, such
     # as by a restart, so it is deleted and neither blocks this request nor counts toward the limit. A send

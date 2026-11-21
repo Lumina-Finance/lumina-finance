@@ -8,6 +8,7 @@ import TagSettingsSection from '@/pages/settings/components/tag-settings-section
 import ProfileSection from '@/pages/settings/components/ProfileSection'
 import RunwaySection from '@/pages/settings/components/runway-section/Section'
 import { StepUpModal } from '@/components/two-factor/StepUpModal'
+import { ProviderReauthModal } from '@/pages/settings/components/security-section/ProviderReauthModal'
 import SecuritySection from '@/pages/settings/components/security-section/Section'
 import { SettingsDesktopSectionSidebar, SettingsMobileSectionMenu } from '@/pages/settings/components/SectionNavigation'
 import { SettingsPaneActions } from '@/pages/settings/components/PaneActions'
@@ -60,26 +61,27 @@ export default function SettingsPage() {
     handleSaveRunway,
     handleDiscardRunway,
   } = useRunwaySettingsForm({ accounts, accountsLoading })
+  const oidcIdentities = useOidcIdentities()
+  // Assume a password until the identities load, so the change-password form is the default view
+  const hasPassword = oidcIdentities.data?.has_password ?? true
   const {
     passwordForm,
     setPasswordField,
     newPasswordValid,
     confirmMatches,
-    isPasswordDirty,
-    isPasswordPending,
-    canSavePassword,
-    passwordSaveBlockedReason,
+    email,
+    isSecurityDirty,
+    isSecurityPending,
+    canSaveSecurity,
+    securitySaveBlockedReason,
     passwordSaveError,
-    passwordSaveStatus,
-    handleSavePassword,
-    handleDiscardPassword,
+    securitySaveStatus,
+    handleSaveSecurity,
+    handleDiscardSecurity,
     isStepUpOpen,
     verifyPasswordStepUp,
     closeStepUp,
-  } = useSecuritySettingsForm()
-  const oidcIdentities = useOidcIdentities()
-  // Assume a password until the identities load, so the change-password form is the default view
-  const hasPassword = oidcIdentities.data?.has_password ?? true
+  } = useSecuritySettingsForm({ savedEmail: user?.email ?? '', hasPassword })
   const { data: bankProviders } = useBankProviders()
   const sections = listSettingsSections(bankProviders)
   const sectionNavigation = useSettingsSectionNavigation(sections)
@@ -97,18 +99,21 @@ export default function SettingsPage() {
       status={profileSaveStatus}
     />
   )
-  const securityActions = (
-    <SettingsPaneActions
-      canSave={canSavePassword}
-      saveBlockedReason={passwordSaveBlockedReason}
-      dirty={isPasswordDirty}
-      error={passwordSaveError}
-      onDiscard={handleDiscardPassword}
-      onSave={handleSavePassword}
-      pending={isPasswordPending}
-      status={passwordSaveStatus}
-    />
-  )
+  // A passwordless account has no password fields, so its Discard and Save appear only while the email
+  // is changed or a request is in flight
+  const securityActions =
+    hasPassword || isSecurityDirty || securitySaveStatus !== 'idle' ? (
+      <SettingsPaneActions
+        canSave={canSaveSecurity}
+        saveBlockedReason={securitySaveBlockedReason}
+        dirty={isSecurityDirty}
+        error={passwordSaveError}
+        onDiscard={handleDiscardSecurity}
+        onSave={handleSaveSecurity}
+        pending={isSecurityPending}
+        status={securitySaveStatus}
+      />
+    ) : null
   const runwayActions = (
     <SettingsPaneActions
       canSave={canSaveRunway}
@@ -159,7 +164,13 @@ export default function SettingsPage() {
             userInformationActions={profileActions}
           />
           <SecuritySection
-            email={user?.email ?? ''}
+            email={{
+              value: email.value,
+              error: email.error,
+              sentMessage: email.sentMessage,
+              onChange: email.setEmail,
+              onBlur: email.touch,
+            }}
             form={passwordForm}
             onFieldChange={setPasswordField}
             newPasswordValid={newPasswordValid}
@@ -174,6 +185,23 @@ export default function SettingsPage() {
             allowPasskey
             onClose={closeStepUp}
             onVerify={verifyPasswordStepUp}
+          />
+          <StepUpModal
+            open={email.stepUp.isOpen}
+            title="Confirm it's you"
+            description="Please confirm it's you to change your email."
+            requirePassword
+            confirmLabel="Send email"
+            allowPasskey
+            onClose={email.stepUp.close}
+            onVerify={email.stepUp.verify}
+          />
+          <ProviderReauthModal
+            open={email.reauth.chooserOpen}
+            providers={email.reauth.linkedProviders}
+            busySlug={email.reauth.busySlug}
+            onChoose={email.reauth.chooseProvider}
+            onClose={email.reauth.closeChooser}
           />
           <RunwaySection
             loading={runwayLoading}

@@ -108,6 +108,21 @@ export async function waitForResetLink(email: string): Promise<string> {
 }
 
 /**
+ * Wait for the email asking to confirm a new account address and return the link it holds.
+ *
+ * Only a message holding that link counts, so mail the address got earlier is passed over
+ *
+ * @param email - The new address the confirmation was sent to
+ * @returns The confirmation link as the app emailed it
+ * @throws When no such email arrives
+ */
+export async function waitForEmailChangeLink(email: string): Promise<string> {
+  const changeLink = /https?:\/\/\S+\/confirm-new-email\?token=\S+/
+  const text = await waitForEmailText(email, changeLink)
+  return changeLink.exec(text)![0]
+}
+
+/**
  * Pull the token out of a confirmation link.
  */
 export function tokenFromLink(link: string): string {

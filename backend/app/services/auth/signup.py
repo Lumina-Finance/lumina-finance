@@ -37,9 +37,9 @@ logger = logging.getLogger(__name__)
 
 _CONFIRM_PATH = "/confirm-email"
 
-# One message for every way a confirmation link can fail, so a response never reveals whether the
-# address has an account
-_INVALID_LINK_DETAIL = "Invalid or expired confirmation link"
+# One message for every way a sign-up or email change confirmation link can fail, so a response never
+# reveals whether the address has an account
+INVALID_LINK_DETAIL = "Invalid or expired confirmation link"
 
 # The cap counts over a rolling day, so records older than that are of no use
 _SEND_LOG_RETENTION = timedelta(hours=24)
@@ -99,7 +99,7 @@ async def request_signup(
     skipped send releases its cap record. The profile rides inside the link's signed token and no
     password is chosen yet, so a link sent to someone else's address only ever lets its opener choose
     their own password. At most the configured number of emails go out per address per rolling day, so
-    an unauthenticated requester cannot drain the operator's mail quota
+    an unauthenticated requester cannot drain the server's mail quota
 
     Args:
         db: Active database session
@@ -222,7 +222,7 @@ async def confirm_signup(db: AsyncSession, confirmation_token: str, password: st
     try:
         claims = decode_signup_confirmation_token(confirmation_token)
     except jwt.PyJWTError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_LINK_DETAIL) from None
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=INVALID_LINK_DETAIL) from None
 
     # A link sent while registration was open outlives a change of setting
     reject_closed_registration()
@@ -234,7 +234,7 @@ async def confirm_signup(db: AsyncSession, confirmation_token: str, password: st
     current_user_id_ctx.set(user_id)
 
     if await find_user_id_by_email(db, claims.email):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_LINK_DETAIL)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=INVALID_LINK_DETAIL)
     await reject_missing_base_currency(db, claims.base_currency)
 
     user = User(
@@ -270,7 +270,7 @@ async def confirm_signup(db: AsyncSession, confirmation_token: str, password: st
         await db.commit()
     except IntegrityError as error:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_LINK_DETAIL) from error
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=INVALID_LINK_DETAIL) from error
 
     await db.refresh(user)
     return user

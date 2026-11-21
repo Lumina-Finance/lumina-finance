@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { beginOidcReauth, useOidcIdentities } from '@/api/oidc';
-import { markOidcIntent, type OidcReauthAction } from '@/utils/oidcIntent';
-import { withMinDelay } from '@/utils/timing';
+import { useState } from 'react'
+import { beginOidcReauth, useOidcIdentities } from '@/api/oidc'
+import { useAuth } from '@/hooks/useAuth'
+import { markOidcIntent, type OidcReauthAction } from '@/utils/oidcIntent'
+import { withMinDelay } from '@/utils/timing'
 
 /**
  * Drives the reauth step-up a passwordless account uses before a sensitive provider action
@@ -11,39 +12,41 @@ import { withMinDelay } from '@/utils/timing';
  * along in the intent so the callback resumes it after the reauth arms the step-up proof
  */
 export function useProviderReauth() {
-  const identities = useOidcIdentities();
-  const linkedProviders = identities.data?.identities ?? [];
+  const { user } = useAuth()
+  const identities = useOidcIdentities()
+  const linkedProviders = identities.data?.identities ?? []
 
   // The action to resume, held while the provider chooser is open for an account with several providers
-  const [chooserAction, setChooserAction] = useState<OidcReauthAction | null>(null);
-  const [busySlug, setBusySlug] = useState<string | null>(null);
+  const [chooserAction, setChooserAction] = useState<OidcReauthAction | null>(null)
+  const [busySlug, setBusySlug] = useState<string | null>(null)
 
   /** Mark the pending action and leave for the provider, which returns to finish the reauth */
   const reauthWith = async (slug: string, action: OidcReauthAction) => {
-    setBusySlug(slug);
+    setBusySlug(slug)
     try {
       // Without the flag the return would read as a link the server refuses, so the trip never starts
-      if (!markOidcIntent({ flow: 'reauth', action })) throw new Error('Session storage is unavailable');
-      const { authorization_url } = await withMinDelay(() => beginOidcReauth(slug));
-      window.location.assign(authorization_url);
+      if (!user || !markOidcIntent({ flow: 'reauth', action, userId: user.id }))
+        throw new Error('Session storage is unavailable')
+      const { authorization_url } = await withMinDelay(() => beginOidcReauth(slug))
+      window.location.assign(authorization_url)
     } catch {
-      setBusySlug(null);
-      setChooserAction(null);
+      setBusySlug(null)
+      setChooserAction(null)
     }
-  };
+  }
 
   /** Begin a reauth for the given action, choosing the provider directly when only one is linked */
   const start = (action: OidcReauthAction) => {
     if (linkedProviders.length === 1) {
-      void reauthWith(linkedProviders[0].provider_slug, action);
+      void reauthWith(linkedProviders[0].provider_slug, action)
     } else if (linkedProviders.length > 1) {
-      setChooserAction(action);
+      setChooserAction(action)
     }
-  };
+  }
 
   const chooseProvider = (slug: string) => {
-    if (chooserAction) void reauthWith(slug, chooserAction);
-  };
+    if (chooserAction) void reauthWith(slug, chooserAction)
+  }
 
   return {
     start,
@@ -52,5 +55,5 @@ export function useProviderReauth() {
     closeChooser: () => setChooserAction(null),
     chooseProvider,
     busySlug,
-  };
+  }
 }

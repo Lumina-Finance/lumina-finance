@@ -37,6 +37,7 @@ UNMARKED_WRITE_ROUTES: dict[str, str] = {
     "POST /auth/2fa/complete": "Completes a sign-in or a step-up, and changes nothing a screen shows.",
     "POST /auth/password/set": "Sets a first password, which no screen shows.",
     "POST /auth/sessions/end-others": "Ends other sessions, which no screen shows.",
+    "POST /auth/email/change": "Stores a request and emails a link, and the address changes only when the link is confirmed.",
     "POST /auth/passkeys/register/confirm": "Activates a passkey, listed by a screen that fetches on every visit.",
     "POST /auth/oidc/identities/{identity_id}/remove": "Unlinks a sign-in provider, listed by a screen that fetches on every visit.",
     "POST /auth/2fa/disable": "Turns off two-step sign-in, shown by a screen that fetches on every visit.",

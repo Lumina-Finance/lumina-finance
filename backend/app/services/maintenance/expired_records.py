@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import async_session
 from app.services.auth.account_lockout import delete_idle_login_lockouts
+from app.services.auth.email_change import delete_expired_email_change_requests
 from app.services.auth.mfa_challenge import delete_expired_mfa_challenges
 from app.services.auth.oidc_login import delete_expired_oidc_authorization_requests
 from app.services.auth.password_reset import delete_stale_password_reset_tokens
@@ -50,6 +51,7 @@ EXPIRED_RECORD_KINDS: tuple[ExpiredRecordKind, ...] = (
     ExpiredRecordKind("MFA challenges", delete_expired_mfa_challenges),
     ExpiredRecordKind("OIDC authorization requests", delete_expired_oidc_authorization_requests),
     ExpiredRecordKind("password reset tokens", delete_stale_password_reset_tokens),
+    ExpiredRecordKind("email change requests", delete_expired_email_change_requests),
     ExpiredRecordKind("idle sign-in lockouts", delete_idle_login_lockouts),
     ExpiredRecordKind("sign-up email records", delete_stale_signup_email_sends),
     ExpiredRecordKind("two-factor staging", prune_stale_factor_staging),

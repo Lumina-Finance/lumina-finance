@@ -15,6 +15,7 @@ export { getAccessTokenExpiresAt } from '@/api/auth/tokenAge'
 export type {
   AuthResponse,
   CompletedPasswordReset,
+  ConfirmedEmailChange,
   ConfirmSignupPayload,
   ForgotPasswordPayload,
   LoginPayload,
@@ -32,6 +33,7 @@ export type {
 
 export {
   checkResetLink,
+  confirmEmailChange,
   confirmSignup,
   fetchRegistrationStatus,
   forgotPassword,

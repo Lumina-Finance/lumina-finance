@@ -6,6 +6,7 @@ import type {
   CacheStatus,
   ChangePasswordPayload,
   RatesStatus,
+  RequestEmailChangePayload,
   RunwayResultResponse,
   RunwaySettingsResponse,
   RunwaySettingsUpdate,
@@ -73,6 +74,20 @@ export function endOtherSessions(stepUp?: StepUpPayload) {
   return authenticatedFetch<void>('/auth/sessions/end-others', {
     method: 'POST',
     body: JSON.stringify(stepUp ?? null),
+  })
+}
+
+/**
+ * Asks for a confirmation email to a new address for the account
+ *
+ * The answer is the same whether or not another account uses the address, and the account's address
+ * changes only when the emailed link is confirmed. An account with a password passes its step-up, and a
+ * passwordless one omits it, relying on the reauth proof cookie
+ */
+export function requestEmailChange(payload: RequestEmailChangePayload) {
+  return authenticatedFetch<void>('/auth/email/change', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 

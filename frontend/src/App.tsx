@@ -39,6 +39,7 @@ const BankAuthorizationPage = lazyPage(() => import('@/pages/settings/BankAuthor
 const AuthPage = lazyPage(() => import('@/pages/auth/AuthPage'))
 const ResetPasswordPage = lazyPage(() => import('@/pages/auth/ResetPasswordPage'))
 const ConfirmEmailPage = lazyPage(() => import('@/pages/auth/ConfirmEmailPage'))
+const ConfirmEmailChangePage = lazyPage(() => import('@/pages/auth/ConfirmEmailChangePage'))
 const OidcCallbackPage = lazyPage(() => import('@/pages/auth/OidcCallbackPage'))
 const NativePasskeyPage = lazyPage(() => import('@/pages/auth/NativePasskeyPage'))
 
@@ -443,6 +444,19 @@ function AnimatedRoutes() {
             <ErrorBoundary variant="screen">
               <Suspense fallback={null}>
                 <OidcCallbackPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+
+        {/* The email-change link is opened signed in as often as signed out, since the person asked from
+            this browser, so it lives outside the public-only wrapper that sends a signed-in user home */}
+        <Route
+          path="/confirm-new-email"
+          element={
+            <ErrorBoundary variant="screen">
+              <Suspense fallback={null}>
+                <ConfirmEmailChangePage />
               </Suspense>
             </ErrorBoundary>
           }

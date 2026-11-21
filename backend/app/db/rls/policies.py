@@ -162,6 +162,7 @@ AUTH_TABLES = (
     "auth_sessions",
     "auth_tokens",
     "password_reset_tokens",
+    "email_change_requests",
     "login_lockouts",
     "signup_email_sends",
     "mfa_challenges",

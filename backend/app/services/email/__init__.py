@@ -3,6 +3,8 @@
 from app.services.email.contract import EmailSender, RenderedEmail, get_email_sender, set_email_sender
 from app.services.email.rendering import (
     render_action_needed_email,
+    render_email_change_email,
+    render_email_change_notice_email,
     render_reset_email,
     render_signup_confirmation_email,
 )
@@ -14,6 +16,8 @@ __all__ = [
     "build_email_sender",
     "get_email_sender",
     "render_action_needed_email",
+    "render_email_change_email",
+    "render_email_change_notice_email",
     "render_reset_email",
     "render_signup_confirmation_email",
     "set_email_sender",
