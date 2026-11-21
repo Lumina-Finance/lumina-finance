@@ -231,8 +231,6 @@ def test_the_steps_that_need_the_admin_login_come_first_and_hand_the_start_to_a_
 def test_the_migration_is_the_next_step_and_runs_without_the_admin_login(entrypoint, monkeypatch):
     """After the roles come the migrations, so the image's order holds, run by a process that never held the login"""
     steps, _environments = _record_steps(entrypoint, monkeypatch)
-    for name in _ADMIN_LOGIN:
-        monkeypatch.delenv(name)
 
     entrypoint.prepare()
 
@@ -242,6 +240,8 @@ def test_the_migration_is_the_next_step_and_runs_without_the_admin_login(entrypo
 def test_a_start_after_the_admin_steps_takes_none_of_them_again(entrypoint, monkeypatch):
     """The second start of the script goes straight to migrating and serving, never asking for the admin login"""
     steps, _environments = _record_steps(entrypoint, monkeypatch)
+    for name in _ADMIN_LOGIN:
+        monkeypatch.delenv(name)
     monkeypatch.setattr(sys, "argv", ["entrypoint.py", "--after-admin-steps"])
     monkeypatch.setattr(entrypoint, "drop_privileges", lambda: None)
     monkeypatch.setattr(entrypoint, "check_data_folder", lambda: None)
@@ -252,6 +252,21 @@ def test_a_start_after_the_admin_steps_takes_none_of_them_again(entrypoint, monk
 
     assert stop.value.code == 0
     assert steps == [("-m", "app.db.jobs", "migrate")], "only the migration ran"
+
+
+def test_a_second_start_given_by_hand_with_the_admin_login_still_drops_it(entrypoint, monkeypatch):
+    """The argument skips the admin steps but never keeps the login in the processes that serve"""
+    steps, environments = _record_steps(entrypoint, monkeypatch)
+    monkeypatch.setattr(sys, "argv", ["entrypoint.py", "--after-admin-steps"])
+    monkeypatch.setattr(entrypoint, "drop_privileges", lambda: None)
+    monkeypatch.setattr(entrypoint, "check_data_folder", lambda: None)
+    monkeypatch.setattr(entrypoint, "serve", lambda _is_worker_here: 0)
+
+    with pytest.raises(_ProcessReplaced):
+        entrypoint.main()
+
+    assert steps == [(str(Path(entrypoint.__file__).resolve()), "--after-admin-steps")], "no admin step ran, and it started again"
+    assert not set(_ADMIN_LOGIN) & set(environments[0]), "without the login"
 
 
 def test_a_plain_start_takes_the_admin_steps(entrypoint, monkeypatch):

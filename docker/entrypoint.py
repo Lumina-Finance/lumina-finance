@@ -422,6 +422,9 @@ def main() -> None:
         check_data_folder()
         if not is_after_admin_steps:
             prepare_as_admin()
+        if any(name in os.environ for name in ADMIN_LOGIN_SETTINGS):
+            # Started with the argument by hand, so the login is still here. Start again without it
+            replace_process(str(Path(__file__).resolve()), AFTER_ADMIN_STEPS)
         sys.exit(serve(prepare()))
     except StopRequested as stop:
         sys.exit(stop.args[0])
