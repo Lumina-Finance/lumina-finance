@@ -164,3 +164,73 @@ test('says the server is in maintenance from the maintenance file when the app i
   await expect(page.getByText(MAINTENANCE_NOTICE, { exact: true })).toBeVisible()
   await expect(page.getByText(/reach the server/)).toHaveCount(0)
 })
+
+test('holds sign-in during a maintenance and gives it back once the server answers', async ({ page }) => {
+  // The sign-in page asks again every minute during a maintenance, and the clock runs through that
+  // minute at once. Nothing answers until then, and the maintenance file says the server is in one
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install()
+  let isDown = true
+  let signInRequests = 0
+  await page.route(`${API_BASE_URL}/**`, async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith('/auth/login')) signInRequests += 1
+    if (isDown) await route.abort('connectionrefused')
+    else await route.continue()
+  })
+  await page.route('**/maintenance.json', async (route) => {
+    await route.fulfill({ status: 200, json: { maintenance: isDown } })
+  })
+
+  await page.goto('/login')
+  // Filled in, so the only thing holding the button is the maintenance
+  await page.getByLabel('Email').fill('someone@example.com')
+  await page.getByLabel('Password').fill('a long enough password')
+
+  const banner = page.getByRole('alert').getByText(MAINTENANCE_NOTICE, { exact: true })
+  const logIn = page.getByRole('button', { name: 'Log in', exact: true })
+  await expect(banner).toBeVisible()
+  await expect(logIn).toBeDisabled()
+  // Neither a click on the held button nor Enter in a field sends the sign-in
+  await logIn.click({ force: true })
+  await page.getByLabel('Password').press('Enter')
+  await page.evaluate(async (url) => {
+    await fetch(url).catch(() => undefined)
+  }, `${API_BASE_URL}/version`)
+  expect(signInRequests).toBe(0)
+
+  isDown = false
+  await page.clock.fastForward(61_000)
+
+  await expect(banner).toHaveCount(0)
+  await expect(logIn).toBeEnabled()
+})
+
+test('gives sign-up one maintenance message, and loads its currencies once the server answers', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.clock.install()
+  let isDown = true
+  await page.route(`${API_BASE_URL}/**`, async (route) => {
+    if (isDown) await route.abort('connectionrefused')
+    else await route.continue()
+  })
+  await page.route('**/maintenance.json', async (route) => {
+    await route.fulfill({ status: 200, json: { maintenance: isDown } })
+  })
+
+  await page.goto('/signup')
+
+  await expect(page.getByRole('alert').getByText(MAINTENANCE_NOTICE, { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign up', exact: true })).toBeDisabled()
+  // A retry offer would fail the same way until the maintenance ends
+  await expect(page.getByText('Unable to load currencies.')).toHaveCount(0)
+  // The page's own retries ran when the list failed, so only the reload when the maintenance ends
+  // can replace this
+  await expect(page.getByText('Failed to load currencies')).toBeVisible()
+
+  isDown = false
+  await page.clock.fastForward(61_000)
+
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  // The picker fills in a currency only once the list has arrived
+  await expect(page.getByRole('combobox', { name: 'Base currency' })).toContainText(' · ')
+})

@@ -32,7 +32,7 @@ export function AuthErrorBanner({ error }: { error: ReactNode }) {
           initial={{ opacity: 0, height: 0, marginTop: 0 }}
           animate={{ opacity: 1, height: 'auto', marginTop: 20 }}
           exit={{ opacity: 0, height: 0, marginTop: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2 }}
           onAnimationComplete={(definition) => {
             // The exit finishing reports a height of 0, which has nothing to show
             if (!Array.isArray(definition) && typeof definition === 'object' && definition.height === 'auto') {

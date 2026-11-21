@@ -8,7 +8,7 @@ import { QUERY_CACHE_STORAGE_KEY, readEntryObservedAt } from '@/api/cache/persis
 import { reportServerVersion, subscribeToMaintenance } from '@/api/version'
 
 const RATES_RECHECK_INTERVAL_MS = 12 * 60 * 60 * 1000
-const CACHE_STATUS_RETRY_INTERVAL_MS = 60 * 1000
+export const CACHE_STATUS_RETRY_INTERVAL_MS = 60 * 1000
 
 type CheckResult = { changed: boolean; nextBoundaryAt: string }
 
