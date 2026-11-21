@@ -41,7 +41,7 @@ PRIVATE_KEY_MODE = 0o600
 
 # Maintenance commands, run against a stopped stack as `docker compose run --rm app <command>`, and the
 # bank sync worker for a deployment that runs it in its own container. Matched against this list rather
-# than run as given, since this container holds the admin database credentials and the data volume,
+# than run as given, since this container starts with the admin database credentials and the data volume,
 # and passing arbitrary arguments through would make it a shell on both
 COMMANDS = ("generate-app-encryption-key", "rotate-app-encryption-key", "reset-bank-transaction-hash-key", "worker")
 
@@ -60,6 +60,15 @@ UVICORN_COMMAND = (
 )
 CADDY_COMMAND = ("caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile")
 WORKER_COMMAND = (sys.executable, "-m", "app.worker")
+BOOTSTRAP_COMMAND = (sys.executable, "-m", "app.db.jobs", "bootstrap")
+MIGRATE_COMMAND = (sys.executable, "-m", "app.db.jobs", "migrate")
+
+# The admin database login. Only the steps that generate or check the encryption and bank transaction
+# hash keys and the job that creates the roles use it. Once they are done, this script starts itself
+# again without it, so no process that keeps running holds it, and this argument tells the second
+# start that they are
+ADMIN_LOGIN_SETTINGS = ("DB_USER", "DB_PASSWORD")
+AFTER_ADMIN_STEPS = "--after-admin-steps"
 
 
 class StopRequested(Exception):
@@ -203,6 +212,16 @@ def run(*command: str) -> None:
         sys.exit(status)
 
 
+def environment_without_admin_login() -> dict[str, str]:
+    """Return this process's environment with the admin database login taken out"""
+    return {name: value for name, value in os.environ.items() if name not in ADMIN_LOGIN_SETTINGS}
+
+
+def replace_process(*command: str) -> None:
+    """Replace this process with a command that never needs the admin database login, and so never holds it"""
+    os.execve(sys.executable, (sys.executable, *command), environment_without_admin_login())
+
+
 def run_command(arguments: list[str]) -> None:
     """Replace this process with the maintenance command or worker named, refusing anything else"""
     command, extra_arguments = arguments[0], arguments[1:]
@@ -220,11 +239,11 @@ def run_command(arguments: list[str]) -> None:
     if command == "worker":
         # Skips the app's start-up: the worker needs no token signing keys, and waits for the app to
         # create the database roles and migrate before it claims any job
-        os.execv(sys.executable, WORKER_COMMAND)
+        replace_process(*WORKER_COMMAND[1:])
     if command == "generate-app-encryption-key":
-        os.execv(sys.executable, (sys.executable, "-m", "scripts.generate_app_encryption_key"))
+        replace_process("-m", "scripts.generate_app_encryption_key")
     if command == "rotate-app-encryption-key":
-        os.execv(sys.executable, (sys.executable, "-m", "scripts.rotate_app_encryption_key", *extra_arguments))
+        replace_process("-m", "scripts.rotate_app_encryption_key", *extra_arguments)
 
     # Binds the database to the key now set, generating one when none is, for a deployment that has
     # lost the old one. Statements imported again then bring back the transactions already saved from
@@ -233,9 +252,8 @@ def run_command(arguments: list[str]) -> None:
     # never automatic. The reset records the key as the migrator, the record's owner. A lost data
     # volume or a dump restored onto a new host has neither the migrator's password nor its ownership
     # yet, so they are set up as a normal start would, as the admin role
-    run(sys.executable, "-m", "app.db.provision", "ensure-roles")
-    run(sys.executable, "-m", "app.db.provision", "transfer-ownership")
-    os.execv(sys.executable, (sys.executable, "-m", "app.db.bank_transaction_key", "reset-key"))
+    run(*BOOTSTRAP_COMMAND)
+    replace_process("-m", "app.db.bank_transaction_key", "reset-key")
 
 
 def is_bank_sync_worker_enabled() -> bool:
@@ -287,9 +305,14 @@ def ensure_private_key(name: str, path: Path) -> None:
     print(f"Generated {name} token signing key at {path}")
 
 
-def prepare() -> bool:
-    """Prepare the keys and the database, and return whether this container runs the bank sync worker"""
-    is_worker_enabled = is_bank_sync_worker_enabled()
+def prepare_as_admin() -> None:
+    """Take the steps that need the admin database login, then start this script again without it
+
+    The first process holds the login for these steps only. The process that replaces it, with the same
+    process ID, never has it, and neither has anything it starts
+    """
+    # Refused here, before anything is changed, as the rest of the start would
+    is_bank_sync_worker_enabled()
 
     ensure_private_key("Access", Path(os.environ["JWT_ACCESS_PRIVATE_KEY_PATH"]))
     ensure_private_key("Refresh", Path(os.environ["JWT_REFRESH_PRIVATE_KEY_PATH"]))
@@ -305,26 +328,21 @@ def prepare() -> bool:
     # is not the one recorded. The migrations need it to hash transactions saved before
     run(sys.executable, "-m", "app.db.bank_transaction_key", "ensure-key")
 
-    # Create the migrator and app roles and hand them schema ownership while still connected as the
-    # admin role, before migrations run as the migrator
-    run(sys.executable, "-m", "app.db.provision", "ensure-roles")
-    run(sys.executable, "-m", "app.db.provision", "transfer-ownership")
+    # The first of the two set-up jobs creates the migrator and app roles and hands them schema ownership
+    # while connected as the admin role. It is the last step that needs the login
+    run(*BOOTSTRAP_COMMAND)
+    replace_process(str(Path(__file__).resolve()), AFTER_ADMIN_STEPS)
 
-    run(sys.executable, "-m", "alembic", "upgrade", "head")
 
-    # A restored backup arrives at migration head with its ACLs stripped so the bootstrap RLS migration
-    # never re-runs, and this re-applies the policies and app role grants from the app source. It is
-    # also what installs any policy that reads a column added after the bootstrap, since the bootstrap
-    # replays against a schema without it, so a freshly migrated database needs this too
-    run(sys.executable, "-m", "app.db.provision", "apply-rls")
+def prepare() -> bool:
+    """Migrate the database, and return whether this container runs the bank sync worker
 
-    # Bind the database to its encryption key, and refuse to serve when the key in hand is not the one the
-    # data is under. An upgrading deployment records the key here for the first time
-    run(sys.executable, "-m", "app.db.encryption_key", "verify-fingerprint")
-
-    run(sys.executable, "-m", "scripts.seed_currencies")
-    run(sys.executable, "-m", "scripts.seed_categories")
-    run(sys.executable, "-m", "scripts.seed_merchants")
+    The second set-up job runs as the migrator: migrations, then the row-level security policies, then
+    the encryption key's fingerprint, and then the reference data. The fingerprint step stops the start
+    when the key in hand is not the one the data is under
+    """
+    is_worker_enabled = is_bank_sync_worker_enabled()
+    run(*MIGRATE_COMMAND)
 
     if not is_worker_enabled:
         return False
@@ -397,11 +415,17 @@ def main() -> None:
 
     try:
         drop_privileges()
-        if len(sys.argv) > 1:
+        is_after_admin_steps = sys.argv[1:] == [AFTER_ADMIN_STEPS]
+        if len(sys.argv) > 1 and not is_after_admin_steps:
             run_command(sys.argv[1:])
         # Only the app's own start is checked, since a worker given its database passwords in settings
         # can run with no data folder at all
         check_data_folder()
+        if not is_after_admin_steps:
+            prepare_as_admin()
+        if any(name in os.environ for name in ADMIN_LOGIN_SETTINGS):
+            # Started with the argument by hand, so the login is still here. Start again without it
+            replace_process(str(Path(__file__).resolve()), AFTER_ADMIN_STEPS)
         sys.exit(serve(prepare()))
     except StopRequested as stop:
         sys.exit(stop.args[0])

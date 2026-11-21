@@ -23,6 +23,7 @@ SUPPORTED_POINTS: dict[str, str] = {
     "enqueue_due_work": "app.services.bank_sync.worker:enqueue_due_work",
     "run_jobs": "app.services.bank_sync.worker:run_jobs",
     "prune_expired_records": "app.services.maintenance.expired_records:prune_expired_records",
+    "run_migrate": "app.db.jobs:run_migrate",
 }
 
 __all__ = list(SUPPORTED_POINTS)

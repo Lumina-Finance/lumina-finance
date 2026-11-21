@@ -62,6 +62,7 @@ EXPECTED_SHAPES: dict[str, str] = {
     "enqueue_due_work": "async enqueue_due_work() -> None",
     "run_jobs": "async run_jobs(max_jobs: int, deadline: datetime | None = ...) -> int",
     "prune_expired_records": "async prune_expired_records(session_factory: async_sessionmaker[AsyncSession] = ...) -> None",
+    "run_migrate": "async run_migrate() -> None",
 }
 
 
