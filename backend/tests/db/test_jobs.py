@@ -213,7 +213,7 @@ async def test_a_restored_dump_gets_its_owners_grants_and_policies_back_through_
 
 @pytest.mark.parametrize("missing", ["APP_ENCRYPTION_KEY", "BANK_TRANSACTION_HASH_KEY"])
 async def test_migrate_refuses_to_run_without_a_key(provision_into, missing):
-    """A job with no key stops with the key named, rather than migrating data it could not read afterwards"""
+    """A job with no key stops with the key named, so it is never left to run without the key its secrets are under"""
     async with provision_into(SUPERUSER_LOGIN) as target:
         await run_bootstrap()
         environment = _migrate_environment(target)

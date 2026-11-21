@@ -113,7 +113,8 @@ async def run_migrate() -> None:
     while another set-up run goes waits for it
 
     Raises:
-        RuntimeError: A key is missing, or the encryption key is not the one the stored secrets are under
+        RuntimeError: The encryption key is missing or is not the one the stored secrets are under, or
+            a pending migration needs the bank transaction hash key and it is missing
     """
     engine = create_async_engine(migration_database_url(), hide_parameters=True)
     try:
