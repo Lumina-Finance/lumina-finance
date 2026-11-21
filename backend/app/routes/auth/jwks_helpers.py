@@ -1,4 +1,5 @@
 """Auth JWKS route helpers"""
+
 from typing import Any
 
 from jwt.algorithms import RSAAlgorithm
