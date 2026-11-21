@@ -32,10 +32,10 @@ from webauthn.helpers.structs import (
 )
 
 from app.config.webauthn import (
+    DEFAULT_WEBAUTHN_RP_NAME,
     WEBAUTHN_CHALLENGE_EXPIRE_SECONDS,
     WEBAUTHN_ORIGINS,
     WEBAUTHN_RP_ID,
-    WEBAUTHN_RP_NAME,
 )
 from app.database import current_user_id_ctx
 from app.models.auth import AuthIdentity, TotpCredential, WebauthnChallenge, WebauthnCredential
@@ -49,6 +49,7 @@ from app.services.auth.recovery_codes import (
     staging_cutoff,
 )
 from app.services.auth.sessions import delete_all_user_auth_sessions, delete_other_user_auth_sessions
+from app.services.service_name import resolve_service_name
 
 # Distinguishes a registration challenge from an authentication one in the shared challenge table
 _REGISTRATION_PURPOSE = "registration"
@@ -161,7 +162,7 @@ async def build_passkey_registration_options(db: AsyncSession, user_id: uuid.UUI
 
     options = generate_registration_options(
         rp_id=WEBAUTHN_RP_ID,
-        rp_name=WEBAUTHN_RP_NAME,
+        rp_name=resolve_service_name(DEFAULT_WEBAUTHN_RP_NAME),
         user_id=user_id.bytes,
         user_name=account_name,
         user_display_name=account_name,

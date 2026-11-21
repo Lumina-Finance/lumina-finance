@@ -24,6 +24,7 @@ from app.services.bank_sync.action_needed import (
 )
 from app.services.email import RenderedEmail
 from app.services.email import contract as email_contract
+from app.services.service_name import set_service_name
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import _build_account, _build_bank_link, _build_external_account
 from tests.routes.support.identity_helpers import _act_as
@@ -97,7 +98,7 @@ async def test_read_actions_needed_shows_bank_sign_in_needed_only_for_a_linked_a
     assert await _read_as_owner(connection, ids.values()) == {ids["everyday"]: ActionNeededKind.BANK_LOGIN}
 
 
-async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(connections):
+async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(connections, environment_naming_another_service):
     """Each action-needed email as its owner reads it, naming what stopped syncing and what to do, and nothing of the credential or transactions
 
     Reconnect needed names the connection by the nickname its owner gave it and lists the accounts
@@ -155,6 +156,26 @@ async def test_action_emails_say_what_stopped_syncing_and_how_to_resume_it(conne
             "Fake Bank rejected your connection.\n\nPlease reconnect in Settings before linking accounts.",
         ),
     ]
+
+
+async def test_the_bank_sign_in_email_names_the_service_code_set(connections):
+    """The email's closing says which service resumes syncing, so a service that code named is not shown as another"""
+    family = connections[0]
+    await _commit_links(family, Everyday={})
+    async with TestSession() as session:
+        listed = _build_external_account(family, "ACT-Everyday")
+        listed.login_key, listed.institution_name = "CON-chase", "Chase"
+        session.add(listed)
+        await session.commit()
+    set_service_name("Example Service")
+
+    async with _act_as(family.owner_id) as session:
+        connection = await session.get_one(BankConnection, family.id)
+        links = (await session.scalars(select(BankAccountLink).where(BankAccountLink.connection_id == family.id))).all()
+        emails = await flag_signin_needed(session, connection, links, at=_SIGNIN_SINCE)
+
+    assert emails[0].message.text_body.endswith("Example Service checks each day and resumes syncing after you sign in again.")
+    assert "Lumina Finance" not in emails[0].message.text_body
 
 
 async def test_send_action_emails_logs_a_send_that_fails_by_its_connection_and_still_sends_the_next(connections, monkeypatch, caplog):

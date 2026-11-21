@@ -19,9 +19,10 @@ SMTP_USE_TLS = optional_bool_env("SMTP_USE_TLS", True)
 # proxy and gateway request timeouts, while a slow but working server still has room to answer
 SMTP_TIMEOUT_SECONDS = 10
 
-# The sender display name is deliberately a constant, not a setting, so mail from a
-# self-hosted instance is always identifiable as self-hosted
-EMAIL_SENDER_NAME = "Lumina Finance (Self-Hosted)"
+# The sender display name is deliberately a constant, not a setting, so no setting can make the
+# app's mail show another name. Only code that builds on the app can replace it, through the
+# service name slot
+DEFAULT_EMAIL_SENDER_NAME = "Lumina Finance (Self-Hosted)"
 
 # The from address defaults to the SMTP username, which most providers expect anyway
 MAIL_FROM = os.getenv("MAIL_FROM", "").strip() or SMTP_USERNAME

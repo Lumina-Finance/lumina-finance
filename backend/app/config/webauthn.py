@@ -7,8 +7,10 @@ from app.config.env import optional_csv_env, unique_values
 from app.config.runtime import APP_URL
 
 # The relying party name is the label the browser's passkey prompt shows. It is deliberately a
-# constant, not a setting, so every install's prompt names the app the same way
-WEBAUTHN_RP_NAME = "Lumina Finance Self-Hosted"
+# constant, not a setting, so no setting can make the prompt show another name. Only code that
+# builds on the app can replace it, through the service name slot. The name binds nothing, since
+# a passkey is bound by the RP ID below
+DEFAULT_WEBAUTHN_RP_NAME = "Lumina Finance Self-Hosted"
 
 # The RP ID is the registrable domain a passkey is bound to and must match the page origin, so a
 # bare IP is invalid and development must run over localhost. It defaults to the APP_URL host

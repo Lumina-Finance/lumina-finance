@@ -23,6 +23,7 @@ SUPPORTED_POINTS: dict[str, str] = {
     "set_email_sender": "app.services.email.contract:set_email_sender",
     "EmailSender": "app.services.email.contract:EmailSender",
     "RenderedEmail": "app.services.email.contract:RenderedEmail",
+    "set_service_name": "app.services.service_name:set_service_name",
     "enqueue_due_work": "app.services.bank_sync.worker:enqueue_due_work",
     "run_jobs": "app.services.bank_sync.worker:run_jobs",
     "prune_expired_records": "app.services.maintenance.expired_records:prune_expired_records",

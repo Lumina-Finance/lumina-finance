@@ -42,6 +42,7 @@ from app.models.bank_connection import BankAccountLink, BankConnection, BankExte
 from app.models.user import User
 from app.services.bank_sync.availability import LINK_LISTING, LIVE_LINK, provider_label, provider_site_label
 from app.services.email import RenderedEmail, get_email_sender, render_action_needed_email
+from app.services.service_name import resolve_service_name
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,11 @@ _RECONNECT_CLOSING_UNLINKED = "Please reconnect in Settings before linking accou
 # leaves out the institution's name, since it comes from the provider
 _SIGNIN_SUBJECT = "Sign in to your bank again in {site}"
 _SIGNIN_LEAD = "Please sign in to {institution} again in {site}. Syncing has stopped for:"
-_SIGNIN_CLOSING = "Lumina Finance checks each day and resumes syncing after you sign in again."
+_SIGNIN_CLOSING = "{service} checks each day and resumes syncing after you sign in again."
+
+# What the Bank sign-in needed email calls the service while no name is set. This is the product's own
+# name and not the sender name, since the sender name also carries a suffix
+_DEFAULT_SERVICE_NAME = "Lumina Finance"
 
 # The Choose bank account email, one per account a sync's listing moved there, worded as the
 # settings section explains it. The subject leaves out the names, since they come from the user and the provider
@@ -211,7 +216,10 @@ async def flag_signin_needed(
         ActionEmail(
             recipient,
             render_action_needed_email(
-                _SIGNIN_SUBJECT.format(site=site), _SIGNIN_LEAD.format(institution=institution, site=site), accounts, _SIGNIN_CLOSING
+                _SIGNIN_SUBJECT.format(site=site),
+                _SIGNIN_LEAD.format(institution=institution, site=site),
+                accounts,
+                _SIGNIN_CLOSING.format(service=resolve_service_name(_DEFAULT_SERVICE_NAME)),
             ),
             f"Bank sign-in needed for bank login {login} on connection {connection.id}",
         )

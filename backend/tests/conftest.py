@@ -22,6 +22,7 @@ from app.email_change_hook import EmailChange, observe_email_changes
 from app.models import import_all_models
 from app.models.base import Base
 from app.request_hook import RequestRecord, observe_requests
+from app.services import service_name
 from app.services.bank_sync.availability import installed_providers
 from app.services.categories.defaults import seed_system_categories
 from app.services.email import RenderedEmail
@@ -166,6 +167,19 @@ async def clean_tables():
     yield
     if _database_used:
         await _reset_tables()
+
+
+@pytest.fixture(autouse=True)
+def unset_service_name(monkeypatch):
+    """Start each test with no service name set, and put back whatever a test sets afterwards"""
+    monkeypatch.setattr(service_name, "_service_name", None)
+
+
+@pytest.fixture
+def environment_naming_another_service(monkeypatch):
+    """Fill the environment with variables that name another service, which no code may read as the service's name"""
+    for variable in ("SERVICE_NAME", "APP_NAME", "EMAIL_SENDER_NAME", "WEBAUTHN_RP_NAME"):
+        monkeypatch.setenv(variable, "Another Service")
 
 
 @pytest.fixture

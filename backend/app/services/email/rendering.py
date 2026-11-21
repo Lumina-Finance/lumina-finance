@@ -5,8 +5,9 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from app.config.email import EMAIL_SENDER_NAME
+from app.config.email import DEFAULT_EMAIL_SENDER_NAME
 from app.services.email.contract import RenderedEmail
+from app.services.service_name import resolve_service_name
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _RESET_SUBJECT = "Reset your password"
@@ -16,6 +17,11 @@ _EMAIL_CHANGE_NOTICE_SUBJECT = "Your email was changed"
 
 # Autoescaping guards the HTML parts while leaving plain-text templates untouched
 _environment = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=select_autoescape(["html"]))
+
+
+def email_service_name() -> str:
+    """Return the name an email's From header and title give the service, read at each call"""
+    return resolve_service_name(DEFAULT_EMAIL_SENDER_NAME)
 
 
 def render_reset_email(reset_link: str, expiry_minutes: int) -> RenderedEmail:
@@ -28,7 +34,7 @@ def render_reset_email(reset_link: str, expiry_minutes: int) -> RenderedEmail:
     Returns:
         The rendered subject and both body parts
     """
-    context = {"app_name": EMAIL_SENDER_NAME, "reset_link": reset_link, "expiry_minutes": expiry_minutes}
+    context = {"app_name": email_service_name(), "reset_link": reset_link, "expiry_minutes": expiry_minutes}
     html_body = _environment.get_template("password_reset.html").render(context)
     text_body = _environment.get_template("password_reset.txt").render(context)
     return RenderedEmail(subject=_RESET_SUBJECT, text_body=text_body, html_body=html_body)
@@ -44,7 +50,7 @@ def render_signup_confirmation_email(confirm_link: str, expiry_hours: int) -> Re
     Returns:
         The rendered subject and both body parts
     """
-    context = {"app_name": EMAIL_SENDER_NAME, "confirm_link": confirm_link, "expiry_hours": expiry_hours}
+    context = {"app_name": email_service_name(), "confirm_link": confirm_link, "expiry_hours": expiry_hours}
     html_body = _environment.get_template("signup_confirmation.html").render(context)
     text_body = _environment.get_template("signup_confirmation.txt").render(context)
     return RenderedEmail(subject=_SIGNUP_CONFIRMATION_SUBJECT, text_body=text_body, html_body=html_body)
@@ -95,7 +101,7 @@ def render_action_needed_email(subject: str, lead: str, accounts: Sequence[str],
     Returns:
         The rendered subject and both body parts
     """
-    context = {"app_name": EMAIL_SENDER_NAME, "lead": lead, "accounts": accounts, "closing": closing}
+    context = {"app_name": email_service_name(), "lead": lead, "accounts": accounts, "closing": closing}
     html_body = _environment.get_template("bank_sync_action_needed.html").render(context)
     text_body = _environment.get_template("bank_sync_action_needed.txt").render(context)
     return RenderedEmail(subject=subject, text_body=text_body, html_body=html_body)

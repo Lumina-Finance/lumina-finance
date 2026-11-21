@@ -62,6 +62,7 @@ EXPECTED_SHAPES: dict[str, str] = {
     "set_email_sender": "set_email_sender(sender: EmailSender) -> None",
     "EmailSender": "async EmailSender.send(self, recipient: str, message: RenderedEmail) -> None",
     "RenderedEmail": "RenderedEmail(subject: str, text_body: str, html_body: str | None = ...)",
+    "set_service_name": "set_service_name(name: str) -> None",
     "enqueue_due_work": "async enqueue_due_work() -> None",
     "run_jobs": "async run_jobs(max_jobs: int, deadline: datetime | None = ...) -> int",
     "prune_expired_records": "async prune_expired_records(session_factory: async_sessionmaker[AsyncSession] = ...) -> None",

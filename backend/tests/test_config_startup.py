@@ -66,24 +66,108 @@ def test_cors_without_a_configured_origin_sends_no_cors_headers():
     assert _output(_start_app(_CORS_HEADERS_SCRIPT)) == {}
 
 
-# Prints the passkey prompt's name and whether update checks run, as the started app holds them
-_RETIRED_SETTINGS_SCRIPT = (
-    "import json;"
-    "import app.main;"
-    "from app.services import app_version;"
-    "from app.services.auth import webauthn;"
-    "print(json.dumps([webauthn.WEBAUTHN_RP_NAME, app_version.UPDATE_CHECKS_ENABLED]))"
-)
+# Prints the passkey prompt's name from the real registration options, the From header of a message
+# the real SMTP sender builds, the text of a reset email, the text of a Bank sign-in needed email,
+# and the update check setting. Stubs stand in only for the database and the mail delivery, and
+# the session stub answers every query with its given rows and single value
+_SERVICE_NAME_SCRIPT = """
+import asyncio
+import json
+import uuid
+from types import SimpleNamespace
+import app.main
+from app.services import app_version
+from app.services.auth.webauthn import build_passkey_registration_options
+from app.services.bank_sync.action_needed import flag_signin_needed
+from app.services.email import RenderedEmail, render_reset_email, senders
+
+class Result:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def __iter__(self):
+        return iter(self.rows)
+
+    def scalars(self):
+        return iter(())
+
+    def all(self):
+        return []
+
+class Session:
+    def __init__(self, rows, value):
+        self.rows, self.value = rows, value
+
+    async def execute(self, statement):
+        return Result(self.rows)
+
+    async def scalars(self, statement):
+        return Result(())
+
+    async def scalar(self, statement):
+        return self.value
+
+    def add(self, row):
+        pass
+
+    async def commit(self):
+        pass
+
+delivered = []
+
+async def record(message, **kwargs):
+    delivered.append(message)
+
+async def main():
+    options = await build_passkey_registration_options(Session([], 0), uuid.uuid4(), "user@example.test")
+    await senders.SmtpEmailSender().send("user@example.test", RenderedEmail(subject="Hi", text_body="Body"))
+    connection = SimpleNamespace(id=uuid.uuid4(), provider="fake", owner_id=uuid.uuid4())
+    link = SimpleNamespace(id=uuid.uuid4(), signin_needed_since=None)
+    session = Session([("login", "Example Bank", "Everyday")], "user@example.test")
+    [signin_email] = await flag_signin_needed(session, connection, [link], at=None)
+    return json.loads(options)["rp"]["name"], signin_email.message.text_body
+
+senders.aiosmtplib.send = record
+passkey_name, signin_email_text = asyncio.run(main())
+print(json.dumps([
+    passkey_name,
+    delivered[0]["From"],
+    render_reset_email("https://app.example.test/reset", 15).html_body,
+    signin_email_text,
+    app_version.UPDATE_CHECKS_ENABLED,
+]))
+"""
 
 
-def test_retired_runtime_and_passkey_name_settings_are_ignored():
-    """An install still setting RUNTIME, to any value, or WEBAUTHN_RP_NAME starts as usual
+def test_runtime_and_service_name_settings_are_ignored():
+    """An install setting RUNTIME, or any variable naming another service, starts as usual with the fixed names
 
-    The passkey prompt keeps its fixed name, and update checks follow UPDATE_CHECKS_ENABLED alone
+    No variable reaches the service name, since users trust a mail's sender name. The passkey
+    prompt and the mail keep their fixed names, and update checks follow UPDATE_CHECKS_ENABLED alone
     """
-    settings = {"RUNTIME": "other", "WEBAUTHN_RP_NAME": "Custom Name", "UPDATE_CHECKS_ENABLED": "false"}
+    settings = {
+        # Passkey options need an app address to name the relying party
+        "APP_URL": "https://app.example.test",
+        "RUNTIME": "other",
+        "WEBAUTHN_RP_NAME": "Another Service",
+        "EMAIL_SENDER_NAME": "Another Service",
+        "SERVICE_NAME": "Another Service",
+        "APP_NAME": "Another Service",
+        "MAIL_FROM": "no-reply@example.test",
+        "UPDATE_CHECKS_ENABLED": "false",
+    }
 
-    assert _output(_start_app(_RETIRED_SETTINGS_SCRIPT, settings)) == ["Lumina Finance Self-Hosted", False]
+    passkey_name, from_header, reset_email_html, signin_email_text, are_update_checks_enabled = _output(
+        _start_app(_SERVICE_NAME_SCRIPT, settings)
+    )
+
+    assert passkey_name == "Lumina Finance Self-Hosted"
+    assert from_header == '"Lumina Finance (Self-Hosted)" <no-reply@example.test>'
+    assert ">Lumina Finance (Self-Hosted)</td>" in reset_email_html
+    assert "Another Service" not in reset_email_html
+    assert signin_email_text.endswith("\n\nLumina Finance checks each day and resumes syncing after you sign in again.")
+    assert "Another Service" not in signin_email_text
+    assert are_update_checks_enabled is False
 
 
 _LOGGING_BACKEND_WARNING_LINE = "WARNING app.main: EMAIL_BACKEND is set to logging"
