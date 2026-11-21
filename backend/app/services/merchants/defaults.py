@@ -1,6 +1,9 @@
 """System merchant defaults and seeding"""
 
-from sqlalchemy import select
+import uuid
+
+from sqlalchemy import func, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.merchant import Merchant
@@ -30,25 +33,18 @@ async def seed_system_merchants(db: AsyncSession) -> list[str]:
     Returns:
         Names of the merchants this run created, which is empty where they were all already there
     """
-    # Fetch the existing system merchants by name so seeding can run against a database that
-    # already has some of them
-    existing_result = await db.execute(
-        select(Merchant.name).where(Merchant.is_system.is_(True)),
-    )
-    existing_names = set(existing_result.scalars().all())
+    rows = [
+        {"id": uuid.uuid4(), "owner_id": None, "group_id": None, "name": name, "is_system": True, "default_category_id": None}
+        for name in SYSTEM_MERCHANT_NAMES
+    ]
 
-    created_names = []
-    for name in SYSTEM_MERCHANT_NAMES:
-        if name in existing_names:
-            continue
-        db.add(
-            Merchant(
-                owner_id=None,
-                group_id=None,
-                name=name,
-                is_system=True,
-                default_category_id=None,
-            )
-        )
-        created_names.append(name)
-    return created_names
+    # One statement against the unique index on the folded system name, so a run beside this one waits
+    # for it and then finds the merchants there. The predicate is written as the index's own, since
+    # the database picks the index by it
+    result = await db.execute(
+        insert(Merchant)
+        .values(rows)
+        .on_conflict_do_nothing(index_elements=[func.lower(Merchant.name)], index_where=text("is_system = true"))
+        .returning(Merchant.name)
+    )
+    return list(result.scalars().all())
