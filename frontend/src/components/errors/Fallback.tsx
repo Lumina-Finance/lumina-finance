@@ -1,18 +1,18 @@
-import FailureBlock from '@/components/errors/FailureBlock';
-import { useServerReachability } from '@/hooks/useServerReachability';
+import FailureBlock from '@/components/errors/FailureBlock'
+import { useServerReachability } from '@/hooks/useServerReachability'
 
-export type FallbackVariant = 'card' | 'screen';
+export type FallbackVariant = 'card' | 'screen'
 
 interface FallbackProps {
-  componentStack: string | null;
-  error: unknown;
+  componentStack: string | null
+  error: unknown
 
   // Keeps the reload from emptying this browser's storage. Set it where the failure is known to be a
   // network one, since the wipe exists to clear state that could have caused a render error, and it
   // otherwise takes the theme, the sidebar width and the whole cached query data with it for nothing
-  preserveStoredData?: boolean;
+  preserveStoredData?: boolean
 
-  variant: FallbackVariant;
+  variant: FallbackVariant
 }
 
 /**
@@ -25,7 +25,7 @@ interface FallbackProps {
 export default function Fallback({ componentStack, error, preserveStoredData = false, variant }: FallbackProps) {
   // Until the probe comes back the message assumes a bug, since that is the only thing the user
   // can act on. An unreachable server rewrites it rather than the other way round
-  const serverUnreachable = useServerReachability() === 'unreachable';
+  const serverUnreachable = useServerReachability() === 'unreachable'
 
   const content = (
     <FailureBlock
@@ -33,19 +33,19 @@ export default function Fallback({ componentStack, error, preserveStoredData = f
       error={error}
       // The last word and the face are held together, or a narrow screen breaks between them and
       // leaves the bracket opening the next line as stray punctuation
-      heading={(
+      heading={
         <>
           OK this was not in the{' '}
           <span className="whitespace-nowrap">
             plan <span aria-hidden>:(</span>
           </span>
         </>
-      )}
+      }
       preserveStoredData={preserveStoredData}
       serverUnreachable={serverUnreachable}
       size={variant}
     />
-  );
+  )
 
   if (variant === 'screen') {
     return (
@@ -55,7 +55,7 @@ export default function Fallback({ componentStack, error, preserveStoredData = f
       >
         <div className="w-full max-w-md">{content}</div>
       </div>
-    );
+    )
   }
 
   return (
@@ -69,5 +69,5 @@ export default function Fallback({ componentStack, error, preserveStoredData = f
         {content}
       </div>
     </div>
-  );
+  )
 }
