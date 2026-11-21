@@ -1,4 +1,6 @@
-import { ApiError } from '@/api/auth'
+import { ApiError, MAINTENANCE_MESSAGE } from '@/api/auth'
+import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
+import { useServerNotice } from '@/api/version'
 import FailureBlock from '@/components/errors/FailureBlock'
 import { useServerReachability } from '@/hooks/useServerReachability'
 
@@ -30,13 +32,18 @@ export default function Fallback({ componentStack, error, preserveStoredData = f
   // can act on. An unreachable server rewrites it rather than the other way round
   const serverUnreachable = useServerReachability() === 'unreachable'
 
-  // A server in maintenance did answer, so nothing is unreachable and no bug is behind the screen
-  const isMaintenance = error instanceof ApiError && error.isMaintenance
+  // A server in maintenance is no bug and no unreachable server. That holds when its answer carries the
+  // maintenance marker, and when the maintenance file reports it for a request the server never answered
+  const notice = useServerNotice()
+  const isUnanswered =
+    (error instanceof TypeError && error.message === SERVER_UNREACHABLE_MESSAGE) ||
+    (error instanceof DOMException && error.name === 'TimeoutError')
+  const isMaintenance = (error instanceof ApiError && error.isMaintenance) || (isUnanswered && notice === 'maintenance')
 
   const content = (
     <FailureBlock
       componentStack={componentStack}
-      detail={isMaintenance ? error.detail : null}
+      detail={isMaintenance ? MAINTENANCE_MESSAGE : null}
       error={error}
       // The last word and the face are held together, or a narrow screen breaks between them and
       // leaves the bracket opening the next line as stray punctuation

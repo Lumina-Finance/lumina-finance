@@ -1,5 +1,6 @@
-import { isMaintenanceAnswer, MAINTENANCE_STATUS } from '@/api/auth/errors'
+import { GATEWAY_STATUSES, isMaintenanceAnswer } from '@/api/auth/errors'
 import { API_BASE } from '@/api/config'
+import { checkMaintenanceFile } from '@/api/version/maintenanceFile'
 import { reportMaintenance } from '@/api/version/serverState'
 
 // How long a request to the server may go unanswered before it fails, so a screen waiting on one that
@@ -56,6 +57,7 @@ export function fetchFromServer(
 
   return fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal })
     .catch((error: unknown) => {
+      if (isUnanswered(error)) void checkMaintenanceFile()
       throw explainRequestFailure(error)
     })
     .then(async (response) => {
@@ -65,20 +67,36 @@ export function fetchFromServer(
 }
 
 /**
+ * Whether a request failed with no answer from the server: a dropped connection, or the limit above.
+ * A caller's own abort is not one
+ */
+function isUnanswered(error: unknown) {
+  return error instanceof TypeError || (error instanceof DOMException && error.name === 'TimeoutError')
+}
+
+// The app itself answers a gateway status with a detail, such as a 502 for a provider it couldn't reach
+function hasDetail(body: unknown) {
+  return typeof body === 'object' && body !== null && typeof (body as { detail?: unknown }).detail === 'string'
+}
+
+/**
  * Tells the page whether the server is in maintenance from an answer, for every kind of request
  * alike, so a screen that fails to load and one that restores a session read the same state. An
- * answer the server accepts ends it. Only the 503 that could be a maintenance is read, from a copy
- * so the caller still gets the body
+ * answer the server accepts ends it. Only a gateway's failure status could be a maintenance. A 503
+ * whose body carries the maintenance marker is one, read from a copy so the caller still gets the body.
+ * Any other gateway failure has the page ask the maintenance file instead, as it does for a request
+ * with no answer
  */
 async function noteMaintenance(response: Response) {
   if (response.ok) {
     reportMaintenance(false)
     return
   }
-  if (response.status !== MAINTENANCE_STATUS) return
+  if (!GATEWAY_STATUSES.has(response.status)) return
   const body: unknown = await response
     .clone()
     .json()
     .catch(() => null)
   if (isMaintenanceAnswer(response.status, body)) reportMaintenance(true)
+  else if (!hasDetail(body)) void checkMaintenanceFile()
 }

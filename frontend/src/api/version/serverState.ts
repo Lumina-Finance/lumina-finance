@@ -66,5 +66,7 @@ export function getServerNotice(pageVersion: string = CURRENT_APP_VERSION): Serv
 
 /** What this page should tell the user about the server now, or null while there is nothing to say */
 export function useServerNotice() {
-  return useSyncExternalStore(subscribe, () => getServerNotice())
+  // The same read serves a render with no browser around it, as the screens' tests make
+  const read = () => getServerNotice()
+  return useSyncExternalStore(subscribe, read, read)
 }

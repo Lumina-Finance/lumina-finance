@@ -5,7 +5,7 @@ export const REFRESH_ALREADY_ROTATED_DETAIL = 'Refresh token was already rotated
 
 // What a proxy in front of the app answers with its own page when the app is slow or out of reach.
 // The app sends these too, such as a 502 for a provider it couldn't reach, but always with a detail
-const GATEWAY_STATUSES = new Set([502, 503, 504])
+export const GATEWAY_STATUSES = new Set([502, 503, 504])
 
 // The one status a maintenance answer comes with
 export const MAINTENANCE_STATUS = 503
@@ -144,12 +144,12 @@ function describeRefusedFields(fieldErrors: ApiFieldError[]): string {
  * and neither says anything of maintenance
  */
 export function isMaintenanceAnswer(status: number, body: unknown) {
-  return (
-    status === MAINTENANCE_STATUS &&
-    typeof body === 'object' &&
-    body !== null &&
-    (body as { maintenance?: unknown }).maintenance === true
-  )
+  return status === MAINTENANCE_STATUS && hasMaintenanceMarker(body)
+}
+
+/** Whether a parsed JSON body says `"maintenance": true`, whether a response or a file carries it */
+export function hasMaintenanceMarker(body: unknown) {
+  return typeof body === 'object' && body !== null && (body as { maintenance?: unknown }).maintenance === true
 }
 
 /**

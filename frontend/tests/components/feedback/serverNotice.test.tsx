@@ -4,8 +4,10 @@
  * a screen that failed to load during maintenance never says the server couldn't be reached
  */
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { buildApiError, MAINTENANCE_MESSAGE } from '@/api/auth'
+import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
+import { reportMaintenance } from '@/api/version'
 import Fallback from '@/components/errors/Fallback'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { ServerNoticeView } from '@/components/feedback/ServerNotice'
@@ -55,5 +57,33 @@ describe('the screen shown when opening the app fails during maintenance', () =>
     expect(markup).toContain(MAINTENANCE_MESSAGE)
     expect(markup).not.toContain('reach the server')
     expect(markup).not.toContain('not in the')
+  })
+})
+
+describe('the screen shown when the server answers nothing during a maintenance', () => {
+  afterEach(() => {
+    reportMaintenance(false)
+  })
+
+  it('says the server is in maintenance when the maintenance file says so, not that it is unreachable', () => {
+    reportMaintenance(true)
+    const error = new TypeError(SERVER_UNREACHABLE_MESSAGE)
+
+    const markup = renderToStaticMarkup(<Fallback componentStack={null} error={error} variant="screen" />)
+
+    expect(markup).toContain(MAINTENANCE_MESSAGE)
+    expect(markup).not.toContain('reach the server')
+    expect(markup).not.toContain('not in the')
+  })
+
+  it('keeps saying something broke when the screen failed for another reason', () => {
+    reportMaintenance(true)
+
+    const markup = renderToStaticMarkup(
+      <Fallback componentStack={null} error={new TypeError('x is undefined')} variant="screen" />,
+    )
+
+    expect(markup).not.toContain(MAINTENANCE_MESSAGE)
+    expect(markup).toContain('not in the')
   })
 })
