@@ -1,10 +1,10 @@
 """Auth JWKS route helpers"""
+
 from typing import Any
 
 from jwt.algorithms import RSAAlgorithm
 
-from app.config.jwt import JWT_ACCESS_KID, JWT_ALGORITHM, JWT_REFRESH_KID
-from app.routes.auth.token_helpers import get_access_public_key, get_refresh_public_key
+from app.config.jwt import JWT_ACCESS_KID, JWT_ACCESS_PUBLIC_KEY, JWT_ALGORITHM, JWT_REFRESH_KID, JWT_REFRESH_PUBLIC_KEY
 
 
 def build_jwks_response() -> dict[str, list[dict[str, Any]]]:
@@ -13,12 +13,12 @@ def build_jwks_response() -> dict[str, list[dict[str, Any]]]:
     Returns:
         JWKS document containing access and refresh public keys
     """
-    access_jwk = RSAAlgorithm.to_jwk(get_access_public_key(), as_dict=True)
+    access_jwk = RSAAlgorithm.to_jwk(JWT_ACCESS_PUBLIC_KEY, as_dict=True)
     access_jwk["use"] = "sig"
     access_jwk["kid"] = JWT_ACCESS_KID
     access_jwk["alg"] = JWT_ALGORITHM
 
-    refresh_jwk = RSAAlgorithm.to_jwk(get_refresh_public_key(), as_dict=True)
+    refresh_jwk = RSAAlgorithm.to_jwk(JWT_REFRESH_PUBLIC_KEY, as_dict=True)
     refresh_jwk["use"] = "sig"
     refresh_jwk["kid"] = JWT_REFRESH_KID
     refresh_jwk["alg"] = JWT_ALGORITHM

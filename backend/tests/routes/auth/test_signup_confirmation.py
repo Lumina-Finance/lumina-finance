@@ -8,8 +8,8 @@ from datetime import UTC, datetime, timedelta
 import aiosmtplib
 import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from sqlalchemy import func as sa_func
 from sqlalchemy import select
 
@@ -26,11 +26,7 @@ from tests.routes.support.mailbox import mailbox
 
 _PROFILE = {key: value for key, value in SIGNUP_PAYLOAD.items() if key != "password"}
 _NEW_PASSWORD = "AnotherPassword456!"
-_FOREIGN_KEY = (
-    rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    .private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
-    .decode()
-)
+_FOREIGN_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 
 def _link_token(
@@ -40,7 +36,7 @@ def _link_token(
     token_use: str = SIGNUP_CONFIRMATION_TOKEN_USE,
     audience: str = SIGNUP_CONFIRMATION_TOKEN_USE,
     issuer: str = JWT_ISSUER,
-    key: str = JWT_ACCESS_PRIVATE_KEY,
+    key: RSAPrivateKey = JWT_ACCESS_PRIVATE_KEY,
 ) -> str:
     """Return a signed confirmation token built to be valid, with one field changeable per edge-case test"""
     issued_at = datetime.now(UTC)
