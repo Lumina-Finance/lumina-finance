@@ -34,6 +34,11 @@ def set_email_sender(sender: EmailSender) -> None:
     _active_sender = sender
 
 
+def is_email_sender_installed() -> bool:
+    """Return whether a sender is installed"""
+    return _active_sender is not None
+
+
 def get_email_sender() -> EmailSender:
     """Return the installed email sender
 

@@ -5,6 +5,7 @@ the same change as its entry in the table below, never a side effect of a refact
 """
 
 import inspect
+import os
 import re
 import subprocess
 import sys
@@ -103,6 +104,48 @@ def test_a_name_that_is_not_a_point_is_not_there():
     """Only the listed points are supported, so another name of the app is not reachable through the module"""
     with pytest.raises(AttributeError):
         extension.get_db  # noqa: B018
+
+
+# Run in a fresh interpreter, since this test process read the app long ago. It prints the installed
+# sender's class name after the app is read, with or without installing its own sender first
+READ_APP_PROGRAM = """
+import sys
+import app.extension as extension
+from app.services.email.contract import get_email_sender
+
+class OwnSender:
+    async def send(self, recipient, message):
+        pass
+
+if sys.argv[1] == "install":
+    extension.set_email_sender(OwnSender())
+extension.app
+print(type(get_email_sender()).__name__)
+"""
+
+# The start-up warning that sign-up and reset links go to the log, said when the logging sender is configured
+LOGGING_BACKEND_WARNING_START = "EMAIL_BACKEND is set to logging"
+
+
+@pytest.mark.parametrize(
+    ("installs_first", "installed", "warns"),
+    [(True, "OwnSender", False), (False, "LoggingEmailSender", True)],
+    ids=["own sender first", "nothing first"],
+)
+def test_reading_the_app_installs_the_configured_sender_only_when_none_is_installed(installs_first, installed, warns):
+    """A sender installed before the app is read stays, so its mail never goes to the log, and none installed gets the configured one"""
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", READ_APP_PROGRAM, "install" if installs_first else "none"],
+        cwd=BACKEND_DIRECTORY,
+        env={**os.environ, "EMAIL_BACKEND": "logging"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == installed, "reading the app replaced the installed email sender"
+    assert (LOGGING_BACKEND_WARNING_START in result.stderr) is warns, "the logging warning names a sender that is not installed"
 
 
 def test_importing_the_module_needs_no_settings_and_loads_no_heavy_module():
