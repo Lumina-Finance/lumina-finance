@@ -27,6 +27,7 @@ from app.schemas.auth import (
     AuthResponse,
     ChangePasswordRequest,
     ConfirmSignupRequest,
+    DiscoveryDocumentResponse,
     ForgotPasswordRequest,
     LoginRequest,
     MfaRequiredResponse,
@@ -75,6 +76,7 @@ from app.services.auth import (
     set_first_password,
 )
 from app.services.auth.account_lockout import reset_failed_attempts
+from app.services.auth.discovery import read_discovery_document
 from app.services.auth.password_reset import CompletedPasswordReset
 
 _security = HTTPBearer(auto_error=False)
@@ -646,3 +648,13 @@ async def jwks():
     """
     jwks_response = build_jwks_response()
     return jwks_response
+
+
+@router.get("/.well-known/openid-configuration", response_model=DiscoveryDocumentResponse)
+async def openid_configuration():
+    """Publish the discovery document a token verifier reads to find the signing keys
+
+    Returns:
+        The issuer, the key set address and the signing algorithm
+    """
+    return read_discovery_document()

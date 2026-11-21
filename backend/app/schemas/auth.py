@@ -450,3 +450,11 @@ class PasskeyRegisterResponse(BaseModel):
     # Present only when this passkey is the account's first second factor and is staged pending until
     # these shared recovery codes are saved
     recovery_codes: list[str] | None
+
+
+class DiscoveryDocumentResponse(BaseModel):
+    """What a token verifier reads to find the issuer's signing keys"""
+
+    issuer: str
+    jwks_uri: str
+    id_token_signing_alg_values_supported: list[str]

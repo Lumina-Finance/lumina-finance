@@ -13,6 +13,7 @@ from app.config.jwt import (
 )
 from app.config.oidc import OIDC_ONBOARDING_TOKEN_EXPIRE_SECONDS, OIDC_REAUTH_STEPUP_TOKEN_EXPIRE_SECONDS
 from app.config.two_factor import MFA_CHALLENGE_TOKEN_EXPIRE_SECONDS
+from app.routes.auth import token_helpers
 from app.routes.auth.token_helpers import (
     decode_access_token,
     decode_mfa_challenge_token,
@@ -94,3 +95,8 @@ def test_token_issuers_reuse_validated_signing_keys(monkeypatch, token_use):
             assert claims["sid"] == str(session_id)
         else:
             assert "sid" not in claims
+        # A token names its issuer, so another issuer refuses it
+        monkeypatch.setattr(token_helpers, "JWT_ISSUER", "https://other.example.test/auth")
+        with pytest.raises(jwt.InvalidIssuerError):
+            decode(token)
+        monkeypatch.setattr(token_helpers, "JWT_ISSUER", JWT_ISSUER)
