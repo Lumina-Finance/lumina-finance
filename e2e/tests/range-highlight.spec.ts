@@ -12,20 +12,17 @@ import { logInViaApi, openPage } from '../support/app'
  * appeared and disappeared. The highlight animated the jump of its segment
  */
 
-/** The highlight of the range control that is on screen, since a hidden copy can come first in the page */
-const VISIBLE_THUMB = `
-  [...document.querySelectorAll('[aria-label="Relative range type"] .app-range-seg-thumb')]
-    .find((node) => node.getClientRects().length > 0)
-`
+/** Finds the highlights of the range control, of which the one on screen is wanted, since a hidden copy can come first in the page */
+const THUMB_SELECTOR = '[aria-label="Relative range type"] .app-range-seg-thumb'
 
 /** How far the highlight reaches outside its own segment right now, 0 once it sits on it */
 function reachNow(page: Page): Promise<number> {
-  return page.evaluate((find) => {
-    const thumb = eval(find) as HTMLElement
+  return page.evaluate((selector) => {
+    const thumb = [...document.querySelectorAll<HTMLElement>(selector)].find((node) => node.getClientRects().length > 0)!
     const inner = thumb.getBoundingClientRect()
     const outer = thumb.parentElement!.getBoundingClientRect()
     return Math.max(outer.top - inner.top, inner.bottom - outer.bottom, 0)
-  }, VISIBLE_THUMB)
+  }, THUMB_SELECTOR)
 }
 
 /**
@@ -34,7 +31,7 @@ function reachNow(page: Page): Promise<number> {
  * count
  */
 function chooseAndMeasure(page: Page, optionName: string): Promise<number[]> {
-  return page.evaluate(async ({ name, find }) => {
+  return page.evaluate(async ({ name, selector }) => {
     const option = [...document.querySelectorAll<HTMLElement>('[role="tab"]')]
       .find((tab) => tab.getClientRects().length > 0 && tab.textContent?.trim() === name)!
     option.click()
@@ -42,7 +39,7 @@ function chooseAndMeasure(page: Page, optionName: string): Promise<number[]> {
     const started = performance.now()
     await new Promise<void>((resolve) => {
       const sample = () => {
-        const thumb = eval(find) as HTMLElement | undefined
+        const thumb = [...document.querySelectorAll<HTMLElement>(selector)].find((node) => node.getClientRects().length > 0)
         const segment = thumb?.parentElement
         if (thumb && segment) {
           const inner = thumb.getBoundingClientRect()
@@ -55,7 +52,7 @@ function chooseAndMeasure(page: Page, optionName: string): Promise<number[]> {
       requestAnimationFrame(sample)
     })
     return reach
-  }, { name: optionName, find: VISIBLE_THUMB })
+  }, { name: optionName, selector: THUMB_SELECTOR })
 }
 
 // The slow dev host draws few frames in 700ms, but the first ones are where the highlight used to sit low
