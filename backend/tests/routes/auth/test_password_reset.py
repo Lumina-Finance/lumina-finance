@@ -58,16 +58,15 @@ async def _overlap_reset_requests(client, monkeypatch, first_email, second_email
     release_first = asyncio.Event()
     request_pids = []
     gate_used = False
-    original_lookup = password_reset.find_login_account
+    original_hold = password_reset.hold_reset_issuance
     original_commit = AsyncSession.commit
 
-    async def observe_lookup(db, email):
-        """Identify the real request transactions before they check the allowance"""
-        account = await original_lookup(db, email)
+    async def observe_hold(db, email):
+        """Identify the real request transactions as they reach the issuance lock"""
         request_pids.append(await db.scalar(select(func.pg_backend_pid())))
         if len(request_pids) == 2:
             second_started.set()
-        return account
+        await original_hold(db, email)
 
     async def pause_first_issuance(db):
         """Retain the first transaction that stored a token until the overlap is observed"""
@@ -78,7 +77,7 @@ async def _overlap_reset_requests(client, monkeypatch, first_email, second_email
             await release_first.wait()
         await original_commit(db)
 
-    monkeypatch.setattr(password_reset, "find_login_account", observe_lookup)
+    monkeypatch.setattr(password_reset, "hold_reset_issuance", observe_hold)
     monkeypatch.setattr(AsyncSession, "commit", pause_first_issuance)
     monkeypatch.setattr(password_reset, "try_start_send", lambda user_id: reset_send_limit.SendTicket(user_id=user_id, lease_ends=0.0))
     tasks = []

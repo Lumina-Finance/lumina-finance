@@ -3,15 +3,17 @@
 import asyncio
 import logging
 import uuid
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 import aiosmtplib
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 
 from app.config.email_change import EMAIL_CHANGE_TOKEN_EXPIRE_SECONDS
 from app.email_change_hook import EmailChange
-from app.models.auth import EmailChangeRequest, PasswordCredential
+from app.models.auth import EmailChangeRequest, PasswordCredential, PasswordResetToken
+from app.services.auth import email_change
 from app.services.auth.mfa_challenge import issue_reauth_stepup_proof
 from tests.conftest import TestSession
 from tests.routes.support import (
@@ -27,6 +29,7 @@ from tests.routes.support import (
     sign_up_confirmed,
 )
 from tests.routes.support.auth_helpers import _refresh_session
+from tests.routes.support.lock_helpers import _cancel_unfinished, _wait_until_waiting_on
 from tests.routes.support.mailbox import mailbox
 
 _CHANGE = "/auth/email/change"
@@ -77,6 +80,66 @@ async def _fresh_provider_proof(user_id: str) -> str:
     """Return the proof a fresh provider reauthentication gives the account"""
     async with TestSession() as session:
         return await issue_reauth_stepup_proof(session, uuid.UUID(user_id))
+
+
+async def _live_reset_tokens(user_id: str) -> list[PasswordResetToken]:
+    """Return the account's reset links that would still be accepted"""
+    async with TestSession() as session:
+        live = select(PasswordResetToken).where(
+            PasswordResetToken.user_id == uuid.UUID(user_id),
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.expires_at > func.now(),
+        )
+        return list((await session.scalars(live)).all())
+
+
+@dataclass
+class _HeldConfirmation:
+    """The first confirmation, paused once its writes are made and before its commit, until released"""
+
+    held: asyncio.Event = field(default_factory=asyncio.Event)
+    release: asyncio.Event = field(default_factory=asyncio.Event)
+    pid: int | None = None
+
+
+def _hold_first_confirmation(monkeypatch) -> _HeldConfirmation:
+    """Pause the first confirmation as it ends the account's sessions, its last step before the commit
+
+    By then it holds every lock it takes, so a request that must wait for the change queues behind it
+    """
+    hold = _HeldConfirmation()
+    end_sessions = email_change.delete_all_user_auth_sessions
+
+    async def pause_then_end_sessions(db, user_id):
+        if hold.pid is None:
+            hold.pid = await db.scalar(select(func.pg_backend_pid()))
+            hold.held.set()
+            await hold.release.wait()
+        await end_sessions(db, user_id)
+
+    monkeypatch.setattr(email_change, "delete_all_user_auth_sessions", pause_then_end_sessions)
+    return hold
+
+
+async def _confirm_while_queueing(client, hold: _HeldConfirmation, token: str, queued):
+    """Confirm the link, start the queued request once the confirmation is held, and release it once that request waits on it
+
+    Returns:
+        The confirmation's response and the queued request's response
+    """
+    confirming = asyncio.create_task(_confirm(client, token))
+    requests = [confirming]
+    try:
+        async with asyncio.timeout(10):
+            await hold.held.wait()
+            waiting = asyncio.create_task(queued())
+            requests.append(waiting)
+            await _wait_until_waiting_on(hold.pid, waiting)
+            hold.release.set()
+            return await confirming, await waiting
+    finally:
+        hold.release.set()
+        await _cancel_unfinished(requests)
 
 
 async def test_following_the_emailed_link_shows_the_new_address_after_logging_in(client):
@@ -310,6 +373,22 @@ async def test_confirming_ends_the_unused_password_reset_links_of_the_account_on
     assert dead.status_code == 400
     assert dead.json()["detail"] == "Invalid or expired reset token"
     assert (await client.post("/auth/password/reset/check", json={"token": bystander_link})).status_code == 200
+
+
+async def test_confirm_with_a_reset_request_for_the_old_address_at_once_sends_it_no_working_link(client, monkeypatch):
+    """A reset request for the old address arriving mid-change waits for the change, then finds no account to send a link for"""
+    _, user_id, token = await _signed_up_and_requested(client)
+    hold = _hold_first_confirmation(monkeypatch)
+
+    async def request_reset_for_old_address():
+        return await client.post("/auth/password/forgot", json={"email": _OLD_EMAIL})
+
+    confirmed, reset = await _confirm_while_queueing(client, hold, token, request_reset_for_old_address)
+
+    assert (confirmed.status_code, reset.status_code) == (200, 204)
+    reset_mails = [sent for sent in mailbox.sent_to(_OLD_EMAIL) if "/reset-password?token=" in sent.message.text_body]
+    assert reset_mails == [], "the old mailbox is sent no reset link once the change commits"
+    assert await _live_reset_tokens(user_id) == [], "the account has no reset link that would still be accepted"
 
 
 async def test_confirming_clears_the_sign_in_lockout_of_both_addresses(client):

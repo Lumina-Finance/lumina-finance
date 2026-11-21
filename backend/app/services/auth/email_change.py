@@ -19,6 +19,7 @@ from app.email_change_hook import EmailChange, notify_email_change
 from app.models.auth import EmailChangeRequest, PasswordResetToken
 from app.models.user import User
 from app.services.auth.account_lockout import reset_failed_attempts
+from app.services.auth.password_reset import hold_reset_issuance
 from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.user_lookup import find_user_id_by_email
@@ -158,6 +159,12 @@ async def confirm_email_change(db: AsyncSession, token: str, background_tasks: B
     user_id, new_email = claimed
     old_email = await db.scalar(select(User.email).where(User.id == user_id))
 
+    # Held to the commit, so a reset request for the old address either commits its link before this
+    # change marks the account's links used below, or waits and then finds no account under that address.
+    # Taken before any write to the account's row, so this wait never holds a row lock a reset request
+    # could queue behind
+    await hold_reset_issuance(db, old_email)
+
     # Another account can take the address between the request and now, and the unique index turns that
     # race into the same refusal as any other failed link
     try:
@@ -171,7 +178,8 @@ async def confirm_email_change(db: AsyncSession, token: str, background_tasks: B
     await reset_failed_attempts(db, new_email)
 
     # A reset link is tied to the account rather than the address, so one sent to the old mailbox would
-    # still sign someone in after the change
+    # still sign someone in after the change. The lock above means every link issued for the old address
+    # has committed by now, so this reaches them all
     await db.execute(
         update(PasswordResetToken)
         .where(PasswordResetToken.user_id == user_id, PasswordResetToken.used_at.is_(None))
