@@ -56,8 +56,8 @@ _SNAPSHOT = """
 """
 
 # Everything a run of bootstrap sets, in one value: the two roles, their settings and memberships, the
-# owners of the schema's objects, and the database's and schema's grants. The password hash is left
-# out, since every run sets the password again
+# owners of the schema's objects, and the database's and schema's grants. It holds no password, since
+# pg_roles shows every password as asterisks
 _BOOTSTRAP_SNAPSHOT = """
     SELECT jsonb_build_object(
         'roles', (
