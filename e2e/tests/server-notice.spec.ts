@@ -40,9 +40,11 @@ test('shows a maintenance state in place of an unreachable server, and clears it
     await route.fulfill({ status: 503, json: { detail: 'Back soon', maintenance: true } })
   })
 
+  // Built from the server's address, since a server under a path prefix puts it in front
+  const cacheStatusPath = new URL(`${API_BASE_URL}/me/cache-status`).pathname
   let cacheChecks = 0
   page.on('request', (request) => {
-    if (new URL(request.url()).pathname === '/me/cache-status') cacheChecks += 1
+    if (new URL(request.url()).pathname === cacheStatusPath) cacheChecks += 1
   })
 
   await logInViaApi(page, user)
@@ -90,8 +92,11 @@ test('shows a maintenance state in place of an unreachable server, and clears it
   isInMaintenance = false
   const checksBeforeJump = cacheChecks
   await page.clock.fastForward(30_000)
-  // Requests run in real time, so a check made by the jump needs a moment to show in the count
-  await page.waitForTimeout(500)
+  // A check made by the jump is sent before this request, so its count is in by the time this one
+  // is answered. The request bypasses the app, so its answer leaves the notice as it was
+  await page.evaluate(async (url) => {
+    await fetch(url)
+  }, `${API_BASE_URL}/version`)
   expect(cacheChecks).toBe(checksBeforeJump)
   await expect(notice).toBeVisible()
   await page.clock.fastForward(31_000)
@@ -132,7 +137,6 @@ test('says the server is in maintenance from the maintenance file when the app i
 
   await page.goto('/')
 
-  // The notice and the full-screen state both say it, so two elements match
-  await expect(page.getByText(MAINTENANCE_NOTICE, { exact: true }).first()).toBeVisible()
+  await expect(page.getByText(MAINTENANCE_NOTICE, { exact: true })).toBeVisible()
   await expect(page.getByText(/reach the server/)).toHaveCount(0)
 })
