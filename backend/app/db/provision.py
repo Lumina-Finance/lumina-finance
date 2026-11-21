@@ -140,7 +140,8 @@ async def ensure_roles() -> None:
     """Create the migrator and app roles and grant their baseline access
 
     Works for an admin login with or without superuser rights. Role attributes are set only when a
-    role is created, and a later run sets the password alone, after refusing a role that has drifted
+    role is created. Each run refuses a role that has drifted, then sets both
+    passwords, grants and reads back the baseline access, and sets the app role's two limits again
     """
     engine = _create_admin_engine()
     try:
@@ -208,8 +209,8 @@ async def transfer_schema_ownership() -> None:
     A restored dump owns these as the restoring role, while migrations and the row-level
     security re-apply run as the migrator and must own the objects they change. Enum types are
     included so a later migration can alter one, such as adding an enum value. An object the migrator
-    already owns is left alone, so a start with nothing to move takes no table locks, since changing
-    an owner locks its table even when the owner stays the same
+    already owns is left alone, since changing an owner locks its table even when the owner stays the
+    same, so this step takes no table lock when there is nothing to move
     """
     engine = _create_admin_engine()
     try:
@@ -234,6 +235,8 @@ def _reapply_row_level_security(sync_connection) -> None:
 
 async def apply_row_level_security() -> None:
     """Rebuild row-level security so a restored dump regains its app role grants
+
+    Every policy is dropped and rebuilt, which locks every table until the rebuild commits
 
     A development restore strips ACLs and arrives at migration head, so the bootstrap
     RLS migration never re-runs, this re-applies the policies and grants from the app

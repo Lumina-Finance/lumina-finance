@@ -117,8 +117,11 @@ async def test_a_restored_dump_is_handed_to_the_migrator_by_an_admin_without_sup
         assert await query(app_engine, "SELECT count(*) FROM users") == 0, "the policies and grants were rebuilt for the app role"
 
 
-async def test_a_run_with_nothing_to_move_waits_for_no_table_lock(provision_into):
-    """Changing an owner locks its table even when the owner stays the same, so set-up must leave owned tables alone
+async def test_ownership_transfer_with_nothing_to_move_waits_for_no_table_lock(provision_into):
+    """Changing an owner locks its table even when the owner stays the same, so the transfer must leave owned tables alone
+
+    The rebuild of the policies that follows on every start still locks every table, so this holds for
+    the admin's two steps only
 
     The migrator holds the heaviest lock on a table, as a running migration would, and the admin cancels
     any statement that waits for a lock, so a run that reached the table fails
