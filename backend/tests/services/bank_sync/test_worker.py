@@ -334,6 +334,47 @@ async def test_worker_stops_on_sigterm_once_its_runners_have_finished(monkeypatc
         await running
 
 
+@pytest.mark.parametrize("installs_first", [True, False], ids=["own sender first", "nothing first"])
+async def test_worker_keeps_a_sender_installed_before_it_starts_and_else_installs_the_configured_one(
+    monkeypatch, installs_first
+):
+    """Code outside the app may install its own sender and then start the app's worker, which keeps that sender"""
+    handlers = {}
+    scanned = asyncio.Event()
+    own_sender = SimpleNamespace(name="own")
+    configured_sender = SimpleNamespace(name="configured")
+
+    async def scan() -> None:
+        """Note the scan happened"""
+        scanned.set()
+
+    async def nothing(*_) -> None:
+        """Stand in for a start-up check"""
+
+    @contextlib.asynccontextmanager
+    async def connect():
+        """Stand in for a database connection"""
+        yield None
+
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "add_signal_handler", lambda sig, callback, *args: handlers.__setitem__(sig, callback))
+    monkeypatch.setattr(worker, "enqueue_due_work", scan)
+    monkeypatch.setattr(worker, "_wait_for_database", nothing)
+    monkeypatch.setattr(worker, "verify_app_role_is_unprivileged", nothing)
+    monkeypatch.setattr(worker, "verify_key_matches_data", nothing)
+    monkeypatch.setattr(worker, "engine", SimpleNamespace(connect=connect, dispose=nothing))
+    monkeypatch.setattr(worker, "build_email_sender", lambda: configured_sender)
+    monkeypatch.setattr(email_contract, "_active_sender", own_sender if installs_first else None)
+
+    async with asyncio.timeout(_WAIT_SECONDS):
+        running = asyncio.create_task(worker.run_worker())
+        await scanned.wait()
+        handlers[signal.SIGTERM]()
+        await running
+
+    assert email_contract.get_email_sender() is (own_sender if installs_first else configured_sender)
+
+
 async def test_worker_with_no_provider_enabled_keeps_its_heartbeat_and_claims_nothing(monkeypatch, frozen_now):
     """A worker container on a server offering no bank provider stays healthy without scanning or claiming"""
     handlers = {}

@@ -26,6 +26,7 @@ SUPPORTED_POINTS: dict[str, str] = {
     "set_service_name": "app.services.service_name:set_service_name",
     "enqueue_due_work": "app.services.bank_sync.worker:enqueue_due_work",
     "run_jobs": "app.services.bank_sync.worker:run_jobs",
+    "run_worker": "app.services.bank_sync.worker:run_worker",
     "prune_expired_records": "app.services.maintenance.expired_records:prune_expired_records",
     "run_migrate": "app.db.jobs:run_migrate",
     "verify_app_role_is_unprivileged": "app.database:verify_app_role_is_unprivileged",

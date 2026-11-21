@@ -65,6 +65,7 @@ EXPECTED_SHAPES: dict[str, str] = {
     "set_service_name": "set_service_name(name: str) -> None",
     "enqueue_due_work": "async enqueue_due_work() -> None",
     "run_jobs": "async run_jobs(max_jobs: int, deadline: datetime | None = ...) -> int",
+    "run_worker": "async run_worker() -> None",
     "prune_expired_records": "async prune_expired_records(session_factory: async_sessionmaker[AsyncSession] = ...) -> None",
     "run_migrate": "async run_migrate() -> None",
     "verify_app_role_is_unprivileged": "async verify_app_role_is_unprivileged() -> None",
