@@ -146,11 +146,8 @@ def main() -> None:
     if len(sys.argv) != 2 or sys.argv[1] not in _JOBS:
         sys.exit(f"Usage: python -m app.db.jobs {{{'|'.join(_JOBS)}}}")
 
-    # The app's own messages and the migrations', leaving out what other libraries log as they load.
     # Run as a script this module is named __main__, outside the app's loggers, so it is named too
-    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
-    for name in ("app", "alembic", __name__):
-        logging.getLogger(name).setLevel(logging.INFO)
+    seeds.log_command_progress("alembic", __name__)
     asyncio.run(_JOBS[sys.argv[1]]())
 
 

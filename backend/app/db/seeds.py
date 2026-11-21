@@ -45,8 +45,19 @@ async def seed_reference_data(names: Sequence[str] = tuple(SEEDS)) -> None:
         await engine.dispose()
 
 
+def log_command_progress(*logger_names: str) -> None:
+    """Write the named loggers' messages and the app's own to the console as a set-up command runs
+
+    Args:
+        logger_names: Loggers outside the app's own to write too, such as a module run as a script
+    """
+    # Leaves out what the libraries log as they load
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    for name in ("app", *logger_names):
+        logging.getLogger(name).setLevel(logging.INFO)
+
+
 def run_seeds(names: Sequence[str]) -> None:
     """Seed the named reference data from the command line, logging each seed as it finishes"""
-    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
-    logger.setLevel(logging.INFO)
+    log_command_progress()
     asyncio.run(seed_reference_data(names))
