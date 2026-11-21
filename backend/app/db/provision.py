@@ -90,25 +90,24 @@ async def _refuse_drifted_roles(conn: AsyncConnection) -> None:
 async def _set_password(conn: AsyncConnection, role_name: str, password: str) -> None:
     """Set a role's password without the password appearing in any statement the database can log
 
-    The password travels as a bound value to a statement that cannot fail, and the statement that
-    applies it reads it back on the server. That statement's own failure is caught and raised again
-    without its text, since the database logs the text of the statement that failed, password included
+    The password travels as a bound value, which the admin engine keeps out of its errors, to a
+    session setting the statement that applies it reads back on the server. That statement's own
+    failure is caught and raised again without its text, since the database logs the text of the
+    statement that failed, password included. The setting lives only in this connection. The next
+    role's password replaces it, and closing the engine ends it
     """
     await conn.execute(text("SELECT set_config(:setting, :password, false)"), {"setting": _CREDENTIAL_SETTING, "password": password})
-    try:
-        await conn.execute(
-            text(
-                "DO $$ DECLARE detail text; BEGIN "
-                f"EXECUTE format('ALTER ROLE %I PASSWORD %L', '{role_name}', current_setting('{_CREDENTIAL_SETTING}')); "
-                "EXCEPTION WHEN OTHERS THEN "
-                "GET STACKED DIAGNOSTICS detail = PG_EXCEPTION_DETAIL; "
-                f"RAISE EXCEPTION 'Could not set the password of the database role \"%\": %', '{role_name}', SQLERRM "
-                "USING ERRCODE = SQLSTATE, DETAIL = detail; "
-                "END $$"
-            )
+    await conn.execute(
+        text(
+            "DO $$ DECLARE detail text; BEGIN "
+            f"EXECUTE format('ALTER ROLE %I PASSWORD %L', '{role_name}', current_setting('{_CREDENTIAL_SETTING}')); "
+            "EXCEPTION WHEN OTHERS THEN "
+            "GET STACKED DIAGNOSTICS detail = PG_EXCEPTION_DETAIL; "
+            f"RAISE EXCEPTION 'Could not set the password of the database role \"%\": %', '{role_name}', SQLERRM "
+            "USING ERRCODE = SQLSTATE, DETAIL = detail; "
+            "END $$"
         )
-    finally:
-        await conn.execute(text("SELECT set_config(:setting, '', false)"), {"setting": _CREDENTIAL_SETTING})
+    )
 
 
 async def _verify_baseline_access(conn: AsyncConnection) -> None:
@@ -140,7 +139,8 @@ async def ensure_roles() -> None:
     """Create the migrator and app roles and grant their baseline access
 
     Works for an admin login with or without superuser rights. Role attributes are set only when a
-    role is created, and a later run sets the password alone, after refusing a role that has drifted
+    role is created. Each run refuses a role that has drifted, then sets both
+    passwords, grants and reads back the baseline access, and sets the app role's two limits again
     """
     engine = _create_admin_engine()
     try:
@@ -208,8 +208,8 @@ async def transfer_schema_ownership() -> None:
     A restored dump owns these as the restoring role, while migrations and the row-level
     security re-apply run as the migrator and must own the objects they change. Enum types are
     included so a later migration can alter one, such as adding an enum value. An object the migrator
-    already owns is left alone, so a start with nothing to move takes no table locks, since changing
-    an owner locks its table even when the owner stays the same
+    already owns is left alone, since changing an owner locks its table even when the owner stays the
+    same, so this step takes no table lock when there is nothing to move
     """
     engine = _create_admin_engine()
     try:
@@ -234,6 +234,8 @@ def _reapply_row_level_security(sync_connection) -> None:
 
 async def apply_row_level_security() -> None:
     """Rebuild row-level security so a restored dump regains its app role grants
+
+    Every policy is dropped and rebuilt, which locks every table until the rebuild commits
 
     A development restore strips ACLs and arrives at migration head, so the bootstrap
     RLS migration never re-runs, this re-applies the policies and grants from the app

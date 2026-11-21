@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app import database
 from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
-from app.db import provision
+from app.db import credentials, provision
 from app.db.rls import apply_rls
 from app.models.base import Base
 from tests.db.support import (
@@ -117,8 +117,11 @@ async def test_a_restored_dump_is_handed_to_the_migrator_by_an_admin_without_sup
         assert await query(app_engine, "SELECT count(*) FROM users") == 0, "the policies and grants were rebuilt for the app role"
 
 
-async def test_a_run_with_nothing_to_move_waits_for_no_table_lock(provision_into):
-    """Changing an owner locks its table even when the owner stays the same, so set-up must leave owned tables alone
+async def test_ownership_transfer_with_nothing_to_move_waits_for_no_table_lock(provision_into):
+    """Changing an owner locks its table even when the owner stays the same, so the transfer must leave owned tables alone
+
+    The rebuild of the policies that follows on every start still locks every table, so this holds for
+    the admin's two steps only
 
     The migrator holds the heaviest lock on a table, as a running migration would, and the admin cancels
     any statement that waits for a lock, so a run that reached the table fails
@@ -194,6 +197,48 @@ async def test_a_failed_password_change_names_the_role_and_never_shows_the_passw
         server_log = cluster.logs()
         assert f'Could not set the password of the database role "{MIGRATOR_DB_USER}"' in server_log, "the log holds the failure"
         assert _SECRET not in server_log, "the database's own log leaves the password out"
+
+
+async def test_roles_another_login_created_are_set_up_once_the_admin_is_given_their_administration(provision_into):
+    """The recovery the docs give: the admin gets the same administration of each role its creator would get
+
+    Without it the admin may not set the passwords of roles it did not create
+    """
+    async with provision_into(RESTRICTED_ADMIN_LOGIN) as target:
+        # Created by the superuser, so the admin holds no right over them
+        for role in (MIGRATOR_DB_USER, APP_DB_USER):
+            await query(target.superuser(), f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS')
+        with pytest.raises(DBAPIError, match="Could not set the password"):
+            await provision.ensure_roles()
+
+        await query(
+            target.superuser(),
+            f'GRANT "{MIGRATOR_DB_USER}", "{APP_DB_USER}" TO {RESTRICTED_ADMIN_LOGIN} WITH ADMIN OPTION, INHERIT FALSE, SET FALSE',
+        )
+        await provision.ensure_roles()
+        await _build_schema_as(target.engine(RESTRICTED_ADMIN_LOGIN, LOGIN_PASSWORD))
+        await provision.transfer_schema_ownership()
+
+        assert await query(target.superuser(), _NOT_OWNED_BY_MIGRATOR.format(migrator=MIGRATOR_DB_USER)) == 0, "the migrator owns the schema"
+        assert await query(target.engine(MIGRATOR_DB_USER, MIGRATOR_PASSWORD), "SELECT current_user") == MIGRATOR_DB_USER
+        assert await query(target.engine(APP_DB_USER, APP_PASSWORD), "SHOW statement_timeout") == "1min", "the app role got its limits"
+
+
+async def test_a_password_the_database_refuses_as_text_never_shows_in_the_error(provision_into, tmp_path, monkeypatch):
+    """A saved password file edited by hand can hold a NUL, which the database refuses in the statement carrying it
+
+    The statement's bound values stay out of the error and its traceback
+    """
+    async with provision_into(RESTRICTED_ADMIN_LOGIN):
+        monkeypatch.delenv("MIGRATOR_DB_PASSWORD")
+        monkeypatch.delenv("APP_DB_PASSWORD")
+        monkeypatch.setattr(credentials, "_SECRETS_DIR", tmp_path)
+        (tmp_path / "migrator_db_password").write_text(f"{_SECRET}\x00")
+
+        with pytest.raises(DBAPIError, match="invalid byte sequence") as failure:
+            await provision.ensure_roles()
+
+        assert _SECRET not in "".join(traceback.format_exception(failure.value)), "the error and its traceback leave the password out"
 
 
 async def test_set_up_refuses_when_the_admin_cannot_give_the_roles_their_access(provision_into):

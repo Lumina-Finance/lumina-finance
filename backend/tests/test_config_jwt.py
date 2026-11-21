@@ -16,6 +16,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
 from app.config.jwt import load_signing_key
+from app.db.credentials import resolve_role_password
+from tests.conftest import WORKER_DB_NAME
 
 _BACKEND_DIR = Path(__file__).resolve().parents[1]
 
@@ -162,8 +164,9 @@ def test_start_up_stops_naming_whichever_key_is_bad(tmp_path, broken, intact, na
     assert f"The {name} token signing key was not found" in completed.stderr
 
 
-# Counts the private keys parsed while the whole app loads, then reads the other secrets and asks the app
-# whether it is healthy. Absence of the data folder is simulated so the answer does not depend on the machine
+# Counts the private keys parsed while the whole app loads, runs the app's own start-up, its database checks
+# included, asks the running app for its health and its public keys, then reads the other secrets.
+# Absence of the data folder is simulated so the answer does not depend on the machine
 _START_SCRIPT = """
 import json
 import pathlib
@@ -182,20 +185,24 @@ from app.bank_transaction_key import resolve_key
 from app.encryption import resolve_encryption_key
 from app.main import app
 
-health = TestClient(app).get("/health").status_code
+with TestClient(app) as client:
+    health = client.get("/health").status_code
+    public_keys = client.get("/auth/.well-known/jwks.json").status_code
 print(json.dumps({
     "parsed": len(parsed),
     "encryption_key": resolve_encryption_key(generate=False),
     "hash_key": resolve_key(generate=False).hex(),
     "health": health,
+    "public_keys": public_keys,
 }))
 """
 
 
-def test_the_app_starts_with_every_secret_supplied_and_no_data_folder(tmp_path):
+def test_the_app_starts_and_serves_with_every_secret_supplied_and_no_data_folder(tmp_path):
     """Keys at a path the environment filled and the other secrets as content are all a start-up needs
 
-    Each of the two private keys is parsed once, however many modules sign or verify with it
+    The start-up runs against this worker's own test database as the app role. Each of the two private
+    keys is parsed once, however many modules sign or verify with it
     """
     for name in ("access", "refresh"):
         (tmp_path / f"{name}.pem").write_bytes(_rsa_pem())
@@ -209,10 +216,11 @@ def test_the_app_starts_with_every_secret_supplied_and_no_data_folder(tmp_path):
             _REFRESH_VARIABLE: str(tmp_path / "refresh.pem"),
             "APP_ENCRYPTION_KEY": encryption_key,
             "BANK_TRANSACTION_HASH_KEY": hash_key,
-            "APP_DB_PASSWORD": "from-the-environment",
+            "APP_DB_PASSWORD": resolve_role_password("app", generate=False),
+            "DB_NAME": WORKER_DB_NAME,
         },
     )
 
     assert completed.returncode == 0, completed.stderr
     started = json.loads(completed.stdout)
-    assert started == {"parsed": 2, "encryption_key": encryption_key, "hash_key": hash_key, "health": 200}
+    assert started == {"parsed": 2, "encryption_key": encryption_key, "hash_key": hash_key, "health": 200, "public_keys": 200}
