@@ -1,5 +1,6 @@
 import { findCurrencyExponent, fromMinorUnits, isMinorUnitsAbove, toMinorUnits } from '@/utils/moneyInput'
 import type { Currency } from '@/api/currency'
+import { formatCurrency } from '@/utils/formatCurrency'
 import type { TransactionListFilters } from '@/components/transactions/types/transactionList'
 
 // The largest bound the filter sends and shows exactly is fifteen digits of minor units. The API takes
@@ -43,6 +44,17 @@ export function findTooLargeAmountBounds(amount: AmountDraft, exponent: number):
     min: isMinorUnitsAbove(amount.min, exponent, MAX_FILTER_MINOR_UNITS),
     max: isMinorUnitsAbove(amount.max, exponent, MAX_FILTER_MINOR_UNITS),
   }
+}
+
+/**
+ * Says what the panel shows, and Apply gives as its reason, while a bound is more than the filter can
+ * send, naming the largest amount it takes in the currency the range matches in
+ *
+ * @param currency - The currency the range matches in
+ * @param currencies - The currency table, giving that currency's decimal places
+ */
+export function describeAmountTooLarge(currency: string, currencies: Currency[]): string {
+  return `Enter an amount up to ${formatCurrency(Number(MAX_FILTER_MINOR_UNITS), currency, currencies)}`
 }
 
 /**

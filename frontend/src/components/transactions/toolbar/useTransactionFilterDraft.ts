@@ -12,6 +12,7 @@ import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { getCurrencyExponent } from '@/utils/moneyInput'
 import {
   buildAmountFilterPatch,
+  describeAmountTooLarge,
   findAmountRangeDraft,
   findTooLargeAmountBounds,
   isAmountRangeCrossed,
@@ -28,9 +29,6 @@ import type { TransactionFilterSetter } from '@/components/transactions/toolbar/
 
 /** What the panel says, and Apply gives as its reason, while the minimum is above the maximum */
 export const CROSSED_AMOUNT_RANGE_MESSAGE = 'Enter a minimum at or below the maximum'
-
-/** What the panel says, and Apply gives as its reason, while a bound is more than the filter can send */
-export const AMOUNT_TOO_LARGE_MESSAGE = 'Enter a smaller amount'
 
 /** What the panel says, and Apply gives as its reason, while the From date is after the To date */
 export const CROSSED_DATE_RANGE_MESSAGE = "From can't be after To"
@@ -160,7 +158,7 @@ export function useTransactionFilterDraft({
   // message for that bound is the one to act on first
   const hasCrossedAmountBounds = !hasTooLargeAmountBound && isAmountRangeCrossed(amount, amountExponent)
   const amountError = hasTooLargeAmountBound
-    ? AMOUNT_TOO_LARGE_MESSAGE
+    ? describeAmountTooLarge(amountCurrency, currencies)
     : hasCrossedAmountBounds
       ? CROSSED_AMOUNT_RANGE_MESSAGE
       : null

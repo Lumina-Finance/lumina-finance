@@ -1,13 +1,15 @@
 /**
  * Tests the amount filter's bounds check, which keeps a minimum above the maximum from being
  * applied and coming back as an empty list with no reason given, and the rules that keep the bounds
- * off screen, and leave the applied ones alone, until the decimal places they are counted in are known
+ * off screen, and leave the applied ones alone, until the decimal places they are counted in are known.
+ * A bound larger than the filter takes is refused with a message naming the largest amount it takes
  */
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import type { Currency } from '@/api/currency'
 import {
   buildAmountFilterPatch,
+  describeAmountTooLarge,
   findAmountRangeDraft,
   findTooLargeAmountBounds,
   isAmountRangeCrossed,
@@ -243,5 +245,12 @@ describe('the range once its currency is known', () => {
         filters: { min_amount: 1000, max_amount: 5000, amount_currency: 'JPY' },
       }),
     ).toStrictEqual({ min_amount: undefined, max_amount: undefined, amount_currency: undefined })
+  })
+})
+
+describe('describeAmountTooLarge', () => {
+  it('names the largest amount the filter takes at the decimal places of the currency it matches in', () => {
+    expect(describeAmountTooLarge('CAD', currencies)).toMatch(/^Enter an amount up to \D*9,999,999,999,999\.99$/)
+    expect(describeAmountTooLarge('JPY', currencies)).toMatch(/^Enter an amount up to \D*999,999,999,999,999$/)
   })
 })
