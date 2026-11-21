@@ -23,7 +23,13 @@ import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyR
 import { AUTH_VIEW_TRANSITION } from '@/pages/auth/constants/authAnimations'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { handOffToNativeApp } from '@/utils/nativeHandoff'
-import { clearOidcIntent, getReauthResumeState, readOidcIntent, type OidcSignedInIntent } from '@/utils/oidcIntent'
+import {
+  clearOidcIntent,
+  getIntentForUser,
+  getReauthResumeState,
+  readOidcIntent,
+  type OidcSignedInIntent,
+} from '@/utils/oidcIntent'
 import { buildCurrencyOptions, getCurrencyPlaceholder } from '@/pages/auth/utils/authForm'
 import { getBrowserTimeZone } from '@/utils/date'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
@@ -60,7 +66,8 @@ const OidcCallbackPage = () => {
 
   // What a signed-in return is for. Reading has no side effect, so any render can read it, and the effect
   // clears the flag once the session has restored and the return is handled
-  const [signedInIntent] = useState<OidcSignedInIntent | null>(() => readOidcIntent())
+  const [storedIntent] = useState<OidcSignedInIntent | null>(() => readOidcIntent())
+  const signedInIntent = getIntentForUser(storedIntent, user?.id ?? null)
   const isReauth = user !== null && signedInIntent?.flow === 'reauth'
 
   // The stored roundtrip is single use on the server, so the strict-mode double effect

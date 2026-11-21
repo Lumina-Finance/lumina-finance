@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { beginOidcReauth, useOidcIdentities } from '@/api/oidc'
+import { useAuth } from '@/hooks/useAuth'
 import { markOidcIntent, type OidcReauthAction } from '@/utils/oidcIntent'
 import { withMinDelay } from '@/utils/timing'
 
@@ -11,6 +12,7 @@ import { withMinDelay } from '@/utils/timing'
  * along in the intent so the callback resumes it after the reauth arms the step-up proof
  */
 export function useProviderReauth() {
+  const { user } = useAuth()
   const identities = useOidcIdentities()
   const linkedProviders = identities.data?.identities ?? []
 
@@ -23,7 +25,8 @@ export function useProviderReauth() {
     setBusySlug(slug)
     try {
       // Without the flag the return would read as a link the server refuses, so the trip never starts
-      if (!markOidcIntent({ flow: 'reauth', action })) throw new Error('Session storage is unavailable')
+      if (!user || !markOidcIntent({ flow: 'reauth', action, userId: user.id }))
+        throw new Error('Session storage is unavailable')
       const { authorization_url } = await withMinDelay(() => beginOidcReauth(slug))
       window.location.assign(authorization_url)
     } catch {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { ApiError, confirmEmailChange } from '@/api/auth'
+import { fetchProfile } from '@/api/user'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { useAuth } from '@/hooks/useAuth'
 import { AuthErrorBanner } from '@/pages/auth/components/feedback/ErrorBanner'
@@ -20,13 +21,13 @@ const CONFIRM_LABEL = 'Confirm email'
  *
  * Opening the link changes nothing, since a mail scanner that fetches it would otherwise spend it. It
  * works signed in or out, as the person usually opens it in the browser they asked from. Confirming ends
- * every session of the account, this browser's included, so the page clears the signed-in state it holds
- * and sends the person to log in with the new address
+ * every session of the account, this browser's included, so the page lets the app notice a session that
+ * no longer works and clear it, then sends the person to log in with the new address
  */
 const ConfirmEmailChangePage = () => {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') ?? ''
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const [view, setView] = useState<View>({ name: 'ready' })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -45,7 +46,10 @@ const ConfirmEmailChangePage = () => {
     setSubmitting(true)
     try {
       const { email } = await withMinDelay(() => confirmEmailChange(token), AUTH_LOADING_MIN_MS)
-      if (user) await logout()
+      // A browser signed in as someone else keeps its session. Asking for the profile makes the app drop
+      // the local state itself once the session it holds no longer works. That is the case when this
+      // link was for the account signed in here
+      if (user) await fetchProfile().catch(() => {})
       setView({ name: 'changed', email })
     } catch (confirmError) {
       // A dead, spent, replaced or forged link and an address another account took all read the same
@@ -118,7 +122,7 @@ const ConfirmEmailChangePage = () => {
               {...AUTH_VIEW_TRANSITION}
             >
               <p className="text-sm" style={{ color: 'var(--app-text-muted)' }} role="alert">
-                This confirmation link is invalid or has expired. Please request a new one in Security settings.
+                This confirmation link is invalid or has expired, or the email is unavailable. Please try again.
               </p>
               <LogInLink />
             </motion.div>

@@ -26,7 +26,7 @@ export function SentNotice({ message }: { message: string | null }) {
           transition={{ duration: shouldReduceMotion ? 0.01 : 0.3, ease: SENT_NOTICE_EASE }}
         >
           {/* The gap above sits inside the box, since padding on a box animating its height would stay behind */}
-          <p role="status" className="pt-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          <p role="status" className="pt-4 text-sm text-pretty" style={{ color: 'var(--app-text-muted)' }}>
             {message ?? lastMessage}
           </p>
         </motion.div>

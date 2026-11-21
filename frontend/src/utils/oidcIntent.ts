@@ -34,7 +34,17 @@ export function getReauthResumeState(action: OidcReauthAction) {
  * roundtrip completes a link directly, while a reauth roundtrip arms the step-up proof and then
  * resumes the pending action
  */
-export type OidcSignedInIntent = { flow: 'link' } | { flow: 'reauth'; action: OidcReauthAction }
+export type OidcSignedInIntent = { flow: 'link' } | { flow: 'reauth'; action: OidcReauthAction; userId: string }
+
+/**
+ * The intent as the signed-in user may use it, or null for one another person's trip left in this
+ * browser's session storage. A reauth intent carries the address being changed to, so it is read back
+ * only for the user who started it
+ */
+export function getIntentForUser(intent: OidcSignedInIntent | null, userId: string | null): OidcSignedInIntent | null {
+  if (intent?.flow === 'reauth' && intent.userId !== userId) return null
+  return intent
+}
 
 /**
  * Records why a signed-in user is being sent to a provider, so the callback page routes the return to

@@ -6,7 +6,7 @@
  * as an unlink
  */
 import { afterEach, expect, it, vi } from 'vitest'
-import { getReauthResumeState, markOidcIntent, readOidcIntent } from '@/utils/oidcIntent'
+import { getIntentForUser, getReauthResumeState, markOidcIntent, readOidcIntent } from '@/utils/oidcIntent'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -29,7 +29,21 @@ it('reads a provider return as having no flag when the browser blocks storage', 
 
 it('says the flag could not be kept when the browser blocks storage', () => {
   blockStorage()
-  expect(markOidcIntent({ flow: 'reauth', action: { kind: 'set-password' } })).toBe(false)
+  expect(markOidcIntent({ flow: 'reauth', action: { kind: 'set-password' }, userId: 'user-1' })).toBe(false)
+})
+
+it('hands a reauth intent only to the user who started it, since it carries the address being changed to', () => {
+  const intent = {
+    flow: 'reauth',
+    action: { kind: 'change-email', email: 'new@example.com' },
+    userId: 'user-1',
+  } as const
+
+  expect(getIntentForUser(intent, 'user-1')).toEqual(intent)
+  expect(getIntentForUser(intent, 'user-2')).toBeNull()
+  expect(getIntentForUser(intent, null)).toBeNull()
+  expect(getIntentForUser({ flow: 'link' }, 'user-2')).toEqual({ flow: 'link' })
+  expect(getIntentForUser(null, 'user-1')).toBeNull()
 })
 
 it('tells settings which action to finish after a reauth, one flag per action', () => {
