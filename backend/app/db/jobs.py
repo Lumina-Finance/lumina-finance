@@ -2,9 +2,11 @@
 
 Bootstrap runs rarely, as the admin login, and creates the database roles and hands them the schema.
 Migrate runs on every release, as the migrator, and brings the schema, the row-level security
-policies, the encryption key's record and the reference data up to this release. Both are callable
-from code with no shell, and `python -m app.db.jobs bootstrap|migrate` runs one, as the image's
-start-up does
+policies, the encryption key's record and the reference data up to this release. `python -m
+app.db.jobs bootstrap|migrate` runs one, as the image's start-up does. Migrate is also a supported
+point of `app.extension`, for code that runs it without a shell. Bootstrap is not, so that no
+long-running process or scheduled function is built around the admin login, which belongs to a
+person or a one-off command
 
 Either is safe to run again, since every step it takes leaves an up-to-date database as it is. Only
 one run of either goes on at a time: a run that finds another going says so and waits for it, then
