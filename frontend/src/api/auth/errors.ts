@@ -8,7 +8,7 @@ export const REFRESH_ALREADY_ROTATED_DETAIL = 'Refresh token was already rotated
 export const GATEWAY_STATUSES = new Set([502, 503, 504])
 
 // The one status a maintenance answer comes with
-export const MAINTENANCE_STATUS = 503
+const MAINTENANCE_STATUS = 503
 
 // What every screen shows while the server is in maintenance. The page words it rather than the
 // response, so the notice and the cards that failed to load say the same thing

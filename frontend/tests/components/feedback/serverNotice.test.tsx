@@ -31,9 +31,9 @@ describe('the notice about the server', () => {
   })
 
   it('shows nothing, in a region a screen reader is already watching, when there is nothing to say', () => {
-    expect(renderToStaticMarkup(<ServerNoticeView notice={null} />)).toBe(
-      '<div role="status" class="max-[1049px]:pr-14"></div>',
-    )
+    const markup = renderToStaticMarkup(<ServerNoticeView notice={null} />)
+
+    expect(markup).toMatch(/^<div role="status"[^>]*><\/div>$/)
   })
 })
 

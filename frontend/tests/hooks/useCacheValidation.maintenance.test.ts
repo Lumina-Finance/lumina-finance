@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
-import { createHoldGate, createMaintenanceReaction } from '@/hooks/useCacheValidation'
-
 /**
  * Guards what the check does around a maintenance: it asks again by itself while one lasts, fetches
  * the app data once more when it ends, and leaves the data under an open dialogue as it was until
  * the dialogue closes
  */
+import { describe, expect, it, vi } from 'vitest'
+import { createHoldGate, createMaintenanceReaction } from '@/hooks/useCacheValidation'
+
 function setUp() {
   const gate = createHoldGate()
   const retry = vi.fn()

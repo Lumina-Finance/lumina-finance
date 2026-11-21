@@ -1,6 +1,7 @@
 /**
  * Runs before every test file, so property tests draw the same inputs on every run, where random
- * draws let a suite pass on one run and fail on the next with nothing changed
+ * draws let a suite pass on one run and fail on the next with nothing changed. It also mocks the
+ * maintenance file check, so the number of requests a test sees doesn't depend on the order of tests
  */
 import fc from 'fast-check'
 import { vi } from 'vitest'

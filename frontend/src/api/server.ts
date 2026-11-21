@@ -57,7 +57,7 @@ export function fetchFromServer(
 
   return fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal })
     .catch((error: unknown) => {
-      if (isUnanswered(error)) void checkMaintenanceFile()
+      if (gotNoAnswer(error)) void checkMaintenanceFile()
       throw explainRequestFailure(error)
     })
     .then(async (response) => {
@@ -70,7 +70,7 @@ export function fetchFromServer(
  * Whether a request failed with no answer from the server: a dropped connection, or the limit above.
  * A caller's own abort is not one
  */
-function isUnanswered(error: unknown) {
+function gotNoAnswer(error: unknown) {
   return error instanceof TypeError || (error instanceof DOMException && error.name === 'TimeoutError')
 }
 

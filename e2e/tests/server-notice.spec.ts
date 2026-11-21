@@ -40,6 +40,11 @@ test('shows a maintenance state in place of an unreachable server, and clears it
     await route.fulfill({ status: 503, json: { detail: 'Back soon', maintenance: true } })
   })
 
+  let cacheChecks = 0
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/me/cache-status') cacheChecks += 1
+  })
+
   await logInViaApi(page, user)
   await openPage(page, '/settings')
   isInMaintenance = true
@@ -79,11 +84,18 @@ test('shows a maintenance state in place of an unreachable server, and clears it
 
   // The page asks again by itself a minute after the maintenance began, with no tab focus or
   // navigation to cause a check. The clock keeps running in real time, so the first jump stops at
-  // half a minute, well short of the minute whatever the real time spent since, and the notice stays
+  // half a minute, well short of the minute whatever the real time spent since. The server answers
+  // again from here, so a check made too early would end the notice, and the count of checks proves
+  // none was made before the minute
   isInMaintenance = false
+  const checksBeforeJump = cacheChecks
   await page.clock.fastForward(30_000)
+  // Requests run in real time, so a check made by the jump needs a moment to show in the count
+  await page.waitForTimeout(500)
+  expect(cacheChecks).toBe(checksBeforeJump)
   await expect(notice).toBeVisible()
   await page.clock.fastForward(31_000)
+  await expect.poll(() => cacheChecks).toBeGreaterThan(checksBeforeJump)
 
   await expect(notice).toHaveCount(0)
   await expect(page.getByText(MAINTENANCE_NOTICE, { exact: true })).toHaveCount(0)
@@ -120,6 +132,7 @@ test('says the server is in maintenance from the maintenance file when the app i
 
   await page.goto('/')
 
+  // The notice and the full-screen state both say it, so two elements match
   await expect(page.getByText(MAINTENANCE_NOTICE, { exact: true }).first()).toBeVisible()
   await expect(page.getByText(/reach the server/)).toHaveCount(0)
 })
