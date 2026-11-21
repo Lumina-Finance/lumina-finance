@@ -193,7 +193,7 @@ async def run_worker() -> None:
     while BANK_SYNC_WORKER_CONCURRENCY runners claim and run jobs. The claim never hands two
     runners jobs for one connection. On SIGTERM or SIGINT it claims no more jobs, lets each job
     already running finish within its time limit, and returns. It takes over both signals on the
-    running loop, so it runs in a process of its own. Jobs send their action-needed
+    running loop, so callers run it in a process of its own. Jobs send their action-needed
     emails through the sender installed before the call, or else the one EMAIL_BACKEND names, as
     the app sends its own. They name the service as set in this process before the call
 
