@@ -199,6 +199,31 @@ async def test_a_failed_password_change_names_the_role_and_never_shows_the_passw
         assert _SECRET not in server_log, "the database's own log leaves the password out"
 
 
+async def test_roles_another_login_created_are_set_up_once_the_admin_is_given_their_administration(provision_into):
+    """The recovery the docs give: the admin gets the same administration of each role its creator would get
+
+    Without it the admin may not set the passwords of roles it did not create
+    """
+    async with provision_into(RESTRICTED_ADMIN_LOGIN) as target:
+        # Created by the superuser, so the admin holds no right over them
+        for role in (MIGRATOR_DB_USER, APP_DB_USER):
+            await query(target.superuser(), f'CREATE ROLE "{role}" WITH LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS')
+        with pytest.raises(DBAPIError, match="Could not set the password"):
+            await provision.ensure_roles()
+
+        await query(
+            target.superuser(),
+            f'GRANT "{MIGRATOR_DB_USER}", "{APP_DB_USER}" TO {RESTRICTED_ADMIN_LOGIN} WITH ADMIN OPTION, INHERIT FALSE, SET FALSE',
+        )
+        await provision.ensure_roles()
+        await _build_schema_as(target.engine(RESTRICTED_ADMIN_LOGIN, LOGIN_PASSWORD))
+        await provision.transfer_schema_ownership()
+
+        assert await query(target.superuser(), _NOT_OWNED_BY_MIGRATOR.format(migrator=MIGRATOR_DB_USER)) == 0, "the migrator owns the schema"
+        assert await query(target.engine(MIGRATOR_DB_USER, MIGRATOR_PASSWORD), "SELECT current_user") == MIGRATOR_DB_USER
+        assert await query(target.engine(APP_DB_USER, APP_PASSWORD), "SHOW statement_timeout") == "1min", "the app role got its limits"
+
+
 async def test_a_password_the_database_refuses_as_text_never_shows_in_the_error(provision_into, tmp_path, monkeypatch):
     """A saved password file edited by hand can hold a NUL, which the database refuses in the statement carrying it
 
