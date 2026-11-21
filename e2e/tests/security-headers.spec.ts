@@ -79,10 +79,14 @@ async function readHeaders(page: Page, path: string): Promise<Record<string, str
 }
 
 // The three tests below read what the packaged image's own web server sends at the app's address,
-// the API beneath /api included. A stack that serves the app from another host sets its own headers
-// and has no API under the app's address, so they leave a run against such a stack. The tests
-// further down read the console for refusals and judge whatever policy the stack sends
-const IMAGE_SERVER = needsOneAddress("reads the packaged image's web server, which a stack serving the app elsewhere replaces")
+// the API beneath /api included. The development stack serves the frontend through Vite's preview
+// server and the API on a port of its own, so it sends none of these headers, and a run can't tell
+// it from CI's two-address stack, where the image's web server stays. Both leave these tests out.
+// The tests further down read the console for refusals and judge whatever policy the stack sends,
+// including the extra connect source of the two-address stack
+const IMAGE_SERVER = needsOneAddress(
+  "reads the headers the packaged image's web server sends at one address. The development stack serves Vite's preview server instead, and the two-address stack adds a connect source",
+)
 
 test('sends the policy with the app and the API, and runs no script it did not ship', IMAGE_SERVER, async ({ page }) => {
   for (const path of ['/', '/api/health']) {
