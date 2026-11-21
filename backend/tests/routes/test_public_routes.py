@@ -43,6 +43,8 @@ PUBLIC_ROUTES = {
     ("POST", "/auth/password/reset/verify"),
     ("POST", "/auth/passkeys/reset/options"),
     ("POST", "/auth/passkeys/reset/verify"),
+    # An email change is confirmed by a one-time token from the new address, often in a browser with no session
+    ("POST", "/auth/email/change/confirm"),
     # Single sign-on and the handoff to a native app both start before any access token exists
     ("POST", "/auth/oidc/{slug}/authorize"),
     ("POST", "/auth/oidc/callback"),
