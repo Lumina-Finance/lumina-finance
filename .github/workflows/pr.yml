@@ -59,16 +59,23 @@ jobs:
               - '.github/workflows/**'
               - '.github/actions/**'
 
-            # What decides how the app reaches an API at another address: the frontend's API client,
-            # the server's allowed origins and cookies, the sign-in routes, the packaged image, and
-            # the browser suite's own support code and configuration. A change to one runs the whole
-            # browser suite against such a stack too. A change to specs alone runs only those
+            # What decides how the app reaches an API at another address: the frontend's API client
+            # and session renewal, the server's allowed origins and cookies, the sign-in routes and
+            # services, the packaged image, and the browser suite's own support code and
+            # configuration. A change to one runs the whole browser suite against such a stack too.
+            # A change to specs alone runs only those. The sign-in services check passkeys and single
+            # sign-on against the app's address and send the step-up header the browser must be
+            # allowed to read
             api-elsewhere:
               - 'frontend/src/api/**'
+              - 'frontend/src/contexts/AuthContext.ts'
+              - 'frontend/src/contexts/AuthProvider.tsx'
+              - 'frontend/src/contexts/sessionRenewal.ts'
               - 'frontend/src/utils/nativeHandoff.ts'
               - 'backend/app/main.py'
               - 'backend/app/config/**'
               - 'backend/app/routes/auth/**'
+              - 'backend/app/services/auth/**'
               - 'docker/**'
               - 'e2e/**'
               - '.github/workflows/**'

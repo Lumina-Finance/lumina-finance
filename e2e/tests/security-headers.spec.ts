@@ -31,16 +31,45 @@ const ACTUAL_MANIFEST = JSON.parse(
   readFileSync(new URL('../fixtures/actual-yen/manifest.json', import.meta.url), 'utf8'),
 ) as { rows: unknown[] }
 
-// What the page is asked to run and load. The directives that matter are read from the real header,
-// so a source added to one list can't hide behind the wording of the rest
-function readDirectives(policy: string): Map<string, string[]> {
-  return new Map(
-    policy
-      .split(';')
-      .map((directive) => directive.trim().split(/\s+/))
-      .filter(([name]) => name !== '')
-      .map(([name, ...sources]) => [name, sources]),
-  )
+// Every directive the policy sends and every source it allows, so a source added to any list fails.
+// Connections are to the app's own origin alone, since nothing in this run names another one
+const EXPECTED_POLICY = {
+  'default-src': ["'none'"],
+  // The app's own files, with WebAssembly for the Actual Budget importer and neither inline scripts
+  // nor eval, so a script injected into a page has nothing to run it
+  'script-src': ["'self'", "'wasm-unsafe-eval'"],
+  'style-src': ["'self'", "'unsafe-inline'"],
+  // An institution's logo can be at any https address
+  'img-src': ["'self'", 'https:'],
+  'font-src': ["'self'"],
+  'connect-src': ["'self'"],
+  'base-uri': ["'self'"],
+  'object-src': ["'none'"],
+  'frame-ancestors': ["'none'"],
+}
+
+// Passkeys work on the app's own pages, and every other feature the policy names is off
+const EXPECTED_PERMISSIONS = [
+  'publickey-credentials-get=(self)',
+  'publickey-credentials-create=(self)',
+  'camera=()',
+  'microphone=()',
+  'geolocation=()',
+  'payment=()',
+  'usb=()',
+]
+
+function readDirectives(policy: string): Record<string, string[]> {
+  const directives: Record<string, string[]> = {}
+  for (const [name, ...sources] of policy.split(';').map((directive) => directive.trim().split(/\s+/))) {
+    if (name === '') continue
+    // A browser enforces the first of two directives with one name and ignores the rest, so a second
+    // one is refused here instead of read in place of the first
+    expect(directives, `the policy names ${name} twice`).not.toHaveProperty(name)
+    // A directive's sources mean the same in any order, so both sides sort them before comparing
+    directives[name] = sources.toSorted()
+  }
+  return directives
 }
 
 async function readHeaders(page: Page, path: string): Promise<Record<string, string>> {
@@ -50,10 +79,14 @@ async function readHeaders(page: Page, path: string): Promise<Record<string, str
 }
 
 // The three tests below read what the packaged image's own web server sends at the app's address,
-// the API beneath /api included. A stack that serves the app from another host sets its own headers
-// and has no API under the app's address, so they leave a run against such a stack. The tests
-// further down read the console for refusals and judge whatever policy the stack sends
-const IMAGE_SERVER = needsOneAddress("reads the packaged image's web server, which a stack serving the app elsewhere replaces")
+// the API beneath /api included. The development stack serves the frontend through Vite's preview
+// server and the API on a port of its own, so it sends none of these headers, and a run can't tell
+// it from CI's two-address stack, where the image's web server stays. Both leave these tests out.
+// The tests further down read the console for refusals and judge whatever policy the stack sends,
+// including the extra connect source of the two-address stack
+const IMAGE_SERVER = needsOneAddress(
+  "reads the headers the packaged image's web server sends at one address. The development stack serves Vite's preview server instead, and the two-address stack adds a connect source",
+)
 
 test('sends the policy with the app and the API, and runs no script it did not ship', IMAGE_SERVER, async ({ page }) => {
   for (const path of ['/', '/api/health']) {
@@ -64,25 +97,13 @@ test('sends the policy with the app and the API, and runs no script it did not s
     expect(headers['referrer-policy'], `${path} sends its address to other sites`).toBe('no-referrer')
     expect(headers['strict-transport-security'], 'the image has no TLS to promise').toBeUndefined()
 
-    // Passkeys work on the app's own pages and nothing else the app doesn't use is switched on
-    const permissions = headers['permissions-policy'] ?? ''
-    expect(permissions).toContain('publickey-credentials-get=(self)')
-    expect(permissions).toContain('publickey-credentials-create=(self)')
-    expect(permissions).toContain('camera=()')
+    // Compared in any order, as the policy's own directives are
+    const permissions = (headers['permissions-policy'] ?? '').split(',').map((feature) => feature.trim())
+    expect(permissions.toSorted(), `${path} switches on a feature the app doesn't use`).toEqual(EXPECTED_PERMISSIONS.toSorted())
 
     const policy = readDirectives(headers['content-security-policy'] ?? '')
-    expect(policy.get('frame-ancestors'), `${path} may be framed`).toEqual(["'none'"])
-    expect(policy.get('object-src')).toEqual(["'none'"])
-    expect(policy.get('default-src')).toEqual(["'none'"])
-
-    // Scripts are the app's own files, with WebAssembly for the Actual Budget importer and neither
-    // inline scripts nor eval, so a script injected into a page has nothing to run it
-    const scripts = policy.get('script-src') ?? []
-    expect(scripts).toContain("'self'")
-    expect(scripts).toContain("'wasm-unsafe-eval'")
-    expect(scripts).not.toContain("'unsafe-inline'")
-    expect(scripts).not.toContain("'unsafe-eval'")
-    expect(scripts.filter((source) => source.includes(':') && source !== "'wasm-unsafe-eval'")).toEqual([])
+    const expected = Object.fromEntries(Object.entries(EXPECTED_POLICY).map(([name, sources]) => [name, sources.toSorted()]))
+    expect(policy, `${path} allows a source the app doesn't use`).toEqual(expected)
   }
 })
 
