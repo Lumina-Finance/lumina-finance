@@ -63,9 +63,10 @@ WORKER_COMMAND = (sys.executable, "-m", "app.worker")
 BOOTSTRAP_COMMAND = (sys.executable, "-m", "app.db.jobs", "bootstrap")
 MIGRATE_COMMAND = (sys.executable, "-m", "app.db.jobs", "migrate")
 
-# The admin database login. Only the steps that record the keys and create the roles use it. Once they
-# are done, this script starts itself again without it, so no process that keeps running holds it, and
-# this argument tells the second start that they are
+# The admin database login. Only the steps that generate or check the encryption and bank transaction
+# hash keys and the job that creates the roles use it. Once they are done, this script starts itself
+# again without it, so no process that keeps running holds it, and this argument tells the second
+# start that they are
 ADMIN_LOGIN_SETTINGS = ("DB_USER", "DB_PASSWORD")
 AFTER_ADMIN_STEPS = "--after-admin-steps"
 
