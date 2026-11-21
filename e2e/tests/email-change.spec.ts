@@ -9,7 +9,7 @@ import { expect, test } from '@playwright/test'
 
 import { asUser, signUpUser } from '../support/api'
 import { expectSignedIn, logIn, logInViaApi, openPage } from '../support/app'
-import { waitForEmailChangeLink } from '../support/mail'
+import { countEmailsTo, waitForEmailChangeLink } from '../support/mail'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
 // Runs on desktop only: the card, its dialogue and the confirm page behave the same at every size
@@ -85,6 +85,31 @@ test('keeps the dialogue open with its error after a wrong password, and clears 
   // Editing the field again withdraws the notice, since it no longer describes what is typed
   await field.fill(`other-${newEmail}`)
   await expect(notice).toHaveCount(0)
+})
+
+test('refuses the own address typed with its domain in capitals, on the field, and sends no email', async ({
+  page,
+  request,
+}) => {
+  const user = await signUpUser(request)
+  const [local, domain] = user.email.split('@')
+  await logInViaApi(page, user)
+  await openPage(page, '/settings#security')
+  const mailBefore = await countEmailsTo(user.email)
+
+  const card = page.locator('#security')
+  const field = card.getByLabel('Email', { exact: true })
+  await field.fill(`${local}@${domain.toUpperCase()}`)
+  await card.getByRole('button', { name: 'Save', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: "Confirm it's you" })
+  await dialog.getByLabel('Current password').fill(user.password)
+  await dialog.getByRole('button', { name: 'Send email' }).click()
+
+  // The server reads the address as the account's own, so the refusal lands on the field, not in the dialogue
+  await expect(dialog).toHaveCount(0)
+  await expect(field).toHaveAttribute('aria-invalid', 'true')
+  await expect(card.getByText('This is already your email address. Please enter a different one')).toBeVisible()
+  expect(await countEmailsTo(user.email)).toBe(mailBefore)
 })
 
 test('shows the invalid view for a link that is no longer valid', async ({ page, request }) => {
