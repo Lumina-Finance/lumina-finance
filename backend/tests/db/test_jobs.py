@@ -304,24 +304,26 @@ async def test_a_job_waits_for_a_set_up_run_going_and_then_does_its_work(
     """A second run says it waits, keeps waiting past each limit its login's settings put on a wait, then finishes
 
     The login cancels any statement, lock wait or transaction that lasts more than a few seconds, and a migration
-    may hold the lock for as long as it takes. The restricted admin carries a lock limit from the server
+    may hold the lock for as long as it takes. The restricted admin carries a lock limit from the server. The
+    limits come off before the other run lets go, so only the wait is under them, and the job's steps, which
+    open connections of their own, are not
     """
     caplog.set_level(logging.INFO, logger="app.db.jobs")
     async with provision_into(admin_login) as target:
         if job is run_migrate:
             await run_bootstrap()
 
-        async with _limits_on(target, limited_login, {name: ADMIN_LOCK_TIMEOUT_SECONDS for name in limits}):
-            holder = target.engine(SUPERUSER_LOGIN, LOGIN_PASSWORD, autocommit=False)
-            async with holder.connect() as connection, connection.begin():
-                await connection.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": SETUP_LOCK_ID})
+        holder = target.engine(SUPERUSER_LOGIN, LOGIN_PASSWORD, autocommit=False)
+        async with holder.connect() as connection, connection.begin():
+            await connection.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": SETUP_LOCK_ID})
+            async with _limits_on(target, limited_login, {name: ADMIN_LOCK_TIMEOUT_SECONDS for name in limits}):
                 run = asyncio.create_task(job())
                 await _wait_until(lambda: "waits for it to finish" in caplog.text, "the job says another run is going", run)
                 await asyncio.sleep(ADMIN_LOCK_TIMEOUT_SECONDS + 1)
                 assert not run.done(), "the job is still waiting past the login's limits"
-            await holder.dispose()
+        await holder.dispose()
 
-            await asyncio.wait_for(run, _JOB_TIMEOUT_SECONDS)
+        await asyncio.wait_for(run, _JOB_TIMEOUT_SECONDS)
 
         if job is run_bootstrap:
             roles = await query(target.superuser(), f"SELECT count(*) FROM pg_roles WHERE rolname IN ('{MIGRATOR_DB_USER}', '{APP_DB_USER}')")  # noqa: S608
