@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, startOfDayInTestTimezone } from '../support/api'
 import { openPage, chooseFromDropdown, filterTransactions, loadEveryTransaction, logInViaApi, openModal } from '../support/app'
+import { withBlankPage } from '../support/blankPage'
 import {
   expectPendingAction,
   expectTransactionRow,
@@ -163,7 +164,7 @@ async function hoverChange(page: Page, rowContent: Locator): Promise<number> {
 /** Reads the colour the page draws at a point, as its red, green and blue channels */
 async function colourAt(page: Page, x: number, y: number): Promise<number[]> {
   const shot = await page.screenshot({ clip: { x, y, width: 1, height: 1 } })
-  return page.evaluate(async (data) => {
+  return withBlankPage(page, (blank) => blank.evaluate(async (data) => {
     const image = new Image()
     image.src = `data:image/png;base64,${data}`
     await image.decode()
@@ -173,7 +174,7 @@ async function colourAt(page: Page, x: number, y: number): Promise<number[]> {
     const context = canvas.getContext('2d')!
     context.drawImage(image, 0, 0)
     return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)]
-  }, shot.toString('base64'))
+  }, shot.toString('base64')))
 }
 
 /** Opens the transactions page in selection mode for a new user with three transactions today */

@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
+import { withBlankPage } from '../support/blankPage'
 
 // Runs on desktop only: a link's hover look doesn't change with the screen's width
 
@@ -25,7 +26,7 @@ async function shoot(page: Page, link: Locator): Promise<Buffer> {
  * whole
  */
 async function drawnExtent(page: Page, rest: Buffer, frame: Buffer, row?: number): Promise<{ extent: Extent; row: number }> {
-  return page.evaluate(async ({ before, after, wanted }) => {
+  return withBlankPage(page, (blank) => blank.evaluate(async ({ before, after, wanted }) => {
     const decode = async (base64: string) => {
       const image = new Image()
       image.src = `data:image/png;base64,${base64}`
@@ -48,7 +49,7 @@ async function drawnExtent(page: Page, rest: Buffer, frame: Buffer, row?: number
     const columns = Array.from({ length: a.width }, (_, x) => x).filter((x) => changedAt(x, y))
     const best = columns.length >= 2 ? { left: columns[0], right: columns[columns.length - 1] } : null
     return { extent: best, row: y }
-  }, { before: rest.toString('base64'), after: frame.toString('base64'), wanted: row ?? null })
+  }, { before: rest.toString('base64'), after: frame.toString('base64'), wanted: row ?? null }))
 }
 
 /** Holds the link's underline transition at a time, so the frame is the same on every run */

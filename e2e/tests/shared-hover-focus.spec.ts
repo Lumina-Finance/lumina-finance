@@ -10,6 +10,7 @@ import {
   signUpUser,
 } from '../support/api'
 import { logInViaApi, openModal, openPage } from '../support/app'
+import { withBlankPage } from '../support/blankPage'
 import { contrastRatio, shownFill, type Rgb } from '../support/paint'
 import { API_BASE_URL } from '../support/target'
 
@@ -489,7 +490,7 @@ async function ringSidesShown(page: Page, element: Locator): Promise<string[]> {
     }
   })
   const shot = (await page.screenshot({ scale: 'css' })).toString('base64')
-  return page.evaluate(async ({ shot, ring, sides }) => {
+  return withBlankPage(page, (blank) => blank.evaluate(async ({ shot, ring, sides }) => {
     const image = new Image()
     image.src = `data:image/png;base64,${shot}`
     await image.decode()
@@ -508,7 +509,7 @@ async function ringSidesShown(page: Page, element: Locator): Promise<string[]> {
       }
       return false
     }).map(([side]) => side)
-  }, { shot, ring, sides })
+  }, { shot, ring, sides }))
 }
 
 /** Clicks a header and records its body's height every frame until well after the motion should end */
