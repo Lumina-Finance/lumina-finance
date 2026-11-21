@@ -5,8 +5,8 @@ image can name the service something else
 """
 
 # The name code outside the app set, or None while none has. Each reader takes the name at its own
-# moment: the passkey prompt when building its options, an email's title and the Bank sign-in
-# closing when building the email, and its From header when sending the email. An email built
+# moment: the passkey prompt when building its options, an email's title and any wording naming
+# the service when building the email, and its From header when sending the email. An email built
 # before a change and sent after therefore carries the old name in its body and the new name in its
 # From header
 _service_name: str | None = None

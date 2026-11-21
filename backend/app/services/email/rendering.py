@@ -20,7 +20,7 @@ _environment = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoesc
 
 
 def email_service_name() -> str:
-    """Return the name an email's From header and title give the service, read at each call"""
+    """Return the name an email's From header, title and wording give the service, read at each call"""
     return resolve_service_name(DEFAULT_EMAIL_SENDER_NAME)
 
 
@@ -68,7 +68,7 @@ def render_email_change_email(confirm_link: str, expiry_minutes: int) -> Rendere
     Returns:
         The rendered subject and both body parts
     """
-    context = {"app_name": EMAIL_SENDER_NAME, "confirm_link": confirm_link, "expiry_minutes": expiry_minutes}
+    context = {"app_name": email_service_name(), "confirm_link": confirm_link, "expiry_minutes": expiry_minutes}
     html_body = _environment.get_template("email_change.html").render(context)
     text_body = _environment.get_template("email_change.txt").render(context)
     return RenderedEmail(subject=_EMAIL_CHANGE_SUBJECT, text_body=text_body, html_body=html_body)
@@ -83,7 +83,7 @@ def render_email_change_notice_email(new_email: str) -> RenderedEmail:
     Returns:
         The rendered subject and both body parts
     """
-    context = {"app_name": EMAIL_SENDER_NAME, "new_email": new_email}
+    context = {"app_name": email_service_name(), "new_email": new_email}
     html_body = _environment.get_template("email_change_notice.html").render(context)
     text_body = _environment.get_template("email_change_notice.txt").render(context)
     return RenderedEmail(subject=_EMAIL_CHANGE_NOTICE_SUBJECT, text_body=text_body, html_body=html_body)

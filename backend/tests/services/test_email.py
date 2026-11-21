@@ -22,6 +22,8 @@ from app.services.email import (
     build_email_sender,
     get_email_sender,
     render_action_needed_email,
+    render_email_change_email,
+    render_email_change_notice_email,
     render_reset_email,
     render_signup_confirmation_email,
     set_email_sender,
@@ -356,6 +358,8 @@ _RENDERERS = {
     "reset": lambda: render_reset_email("https://app.example.com/reset-password?token=abc123", 15),
     "sign-up confirmation": lambda: render_signup_confirmation_email("https://app.example.com/confirm-email?token=abc123", 24),
     "action needed": lambda: render_action_needed_email("Subject", "Lead", ["Everyday"], "Closing"),
+    "email change": lambda: render_email_change_email("https://app.example.com/confirm-email-change?token=abc123", 30),
+    "email change notice": lambda: render_email_change_notice_email("new@example.com"),
 }
 
 
@@ -379,6 +383,24 @@ def test_sign_up_confirmation_sentence_names_no_service_in_either_part():
     assert "Acme" not in message.text_body
     assert message.html_body.count("Acme") == 1
     assert ">Acme</td>" in message.html_body
+
+
+@pytest.mark.parametrize(
+    ("kind", "sentence"),
+    [
+        ("email change", "Please confirm this email address to use it with {}."),
+        ("email change notice", "The email address of your {} account was changed to new@example.com."),
+    ],
+)
+def test_email_change_sentences_name_the_fixed_name_until_code_names_the_service(kind, sentence):
+    """Both email change messages name the service in their wording, in both parts"""
+    before = _RENDERERS[kind]()
+    set_service_name("Acme")
+    after = _RENDERERS[kind]()
+
+    for message, name in ((before, _FIXED_NAME), (after, "Acme")):
+        assert sentence.format(name) in message.text_body
+        assert sentence.format(name) in message.html_body
 
 
 def test_render_action_needed_email_lists_the_accounts_in_both_parts_escaping_them_in_html():
