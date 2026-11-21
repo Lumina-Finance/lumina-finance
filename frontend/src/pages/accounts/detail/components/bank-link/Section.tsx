@@ -21,7 +21,7 @@ import { BANK_SYNC_NOT_SET_UP_REASON, GROUP_ACCOUNT_LINK_REASON } from '@/compon
 import { BankLinkFlowModal } from '@/components/bank-link-flow/Modal'
 import { Unfold } from '@/components/display/Unfold'
 import LoadFailure from '@/components/errors/LoadFailure'
-import { InfoCallout } from '@/components/InfoCallout'
+import { INFO_CALLOUT_ACTION_CLASS, InfoCallout } from '@/components/InfoCallout'
 import LoadingRegion from '@/components/loading/Region'
 import { revealInScrollArea } from '@/components/modal/scrollArea'
 import { StepTransition } from '@/components/two-factor/StepTransition'
@@ -50,7 +50,6 @@ import { PROVIDER_UNAVAILABLE_DETAIL, providerSiteName } from '@/utils/bankSync'
 import { DATE_FORMATS, formatDate, formatDateLabel } from '@/utils/date'
 
 const ARCHIVED_REASON = 'Archived accounts are read-only'
-const NOTICE_ACTION_CLASS = 'app-primary-button h-9 w-full justify-center whitespace-nowrap px-4 text-sm sm:w-auto'
 const LINK_ACTION_CLASS = 'app-secondary-button h-9 w-full justify-center whitespace-nowrap px-3.5 text-sm sm:w-auto'
 
 // Long enough for the modal to have opened and put focus in its first field
@@ -185,7 +184,7 @@ function LinkedView({
               action={
                 <button
                   type="button"
-                  className={NOTICE_ACTION_CLASS}
+                  className={INFO_CALLOUT_ACTION_CLASS}
                   {...ACTION_PROPS}
                   {...initialFocus}
                   onClick={() =>
@@ -209,7 +208,7 @@ function LinkedView({
               action={
                 <button
                   type="button"
-                  className={NOTICE_ACTION_CLASS}
+                  className={INFO_CALLOUT_ACTION_CLASS}
                   {...ACTION_PROPS}
                   {...initialFocus}
                   onClick={onChooseBankAccount}

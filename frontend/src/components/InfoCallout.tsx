@@ -20,6 +20,10 @@ const TONE_COLORS: Record<InfoCalloutTone, { background: string; icon: string; b
   },
 }
 
+/** The primary button a callout offers as its action, full width on a phone and as wide as its label beside the text */
+export const INFO_CALLOUT_ACTION_CLASS =
+  'app-primary-button h-9 w-full justify-center whitespace-nowrap px-4 text-sm sm:w-auto'
+
 // The focus ring is 3:1 on the page but under it on a tint, so a control inside a callout draws its ring in
 // the selected navigation item's focus colour, which clears 3:1 on every tone in both themes
 const RING_ON_TINT_CLASS = '[&_:focus-visible]:outline-[var(--app-accent-nav-focus-border)]'
