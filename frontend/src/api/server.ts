@@ -1,4 +1,7 @@
+import { GATEWAY_STATUSES, isMaintenanceAnswer, readSentenceDetail } from '@/api/auth/errors'
 import { API_BASE } from '@/api/config'
+import { checkMaintenanceFile } from '@/api/version/maintenanceFile'
+import { reportMaintenance } from '@/api/version/serverState'
 
 // How long a request to the server may go unanswered before it fails, so a screen waiting on one that
 // never answers shows its error state rather than loading forever. Long enough for the slowest
@@ -52,7 +55,45 @@ export function fetchFromServer(
     signal?.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
   }
 
-  return fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal }).catch((error: unknown) => {
-    throw explainRequestFailure(error)
-  })
+  return fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal })
+    .catch(async (error: unknown) => {
+      // The failure is worded once, where it is caught, so the maintenance file is read before it fails
+      if (gotNoAnswer(error)) await checkMaintenanceFile()
+      throw explainRequestFailure(error)
+    })
+    .then(async (response) => {
+      await noteMaintenance(response)
+      return response
+    })
+}
+
+/**
+ * Whether a request failed with no answer from the server: a dropped connection, or the limit above.
+ * A caller's own abort is not one
+ */
+function gotNoAnswer(error: unknown) {
+  return error instanceof TypeError || (error instanceof DOMException && error.name === 'TimeoutError')
+}
+
+/**
+ * Tells the page whether the server is in maintenance from an answer, for every kind of request
+ * alike, so a screen that fails to load and one that restores a session read the same state. Any
+ * answer the app itself made ends it, a refusal or a server error as much as a success, since the
+ * app is running to make it. A gateway status is the app's own answer only with a detail sentence,
+ * such as a 502 for a provider it couldn't reach. A 503 whose body carries the maintenance marker
+ * starts it, read from a copy so the caller still gets the body. Any other gateway failure has the
+ * page ask the maintenance file instead, as it does for a request with no answer
+ */
+async function noteMaintenance(response: Response) {
+  if (!GATEWAY_STATUSES.has(response.status)) {
+    reportMaintenance(false)
+    return
+  }
+  const body: unknown = await response
+    .clone()
+    .json()
+    .catch(() => null)
+  if (isMaintenanceAnswer(response.status, body)) reportMaintenance(true)
+  else if (readSentenceDetail(body) !== undefined) reportMaintenance(false)
+  else await checkMaintenanceFile()
 }

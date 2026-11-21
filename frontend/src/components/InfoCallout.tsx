@@ -5,7 +5,7 @@ import { HintButton } from '@/components/tooltips/HintButton'
 
 /**
  * Guidance that is not a warning or an error, something stopped until the user fixes it, or
- * something waiting on the user's review, in the status dot's colours
+ * something waiting on the user's review or on a service they can only wait for, in the status dot's colours
  */
 type InfoCalloutTone = 'info' | 'stopped' | 'review'
 
@@ -19,6 +19,10 @@ const TONE_COLORS: Record<InfoCalloutTone, { background: string; icon: string; b
     border: '1px solid var(--app-warning-border)',
   },
 }
+
+/** The primary button a callout offers as its action, full width on a phone and as wide as its label beside the text */
+export const INFO_CALLOUT_ACTION_CLASS =
+  'app-primary-button h-9 w-full justify-center whitespace-nowrap px-4 text-sm sm:w-auto'
 
 // The focus ring is 3:1 on the page but under it on a tint, so a control inside a callout draws its ring in
 // the selected navigation item's focus colour, which clears 3:1 on every tone in both themes

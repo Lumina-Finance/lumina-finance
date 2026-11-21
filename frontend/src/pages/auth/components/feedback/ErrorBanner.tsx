@@ -16,7 +16,8 @@ export function AuthErrorBanner({ error }: { error: ReactNode }) {
 
   // Only text can be compared, since other content is rebuilt on every render
   useEffect(() => {
-    const replaced = typeof error === 'string' && typeof previousError.current === 'string' && error !== previousError.current
+    const replaced =
+      typeof error === 'string' && typeof previousError.current === 'string' && error !== previousError.current
     previousError.current = error
     if (replaced) bannerRef.current?.scrollIntoView({ block: 'nearest', behavior })
   }, [error, behavior])
@@ -31,7 +32,7 @@ export function AuthErrorBanner({ error }: { error: ReactNode }) {
           initial={{ opacity: 0, height: 0, marginTop: 0 }}
           animate={{ opacity: 1, height: 'auto', marginTop: 20 }}
           exit={{ opacity: 0, height: 0, marginTop: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2 }}
           onAnimationComplete={(definition) => {
             // The exit finishing reports a height of 0, which has nothing to show
             if (!Array.isArray(definition) && typeof definition === 'object' && definition.height === 'auto') {
@@ -47,12 +48,7 @@ export function AuthErrorBanner({ error }: { error: ReactNode }) {
               border: '1px solid var(--app-negative-border)',
             }}
           >
-            <AlertCircle
-              size={16}
-              className="mt-0.5 shrink-0"
-              style={{ color: 'var(--app-negative)' }}
-              aria-hidden
-            />
+            <AlertCircle size={16} className="mt-0.5 shrink-0" style={{ color: 'var(--app-negative)' }} aria-hidden />
             <p className="text-sm" style={{ color: 'var(--app-negative)' }}>
               {error}
             </p>

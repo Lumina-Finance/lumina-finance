@@ -34,6 +34,9 @@ interface MfaChallengeProps {
   submitting: boolean
   passkeySubmitting: boolean
 
+  /** Holds both verify buttons while the server can't take a sign-in, such as during a maintenance */
+  held?: boolean
+
   // Called only when hasAncestorForm is false — otherwise the page's own surrounding form already
   // owns submission and this prop is left unset
   onSubmitCode?: (event: FormEvent<HTMLFormElement>) => void
@@ -65,6 +68,7 @@ export function MfaChallenge({
   onCodeChange,
   submitting,
   passkeySubmitting,
+  held = false,
   onSubmitCode,
   onVerifyPasskey,
   onSwitchToAuthenticator,
@@ -88,7 +92,7 @@ export function MfaChallenge({
   const changeAuthenticatorCode = (value: string) => {
     // The submit handler reads the code from state, so the new code renders before the submit
     flushSync(() => onCodeChange(value))
-    if (value.length === OTP_LENGTH) verifyButtonRef.current?.form?.requestSubmit()
+    if (value.length === OTP_LENGTH && !held) verifyButtonRef.current?.form?.requestSubmit()
   }
 
   const codeBranch = (
@@ -130,7 +134,7 @@ export function MfaChallenge({
         <DisabledReasonButton
           ref={verifyButtonRef}
           type="submit"
-          disabled={submitting}
+          disabled={submitting || held}
           disabledReason={
             !submitting && !codeReady
               ? useRecoveryCode
@@ -182,7 +186,7 @@ export function MfaChallenge({
             <button
               type="button"
               onClick={onVerifyPasskey}
-              disabled={passkeySubmitting}
+              disabled={passkeySubmitting || held}
               className={`app-primary-button ${passkeySubmitting ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
             >
               <PendingLabel pending={passkeySubmitting} name="Verify with a passkey" className="gap-2">

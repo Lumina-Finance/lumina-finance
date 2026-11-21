@@ -102,6 +102,7 @@ describe('toTailwindZIndexTheme', () => {
       popover: '110',
       toast: '115',
       tooltip: '120',
+      'maintenance-screen': '125',
     })
   })
 })

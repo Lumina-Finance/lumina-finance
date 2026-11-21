@@ -8,6 +8,8 @@ interface OidcProviderButtonsProps {
   providers: OidcProvider[]
   /** A provider to start at once, for a native app whose own provider button opened this page */
   autoStartSlug?: string | null
+  /** Holds every button while the server can't take a sign-in, such as during a maintenance */
+  disabled?: boolean
 }
 
 /**
@@ -17,7 +19,7 @@ interface OidcProviderButtonsProps {
  * roundtrips, and the pending state is kept after the redirect begins because the page
  * is navigating away
  */
-export function OidcProviderButtons({ providers, autoStartSlug }: OidcProviderButtonsProps) {
+export function OidcProviderButtons({ providers, autoStartSlug, disabled = false }: OidcProviderButtonsProps) {
   // The app already showed the user its own button for this provider, so the page goes straight on,
   // already showing that button's spinner. An unknown slug leaves the buttons for the user to choose
   const [autoStart] = useState(() =>
@@ -56,7 +58,7 @@ export function OidcProviderButtons({ providers, autoStartSlug }: OidcProviderBu
           <button
             type="button"
             onClick={() => handleProviderClick(provider.slug)}
-            disabled={pendingSlug !== null}
+            disabled={disabled || pendingSlug !== null}
             className={`app-secondary-button ${
               pendingSlug === provider.slug
                 ? 'app-primary-button-loading'

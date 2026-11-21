@@ -1,5 +1,12 @@
-import { ApiError, NO_EXPLANATION_MESSAGE, type LoginPayload, type SignupPayload } from '@/api/auth'
+import {
+  ApiError,
+  MAINTENANCE_MESSAGE,
+  NO_EXPLANATION_MESSAGE,
+  type LoginPayload,
+  type SignupPayload,
+} from '@/api/auth'
 import type { Currency } from '@/api/currency'
+import { isMaintenanceFailure } from '@/api/version'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { getEmailAddressError } from '@/utils/emailAddress'
 import { formatCurrencyLabel } from '@/utils/formatCurrency'
@@ -204,12 +211,14 @@ export function getAuthSubmitBlockReason(
 
 /**
  * Puts a failed auth request in the form's words where it has them, and otherwise in one of the request
- * layer's own safe sentences: the timeout's, the dropped connection's, or the friendly sentence
+ * layer's own safe sentences: the maintenance's, the timeout's, the dropped connection's, or the
+ * friendly sentence
  *
  * The server's own explanation is never shown as it stands, since these pages face anyone, and a detail,
  * status or internal name there could tell someone probing them more than the form means to
  */
 export function getAuthErrorMessage(error: unknown): string {
+  if (isMaintenanceFailure(error)) return MAINTENANCE_MESSAGE
   if (error instanceof DOMException && error.name === 'TimeoutError') return error.message
   // The browser fails a request that never reached the server this way, with a message not written for
   // the screen

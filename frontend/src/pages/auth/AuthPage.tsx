@@ -3,9 +3,10 @@ import { Navigate, useLocation } from 'react-router'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { KeyRound } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useRegistrationStatus } from '@/api/auth'
+import { MAINTENANCE_MESSAGE, useRegistrationStatus } from '@/api/auth'
 import { useCurrencies } from '@/api/currency'
 import { useOidcProviders } from '@/api/oidc'
+import { useServerNotice } from '@/api/version'
 import { MfaChallenge } from '@/components/two-factor/MfaChallenge'
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle'
 import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyRetryWarning'
@@ -20,6 +21,7 @@ import {
   SIGNUP_FIELD_ANIMATION,
 } from '@/pages/auth/constants/authAnimations'
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow'
+import { useMaintenanceRecheck } from '@/pages/auth/hooks/useMaintenanceRecheck'
 import { getAuthMode, REGISTRATION_CLOSED_NOTICE } from '@/pages/auth/utils/authForm'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { getBrowserTimeZone } from '@/utils/date'
@@ -102,6 +104,13 @@ const AuthPage = () => {
 
   const { data: oidcProviders = [] } = useOidcProviders()
 
+  // The requests this page makes on opening find a maintenance by themselves. Every button that
+  // sends to the server waits for it to end, with the reason in the banner above the form
+  const inMaintenance = useServerNotice() === 'maintenance'
+  useMaintenanceRecheck(inMaintenance, () => {
+    if (currenciesError) void refetchCurrencies()
+  })
+
   // Sign-up stays hidden until the server answers on this visit, so a closed instance never flashes
   // it, even to a browser that remembers it open
   const { data: registration, isFetchedAfterMount: registrationKnown } = useRegistrationStatus()
@@ -142,8 +151,15 @@ const AuthPage = () => {
       <form onSubmit={mfaActive ? handleMfaSubmit : handleSubmit} className="w-full max-w-sm" noValidate>
         <AuthAnimatedTitle mode={mode} />
 
-        <AuthErrorBanner error={displayError || (handoff?.registrationClosed ? REGISTRATION_CLOSED_NOTICE : null)} />
-        {isSignup && (
+        <AuthErrorBanner
+          error={
+            inMaintenance
+              ? MAINTENANCE_MESSAGE
+              : displayError || (handoff?.registrationClosed ? REGISTRATION_CLOSED_NOTICE : null)
+          }
+        />
+        {/* A retry can't load the currencies until the maintenance ends, and the page asks for them again then */}
+        {isSignup && !inMaintenance && (
           <CurrencyRetryWarning
             failed={currenciesError && currencies.length === 0}
             fetching={currenciesFetching}
@@ -179,6 +195,7 @@ const AuthPage = () => {
                 onCodeChange={setMfaCode}
                 submitting={mfaSubmitting}
                 passkeySubmitting={passkeyMfaSubmitting}
+                held={inMaintenance}
                 onVerifyPasskey={handlePasskeyMfa}
                 onSwitchToAuthenticator={switchToAuthenticatorMfa}
                 onSwitchToRecovery={switchToRecoveryMfa}
@@ -330,8 +347,8 @@ const AuthPage = () => {
               <div className="mt-5 flex justify-center">
                 <DisabledReasonButton
                   type="submit"
-                  disabled={submitDisabled}
-                  disabledReason={submitBlockReason}
+                  disabled={submitDisabled || inMaintenance}
+                  disabledReason={inMaintenance ? MAINTENANCE_MESSAGE : submitBlockReason}
                   className={`app-primary-button ${submitting ? 'app-primary-button-loading' : 'w-full'}`}
                 >
                   <PendingLabel pending={submitting} name={submitLabel}>
@@ -355,7 +372,7 @@ const AuthPage = () => {
                       <button
                         type="button"
                         onClick={handlePasskeySignIn}
-                        disabled={passkeySigningIn}
+                        disabled={passkeySigningIn || inMaintenance}
                         className={`app-secondary-button ${passkeySigningIn ? 'app-primary-button-loading' : 'flex w-full items-center justify-center gap-2'}`}
                       >
                         <PendingLabel pending={passkeySigningIn} name="Sign in with a passkey" className="gap-2">
@@ -367,7 +384,11 @@ const AuthPage = () => {
                   )}
 
                   {showOidcButtons && (
-                    <OidcProviderButtons providers={oidcProviders} autoStartSlug={nativeProviderSlug} />
+                    <OidcProviderButtons
+                      providers={oidcProviders}
+                      autoStartSlug={nativeProviderSlug}
+                      disabled={inMaintenance}
+                    />
                   )}
                 </div>
               )}

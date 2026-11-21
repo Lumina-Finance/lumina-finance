@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildApiError } from '@/api/auth'
 import { explainRequestFailure } from '@/api/server'
+import { reportMaintenance } from '@/api/version'
 import { getLoadFailureReason } from '@/pages/imports/utils'
 
 const REFUSED = "The names couldn't be sent."
@@ -42,6 +43,19 @@ describe('the reason a lookup on the import page failed', () => {
     const lost = explainRequestFailure(new TypeError('Failed to fetch'))
 
     expect(getLoadFailureReason(lost, REFUSED)).toBe("Couldn't reach the server.")
+  })
+
+  it('says the server is in maintenance when the maintenance file reports one for a lost connection', () => {
+    const lost = explainRequestFailure(new TypeError('Failed to fetch'))
+    reportMaintenance(true)
+
+    try {
+      // The panel's Try again button asks the user to try again, so the sentence leaves that out
+      expect(getLoadFailureReason(lost, REFUSED)).toBe('Lumina Finance is down for maintenance.')
+      expect(getLoadFailureReason(buildApiError(504, null), REFUSED)).toBe('Lumina Finance is down for maintenance.')
+    } finally {
+      reportMaintenance(false)
+    }
   })
 
   it('is short for a failure the browser worded, such as an unreadable answer', () => {

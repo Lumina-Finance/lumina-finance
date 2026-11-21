@@ -65,6 +65,12 @@ export const STACKING_LEVELS = {
    * portalled beside the dialog, so anything less left it painting underneath the panel it describes
    */
   tooltip: 120,
+
+  /**
+   * The screen covering the whole app while the server is in maintenance, above everything, since
+   * nothing under it works until the server is back
+   */
+  maintenanceScreen: 125,
 } as const
 
 export type StackingLevel = keyof typeof STACKING_LEVELS

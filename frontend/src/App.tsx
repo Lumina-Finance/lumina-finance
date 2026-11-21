@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, type Locat
 import { AnimatePresence, motion } from 'motion/react'
 import { useBankSyncHeartbeat } from '@/api/bank-sync'
 import { useCurrencies } from '@/api/currency'
+import { useServerNotice } from '@/api/version'
 import { AuthProvider } from '@/contexts/AuthProvider'
 import { DateFormatProvider } from '@/contexts/DateFormatProvider'
 import { NavCollapseProvider } from '@/contexts/NavCollapseProvider'
@@ -16,6 +17,8 @@ import { useLabelFocus } from '@/hooks/useLabelFocus'
 import Navigation from '@/components/navigation/Navigation'
 import ErrorBoundary from '@/components/errors/Boundary'
 import Fallback from '@/components/errors/Fallback'
+import { MaintenanceScreen } from '@/components/errors/MaintenanceScreen'
+import { ServerNotice } from '@/components/feedback/ServerNotice'
 import LoadingScreen from '@/components/loading/Screen'
 import ForcedReenrollScreen from '@/components/two-factor/ForcedReenrollScreen'
 import { lazyPage } from '@/utils/pageCode'
@@ -243,6 +246,9 @@ function ProtectedRoute({
             className={`min-w-0 flex-1 isolate ${isFocusedPage ? 'fixed inset-0 z-focused-page p-0' : `relative px-4 pb-8 pt-6 ${navOffsetClass} min-[1050px]:px-6 ${desktopBottomPadding} min-[1050px]:pt-10 transition-[margin] duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none`}`}
             aria-busy={pageTransitioning}
           >
+            {/* A focused page fills the window exactly, so a notice above it would push its bottom edge
+                out of view. The notice shows once the user leaves it */}
+            {!isFocusedPage && <ServerNotice />}
             <motion.div
               initial={{
                 opacity: pageContentEntering ? 0 : 1,
@@ -309,6 +315,7 @@ function PublicRoute() {
 function AnimatedRoutes() {
   const location = useLocation()
   const { user } = useAuth()
+  const serverNotice = useServerNotice()
   const [displayLocation, setDisplayLocation] = useState(location)
 
   // Start in the loading phase so the very first route fades in through the same
@@ -498,6 +505,8 @@ function AnimatedRoutes() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {/* Signed out, the sign-in forms say it in a banner instead, since there is nothing to keep */}
+      <MaintenanceScreen shown={Boolean(user) && serverNotice === 'maintenance'} />
     </>
   )
 }
