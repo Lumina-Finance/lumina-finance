@@ -40,7 +40,8 @@ def reject_unchanged_email(user: User, new_email: str) -> None:
     """Refuse the address the account already has, spelled exactly as it is stored
 
     Runs before the step-up, so a request that changes nothing spends neither a proof nor a password
-    attempt. Only the same spelling is refused. The same address in other capitals is a change
+    attempt. Only the same spelling is refused, after validation has lower-cased the domain. The same address
+    with other capitals before the @ is a change
 
     Args:
         user: Account asking for the change
