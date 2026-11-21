@@ -7,6 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchFromServer } from '@/api/server'
 import { MAINTENANCE_FILE_MIN_INTERVAL_MS, MAINTENANCE_FILE_TIMEOUT_MS } from '@/api/version/maintenanceFile'
 import { getServerNotice, reportMaintenance } from '@/api/version'
+import { MAINTENANCE_MESSAGE } from '@/api/auth/errors'
+import { getAuthErrorMessage } from '@/pages/auth/utils/authForm'
+import { getSetupRetryMessage } from '@/utils/setupFailure'
 
 vi.unmock('@/api/version/maintenanceFile')
 
@@ -31,7 +34,7 @@ function fileRequests() {
   return fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/maintenance.json'))
 }
 
-// Lets the file's answer be read, since the request that failed does not wait for it
+// Lets any answer still on its way be read before the test checks the page
 async function settle() {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
@@ -57,11 +60,22 @@ describe('a request the server never answered', () => {
     serve({ api: NEVER_ANSWERED, file: fileSaying({ maintenance: true }) })
 
     await expect(fetchFromServer('/accounts')).rejects.toBeInstanceOf(TypeError)
-    await vi.waitFor(() => expect(getServerNotice('1.0.0')).toBe('maintenance'))
 
+    // A screen words the failure where it catches it, so the maintenance is known by then
+    expect(getServerNotice('1.0.0')).toBe('maintenance')
     expect(fileRequests()).toEqual([
       ['/maintenance.json', { cache: 'no-store', signal: expect.any(AbortSignal) as AbortSignal }],
     ])
+  })
+
+  // The first sign-in or setup failure read "Couldn't reach the server" while the file was on its way
+  it('words the first failure as maintenance where it is caught', async () => {
+    serve({ api: NEVER_ANSWERED, file: fileSaying({ maintenance: true }) })
+
+    const error: unknown = await fetchFromServer('/auth/login').catch((caught: unknown) => caught)
+
+    expect(getAuthErrorMessage(error)).toBe(MAINTENANCE_MESSAGE)
+    expect(getSetupRetryMessage(error)).toBe(MAINTENANCE_MESSAGE)
   })
 
   it.each([
@@ -83,15 +97,22 @@ describe('a request the server never answered', () => {
     expect(getServerNotice('1.0.0')).toBeNull()
   })
 
-  it('fails the request without waiting for the file', async () => {
+  it('fails the request only once the file has answered', async () => {
     let answerFile: (response: Response) => void = () => undefined
     serve({ api: NEVER_ANSWERED, file: () => new Promise<Response>((resolve) => (answerFile = resolve)) })
+    let failed = false
 
-    await expect(fetchFromServer('/accounts')).rejects.toBeInstanceOf(TypeError)
-
-    expect(getServerNotice('1.0.0')).toBeNull()
-    answerFile(new Response('{}', { status: 200 }))
+    const request = fetchFromServer('/accounts').catch((error: unknown) => {
+      failed = true
+      throw error
+    })
+    await vi.waitFor(() => expect(fileRequests()).toHaveLength(1))
     await settle()
+    expect(failed).toBe(false)
+
+    answerFile(new Response(JSON.stringify({ maintenance: true }), { status: 200 }))
+    await expect(request).rejects.toBeInstanceOf(TypeError)
+    expect(getServerNotice('1.0.0')).toBe('maintenance')
   })
 
   // A file read that landed after the app answered once brought the notice back until the next retry
@@ -100,12 +121,12 @@ describe('a request the server never answered', () => {
     let api: () => Promise<Response> = NEVER_ANSWERED
     serve({ api: () => api(), file: () => new Promise<Response>((resolve) => (answerFile = resolve)) })
 
-    await expect(fetchFromServer('/accounts')).rejects.toBeInstanceOf(TypeError)
+    const failedRequest = fetchFromServer('/accounts')
     await vi.waitFor(() => expect(fileRequests()).toHaveLength(1))
     api = () => Promise.resolve(new Response('[]', { status: 200 }))
     await fetchFromServer('/accounts')
     answerFile(new Response(JSON.stringify({ maintenance: true }), { status: 200 }))
-    await settle()
+    await expect(failedRequest).rejects.toBeInstanceOf(TypeError)
 
     expect(getServerNotice('1.0.0')).toBeNull()
   })
@@ -138,19 +159,20 @@ describe('a request the server never answered', () => {
         : NEVER_ANSWERED(),
     )
 
-    await expect(fetchFromServer('/accounts')).rejects.toBeInstanceOf(TypeError)
+    const first = expect(fetchFromServer('/accounts')).rejects.toBeInstanceOf(TypeError)
+    await vi.advanceTimersByTimeAsync(MAINTENANCE_FILE_TIMEOUT_MS)
+    await first
     expect(fileRequests()).toHaveLength(1)
 
-    await vi.advanceTimersByTimeAsync(MAINTENANCE_FILE_TIMEOUT_MS)
+    // Within the interval the request fails at once, with no second ask
     await expect(fetchFromServer('/accounts')).rejects.toBeInstanceOf(TypeError)
     expect(fileRequests()).toHaveLength(1)
 
     await vi.advanceTimersByTimeAsync(MAINTENANCE_FILE_MIN_INTERVAL_MS)
-    await expect(fetchFromServer('/accounts')).rejects.toBeInstanceOf(TypeError)
-    expect(fileRequests()).toHaveLength(2)
-
-    // Lets the second ask run out of time too, so it holds nothing up for the tests after this one
+    const third = expect(fetchFromServer('/accounts')).rejects.toBeInstanceOf(TypeError)
     await vi.advanceTimersByTimeAsync(MAINTENANCE_FILE_TIMEOUT_MS)
+    await third
+    expect(fileRequests()).toHaveLength(2)
   })
 
   it('asks again when the clock was set back since the last ask', async () => {

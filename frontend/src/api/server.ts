@@ -56,8 +56,9 @@ export function fetchFromServer(
   }
 
   return fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal })
-    .catch((error: unknown) => {
-      if (gotNoAnswer(error)) void checkMaintenanceFile()
+    .catch(async (error: unknown) => {
+      // The failure is worded once, where it is caught, so the maintenance file is read before it fails
+      if (gotNoAnswer(error)) await checkMaintenanceFile()
       throw explainRequestFailure(error)
     })
     .then(async (response) => {
@@ -94,5 +95,5 @@ async function noteMaintenance(response: Response) {
     .catch(() => null)
   if (isMaintenanceAnswer(response.status, body)) reportMaintenance(true)
   else if (readSentenceDetail(body) !== undefined) reportMaintenance(false)
-  else void checkMaintenanceFile()
+  else await checkMaintenanceFile()
 }

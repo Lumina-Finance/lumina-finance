@@ -10,9 +10,10 @@ const MAINTENANCE_FILE_URL = `${import.meta.env.BASE_URL}maintenance.json`
 // this, since the page's own retry runs every minute
 export const MAINTENANCE_FILE_MIN_INTERVAL_MS = 15_000
 
-// A host that accepts the connection and never answers would otherwise hold the one ask open until the
-// browser gives up, and block every later ask meanwhile
-export const MAINTENANCE_FILE_TIMEOUT_MS = 10_000
+// The failed request waits for the file at most this long before it fails. A host that accepts the
+// connection and never answers would otherwise hold that request, and every later ask, until the
+// browser gives up
+export const MAINTENANCE_FILE_TIMEOUT_MS = 3_000
 
 let inFlight: Promise<void> | null = null
 let lastAskedAt = Number.NEGATIVE_INFINITY
@@ -39,7 +40,8 @@ async function readMaintenanceFile() {
  * answered. Only a file holding the maintenance marker counts. No file, an answer that isn't JSON and
  * no answer at all each leave what the page says as it was. A web server that answers an address it
  * doesn't know with the app's own page gives an answer that isn't JSON. The end of a maintenance is
- * left to the next answer the app makes, and a file that arrives after one counts for nothing
+ * left to the next answer the app makes, and a file that arrives after one counts for nothing. The
+ * failed request waits for this, so the screen that catches it already knows of the maintenance
  */
 export function checkMaintenanceFile(): Promise<void> {
   if (inFlight) return inFlight
