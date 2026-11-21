@@ -169,10 +169,7 @@ CURRENCIES: list[tuple[str, str, str, int]] = [
 
 async def seed_currencies() -> None:
     """Update/insert every currency in :data:`CURRENCIES` into the database."""
-    rows = [
-        {"id": code, "name": name, "symbol": symbol, "minor_unit_exponent": exponent}
-        for code, name, symbol, exponent in CURRENCIES
-    ]
+    rows = [{"id": code, "name": name, "symbol": symbol, "minor_unit_exponent": exponent} for code, name, symbol, exponent in CURRENCIES]
     session_factory = create_migration_sessionmaker()
     async with session_factory() as db:
         stmt = insert(Currency).values(rows)

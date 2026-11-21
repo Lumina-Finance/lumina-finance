@@ -41,12 +41,14 @@ async def seed_system_merchants(db: AsyncSession) -> list[str]:
     for name in SYSTEM_MERCHANT_NAMES:
         if name in existing_names:
             continue
-        db.add(Merchant(
-            owner_id=None,
-            group_id=None,
-            name=name,
-            is_system=True,
-            default_category_id=None,
-        ))
+        db.add(
+            Merchant(
+                owner_id=None,
+                group_id=None,
+                name=name,
+                is_system=True,
+                default_category_id=None,
+            )
+        )
         created_names.append(name)
     return created_names
