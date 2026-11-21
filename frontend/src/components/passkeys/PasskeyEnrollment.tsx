@@ -18,8 +18,7 @@ import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel'
 import { SetupRestart } from '@/components/two-factor/SetupRestart'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { getPasskeyRegistrationMessage, isPasskeyCeremonyCancelled } from '@/utils/passkeyErrors'
-import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
-import { isSetupRefused } from '@/utils/setupFailure'
+import { getSetupRetryMessage, isSetupRefused } from '@/utils/setupFailure'
 
 const NAME_FIELDS = ['name'] as const
 const ACK_FIELDS = ['acknowledgements'] as const
@@ -98,7 +97,7 @@ export function PasskeyEnrollment({ onComplete, onSkip, onSwitchToTotp, setupSte
       onComplete()
     } catch (failure) {
       if (isSetupRefused(failure)) setActivateFailed(true)
-      else setError(SERVER_UNREACHABLE_MESSAGE)
+      else setError(getSetupRetryMessage(failure))
     }
   }
 

@@ -30,8 +30,7 @@ import { RecoveryCodesPanel } from '@/components/two-factor/RecoveryCodesPanel'
 import { SetupRestart } from '@/components/two-factor/SetupRestart'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { copyText } from '@/utils/clipboard'
-import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
-import { isSetupRefused } from '@/utils/setupFailure'
+import { getSetupRetryMessage, isSetupRefused } from '@/utils/setupFailure'
 import { delayToMinimum, LOADING_ANIMATION_MIN_MS, MFA_LOADING_MIN_MS } from '@/utils/timing'
 
 // How long the copied confirmation stays before reverting to the copy affordance
@@ -197,7 +196,7 @@ export function TotpEnrollment({
     } catch (failure) {
       await delayToMinimum(start, MFA_LOADING_MIN_MS)
       if (isSetupRefused(failure)) setFinishFailed(true)
-      else setError(SERVER_UNREACHABLE_MESSAGE)
+      else setError(getSetupRetryMessage(failure))
       setCompleting(false)
     }
   }

@@ -15,8 +15,7 @@ import { SetupRestart } from '@/components/two-factor/SetupRestart'
 import { ModalContentFooter, ModalContentPanel } from '@/components/modal/ContentPanel'
 import { MODAL_TITLE_CLASS_NAME } from '@/components/modal/Rail'
 import type { ModalLevel } from '@/components/modal/Shell'
-import { SERVER_UNREACHABLE_MESSAGE } from '@/api/server'
-import { isSetupRefused } from '@/utils/setupFailure'
+import { getSetupRetryMessage, isSetupRefused } from '@/utils/setupFailure'
 import { delayToMinimum } from '@/utils/timing'
 
 const DEFAULT_DESCRIPTION =
@@ -101,7 +100,7 @@ export function RecoveryCodesModal({
     } catch (failure) {
       await delayToMinimum(start)
       if (isSetupRefused(failure)) setFailed(true)
-      else setError(SERVER_UNREACHABLE_MESSAGE)
+      else setError(getSetupRetryMessage(failure))
       setConfirming(false)
     }
   }

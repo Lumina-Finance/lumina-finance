@@ -3,8 +3,9 @@
  * a request fails, so it never repeats the panel's title or its Try again button
  */
 import { describe, expect, it } from 'vitest'
-import { buildApiError } from '@/api/auth'
+import { buildApiError, MAINTENANCE_MESSAGE } from '@/api/auth'
 import { explainRequestFailure } from '@/api/server'
+import { reportMaintenance } from '@/api/version'
 import { getLoadFailureReason } from '@/pages/imports/utils'
 
 const REFUSED = "The names couldn't be sent."
@@ -42,6 +43,18 @@ describe('the reason a lookup on the import page failed', () => {
     const lost = explainRequestFailure(new TypeError('Failed to fetch'))
 
     expect(getLoadFailureReason(lost, REFUSED)).toBe("Couldn't reach the server.")
+  })
+
+  it('says the server is in maintenance when the maintenance file reports one for a lost connection', () => {
+    const lost = explainRequestFailure(new TypeError('Failed to fetch'))
+    reportMaintenance(true)
+
+    try {
+      expect(getLoadFailureReason(lost, REFUSED)).toBe(MAINTENANCE_MESSAGE)
+      expect(getLoadFailureReason(buildApiError(504, null), REFUSED)).toBe(MAINTENANCE_MESSAGE)
+    } finally {
+      reportMaintenance(false)
+    }
   })
 
   it('is short for a failure the browser worded, such as an unreadable answer', () => {
