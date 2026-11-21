@@ -421,13 +421,14 @@ async def test_confirm_ends_the_unused_reset_links_of_the_account_only(client):
     assert (await client.post("/auth/password/reset/check", json={"token": bystander_link})).status_code == 200
 
 
-async def test_confirm_with_a_reset_request_for_the_old_address_at_once_sends_it_no_working_link(client, monkeypatch):
-    """A reset request for the old address arriving mid-change waits for the change, then finds no account to send a link for"""
+@pytest.mark.parametrize("spelling", [_OLD_EMAIL, _OLD_EMAIL.upper()], ids=["same capitals", "other capitals"])
+async def test_confirm_with_a_reset_request_for_the_old_address_at_once_sends_it_no_working_link(client, monkeypatch, spelling):
+    """A reset request for the old address, in any capitals, arriving mid-change waits for it, then finds no account"""
     _, user_id, token = await _signed_up_and_requested(client)
     hold = _hold_first_confirmation(monkeypatch)
 
     async def request_reset_for_old_address():
-        return await client.post("/auth/password/forgot", json={"email": _OLD_EMAIL})
+        return await client.post("/auth/password/forgot", json={"email": spelling})
 
     confirmed, reset = await _confirm_while_queueing(client, hold, token, request_reset_for_old_address)
 

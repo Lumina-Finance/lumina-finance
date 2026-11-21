@@ -1,3 +1,4 @@
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type React from 'react'
 import { FieldError } from '@/components/forms/FieldError'
 import { PasswordRequirements } from '@/components/PasswordRequirements'
@@ -11,6 +12,8 @@ import SignInProviderControls from '@/pages/settings/components/security-section
 import type { PasswordFormState } from '@/pages/settings/hooks/useSecuritySettingsForm'
 
 const EMAIL_ERROR_ID = 'security-email-error'
+
+const SENT_MESSAGE_EASE = [0.22, 1, 0.36, 1] as const
 
 /** What the Email field needs from the page: its text, why it is refused, and where its events go */
 export type SecurityEmailField = {
@@ -47,6 +50,7 @@ export default function SecuritySection({
   hasPassword,
   actions,
 }: SecuritySectionProps) {
+  const shouldReduceMotion = useReducedMotion()
   const showRules = form.newPassword.length > 0
   const showMismatch = form.confirmPassword.length > 0 && !confirmMatches
 
@@ -57,7 +61,7 @@ export default function SecuritySection({
         description="Manage your account email, password, and two-factor authentication."
       />
 
-      <div className="space-y-4">
+      <div>
         <SettingsCard>
           <div className="space-y-6">
             <div className="space-y-1">
@@ -150,11 +154,23 @@ export default function SecuritySection({
           </div>
         </SettingsCard>
 
-        {email.sentMessage && (
-          <p role="status" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            {email.sentMessage}
-          </p>
-        )}
+        <AnimatePresence initial={false}>
+          {email.sentMessage && (
+            <motion.div
+              key="email-sent"
+              className="overflow-hidden"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0.01 : 0.3, ease: SENT_MESSAGE_EASE }}
+            >
+              {/* The gap above sits inside the box, since padding on a box animating its height would stay behind */}
+              <p role="status" className="pt-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                {email.sentMessage}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </section>
   )

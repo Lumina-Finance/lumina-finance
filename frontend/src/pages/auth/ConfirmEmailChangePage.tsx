@@ -134,7 +134,7 @@ const ConfirmEmailChangePage = () => {
  */
 function LogInLink() {
   return (
-    <p className="text-sm">
+    <p className="text-center text-sm">
       <Link
         to="/login"
         replace

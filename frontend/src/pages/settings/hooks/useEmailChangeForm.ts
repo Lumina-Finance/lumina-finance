@@ -30,6 +30,9 @@ export function useEmailChangeForm({ savedEmail, hasPassword }: { savedEmail: st
   const [touched, setTouched] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
   const [sentTo, setSentTo] = useState<string | null>(null)
+  // The address a request went to, held until the Save button reaches its success state, so the notice
+  // and the button's success appear together rather than the notice showing while Save still spins
+  const sentAddressRef = useRef<string | null>(null)
   const [isStepUpOpen, setIsStepUpOpen] = useState(false)
 
   const value = draft ?? savedEmail
@@ -42,7 +45,13 @@ export function useEmailChangeForm({ savedEmail, hasPassword }: { savedEmail: st
 
   // Mutate through a stable reference so the resume effect below does not rerun with the mutation's state
   const { mutateAsync: sendRequest } = requestEmailChange
-  const { run: runWithFeedback } = feedback
+  const { run: runWithFeedback, status: feedbackStatus } = feedback
+
+  useEffect(() => {
+    if (feedbackStatus !== 'success' || sentAddressRef.current === null) return
+    setSentTo(sentAddressRef.current)
+    sentAddressRef.current = null
+  }, [feedbackStatus])
 
   // A passwordless reauth returns here with the address, then clears the state so a reload does not send
   // it again
@@ -57,7 +66,7 @@ export function useEmailChangeForm({ savedEmail, hasPassword }: { savedEmail: st
     runWithFeedback(async () => {
       await sendRequest({ new_email: resumeAddress })
       setDraft(null)
-      setSentTo(resumeAddress)
+      sentAddressRef.current = resumeAddress
     }).catch((error: Error) => {
       // The field shows the address that was refused, so the reason sits beside what it is about
       setDraft(resumeAddress)
@@ -73,6 +82,7 @@ export function useEmailChangeForm({ savedEmail, hasPassword }: { savedEmail: st
     setDraft(next)
     setRequestError(null)
     setSentTo(null)
+    sentAddressRef.current = null
   }
 
   /**
@@ -107,7 +117,7 @@ export function useEmailChangeForm({ savedEmail, hasPassword }: { savedEmail: st
       await feedback.run(async () => {
         await sendRequest({ new_email: address, step_up: credentials })
         setDraft(null)
-        setSentTo(address)
+        sentAddressRef.current = address
         setIsStepUpOpen(false)
       })
     } catch (error) {
