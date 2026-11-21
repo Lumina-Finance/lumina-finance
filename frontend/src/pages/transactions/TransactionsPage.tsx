@@ -15,9 +15,8 @@ import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import TransactionsTopBand from '@/pages/transactions/components/TopBand'
 import { toTransactionListAccount } from '@/components/transactions/types/transactionList'
 import { useTransactionNavigationFilters } from '@/pages/transactions/hooks/useTransactionNavigationFilters'
-import { getCurrentMonthOverviewRange } from '@/pages/transactions/utils/date'
 import { formatDateRangeLabel, getTodayYmd } from '@/utils/date'
-import { getOverviewRangeSpanError } from '@/utils/dateWindow'
+import { getOverviewRange, getOverviewRangeSpanError } from '@/utils/dateWindow'
 
 // Fade out the failed summary before revealing the recovered summary without chart entrances
 const RETRY_FADE_SECONDS = 0.2
@@ -98,10 +97,10 @@ export default function TransactionsPage() {
     }
   }
 
-  const { monthStart, today } = useMemo(() => getCurrentMonthOverviewRange(user!.tz), [user])
+  const today = useMemo(() => getTodayYmd(user!.tz), [user])
 
-  const overviewFromDate = filters.from_date ?? monthStart
-  const overviewToDate = filters.to_date ?? today
+  // The summary needs both ends, so one the filter leaves out is filled in a way that keeps the range forward
+  const { from: overviewFromDate, to: overviewToDate } = getOverviewRange(filters.from_date, filters.to_date, today)
   const rangeLabel = useMemo(
     () => formatDateRangeLabel(overviewFromDate, overviewToDate),
     [overviewFromDate, overviewToDate],
@@ -111,8 +110,7 @@ export default function TransactionsPage() {
   const overviewAccountId = filters.account_id?.length === 1 ? filters.account_id[0] : undefined
   // A filter restored from the address or saved state can still hold dates the summary can't cover, and
   // asking would only come back refused, so nothing is asked and the band says why
-  const overviewRangeTooLong =
-    getOverviewRangeSpanError(filters.from_date, filters.to_date, getTodayYmd(user!.tz)) !== null
+  const overviewRangeTooLong = getOverviewRangeSpanError(filters.from_date, filters.to_date, today) !== null
   const overviewQuery = useTransactionsOverview(
     {
       account_id: overviewAccountId,

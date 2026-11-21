@@ -11,7 +11,7 @@ export type DateRangeErrors = {
  * A date outside the window every date must sit in is refused on its own field. When the list sits
  * below a summary, the summary asks for both ends, so a range leading the summary to cover over 20
  * years is refused too: on To when To is set, otherwise on From. Without a To, the summary counts up
- * to today
+ * to today, or covers the From day alone when the From is later
  *
  * @param range - The draft's dates as "YYYY-MM-DD", "" for one not set
  * @param todayYmd - Today in the user's timezone as "YYYY-MM-DD"
