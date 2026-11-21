@@ -160,7 +160,8 @@ function readStoredEntry(page: { localStorage: FakeStorage }) {
 }
 
 beforeEach(() => {
-  // The timed save waits a second between writes, so a write it holds stays held for the whole test
+  // The timed save waits a second after the last save started, and the clock moves only when a test
+  // advances it, so a write it holds stays held until a test moves the clock that far
   vi.useFakeTimers()
   const encrypt = crypto.subtle.encrypt.bind(crypto.subtle)
   sealing = []
@@ -393,10 +394,14 @@ describe('saving the query cache', () => {
   it('saves on hiding a change whose timed save is still waiting', async () => {
     const page = loadPage({ [SESSION_KEY]: USER_A })
     page.client.setQueryData(['accounts'], [{ id: 'first-account' }])
-    await runTimedSave()
+
+    // Saved on hiding, so the clock stands where the save started and the next timed save waits a full interval
+    page.hide()
+    await settleSaves()
     await expect(readSavedCopy(page)).resolves.toContain('first-account')
     page.client.setQueryData(['accounts'], [{ id: 'second-account' }])
-    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(TIMED_SAVE_INTERVAL_MS - 1)
+    await settleSaves()
     await expect(readSavedCopy(page)).resolves.not.toContain('second-account')
 
     page.hide()
