@@ -4,6 +4,7 @@ These helpers do not use the database or HTTP. Budget routes use them to
 validate submitted period starts and derive period ends from base budget cadence
 settings
 """
+
 import calendar
 from datetime import date, timedelta
 

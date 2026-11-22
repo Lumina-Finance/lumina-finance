@@ -1,4 +1,5 @@
 """Base budget instance creation helpers"""
+
 import uuid
 from datetime import date, timedelta
 
@@ -218,10 +219,7 @@ async def resume_budget_generation_at_current_period(
     _raise_if_base_budget_archived(base_budget)
 
     latest_budget_query = (
-        select(Budget)
-        .where(Budget.base_budget_id == base_budget.id)
-        .order_by(Budget.period_start.desc(), Budget.created_at.desc())
-        .limit(1)
+        select(Budget).where(Budget.base_budget_id == base_budget.id).order_by(Budget.period_start.desc(), Budget.created_at.desc()).limit(1)
     )
 
     # The newest instance supplies both the series phase origin and the carry-forward cap
