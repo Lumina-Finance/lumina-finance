@@ -17,6 +17,7 @@ from app.models.base import AuthProvider
 from app.services.auth import password_reset, reset_send_limit, send_backoff
 from app.services.auth.saved_copy_key import derive_saved_copy_key
 from app.services.auth.token_hashing import hash_token
+from app.services.service_name import set_service_name
 from tests.conftest import TestSession, scoped_engine
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
@@ -29,6 +30,7 @@ from tests.routes.support import (
     _seed_reset_token,
     sign_up_confirmed,
 )
+from tests.routes.support.mailbox import mailbox
 
 _NEW_PASSWORD = "NewSecurePass123!"
 
@@ -150,6 +152,19 @@ async def test_forgot_password_issues_token_for_existing_user(client):
     rows = await _reset_tokens_for(user_id)
     assert len(rows) == 1
     assert rows[0].used_at is None
+
+
+async def test_forgot_password_email_carries_the_service_name_code_set(client):
+    """A reset email requested after code named the service shows that name, not the fixed one"""
+    await _create_user(client)
+    set_service_name("Example Service")
+
+    resp = await client.post("/auth/password/forgot", json={"email": SIGNUP_PAYLOAD["email"]})
+
+    assert resp.status_code == 204
+    reset_email = mailbox.sent_to(SIGNUP_PAYLOAD["email"])[-1].message
+    assert "Example Service" in reset_email.html_body
+    assert "Lumina Finance (Self-Hosted)" not in reset_email.html_body
 
 
 async def test_forgot_password_drops_the_token_when_the_email_fails(client, monkeypatch, sent_reset_emails, reset_clock):

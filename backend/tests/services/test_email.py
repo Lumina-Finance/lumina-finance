@@ -22,18 +22,24 @@ from app.services.email import (
     build_email_sender,
     get_email_sender,
     render_action_needed_email,
+    render_email_change_email,
+    render_email_change_notice_email,
     render_reset_email,
     render_signup_confirmation_email,
     set_email_sender,
 )
 from app.services.email.senders import LoggingEmailSender, SmtpEmailSender
+from app.services.service_name import set_service_name
 
 # A short SMTP timeout keeps the silent-server test fast while the bound it checks scales with the timeout
 SILENT_SERVER_TEST_TIMEOUT_SECONDS = 1
 
 
-async def test_smtp_sender_delivers_multipart_message(monkeypatch):
-    """The SMTP sender delivers the subject, recipient, and both body parts"""
+async def test_smtp_sender_delivers_multipart_message(monkeypatch, environment_naming_another_service):
+    """The SMTP sender delivers the subject, recipient and both body parts under the fixed name
+
+    Variables naming another service stay set throughout the send
+    """
     sent = {}
 
     async def fake_send(email_message, **kwargs):
@@ -57,6 +63,23 @@ async def test_smtp_sender_delivers_multipart_message(monkeypatch):
 
     # The HTML alternative rides alongside the plain-text part
     assert delivered.get_content_type() == "multipart/alternative"
+
+
+async def test_smtp_sender_built_earlier_uses_the_service_name_once_one_is_set(monkeypatch):
+    """Mail from a sender the app built before code named the service carries that name and no longer the fixed one"""
+    sent = {}
+
+    async def fake_send(email_message, **kwargs):
+        sent["message"] = email_message
+
+    monkeypatch.setattr(senders_module, "MAIL_FROM", "no-reply@example.com")
+    monkeypatch.setattr(senders_module.aiosmtplib, "send", fake_send)
+    sender = SmtpEmailSender()
+    set_service_name("Example Service (Beta)")
+
+    await sender.send("user@example.com", RenderedEmail(subject="Hi", text_body="Body"))
+
+    assert sent["message"]["From"] == '"Example Service (Beta)" <no-reply@example.com>'
 
 
 def record_smtp_attempts(monkeypatch, outcomes):
@@ -327,6 +350,57 @@ def test_render_reset_email_says_nothing_of_sign_in_providers():
 
     assert "provider" not in message.text_body.lower()
     assert "provider" not in message.html_body.lower()
+
+
+_FIXED_NAME = "Lumina Finance (Self-Hosted)"
+
+_RENDERERS = {
+    "reset": lambda: render_reset_email("https://app.example.com/reset-password?token=abc123", 15),
+    "sign-up confirmation": lambda: render_signup_confirmation_email("https://app.example.com/confirm-email?token=abc123", 24),
+    "action needed": lambda: render_action_needed_email("Subject", "Lead", ["Everyday"], "Closing"),
+    "email change": lambda: render_email_change_email("https://app.example.com/confirm-email-change?token=abc123", 30),
+    "email change notice": lambda: render_email_change_notice_email("new@example.com"),
+}
+
+
+@pytest.mark.parametrize("kind", sorted(_RENDERERS))
+def test_every_email_is_titled_with_the_fixed_name_until_code_names_the_service(kind):
+    """Each email's HTML title shows the fixed name, then the name code set, which the HTML escapes"""
+    before = _RENDERERS[kind]()
+    set_service_name("Example & Co")
+    after = _RENDERERS[kind]()
+
+    assert f">{_FIXED_NAME}</td>" in before.html_body
+    assert ">Example &amp; Co</td>" in after.html_body
+    assert _FIXED_NAME not in after.html_body
+
+
+def test_sign_up_confirmation_sentence_names_no_service_in_either_part():
+    """Once code names the service, the name shows only in the HTML title and never in the wording"""
+    set_service_name("Acme")
+    message = _RENDERERS["sign-up confirmation"]()
+
+    assert "Acme" not in message.text_body
+    assert message.html_body.count("Acme") == 1
+    assert ">Acme</td>" in message.html_body
+
+
+@pytest.mark.parametrize(
+    ("kind", "sentence"),
+    [
+        ("email change", "Please confirm this email address to use it with {}."),
+        ("email change notice", "The email address of your {} account was changed to new@example.com."),
+    ],
+)
+def test_email_change_sentences_name_the_fixed_name_until_code_names_the_service(kind, sentence):
+    """Both email change messages name the service in their wording, in both parts"""
+    before = _RENDERERS[kind]()
+    set_service_name("Acme")
+    after = _RENDERERS[kind]()
+
+    for message, name in ((before, _FIXED_NAME), (after, "Acme")):
+        assert sentence.format(name) in message.text_body
+        assert sentence.format(name) in message.html_body
 
 
 def test_render_action_needed_email_lists_the_accounts_in_both_parts_escaping_them_in_html():

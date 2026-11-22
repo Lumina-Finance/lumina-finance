@@ -302,8 +302,8 @@ async def test_scan_for_due_work_asked_to_stop_returns_at_once(monkeypatch):
         await scanning
 
 
-async def test_worker_stops_on_sigterm_once_its_runners_have_finished(monkeypatch):
-    """SIGTERM (Docker sends it on a stop or an upgrade) ends the worker rather than killing it mid-job"""
+async def _run_worker_until_first_scan_then_stop(monkeypatch) -> None:
+    """Start the worker with its database checks stubbed out, wait for its first scan, then send it SIGTERM"""
     handlers = {}
     scanned = asyncio.Event()
 
@@ -332,6 +332,24 @@ async def test_worker_stops_on_sigterm_once_its_runners_have_finished(monkeypatc
         await scanned.wait()
         handlers[signal.SIGTERM]()
         await running
+
+
+async def test_worker_stops_on_sigterm_once_its_runners_have_finished(monkeypatch):
+    """SIGTERM (Docker sends it on a stop or an upgrade) ends the worker rather than killing it mid-job"""
+    await _run_worker_until_first_scan_then_stop(monkeypatch)
+
+
+@pytest.mark.parametrize("installs_first", [True, False], ids=["own sender first", "nothing first"])
+async def test_worker_keeps_an_installed_sender_and_else_installs_the_configured_one(monkeypatch, installs_first):
+    """Code outside the app may install its own sender and then start the app's worker, which keeps that sender"""
+    own_sender = SimpleNamespace(name="own")
+    configured_sender = SimpleNamespace(name="configured")
+    monkeypatch.setattr(worker, "build_email_sender", lambda: configured_sender)
+    monkeypatch.setattr(email_contract, "_active_sender", own_sender if installs_first else None)
+
+    await _run_worker_until_first_scan_then_stop(monkeypatch)
+
+    assert email_contract.get_email_sender() is (own_sender if installs_first else configured_sender)
 
 
 async def test_worker_with_no_provider_enabled_keeps_its_heartbeat_and_claims_nothing(monkeypatch, frozen_now):

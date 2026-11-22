@@ -35,6 +35,7 @@ from app.models.user import User
 from app.services.auth import two_factor
 from app.services.auth.recovery_codes import generate_recovery_codes
 from app.services.auth.saved_copy_key import derive_saved_copy_key
+from app.services.service_name import set_service_name
 from tests.conftest import TestSession
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
@@ -173,8 +174,11 @@ async def test_config_reports_relying_party_id(client):
     assert response.json()["rp_id"] == WEBAUTHN_RP_ID
 
 
-async def test_registration_options_persist_single_challenge(client):
-    """The options endpoint returns ceremony fields and persists exactly one registration challenge"""
+async def test_registration_options_persist_single_challenge(client, environment_naming_another_service):
+    """The options endpoint returns ceremony fields under the fixed name and persists one challenge
+
+    Variables naming another service stay set throughout the request
+    """
     signup = await _create_user(client)
     auth = _get_auth_header(signup)
     user_id = signup.json()["user"]["id"]
@@ -190,6 +194,16 @@ async def test_registration_options_persist_single_challenge(client):
     assert options["rp"]["name"] == "Lumina Finance Self-Hosted"
 
     assert await _count_registration_challenges(user_id) == 1
+
+
+async def test_registration_options_carry_the_service_name_code_set(client):
+    """The prompt shows the name code gave the service"""
+    auth = _get_auth_header(await _create_user(client))
+    set_service_name("Example Service")
+
+    options = await _request_registration_options(client, auth)
+
+    assert options["rp"]["name"] == "Example Service"
 
 
 async def test_registration_options_exclude_existing_passkeys(client, monkeypatch):
@@ -1688,6 +1702,25 @@ async def test_real_ceremony_registers_and_signs_in(client):
     stored = await _read_passkey(authenticator.credential_id)
     assert stored.sign_count == _ASSERTION_SIGN_COUNT
     assert stored.last_used_at is not None
+
+
+async def test_a_passkey_registered_under_the_fixed_name_signs_in_after_the_service_name_changes(client):
+    """Naming the service later leaves existing passkeys working, since only the relying party id binds them"""
+    signup = await _create_user(client)
+    auth = _get_auth_header(signup)
+    user_id = signup.json()["user"]["id"]
+    authenticator = _SoftwareAuthenticator()
+    assert (await _register_real_passkey(client, auth, authenticator)).status_code == 201
+    assert (await client.post("/auth/passkeys/register/confirm", headers=auth)).status_code == 204
+
+    set_service_name("Example Service")
+
+    options = (await client.post("/auth/passkeys/authenticate/options")).json()
+    assertion = authenticator.build_assertion(options["challenge"], user_id, _ASSERTION_SIGN_COUNT)
+    signed_in = await client.post("/auth/passkeys/authenticate", json={"credential": assertion})
+
+    assert signed_in.status_code == 200
+    assert signed_in.json()["user"]["id"] == user_id
 
 
 async def test_real_ceremony_rejects_a_damaged_attestation(client):

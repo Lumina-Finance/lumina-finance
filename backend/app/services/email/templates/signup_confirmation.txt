@@ -1,4 +1,4 @@
-Someone used this email address to start creating a {{ app_name }} account.
+Someone used this email address to start creating an account.
 
 Use this link within {{ expiry_hours }} hours to choose a password and finish creating your account:
 {{ confirm_link }}
