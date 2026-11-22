@@ -147,13 +147,13 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await expectOnlyPickableRows(picker, ALL_ROWS, 3713)
   await expect(linkButton).toBeDisabled()
 
-  // Both picks are held by Link, and the window names them as not saved yet
+  // Both picks are held by Link, and the window tags them as unsaved
   await press('$20.00').click()
   await press('$15.00').click()
   await linkButton.click()
   await expect(picker).toBeHidden()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(2)
-  await expect(expense.getByTestId('linked-transaction')).toContainText(['Not saved yet', 'Not saved yet'])
+  await expect(expense.getByTestId('linked-transaction')).toContainText(['Unsaved', 'Unsaved'])
   await saveButton(expense).click()
   await expect(expense).toBeHidden()
   await page.reload()

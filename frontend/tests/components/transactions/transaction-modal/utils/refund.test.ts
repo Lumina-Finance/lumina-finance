@@ -10,7 +10,6 @@ import {
   canLinkAsRefund,
   getLinkedTransactionIds,
   getRefundAccounts,
-  getRefundLinkMarker,
   getRefundRoom,
   getRefundStatus,
   getRefusedRooms,
@@ -147,11 +146,6 @@ describe('refund room', () => {
     expect(getRefundStatus(expense, 4999)).toBe('partial')
     expect(getRefundStatus(expense, 1)).toBe('partial')
     expect(getRefundStatus(expense, 0)).toBe('full')
-  })
-
-  it('counts the refunds on the marker only once there is more than one', () => {
-    expect(getRefundLinkMarker(1)).toBe('Linked')
-    expect(getRefundLinkMarker(3)).toBe('3 refunds linked')
   })
 
   it('puts refunds oldest first once all have loaded, and keeps the linked order while any is loading', () => {

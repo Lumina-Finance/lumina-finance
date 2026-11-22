@@ -61,13 +61,6 @@ export function getRefundStatus(original: Amounted, room: number): RefundStatus 
 }
 
 /**
- * The marker joining an expense to its refunds. It counts them once there is more than one
- */
-export function getRefundLinkMarker(refundCount: number): string {
-  return refundCount > 1 ? `${refundCount} refunds linked` : 'Linked'
-}
-
-/**
  * The refunds in a chain in date order, oldest first, so the chain reads as the money came back. The server lists
  * them in the order they were linked, and links made in the window come after them. Until every date is known, the
  * refunds keep the order given. Refunds on one day keep it too

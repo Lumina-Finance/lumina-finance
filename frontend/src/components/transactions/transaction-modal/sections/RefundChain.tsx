@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link2, Unlink } from 'lucide-react'
+import { Unlink } from 'lucide-react'
 import { HintButton } from '@/components/tooltips/HintButton'
 import type { RefundStatus } from '@/components/transactions/transaction-modal/utils/refund'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
@@ -42,29 +42,43 @@ function ChainSegment({ drawn }: { drawn: boolean }) {
   )
 }
 
-/** A short stretch of the dashed line above a refund, so each refund hangs from the one before it */
-export function RefundChainGap() {
+/**
+ * Half the dashed line between two refunds, drawn above and below each one. An unsaved refund's box spreads over both
+ * halves, so the box stays inside the refund's own row. That row clips as it grows and collapses. Under the last refund
+ * the half keeps its room with no line, so the line ends at that refund's icon
+ */
+export function RefundChainGap({ drawn = true }: { drawn?: boolean }) {
   return (
-    <div className="flex h-3">
+    <div className="flex h-1.5">
+      <ChainLine className={drawn ? '' : 'invisible'} />
+    </div>
+  )
+}
+
+/**
+ * The dashed line under the expense. With the first refund's own half gap, it puts the refunds twice as far from the
+ * expense as from each other, so the expense reads apart from them
+ */
+export function RefundChainLead() {
+  return (
+    <div className="flex h-4.5">
       <ChainLine />
     </div>
   )
 }
 
-/** The marker under the expense that says its refunds are linked to it */
-export function RefundChainMarker({ label }: { label: string }) {
+/** Follows the Refunds heading with how many refunds the chain holds */
+export function RefundCount({ count }: { count: number }) {
   return (
-    <div className="flex min-h-7 items-center gap-3">
-      <ChainLine />
-      <span
-        className="inline-flex items-center gap-[3.5px] rounded-full border px-2 py-0.5 text-xs font-medium leading-4"
-        style={{ color: 'var(--app-accent)', borderColor: 'var(--app-accent-border)' }}
-      >
-        {/* The link glyph is drawn half a pixel inside its box, so the gap makes 4px from the drawn line */}
-        <Link2 size={12} aria-hidden />
-        <span>{label}</span>
-      </span>
-    </div>
+    <span
+      className="ml-1.5 whitespace-nowrap font-normal"
+      style={{ color: 'var(--app-text-muted)' }}
+      data-testid="refund-count"
+    >
+      <span aria-hidden>· </span>
+      {count}
+      <span className="sr-only"> linked</span>
+    </span>
   )
 }
 
@@ -114,8 +128,12 @@ export function RefundChainRow({
 }: RefundChainRowProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   return (
+    // A link Save has yet to make sits in a dashed amber box. The box reaches past the row by 8px on each side and 6px
+    // above and below, into the room between rows, and its padding and border take that back. So the row keeps its
+    // place and height, and nothing moves when Save turns the box back into a plain row
     <div
-      className="flex items-center gap-3"
+      className={`flex items-center gap-3 ${notSaved ? '-mx-2 -my-1.5 rounded-lg border border-dashed px-[7px] py-[5px]' : ''}`}
+      style={notSaved ? { background: 'var(--app-warning-soft)', borderColor: 'var(--app-warning-dot)' } : undefined}
       data-testid={testId}
       data-link-id={linkId}
       data-not-saved={notSaved ? 'true' : undefined}
@@ -124,8 +142,12 @@ export function RefundChainRow({
       <span className="flex w-9 shrink-0 flex-col items-center self-stretch">
         <ChainSegment drawn={lineAbove} />
         <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg leading-none"
-          style={{ background: 'var(--app-surface-soft)' }}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg leading-none ${notSaved ? 'border-[1.5px] border-dashed' : ''}`}
+          style={
+            notSaved
+              ? { borderColor: 'var(--app-warning-dot)', background: 'var(--app-surface-soft)' }
+              : { background: 'var(--app-surface-soft)' }
+          }
           aria-hidden
         >
           {icon}
@@ -136,13 +158,24 @@ export function RefundChainRow({
         {/* A long name wraps on a phone rather than cutting off, since the row has room to grow */}
         <p className="break-words text-sm font-medium leading-5" style={{ color: 'var(--app-text)' }}>
           {merchantName}
+          {notSaved && (
+            <span
+              className="ml-1.5 inline-block rounded-full px-1.5 align-[1px] text-xs font-medium leading-4"
+              style={{ background: 'var(--app-warning-text)', color: 'var(--app-bg)' }}
+            >
+              Unsaved
+            </span>
+          )}
         </p>
         {/* Wraps between whole phrases on a narrow screen rather than cutting the date off. Each phrase draws its
             dot in front, and the negative margin pushes the dot of a phrase starting a line out of the clipped box.
             The dot is drawn rather than written, with empty alternative text, so screen readers skip it */}
         <div className="overflow-hidden">
-          <p className="-ml-3 flex flex-wrap text-xs leading-4" style={{ color: 'var(--app-text-muted)' }}>
-            {[kind, formatDateLabel(dt), ...(notSaved ? ['Not saved yet'] : [])].map((part) => (
+          <p
+            className="-ml-3 flex flex-wrap text-xs leading-4"
+            style={{ color: notSaved ? 'var(--app-text-muted-on-warning)' : 'var(--app-text-muted)' }}
+          >
+            {[kind, formatDateLabel(dt)].map((part) => (
               <span
                 key={part}
                 className="whitespace-nowrap before:inline-block before:w-3 before:text-center before:content-['·'_/_'']"
@@ -201,7 +234,7 @@ export function RefundChainFooter({ room, currency, keepsUnlinkRoom }: RefundCha
   const { formatCurrency } = useMoneyFormatters()
   return (
     <div
-      className="mt-3 flex items-center gap-3 border-t pt-2.5 text-sm leading-5"
+      className="mt-1.5 flex items-center gap-3 border-t pt-2.5 text-sm leading-5"
       style={{ borderColor: 'var(--app-border)' }}
     >
       <span className="flex-1" style={{ color: 'var(--app-text-muted)' }}>

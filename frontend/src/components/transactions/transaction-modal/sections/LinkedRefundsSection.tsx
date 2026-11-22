@@ -7,9 +7,10 @@ import {
   RefundChainBox,
   RefundChainFooter,
   RefundChainGap,
-  RefundChainMarker,
+  RefundChainLead,
   RefundChainPlaceholder,
   RefundChainRow,
+  RefundCount,
   RefundStatusBadge,
 } from '@/components/transactions/transaction-modal/sections/RefundChain'
 import {
@@ -25,7 +26,6 @@ import { DEFAULT_CATEGORY_ICON } from '@/components/transactions/transaction-mod
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { PendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 import {
-  getRefundLinkMarker,
   getRefundRoom,
   getRefundStatus,
   getRefusedRooms,
@@ -256,7 +256,7 @@ export default function TransactionModalLinkedRefundsSection({
     onUnlink: () => void,
     last: boolean,
   ) => (
-    <RevealRow key={key} testId="linked-row" spacingClassName="">
+    <RevealRow key={key} testId="linked-row" className="-mx-2" spacingClassName="px-2">
       <RefundChainGap />
       <RefundChainRow
         icon={iconOf(current)}
@@ -272,6 +272,7 @@ export default function TransactionModalLinkedRefundsSection({
         linkId={key}
         testId="linked-transaction"
       />
+      <RefundChainGap drawn={!last} />
     </RevealRow>
   )
 
@@ -282,7 +283,7 @@ export default function TransactionModalLinkedRefundsSection({
       ...savedRefundIds.map((refundId, index) => ({
         dt: savedRefunds[index]?.dt,
         row: (last: boolean) => (
-          <RevealRow key={refundId} testId="linked-row" spacingClassName="">
+          <RevealRow key={refundId} testId="linked-row" className="-mx-2" spacingClassName="px-2">
             <RefundChainGap />
             <SavedRefundRow
               refundId={refundId}
@@ -292,6 +293,7 @@ export default function TransactionModalLinkedRefundsSection({
               lineBelow={!last}
               testId="linked-transaction"
             />
+            <RefundChainGap drawn={!last} />
           </RevealRow>
         ),
       })),
@@ -370,7 +372,7 @@ export default function TransactionModalLinkedRefundsSection({
                 <RevealRow key={original.id} testId="linked-row">
                   <RefundChainBox>
                     {expenseRow(original, original === pendingOriginal, 'linked-transaction')}
-                    <RefundChainMarker label={getRefundLinkMarker(chainIds.length)} />
+                    <RefundChainLead />
                     {chainIds.map((id, index) => (
                       <div key={id}>
                         <RefundChainGap />
@@ -406,6 +408,7 @@ export default function TransactionModalLinkedRefundsSection({
                             testId="refund-chain-sibling"
                           />
                         )}
+                        <RefundChainGap drawn={index < chainIds.length - 1} />
                       </div>
                     ))}
                     {!siblingsLoadFailed && (
@@ -432,6 +435,7 @@ export default function TransactionModalLinkedRefundsSection({
         <CreateModalSectionFrame
           step={showRefundOf ? '05' : '04'}
           title="Refunds"
+          titleAccessory={refundCount > 0 && <RefundCount count={refundCount} />}
           titleEnd={refundsStatus && <RefundStatusBadge status={refundsStatus} />}
         >
           <div className="-mb-2">
@@ -440,7 +444,7 @@ export default function TransactionModalLinkedRefundsSection({
                 <RevealRow key="chain">
                   <RefundChainBox>
                     {expenseRow(current, false, 'refund-chain-expense')}
-                    <RefundChainMarker label={getRefundLinkMarker(refundCount)} />
+                    <RefundChainLead />
                     <AnimatePresence initial={false}>
                       {refundRows.map(({ row }, index) => row(index === refundRows.length - 1))}
                     </AnimatePresence>
