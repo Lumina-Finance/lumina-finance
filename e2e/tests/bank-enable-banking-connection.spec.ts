@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test'
 
 import { asUser, createAccount, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openPage, waitForPageReady } from '../support/app'
 import {
   errorToast,
   linkBankAccount,
@@ -162,8 +162,12 @@ test('reconnects through the bank once the sign-in ends, and the linked account 
   await syncBankLinkNow(request, user, everyday.id)
   await waitForConnection(request, user, connection.id, (current) => current.status === 'credential_rejected')
 
-  await openPage(page, '/settings#bank-connections')
-  await section.locator(`[data-connection-id="${connection.id}"] button`).click()
+  // Settings is already open at this address, so only a reload reads the connection's new state
+  await page.reload()
+  await waitForPageReady(page)
+  const row = section.locator(`[data-connection-id="${connection.id}"]`)
+  await expect(row).toContainText('Needs reconnection')
+  await row.getByRole('button').click()
   await page.getByRole('dialog', { name: 'Enable Banking', exact: true }).getByRole('button', { name: 'Reconnect', exact: true }).click()
   const form = page.getByRole('dialog', { name: 'Reconnect Enable Banking' })
   await expect(form.getByRole('combobox', { name: 'Provider' })).toHaveCount(0)
