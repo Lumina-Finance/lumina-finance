@@ -1,4 +1,5 @@
 """Budget route handlers"""
+
 import uuid
 from typing import Annotated
 

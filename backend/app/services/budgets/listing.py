@@ -1,4 +1,5 @@
 """Budget listing services"""
+
 import uuid
 
 from sqlalchemy import select
@@ -67,9 +68,7 @@ async def get_budgets_for_base_budget(db: AsyncSession, base_budget_id: uuid.UUI
     """
     # Fetch every budget instance under the base budget so utilization covers each period in chronological order
     result = await db.execute(
-        select(Budget)
-        .where(Budget.base_budget_id == base_budget_id)
-        .order_by(Budget.period_start.asc()),
+        select(Budget).where(Budget.base_budget_id == base_budget_id).order_by(Budget.period_start.asc()),
     )
     budgets = list(result.scalars().all())
     return budgets

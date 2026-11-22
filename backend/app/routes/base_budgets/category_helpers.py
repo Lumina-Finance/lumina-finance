@@ -1,4 +1,5 @@
 """Base budget tracked category helpers"""
+
 import uuid
 from datetime import date
 

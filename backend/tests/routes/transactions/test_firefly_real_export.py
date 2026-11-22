@@ -36,10 +36,9 @@ FIREFLY_ASSET_TYPE = "Asset account"
 async def _seed_currencies():
     """Insert the currencies the fixture's accounts and budgets use"""
     async with TestSession() as session:
-        session.add_all([
-            Currency(id=code, name=code, symbol=code, minor_unit_exponent=exponent)
-            for code, exponent in CURRENCY_EXPONENTS.items()
-        ])
+        session.add_all(
+            [Currency(id=code, name=code, symbol=code, minor_unit_exponent=exponent) for code, exponent in CURRENCY_EXPONENTS.items()]
+        )
         await session.commit()
 
 

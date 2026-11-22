@@ -1,4 +1,5 @@
 """Route tests for budget utilization endpoints."""
+
 import importlib
 from datetime import UTC, date, datetime
 
@@ -67,12 +68,16 @@ async def test_list_latest_budget_utilizations_includes_archived_base(client):
     groceries = await _create_category(client, headers)
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries],
+        client,
+        headers,
+        category_ids=[groceries],
     )
     await _create_transaction(client, headers, account_id, groceries, amount=-5000)
 
     await client.patch(
-        f"/base-budgets/{base_id}", json={"is_archived": True}, headers=headers,
+        f"/base-budgets/{base_id}",
+        json={"is_archived": True},
+        headers=headers,
     )
 
     resp = await client.get("/budgets/latest-utilizations", headers=headers)
@@ -123,16 +128,13 @@ async def test_get_base_budget_utilizations_returns_every_period_ordered_by_peri
     groceries = await _create_category(client, headers)
 
     base_id, january_budget_id = await _create_base_with_instance(
-        client, headers,
+        client,
+        headers,
         category_ids=[groceries],
         instance_overrides={"period_start": "2026-01-01"},
     )
-    february_budget_id = (
-        await _create_budget_instance(client, headers, base_id, period_start="2026-02-01")
-    ).json()["id"]
-    march_budget_id = (
-        await _create_budget_instance(client, headers, base_id, period_start="2026-03-01")
-    ).json()["id"]
+    february_budget_id = (await _create_budget_instance(client, headers, base_id, period_start="2026-02-01")).json()["id"]
+    march_budget_id = (await _create_budget_instance(client, headers, base_id, period_start="2026-03-01")).json()["id"]
 
     await _create_transaction(client, headers, account_id, groceries, dt="2026-01-15", amount=-1000)
     await _create_transaction(client, headers, account_id, groceries, dt="2026-02-15", amount=-2000)
@@ -144,10 +146,14 @@ async def test_get_base_budget_utilizations_returns_every_period_ordered_by_peri
 
     # One entry per period, returned in ascending period_start order
     assert [entry["budget_id"] for entry in entries] == [
-        january_budget_id, february_budget_id, march_budget_id,
+        january_budget_id,
+        february_budget_id,
+        march_budget_id,
     ]
     assert [entry["period_start"] for entry in entries] == [
-        "2026-01-01", "2026-02-01", "2026-03-01",
+        "2026-01-01",
+        "2026-02-01",
+        "2026-03-01",
     ]
     assert [entry["total_spent"] for entry in entries] == [1000, 2000, 3000]
 
@@ -184,8 +190,7 @@ async def test_created_recurring_budget_counts_existing_historical_transactions(
 
     periods_resp = await client.get("/budgets", headers=headers)
     january_budget = next(
-        budget for budget in periods_resp.json()
-        if budget["base_budget_id"] == base_id and budget["period_start"] == "2026-01-01"
+        budget for budget in periods_resp.json() if budget["base_budget_id"] == base_id and budget["period_start"] == "2026-01-01"
     )
 
     data = await _get_budget_utilization_entry(client, headers, base_id, january_budget["id"])
@@ -205,7 +210,9 @@ async def test_get_budget_utilization_returns_per_category_breakdown(client):
     transit = await _create_category(client, headers, name="Transit")
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries, transit],
+        client,
+        headers,
+        category_ids=[groceries, transit],
     )
 
     await _create_transaction(client, headers, account_id, groceries, amount=-5000)
@@ -234,7 +241,9 @@ async def test_get_budget_utilization_includes_tracked_categories_with_zero_spen
     transit = await _create_category(client, headers, name="Transit")
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries, transit],
+        client,
+        headers,
+        category_ids=[groceries, transit],
     )
 
     # Only groceries has activity; transit has none
@@ -259,11 +268,15 @@ async def test_get_budget_utilization_returns_empty_categories_when_all_soft_del
 
     groceries = await _create_category(client, headers)
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries],
+        client,
+        headers,
+        category_ids=[groceries],
     )
     # Set removed_at well before period_start so the category is excluded from the period
     await _set_tracked_category_timestamps(
-        base_id, groceries, removed_at=date(2026, 2, 1),
+        base_id,
+        groceries,
+        removed_at=date(2026, 2, 1),
     )
 
     data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
@@ -280,7 +293,9 @@ async def test_get_budget_utilization_excludes_transactions_before_period_start(
     groceries = await _create_category(client, headers)
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries],
+        client,
+        headers,
+        category_ids=[groceries],
     )
 
     # Inside the period (kept) and before (excluded)
@@ -303,7 +318,9 @@ async def test_get_budget_utilization_excludes_transactions_after_period_end(cli
     groceries = await _create_category(client, headers)
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries],
+        client,
+        headers,
+        category_ids=[groceries],
     )
 
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-15", amount=-5000)
@@ -325,7 +342,9 @@ async def test_get_budget_utilization_includes_transaction_at_period_start_bound
     groceries = await _create_category(client, headers)
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries],
+        client,
+        headers,
+        category_ids=[groceries],
     )
 
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-01", amount=-1000)
@@ -345,7 +364,9 @@ async def test_get_budget_utilization_includes_transaction_at_period_end_boundar
     groceries = await _create_category(client, headers)
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries],
+        client,
+        headers,
+        category_ids=[groceries],
     )
 
     await _create_transaction(client, headers, account_id, groceries, dt="2026-03-31", amount=-1000)
@@ -366,7 +387,9 @@ async def test_get_budget_utilization_excludes_transactions_in_untracked_categor
     untracked = await _create_category(client, headers, name="Test Entertainment")
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[tracked],
+        client,
+        headers,
+        category_ids=[tracked],
     )
 
     await _create_transaction(client, headers, account_id, tracked, amount=-5000)
