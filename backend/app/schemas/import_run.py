@@ -623,8 +623,8 @@ class ImportRunBudgetsRequest(BaseModel):
     budgets: list[ImportBudgetDraft] = Field(default=[], max_length=MAX_JOURNAL_BUDGETS)
 
     # Where this part starts among the run's budgets, so a part sent twice stages the same
-    # positions and the second copy is absorbed
-    start_index: int = Field(default=0, ge=0)
+    # positions and the second copy is absorbed. No part starts past the most budgets a run takes
+    start_index: int = Field(default=0, ge=0, le=MAX_JOURNAL_BUDGETS)
 
 
 class ImportRunArchiveRequest(BaseModel):
