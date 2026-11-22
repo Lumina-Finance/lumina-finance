@@ -7,11 +7,13 @@ from fastapi import HTTPException, status
 from sqlalchemy import String, column, func, literal_column, select, text, values
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.user import User
 from app.schemas.import_run import TransactionImportCategoryMapping, TransactionImportCreateCategory
+from app.services.allowance.require import require_allowance
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
@@ -101,6 +103,16 @@ async def get_or_create_import_categories_by_source(
     name_facts = await _load_import_category_name_facts(
         db, user.id, {mapping.create.name.strip() for mapping in mappings if mapping.create is not None}
     )
+
+    # Asked once for the categories no existing one is reused for, before any is written, so a
+    # refusal saves nothing. Two names that differ only in capitals make one category between them
+    new_keys = {
+        key
+        for mapping in mappings
+        if mapping.create is not None and (key := name_facts.keys_by_name[mapping.create.name.strip()]) not in name_facts.categories_by_key
+    }
+    if new_keys:
+        await require_allowance(db, user.id, AllowanceKind.CATEGORY, adding=len(new_keys))
 
     # Build each declared category source once so import rows can use a stable lookup map
     for mapping in mappings:

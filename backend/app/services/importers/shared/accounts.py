@@ -6,12 +6,14 @@ from dataclasses import dataclass
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
 from app.permissions.accounts import AccountAccessLookup, load_account_access_lookup
 from app.schemas.import_run import TransactionImportAccountMapping
+from app.services.allowance.require import require_allowance
 from app.services.importers.shared.account_creation_helpers import create_import_account, load_import_account_references
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
@@ -70,6 +72,11 @@ async def resolve_import_account_sources(
         {mapping.create.currency.upper() for mapping in mappings if mapping.create is not None},
         {mapping.create.institution_id for mapping in mappings if mapping.create is not None and mapping.create.institution_id is not None},
     )
+
+    # Asked once for every account the import creates, before any is written, so a refusal saves nothing
+    creating = sum(1 for mapping in mappings if mapping.create is not None and not mapping.outside)
+    if creating:
+        await require_allowance(db, user.id, AllowanceKind.ACCOUNT, adding=creating)
 
     # Build each declared account source once so import rows can use a stable lookup map
     for mapping in mappings:
