@@ -210,6 +210,9 @@ test('links an existing refund to an expense from the picker', async ({ page, re
   await picker.getByPlaceholder('Merchant or note…').fill('nothing like this')
   await expect(picker.getByText('Nothing matches that search.', { exact: true })).toBeVisible()
   await picker.getByPlaceholder('Merchant or note…').fill('Store credit')
+  // The search waits for typing to pause, and the row from before it can still be fading out, so the row is picked
+  // once the search's own result has replaced the empty message, or the pick lands on the fading row and is dropped
+  await expect(picker.getByText('Nothing matches that search.', { exact: true })).toBeHidden()
   await picker.getByTestId('link-candidate').getByRole('button').click()
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
 
