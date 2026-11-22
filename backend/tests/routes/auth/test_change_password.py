@@ -10,7 +10,7 @@ from app.models.auth_session import AuthSession
 from app.services.auth.password_helpers import is_password_valid
 from tests.conftest import TestSession
 from tests.routes.auth.test_passkeys import _seed_passkey
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _get_login_lockout
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _fresh_totp_code, _get_auth_header, _get_step_up_lockout
 
 _NEW_PASSWORD = "NewSecurePass123!"
 
@@ -96,7 +96,7 @@ async def test_change_password_rejects_wrong_current_password(client):
 
 
 async def test_change_password_locks_after_repeated_wrong_password(client):
-    """Wrong current passwords engage the shared lockout, so the endpoint is no unthrottled oracle"""
+    """Wrong current passwords engage the session's lockout, so the endpoint is no unthrottled oracle"""
     signup = await _create_user(client)
     headers = _get_auth_header(signup)
 
@@ -108,7 +108,7 @@ async def test_change_password_locks_after_repeated_wrong_password(client):
         )
         assert resp.status_code == 401
 
-    lockout = await _get_login_lockout(SIGNUP_PAYLOAD["email"])
+    lockout = await _get_step_up_lockout(headers)
     assert lockout.locked_until is not None
     assert lockout.failed_attempt_count >= 5
 
@@ -120,7 +120,7 @@ async def test_change_password_clears_the_lockout_count(client):
     wrong = {"current_password": "WrongPassword123!", "new_password": _NEW_PASSWORD}
     for _ in range(3):
         await client.patch("/auth/password", json=wrong, headers=headers)
-    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 3
+    assert (await _get_step_up_lockout(headers)).failed_attempt_count == 3
 
     resp = await client.patch(
         "/auth/password",
@@ -129,7 +129,7 @@ async def test_change_password_clears_the_lockout_count(client):
     )
 
     assert resp.status_code == 204
-    assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None
+    assert await _get_step_up_lockout(headers) is None
 
 
 async def test_change_password_wrong_password_reports_attempts_remaining(client):
@@ -149,7 +149,7 @@ async def test_change_password_wrong_password_reports_attempts_remaining(client)
 
     assert countdown == ["4", "3", "2", "1"]
 
-    # The fifth wrong entry locks the account, and the header reports the exhausted allowance
+    # The fifth wrong entry locks the session's step-up and signs every session out, and the header reports the exhausted allowance
     locking = await client.patch(
         "/auth/password",
         json={"current_password": "WrongPassword123!", "new_password": _NEW_PASSWORD},

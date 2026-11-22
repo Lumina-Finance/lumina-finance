@@ -45,7 +45,8 @@ from tests.routes.support import (
     _count_sign_in_provider_links,
     _create_user,
     _get_auth_header,
-    _get_login_lockout,
+    _get_browser_lockout,
+    _get_step_up_lockout,
     _link_sign_in_providers,
     _saved_copy_key,
     _seed_reset_token,
@@ -1159,7 +1160,7 @@ async def test_passkey_ceremony_that_never_started_does_not_use_up_an_attempt(cl
     verified = await client.post("/auth/passkeys/mfa/verify", json={"mfa_token": mfa_token, "credential": stale})
 
     assert verified.status_code == 400
-    lockout = await _get_login_lockout(SIGNUP_PAYLOAD["email"])
+    lockout = await _get_browser_lockout(client)
     assert lockout is None or lockout.failed_attempt_count == 0
 
 
@@ -1175,7 +1176,7 @@ async def test_step_up_with_a_passkey_ceremony_that_never_started_does_not_use_u
     )
 
     assert refused.status_code == 400
-    lockout = await _get_login_lockout(SIGNUP_PAYLOAD["email"])
+    lockout = await _get_step_up_lockout(_get_auth_header(signup))
     assert lockout is None or lockout.failed_attempt_count == 0
 
 

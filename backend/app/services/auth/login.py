@@ -17,7 +17,7 @@ from app.services.auth.password_helpers import hash_dummy_password_for_timing, i
 from app.services.auth.user_lookup import find_user_id_by_email
 
 
-async def login(db: AsyncSession, data: LoginRequest) -> User:
+async def login(db: AsyncSession, data: LoginRequest, bucket: str) -> User:
     """Verify the password step of login and enforce account lockout
 
     The lockout counter is not reset here. A login is only complete once any required second factor
@@ -27,6 +27,7 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
     Args:
         db: Active database session
         data: Login payload with email and password
+        bucket: Where the attempt counts, from known_browser.py
 
     Returns:
         Authenticated user
@@ -37,7 +38,7 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
     # The attempt is counted before anything about the account is read, so a locked email answers the
     # same, and as quickly, whether or not an account has it, and a burst of simultaneous attempts
     # cannot check more passwords than the lock allows
-    remaining = await claim_attempt(db, data.email)
+    remaining = await claim_attempt(db, data.email, bucket)
 
     user_id = await find_user_id_by_email(db, data.email)
     credential = await get_password_credential(db, user_id) if user_id else None
@@ -47,16 +48,16 @@ async def login(db: AsyncSession, data: LoginRequest) -> User:
     # Any difference would show which emails have an account
     if credential is None:
         await run_in_threadpool(hash_dummy_password_for_timing)
-        await confirm_failed_attempt(db, None, remaining)
+        await confirm_failed_attempt(db, None, remaining, bucket)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if not await run_in_threadpool(is_password_valid, data.password, credential.password_hash):
-        await confirm_failed_attempt(db, user_id, remaining)
+        await confirm_failed_attempt(db, user_id, remaining, bucket)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     # A correct password is not a failure, and a second factor may still follow, so the place it claimed
     # goes back and the final step decides whether the whole sign-in clears the count
-    await release_attempt(db, data.email)
+    await release_attempt(db, data.email, bucket)
 
     # The email and credential lookups ran before any identity existed, so close that transaction
     # and adopt the verified identity, so loading the user re-stamps it for the self-only users policy

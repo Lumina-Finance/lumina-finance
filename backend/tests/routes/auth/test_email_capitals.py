@@ -9,7 +9,15 @@ from app.config.registration import SIGNUP_DAILY_EMAIL_LIMIT
 from app.models.auth import PasswordResetToken
 from app.services.auth.user_lookup import fold_email
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _get_auth_header, _get_login_lockout, _seed_currency, sign_up_confirmed, sign_up_through_email
+from tests.routes.support import (
+    SIGNUP_PAYLOAD,
+    _get_auth_header,
+    _get_browser_lockout,
+    _get_login_lockout,
+    _seed_currency,
+    sign_up_confirmed,
+    sign_up_through_email,
+)
 from tests.routes.support.mailbox import mailbox
 
 _STORED_EMAIL = "Alice@example.com"
@@ -64,7 +72,7 @@ async def test_failed_logins_in_different_capitals_lock_the_address_together(cli
         resp = await client.post("/auth/login", json={"email": spelling, "password": "wrong-password"})
         assert resp.status_code == 401
 
-    lockout = await _get_login_lockout(_STORED_EMAIL)
+    lockout = await _get_browser_lockout(client, _STORED_EMAIL)
     assert lockout is not None
     assert lockout.failed_attempt_count == _ATTEMPTS_BEFORE_LOCK
     assert lockout.locked_until is not None

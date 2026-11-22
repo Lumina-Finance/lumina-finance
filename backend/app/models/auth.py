@@ -48,17 +48,21 @@ class PasswordCredential(Base):
 
 
 class LoginLockout(Base):
-    """Counts sign-in attempts per email, whether or not an account has that email
+    """Counts sign-in attempts per email and per bucket, whether or not an account has that email
 
-    Each attempt is counted before it is checked and a right answer gives its place back, so what
-    remains is the wrong answers. The email is kept only as a keyed hash, so the records of addresses
-    nobody registered hold no personal data. A row exists from the first attempt until a completed sign-in, a password change or
-    reset, or the scheduled cleanup removes it
+    The bucket says who sent the attempt: a browser that has signed in to the address, one session
+    stepping up, or everyone else together as the empty bucket. Each bucket counts and locks on its own,
+    so a stranger's guesses lock only the shared bucket. Each attempt is counted before it is checked
+    and a right answer gives its place back, so what remains is the wrong answers. The email and the
+    bucket are kept only as keyed hashes, so the records of addresses nobody registered hold no
+    personal data. A row exists from the first attempt until a completed sign-in in its bucket, a
+    password change or reset, a confirmed email change, or the scheduled cleanup removes it
     """
 
     __tablename__ = "login_lockouts"
 
     email_hash: Mapped[str] = mapped_column(VARCHAR(64), primary_key=True)
+    bucket_hash: Mapped[str] = mapped_column(VARCHAR(64), primary_key=True)
     failed_attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null = temporarily locked
     last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)  # Lets cleanup drop idle rows

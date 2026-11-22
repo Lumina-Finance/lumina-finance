@@ -23,11 +23,14 @@ from tests.routes.support import (
     _assert_other_sessions_ended,
     _assert_other_sessions_kept,
     _assert_session_works,
+    _browser_bucket,
     _create_user,
     _enroll,
     _fresh_totp_code,
     _get_auth_header,
+    _get_browser_lockout,
     _get_login_lockout,
+    _get_step_up_lockout,
     _sign_in_again,
 )
 
@@ -562,18 +565,19 @@ async def test_disabling_only_totp_clears_recovery_codes(client):
     assert remaining == []
 
 
-async def test_repeated_wrong_step_up_codes_lock_the_account(client):
-    """Grinding the authenticator at step-up trips the shared lockout and signs the session out"""
+async def test_repeated_wrong_step_up_codes_sign_every_session_out_and_leave_sign_in_open(client):
+    """Grinding the authenticator at step-up trips the session's lockout and signs every session out, without locking sign-in"""
     auth, _, _ = await _enroll(client)
 
     for _ in range(5):
         rejected = await client.post("/auth/2fa/disable", headers=auth, json={"password": _PASSWORD, "code": "000000"})
         assert rejected.status_code == 401
 
-    # Tripping the lock signed the step-up session out, and a correct password is now refused at login
+    # Tripping the lock signed the step-up session out, while the owner can still sign in from their browser
     assert (await client.get("/auth/2fa/status", headers=auth)).status_code == 401
-    locked = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
-    assert locked.status_code == 423
+    assert (await _get_step_up_lockout(auth)).locked_until is not None
+    login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
+    assert login.status_code == 200
 
 
 async def test_wrong_step_up_code_reports_attempts_remaining(client):
@@ -757,7 +761,7 @@ async def test_repeated_wrong_2fa_codes_lock_the_account(client):
         verify = await client.post("/auth/2fa/verify", json={"mfa_token": login.json()["mfa_token"], "code": "000000"})
         assert verify.status_code == 401
 
-    # The shared counter has hit the limit, so even a correct password is now refused
+    # The browser's counter has hit the limit, so even a correct password is now refused
     locked = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
     assert locked.status_code == 423
 
@@ -772,7 +776,7 @@ async def test_correct_2fa_clears_the_lockout_counter(client):
     second = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
     verify = await client.post("/auth/2fa/verify", json={"mfa_token": second.json()["mfa_token"], "code": _fresh_totp_code(secret)})
     assert verify.status_code == 200
-    assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None
+    assert await _get_browser_lockout(client) is None
 
 
 async def test_correct_password_before_the_second_factor_does_not_use_up_an_attempt(client):
@@ -785,7 +789,7 @@ async def test_correct_password_before_the_second_factor_does_not_use_up_an_atte
     right = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
     assert right.status_code == 200
     assert right.json()["mfa_required"] is True
-    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).locked_until is None
+    assert (await _get_browser_lockout(client)).locked_until is None
 
     fifth = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": "wrong-password"})
     assert fifth.status_code == 401
@@ -798,12 +802,12 @@ async def test_correct_step_up_clears_earlier_wrong_attempts(client):
     auth, secret, _ = await _enroll(client)
     for _ in range(2):
         await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": "000000"})
-    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 2
+    assert (await _get_step_up_lockout(auth)).failed_attempt_count == 2
 
     regenerate = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
 
     assert regenerate.status_code == 200
-    assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None
+    assert await _get_step_up_lockout(auth) is None
 
 
 async def test_verify_completes_login_with_a_valid_code(client):
@@ -875,7 +879,7 @@ async def test_verify_answers_a_code_of_the_wrong_shape_as_a_wrong_code_and_coun
     verify = await client.post("/auth/2fa/verify", json={"mfa_token": mfa_token, "code": "\N{LATIN SMALL LETTER E WITH ACUTE}12345"})
 
     assert (verify.status_code, verify.json()["detail"]) == (401, "Invalid code")
-    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 1
+    assert (await _get_browser_lockout(client)).failed_attempt_count == 1
 
 
 async def test_wrong_authenticator_code_at_sign_in_costs_no_recovery_code_hashing(client, monkeypatch):
@@ -1070,13 +1074,14 @@ async def test_login_after_recovery_reports_recovery_only(client):
     assert body["recovery_only"] is True
 
 
-async def _lock_email(email: str) -> None:
-    """Store a lockout that is already holding the email, as five wrong answers would leave it"""
+async def _lock_email(email: str, bucket: str) -> None:
+    """Store a lockout that is already holding the email in a bucket, as five wrong answers would leave it"""
     now = datetime.now(UTC)
     async with TestSession() as db:
         db.add(
             LoginLockout(
                 email_hash=seal_login_email(email),
+                bucket_hash=bucket,
                 failed_attempt_count=5,
                 locked_until=now + timedelta(minutes=30),
                 last_failed_at=now,
@@ -1101,19 +1106,19 @@ async def test_replayed_challenge_does_not_count_toward_the_lockout(client):
     token = await _issue_challenge(user_id)
     spent = await client.post("/auth/2fa/verify", json={"mfa_token": token, "code": "000000"})
     assert (spent.status_code, spent.json()["detail"]) == (401, "Invalid code")
-    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 1
+    assert (await _get_browser_lockout(client)).failed_attempt_count == 1
 
     replayed = await client.post("/auth/2fa/verify", json={"mfa_token": token, "code": "000000"})
 
     assert (replayed.status_code, replayed.json()["detail"]) == (401, "Invalid or expired challenge")
-    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 1
+    assert (await _get_browser_lockout(client)).failed_attempt_count == 1
 
 
 async def test_verify_while_the_email_is_locked_is_refused_and_keeps_the_challenge(client):
     """A locked email is refused before the challenge is spent, so the challenge is still there for after the lock"""
     _, secret, user_id = await _enroll_with_id(client)
     token = await _issue_challenge(user_id)
-    await _lock_email(SIGNUP_PAYLOAD["email"])
+    await _lock_email(SIGNUP_PAYLOAD["email"], _browser_bucket(client))
 
     response = await client.post("/auth/2fa/verify", json={"mfa_token": token, "code": _fresh_totp_code(secret)})
 
@@ -1143,4 +1148,4 @@ async def test_step_up_without_a_second_factor_is_refused_before_it_counts(clien
     response = await client.post("/auth/2fa/recovery-codes", headers=auth, json={"password": _PASSWORD})
 
     assert (response.status_code, response.json()["detail"]) == (400, "A second factor is required")
-    assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None
+    assert await _get_step_up_lockout(auth) is None

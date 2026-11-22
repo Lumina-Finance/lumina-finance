@@ -18,7 +18,7 @@ from app.database import current_user_id_ctx
 from app.email_change_hook import EmailChange, notify_email_change
 from app.models.auth import EmailChangeRequest, PasswordResetToken
 from app.models.user import User
-from app.services.auth.account_lockout import reset_failed_attempts
+from app.services.auth.account_lockout import reset_all_failed_attempts
 from app.services.auth.password_reset import hold_reset_issuance
 from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.auth.signup import INVALID_LINK_DETAIL
@@ -116,7 +116,7 @@ async def confirm_email_change(db: AsyncSession, token: str, background_tasks: B
 
     The link works once, and opening it needs no session, since the person opening it may be signed out.
     Confirming proves control of the new mailbox. The change then ends every session of the account,
-    marks its unused password reset links used and clears the sign-in lockout counts for both addresses,
+    marks its unused password reset links used and clears the sign-in lockout counts of every bucket for both addresses,
     so nothing started under the old address outlives it. The old address is told afterwards
 
     Args:
@@ -176,8 +176,8 @@ async def confirm_email_change(db: AsyncSession, token: str, background_tasks: B
         await _drop_request(db, token)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=INVALID_LINK_DETAIL) from error
 
-    await reset_failed_attempts(db, old_email)
-    await reset_failed_attempts(db, new_email)
+    await reset_all_failed_attempts(db, old_email)
+    await reset_all_failed_attempts(db, new_email)
 
     # A reset link is tied to the account rather than the address, so one sent to the old mailbox would
     # still sign someone in after the change. The lock above means every link issued for the old address

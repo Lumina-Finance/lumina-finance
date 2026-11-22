@@ -24,8 +24,10 @@ from app.models.base import AuthTokenKind
 from app.models.user import User
 from app.routes.auth.cookie_helpers import (
     clear_oidc_reauth_stepup_cookie,
+    read_known_browser_cookie,
     removing_cookie_on_failure,
     request_is_native_client,
+    set_known_browser_cookie,
     set_refresh_cookie,
 )
 from app.schemas.auth import AuthResponse, StepUpRequest, UserInfo
@@ -37,6 +39,7 @@ from app.services.auth.account_lockout import (
     release_attempt,
     reset_failed_attempts,
 )
+from app.services.auth.known_browser import remember_address, sign_in_bucket
 from app.services.auth.mfa_challenge import REAUTH_STEP_UP_PURPOSE, consume_mfa_challenge, is_mfa_challenge_active
 from app.services.auth.saved_copy_key import derive_saved_copy_key
 from app.services.auth.sessions import (
@@ -345,11 +348,12 @@ def _raise_for_token_use(payload: dict[str, Any], expected_token_use: str) -> No
         raise jwt.InvalidTokenError("Invalid token use")
 
 
-async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str, purpose: str) -> tuple[User, str]:
+async def complete_mfa_challenge(db: AsyncSession, request: Request, mfa_token: str, code: str, purpose: str) -> tuple[User, str]:
     """Complete a second-factor step with an authenticator or recovery code
 
     Args:
         db: Active database session
+        request: FastAPI request object, read for the known-browser cookie that picks the lockout bucket
         mfa_token: Challenge token issued when the flow required a second factor
         code: Submitted authenticator or recovery code
         purpose: Flow the challenge must be scoped to
@@ -360,14 +364,17 @@ async def complete_mfa_challenge(db: AsyncSession, mfa_token: str, code: str, pu
     Raises:
         HTTPException: The challenge or the code does not verify
     """
-    return await _complete_mfa_challenge(db, mfa_token, purpose, lambda user_id: verify_login_second_factor(db, user_id, code))
+    return await _complete_mfa_challenge(db, request, mfa_token, purpose, lambda user_id: verify_login_second_factor(db, user_id, code))
 
 
-async def complete_mfa_challenge_with_passkey(db: AsyncSession, mfa_token: str, credential: dict[str, Any], purpose: str) -> tuple[User, str]:
+async def complete_mfa_challenge_with_passkey(
+    db: AsyncSession, request: Request, mfa_token: str, credential: dict[str, Any], purpose: str
+) -> tuple[User, str]:
     """Complete a second-factor step with a passkey assertion
 
     Args:
         db: Active database session
+        request: FastAPI request object, read for the known-browser cookie that picks the lockout bucket
         mfa_token: Challenge token issued when the flow required a second factor
         credential: Passkey assertion returned by the browser
         purpose: Flow the challenge must be scoped to
@@ -384,21 +391,22 @@ async def complete_mfa_challenge_with_passkey(db: AsyncSession, mfa_token: str, 
         await verify_passkey_second_factor(db, user_id, credential)
         return SECOND_FACTOR_PASSKEY
 
-    return await _complete_mfa_challenge(db, mfa_token, purpose, verify_with_passkey)
+    return await _complete_mfa_challenge(db, request, mfa_token, purpose, verify_with_passkey)
 
 
 async def _complete_mfa_challenge(
-    db: AsyncSession, mfa_token: str, purpose: str, verify_second_factor: Callable[[uuid.UUID], Awaitable[str]]
+    db: AsyncSession, request: Request, mfa_token: str, purpose: str, verify_second_factor: Callable[[uuid.UUID], Awaitable[str]]
 ) -> tuple[User, str]:
     """Spend the challenge, run the given second-factor check, and return the authenticated user
 
     The challenge is consumed and committed before the factor is checked, so a wrong factor still
     spends this single-use token and the user must log in again. The verified subject adopts the user's
-    identity to load their row under the self-only policy, and a wrong factor counts toward the shared
-    lockout while a success clears it
+    identity to load their row under the self-only policy, and a wrong factor counts toward the same
+    lockout bucket as the password step, while a success clears that bucket
 
     Args:
         db: Active database session
+        request: FastAPI request object, read for the known-browser cookie that picks the lockout bucket
         mfa_token: Challenge token issued when the flow required a second factor
         purpose: Flow the challenge must be scoped to
         verify_second_factor: Coroutine factory that raises HTTPException unless the factor verifies
@@ -429,10 +437,11 @@ async def _complete_mfa_challenge(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired challenge")
 
-    # The lockout counter is shared with the password step, so a factor grind trips the same lock. A locked
-    # account is refused here without spending the challenge
+    # The lockout counter is shared with the password step of the same bucket, so a factor grind trips
+    # the same lock. A locked bucket is refused here without spending the challenge
+    bucket = sign_in_bucket(read_known_browser_cookie(request), user.email)
     credential = await get_password_credential(db, user_id)
-    if credential is not None and await is_email_locked(db, user.email):
+    if credential is not None and await is_email_locked(db, user.email, bucket):
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account temporarily locked")
 
     # Consume and commit before checking the factor so a wrong factor still burns the single-use challenge
@@ -444,7 +453,7 @@ async def _complete_mfa_challenge(
     # The attempt is counted only once its challenge is spent, so a replayed or expired challenge never
     # counts, and before the factor is checked, so simultaneous attempts cannot check more factors than
     # the lock allows
-    remaining = await claim_attempt(db, user.email) if credential is not None else None
+    remaining = await claim_attempt(db, user.email, bucket) if credential is not None else None
 
     try:
         factor_kind = await verify_second_factor(user_id)
@@ -454,12 +463,12 @@ async def _complete_mfa_challenge(
         # typed code only ever fails with a 401, so it still counts
         if remaining is not None:
             if error.status_code == status.HTTP_401_UNAUTHORIZED:
-                await confirm_failed_attempt(db, user_id, remaining)
+                await confirm_failed_attempt(db, user_id, remaining, bucket)
             else:
-                await release_attempt(db, user.email)
+                await release_attempt(db, user.email, bucket)
         raise
 
-    await reset_failed_attempts(db, user.email)
+    await reset_failed_attempts(db, user.email, bucket)
     await db.commit()
 
     return user, factor_kind
@@ -655,6 +664,10 @@ async def issue_and_store_tokens(
 ) -> AuthResponse:
     """Create a token pair, store it, and hand over the refresh token
 
+    A browser that completes a sign-in also gets, or extends, the cookie that marks it as known for the
+    user's address. A renewal never does, so a stolen refresh token can't make a browser the lockout
+    treats as the owner's
+
     Args:
         db: Active database session
         request: FastAPI request object
@@ -709,6 +722,8 @@ async def issue_and_store_tokens(
         auth_response.refresh_token = refresh_token
     else:
         set_refresh_cookie(request, response, refresh_token)
+        if is_new_session:
+            set_known_browser_cookie(request, response, remember_address(read_known_browser_cookie(request), user.email))
         auth_response.saved_copy_key = derive_saved_copy_key(user.id, user.saved_copy_key_version)
         auth_response.saved_copy_key_version = user.saved_copy_key_version
     return auth_response

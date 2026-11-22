@@ -22,7 +22,7 @@ from tests.routes.support import (
     SIGNUP_PAYLOAD,
     _clears_cookie,
     _create_user,
-    _get_login_lockout,
+    _get_browser_lockout,
     _seed_currency,
     sign_up_confirmed,
     sign_up_through_email,
@@ -277,8 +277,8 @@ async def test_successful_login_resets_failed_attempt_count(client):
     resp = await client.post("/auth/login", json=LOGIN_PAYLOAD)
     assert resp.status_code == 200
 
-    # The email's failures are forgotten
-    assert await _get_login_lockout("test@example.com") is None
+    # The browser's failures are forgotten
+    assert await _get_browser_lockout(client) is None
 
 
 async def test_failed_attempt_after_expired_lock_starts_fresh(client):
@@ -299,7 +299,7 @@ async def test_failed_attempt_after_expired_lock_starts_fresh(client):
     resp = await client.post("/auth/login", json=bad_login)
     assert resp.status_code == 401
 
-    lockout = await _get_login_lockout("test@example.com")
+    lockout = await _get_browser_lockout(client)
     assert lockout.failed_attempt_count == 1
     assert lockout.locked_until is None
 

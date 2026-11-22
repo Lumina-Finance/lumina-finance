@@ -21,7 +21,7 @@ from app.models.auth import AuthIdentity, PasswordCredential, PasswordResetToken
 from app.models.base import AuthProvider
 from app.models.oidc import OidcIdentity
 from app.models.user import User
-from app.services.auth.account_lockout import reset_failed_attempts
+from app.services.auth.account_lockout import reset_all_failed_attempts
 from app.services.auth.mfa_challenge import MFA_PURPOSE_PASSWORD_RESET, issue_mfa_challenge
 from app.services.auth.password_credential import create_first_password_credential
 from app.services.auth.password_helpers import hash_password
@@ -470,9 +470,9 @@ async def _apply_password_reset(db: AsyncSession, reset_token: PasswordResetToke
         credential.password_hash = await run_in_threadpool(hash_password, new_password)
         credential.password_algo = "argon2id"  # noqa: S105
 
-    # A verified reset clears any login lockout the user was trying to recover from
+    # A verified reset clears every bucket of any login lockout the user was trying to recover from
     email = await db.scalar(select(User.email).where(User.id == reset_token.user_id))
-    await reset_failed_attempts(db, email)
+    await reset_all_failed_attempts(db, email)
 
     # With unverified provider emails allowed, someone at the provider can claim an address before its
     # owner signs up, and the owner's way back in is this reset. So a reset keeps no provider identity:

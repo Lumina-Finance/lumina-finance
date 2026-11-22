@@ -157,7 +157,7 @@ async def verify_passkey_second_factor_route(
     Raises:
         HTTPException: The challenge or the assertion does not verify
     """
-    user, _ = await complete_mfa_challenge_with_passkey(db, data.mfa_token, data.credential, MFA_PURPOSE_LOGIN)
+    user, _ = await complete_mfa_challenge_with_passkey(db, request, data.mfa_token, data.credential, MFA_PURPOSE_LOGIN)
     return await issue_and_store_tokens(db, request, response, user)
 
 
@@ -188,12 +188,14 @@ async def passkey_reset_factor_options_route(
 @router.post("/reset/verify", response_model=PasswordResetResponse | None)
 async def verify_passkey_reset_factor_route(
     data: PasskeyResetVerifyRequest,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Complete a factor-gated password reset by verifying a passkey assertion
 
     Args:
         data: The reset payload with the emailed token, challenge token, assertion, and new password
+        request: FastAPI request object
         db: Active database session
 
     Returns:
@@ -205,7 +207,7 @@ async def verify_passkey_reset_factor_route(
     # The challenge below is single use, so reject a dead reset token before it burns
     await ensure_reset_token_active(db, data.token)
 
-    user, _ = await complete_mfa_challenge_with_passkey(db, data.mfa_token, data.credential, MFA_PURPOSE_PASSWORD_RESET)
+    user, _ = await complete_mfa_challenge_with_passkey(db, request, data.mfa_token, data.credential, MFA_PURPOSE_PASSWORD_RESET)
     return answer_completed_reset(await complete_password_reset(db, user.id, data.token, data.new_password))
 
 

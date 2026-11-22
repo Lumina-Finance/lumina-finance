@@ -18,7 +18,7 @@ fingerprint, and app.db.bank_transaction_key refuses to start under another key 
 over a database that has a key, until an operator accepts that cost with its reset command
 
 The sign-in lockout records derive their own key from this one (app.services.auth.login_email_hash),
-so a changed key there only makes saved lockouts unmatched
+so a changed key there only makes saved lockouts and known-browser cookies unmatched
 """
 
 import functools

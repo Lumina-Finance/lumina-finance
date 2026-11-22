@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.database import current_session_id_ctx, get_db, get_session_factory
 from app.dependencies import get_authenticated_user, get_current_user
 from app.models.user import User
-from app.routes.auth.cookie_helpers import read_oidc_reauth_stepup_cookie, read_refresh_cookie
+from app.routes.auth.cookie_helpers import read_known_browser_cookie, read_oidc_reauth_stepup_cookie, read_refresh_cookie
 from app.routes.auth.email_change import router as email_change_router
 from app.routes.auth.jwks_helpers import build_jwks_response
 from app.routes.auth.logout_helpers import logout_auth_session
@@ -78,6 +78,7 @@ from app.services.auth import (
 )
 from app.services.auth.account_lockout import reset_failed_attempts
 from app.services.auth.discovery import read_discovery_document
+from app.services.auth.known_browser import sign_in_bucket
 from app.services.auth.password_reset import CompletedPasswordReset
 
 _security = HTTPBearer(auto_error=False)
@@ -174,7 +175,8 @@ async def login_route(
     Raises:
         HTTPException: Credentials are invalid or the account is locked
     """
-    user = await login(db, data)
+    bucket = sign_in_bucket(read_known_browser_cookie(request), data.email)
+    user = await login(db, data, bucket)
 
     # Any confirmed second factor, or a pending re-enrolment whose only key is a recovery code, holds
     # back tokens until the verify endpoint clears the challenge. A passkey is the preferred factor when
@@ -190,8 +192,8 @@ async def login_route(
             recovery_only=not totp_enabled and not passkey_available,
         )
 
-    # A login with no second factor is complete here, so clear the shared lockout counter
-    await reset_failed_attempts(db, user.email)
+    # A login with no second factor is complete here, so clear the bucket it counted in
+    await reset_failed_attempts(db, user.email, bucket)
     await db.commit()
 
     auth_response = await issue_and_store_tokens(db, request, response, user)
@@ -394,7 +396,7 @@ async def reset_password_verify_route(
     # The challenge below is single use, so reject a dead reset token before it burns
     await ensure_reset_token_active(db, data.token)
 
-    user, factor_kind = await complete_mfa_challenge(db, data.mfa_token, data.code, MFA_PURPOSE_PASSWORD_RESET)
+    user, factor_kind = await complete_mfa_challenge(db, request, data.mfa_token, data.code, MFA_PURPOSE_PASSWORD_RESET)
     completed = await complete_password_reset(db, user.id, data.token, data.new_password)
 
     if factor_kind == SECOND_FACTOR_RECOVERY_CODE:
@@ -577,7 +579,7 @@ async def verify_totp_route(
     Raises:
         HTTPException: The challenge or the code does not verify
     """
-    user, _ = await complete_mfa_challenge(db, data.mfa_token, data.code, MFA_PURPOSE_LOGIN)
+    user, _ = await complete_mfa_challenge(db, request, data.mfa_token, data.code, MFA_PURPOSE_LOGIN)
     auth_response = await issue_and_store_tokens(db, request, response, user)
     return auth_response
 

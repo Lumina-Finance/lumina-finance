@@ -14,7 +14,9 @@ from sqlalchemy import delete, event, func, select, update
 from app.email_change_hook import EmailChange, observe_email_changes
 from app.main import app
 from app.models.auth import EmailChangeRequest, PasswordCredential, PasswordResetToken, TotpCredential
+from app.routes.auth.cookie_helpers import KNOWN_BROWSER_COOKIE_KEY
 from app.services.auth import email_change
+from app.services.auth.known_browser import SHARED_BUCKET, sign_in_bucket
 from app.services.auth.mfa_challenge import issue_reauth_stepup_proof
 from tests.conftest import TestSession, scoped_engine
 from tests.routes.support import (
@@ -25,7 +27,9 @@ from tests.routes.support import (
     _enroll,
     _fresh_totp_code,
     _get_auth_header,
+    _get_browser_lockout,
     _get_login_lockout,
+    _get_step_up_lockout,
     _link_sign_in_providers,
     _seed_reset_token,
     _sign_in_again,
@@ -283,7 +287,7 @@ async def test_request_current_spelling_refused_before_the_step_up_is_spent(clie
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "This is already your email address. Please enter a different one"
-    assert await _get_login_lockout(_OLD_EMAIL) is None
+    assert await _get_step_up_lockout(auth, _OLD_EMAIL) is None
     assert mailbox.sent == []
 
 
@@ -428,7 +432,7 @@ async def test_confirm_address_taken_meanwhile_refused_and_changes_nothing(clien
     await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "New.Address@example.com"})
     for address in (_OLD_EMAIL, _NEW_EMAIL):
         await _sign_in(client, address, _WRONG_PASSWORD)
-    lockouts = [(await _get_login_lockout(address)).failed_attempt_count for address in (_OLD_EMAIL, _NEW_EMAIL)]
+    lockouts = [(await _get_browser_lockout(client, address)).failed_attempt_count for address in (_OLD_EMAIL, _NEW_EMAIL)]
     assert lockouts == [1, 1]
 
     resp = await _confirm(client, token)
@@ -440,7 +444,7 @@ async def test_confirm_address_taken_meanwhile_refused_and_changes_nothing(clien
     await _assert_session_works(client, (auth, ""))
     assert (await client.post("/auth/password/reset/check", json={"token": reset_token})).status_code == 200, "a refused change ends nothing"
     for address in (_OLD_EMAIL, _NEW_EMAIL):
-        assert (await _get_login_lockout(address)).failed_attempt_count == 1, f"a refused change keeps the lockout count of {address}"
+        assert (await _get_browser_lockout(client, address)).failed_attempt_count == 1, f"a refused change keeps the lockout count of {address}"
 
 
 async def test_confirm_ends_every_session_of_the_account_and_no_other_users(client):
@@ -505,18 +509,22 @@ async def test_confirm_leaves_another_users_pending_request_working(client):
     assert (await _confirm(client, bystander_token)).json() == {"email": "bystander.new@example.com"}
 
 
-async def test_confirm_clears_the_sign_in_lockout_of_both_addresses(client):
-    """Failures counted against either address before the change do not lock the account out of the new one"""
+async def test_confirm_clears_the_sign_in_lockout_of_both_addresses_in_every_bucket(client):
+    """Failures against either address before the change, from the owner's browser or a stranger's, never lock out the new one"""
     _, _, token = await _signed_up_and_requested(client)
     await _sign_in(client, _OLD_EMAIL, _WRONG_PASSWORD)
+    owners_bucket = sign_in_bucket(client.cookies.get(KNOWN_BROWSER_COOKIE_KEY), _OLD_EMAIL)
+    client.cookies.clear()
+    await _sign_in(client, _OLD_EMAIL, _WRONG_PASSWORD)
     await _sign_in(client, _NEW_EMAIL, _WRONG_PASSWORD)
-    assert await _get_login_lockout(_OLD_EMAIL) is not None
-    assert await _get_login_lockout(_NEW_EMAIL) is not None
+    counted = [(_OLD_EMAIL, owners_bucket), (_OLD_EMAIL, SHARED_BUCKET), (_NEW_EMAIL, SHARED_BUCKET)]
+    for address, bucket in counted:
+        assert await _get_login_lockout(address, bucket) is not None, f"{address} has a count to clear"
 
     await _confirm(client, token)
 
-    assert await _get_login_lockout(_OLD_EMAIL) is None
-    assert await _get_login_lockout(_NEW_EMAIL) is None
+    for address, bucket in counted:
+        assert await _get_login_lockout(address, bucket) is None, f"{address} is cleared in every bucket"
 
 
 async def test_confirm_keeps_the_accounts_linked_sign_in_providers(client):
