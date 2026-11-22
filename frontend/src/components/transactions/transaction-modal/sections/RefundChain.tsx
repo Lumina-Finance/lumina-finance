@@ -75,9 +75,9 @@ export function RefundCount({ count }: { count: number }) {
       style={{ color: 'var(--app-text-muted)' }}
       data-testid="refund-count"
     >
-      <span aria-hidden>· </span>
-      {count}
-      <span className="sr-only"> linked</span>
+      {/* A screen reader hears ", 3 linked" after the heading in place of the drawn dot and number */}
+      <span aria-hidden>· {count}</span>
+      <span className="sr-only">, {count} linked</span>
     </span>
   )
 }
@@ -128,11 +128,12 @@ export function RefundChainRow({
 }: RefundChainRowProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   return (
-    // A link Save has yet to make sits in a dashed amber box. The box reaches past the row by 8px on each side and 6px
+    // A link Save has yet to make sits in a dashed amber box. The box reaches past the row by 8px on each side and 4px
     // above and below, into the room between rows, and its padding and border take that back. So the row keeps its
-    // place and height, and nothing moves when Save turns the box back into a plain row
+    // place and height, and nothing moves when Save turns the box back into a plain row. Two unsaved refunds in a row
+    // keep 4px of the 12px between them, so their boxes never touch
     <div
-      className={`flex items-center gap-3 ${notSaved ? '-mx-2 -my-1.5 rounded-lg border border-dashed px-[7px] py-[5px]' : ''}`}
+      className={`flex items-center gap-3 ${notSaved ? '-mx-2 -my-1 rounded-lg border border-dashed px-[7px] py-[3px]' : ''}`}
       style={notSaved ? { background: 'var(--app-warning-soft)', borderColor: 'var(--app-warning-dot)' } : undefined}
       data-testid={testId}
       data-link-id={linkId}

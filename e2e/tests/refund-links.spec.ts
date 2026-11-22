@@ -222,11 +222,11 @@ test('shows an expense and its refunds as one chain with what is left to refund'
   await test.step('an expense refunded in full by three refunds', async () => {
     const order = await openRow(page, orderId)
     await expect(order.getByTestId('linked-transaction')).toContainText(['+$320.00', '+$200.00', '+$120.00'])
-    await expect(order.getByTestId('refund-count')).toHaveText('· 3 linked')
+    await expect(order.getByTestId('refund-count')).toHaveText('· 3, 3 linked')
     await expect(order.getByTestId('refund-status')).toHaveText('Refunded in full')
     await expect(order.getByTestId('refund-room')).toHaveText('$0.00')
 
-    // The first refund sits further from the expense than the refunds sit from each other
+    // The first refund sits twice as far from the expense as the refunds sit from each other
     const [expenseBox, firstBox, secondBox] = await Promise.all([
       order.getByTestId('refund-chain-expense').boundingBox(),
       order.getByTestId('linked-transaction').nth(0).boundingBox(),
@@ -234,12 +234,13 @@ test('shows an expense and its refunds as one chain with what is left to refund'
     ])
     const leadGap = firstBox!.y - (expenseBox!.y + expenseBox!.height)
     const refundGap = secondBox!.y - (firstBox!.y + firstBox!.height)
-    expect(leadGap).toBeGreaterThan(refundGap)
+    expect(refundGap).toBeGreaterThan(0)
+    expect(leadGap).toBeCloseTo(refundGap * 2, 0)
 
     // Unlinking the newest refund is held until Save, and gives its amount back at once
     await order.getByRole('button', { name: /^Unlink / }).last().click()
     await expect(order.getByTestId('linked-transaction')).toHaveCount(2)
-    await expect(order.getByTestId('refund-count')).toHaveText('· 2 linked')
+    await expect(order.getByTestId('refund-count')).toHaveText('· 2, 2 linked')
     await expect(order.getByTestId('refund-status')).toHaveText('Partly refunded')
     await expect(order.getByTestId('refund-room')).toHaveText('$120.00')
 
@@ -279,6 +280,8 @@ test('shows an expense and its refunds as one chain with what is left to refund'
     await expect(refund.getByTestId('linked-transaction')).toContainText('−$640.00')
     await expect(refund.getByTestId('refund-chain-sibling')).toHaveCount(2)
     await expect(refund.getByTestId('refund-chain-self')).toContainText('This refund')
+    // The Refund of heading carries no count
+    await expect(refund.getByTestId('refund-count')).toHaveCount(0)
     await expect(refund.getByTestId('refund-status')).toHaveText('Refunded in full')
     await expect(refund.getByTestId('refund-room')).toHaveText('$0.00')
     await refund.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -287,7 +290,7 @@ test('shows an expense and its refunds as one chain with what is left to refund'
 
   await test.step('an expense refunded in part', async () => {
     const lamp = await openRow(page, lampId)
-    await expect(lamp.getByTestId('refund-count')).toHaveText('· 1 linked')
+    await expect(lamp.getByTestId('refund-count')).toHaveText('· 1, 1 linked')
     await expect(lamp.getByTestId('refund-status')).toHaveText('Partly refunded')
     await expect(lamp.getByTestId('refund-room')).toHaveText('$135.00')
   })

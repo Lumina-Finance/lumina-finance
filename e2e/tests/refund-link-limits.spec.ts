@@ -154,6 +154,10 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await expect(picker).toBeHidden()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(2)
   await expect(expense.getByTestId('linked-transaction')).toContainText(['Unsaved', 'Unsaved'])
+  // Two unsaved refunds in a row keep room between their boxes
+  const held = expense.locator('[data-not-saved]')
+  const [upper, lower] = [await held.nth(0).boundingBox(), await held.nth(1).boundingBox()]
+  expect(lower!.y - (upper!.y + upper!.height)).toBeGreaterThan(2)
   await saveButton(expense).click()
   await expect(expense).toBeHidden()
   await page.reload()
