@@ -21,14 +21,14 @@ const CSV_HEADERS = ['Date', 'Amount', 'Money Out', 'Money In', 'Notes']
 const CSV_SKIPPED: ImportRowProblem = {
   id: 'file-1-0',
   rowNumber: 2,
-  cells: { 'Date': 'someday', 'Amount': '-42.50', 'Money Out': '42.50', 'Money In': '7.00', 'Notes': 'Lunch' },
+  cells: { Date: 'someday', Amount: '-42.50', 'Money Out': '42.50', 'Money In': '7.00', Notes: 'Lunch' },
   reason: 'The date is not one we can read.',
 }
 
 const CSV_WORTH_A_LOOK: ImportRowProblem = {
   id: 'file-1-1',
   rowNumber: 3,
-  cells: { 'Date': '2024-03-16', 'Amount': '1,234.00', 'Money Out': '1,234.00', 'Money In': '9.00', 'Notes': 'Rent' },
+  cells: { Date: '2024-03-16', Amount: '1,234.00', 'Money Out': '1,234.00', 'Money In': '9.00', Notes: 'Rent' },
   reason: 'This amount is much larger than the others.',
 }
 
@@ -37,25 +37,33 @@ const CSV_WORTH_A_LOOK: ImportRowProblem = {
  * look, mapped as given
  */
 function renderCsvPreview(columnMap: ColumnMap) {
-  return renderToStaticMarkup(createElement(ImportPreviewStep, {
-    files: [],
-    previewGroups: [],
-    importStats: { rowCount: 2, transactionEstimate: 1, newAccountCount: 0, newCategoryCount: 0 },
-    outsideRangeRowCount: 0,
-    importBuild: { errors: [], warnings: [], rowProblems: [CSV_SKIPPED], rowWarnings: [CSV_WORTH_A_LOOK], payload: null },
-    headers: CSV_HEADERS,
-    columnMap,
-    importError: null,
-    importErrorLang: undefined,
-    handleCommitImport: async () => undefined,
-    canCommitImport: false,
-    dateRangeBlockReason: null,
-    importResult: null,
-    completedImport: null,
-  }))
+  return renderToStaticMarkup(
+    createElement(ImportPreviewStep, {
+      files: [],
+      previewGroups: [],
+      importStats: { rowCount: 2, transactionEstimate: 1, newAccountCount: 0, newCategoryCount: 0 },
+      outsideRangeRowCount: 0,
+      importBuild: {
+        errors: [],
+        warnings: [],
+        rowProblems: [CSV_SKIPPED],
+        rowWarnings: [CSV_WORTH_A_LOOK],
+        payload: null,
+      },
+      headers: CSV_HEADERS,
+      columnMap,
+      importError: null,
+      importErrorLang: undefined,
+      handleCommitImport: async () => undefined,
+      canCommitImport: false,
+      dateRangeBlockReason: null,
+      importResult: null,
+      completedImport: null,
+    }),
+  )
 }
 
-describe('the CSV import\'s Preview and commit step', () => {
+describe("the CSV import's Preview and commit step", () => {
   it('right-aligns the column mapped to Amount in both tables', () => {
     const markup = renderCsvPreview({ ...EMPTY_COLUMN_MAP, dt: 'Date', amount: 'Amount', notes: 'Notes' })
 
@@ -85,40 +93,52 @@ describe('the CSV import\'s Preview and commit step', () => {
 })
 
 describe('the Firefly III import', () => {
-  it('right-aligns the amount and foreign amount columns in both of the preview\'s tables', () => {
-    const markup = renderToStaticMarkup(createElement(FireflyPreviewStep, {
-      importEstimate: { rowCount: 2, transactionEstimate: 1, skippedRows: [], rowWarnings: [] },
-      previewGroups: [],
-      predictedSkippedRows: [{
-        id: 'file-1-0',
-        journalId: '7',
-        rowNumber: 2,
-        cells: { journal_id: '7', date: 'someday', amount: '-42.50', foreign_amount: '-30.10', description: 'Lunch' },
-        reason: 'The date is not one we can read.',
-      }],
-      predictedRowWarnings: [{
-        id: 'file-1-1',
-        rowNumber: 3,
-        cells: { journal_id: '8', date: '2024-03-16', amount: '1,234.00', foreign_amount: '', description: 'Rent' },
-        reason: 'This amount is much larger than the others.',
-      }],
-      completedImport: null,
-      fireflyHeaders: ['journal_id', 'date', 'amount', 'foreign_amount', 'description'],
-      newAccountCount: 0,
-      newCategoryCount: 0,
-      budgetsFile: null,
-      importBuild: {
-        errors: [],
-        payload: null,
-        writtenSources: { accounts: new Set<string>(), categories: new Set<string>() },
-        archiveAccountSources: [],
-      },
-      importError: 'Withdrawal source is not an imported account',
-      importErrorLang: 'en',
-      importResult: null,
-      canCommitImport: false,
-      handleCommitImport: async () => undefined,
-    }))
+  it("right-aligns the amount and foreign amount columns in both of the preview's tables", () => {
+    const markup = renderToStaticMarkup(
+      createElement(FireflyPreviewStep, {
+        importEstimate: { rowCount: 2, transactionEstimate: 1, skippedRows: [], rowWarnings: [] },
+        previewGroups: [],
+        predictedSkippedRows: [
+          {
+            id: 'file-1-0',
+            journalId: '7',
+            rowNumber: 2,
+            cells: {
+              journal_id: '7',
+              date: 'someday',
+              amount: '-42.50',
+              foreign_amount: '-30.10',
+              description: 'Lunch',
+            },
+            reason: 'The date is not one we can read.',
+          },
+        ],
+        predictedRowWarnings: [
+          {
+            id: 'file-1-1',
+            rowNumber: 3,
+            cells: { journal_id: '8', date: '2024-03-16', amount: '1,234.00', foreign_amount: '', description: 'Rent' },
+            reason: 'This amount is much larger than the others.',
+          },
+        ],
+        completedImport: null,
+        fireflyHeaders: ['journal_id', 'date', 'amount', 'foreign_amount', 'description'],
+        newAccountCount: 0,
+        newCategoryCount: 0,
+        budgetsFile: null,
+        importBuild: {
+          errors: [],
+          payload: null,
+          writtenSources: { accounts: new Set<string>(), categories: new Set<string>() },
+          archiveAccountSources: [],
+        },
+        importError: 'Withdrawal source is not an imported account',
+        importErrorLang: 'en',
+        importResult: null,
+        canCommitImport: false,
+        handleCommitImport: async () => undefined,
+      }),
+    )
 
     expectAmountColumns(markup, {
       headers: ['amount', 'foreign_amount'],
@@ -132,34 +152,50 @@ describe('the Firefly III import', () => {
     expect(markup).toContain('<span lang="en">Withdrawal source is not an imported account</span>')
   })
 
-  it('right-aligns a skipped budget\'s Latest amount', () => {
-    const markup = renderToStaticMarkup(createElement(FireflyBudgetImportStep, {
-      importResult: null,
-      budgetsFile: { id: 'budgets', name: 'budgets.csv', size: 256, headers: [], hasHeaderRow: true, rows: [], error: null },
-      budgetDrafts: [{
-        name: 'Groceries',
-        amount: '$450.00',
-        currencyCode: 'CAD',
-        currencyCodes: ['CAD', 'USD'],
-        isArchived: false,
-        limits: [],
-        firstPeriodStart: '2024-01-01',
-        lastPeriodEnd: '2024-03-31',
-        recurrence: null,
-        periodLabel: 'Monthly',
-        categoryNames: [],
-        disabledReason: 'Its limits are in more than one currency.',
-      }],
-      selectedBudgetNames: new Set<string>(),
-      toggleBudgetSelection: () => undefined,
-      setBudgetsSelected: () => undefined,
-      importedBudgetNames: new Set<string>(),
-      budgetSelectionError: null,
-      budgetCountingNotes: [],
-      importOverlayOpen: false,
-    }))
+  it("right-aligns a skipped budget's Latest amount", () => {
+    const markup = renderToStaticMarkup(
+      createElement(FireflyBudgetImportStep, {
+        importResult: null,
+        budgetsFile: {
+          id: 'budgets',
+          name: 'budgets.csv',
+          size: 256,
+          headers: [],
+          hasHeaderRow: true,
+          rows: [],
+          error: null,
+        },
+        budgetDrafts: [
+          {
+            name: 'Groceries',
+            amount: '$450.00',
+            currencyCode: 'CAD',
+            currencyCodes: ['CAD', 'USD'],
+            isArchived: false,
+            limits: [],
+            firstPeriodStart: '2024-01-01',
+            lastPeriodEnd: '2024-03-31',
+            recurrence: null,
+            periodLabel: 'Monthly',
+            categoryNames: [],
+            disabledReason: 'Its limits are in more than one currency.',
+          },
+        ],
+        selectedBudgetNames: new Set<string>(),
+        toggleBudgetSelection: () => undefined,
+        setBudgetsSelected: () => undefined,
+        importedBudgetNames: new Set<string>(),
+        budgetSelectionError: null,
+        budgetCountingNotes: [],
+        importOverlayOpen: false,
+      }),
+    )
 
-    expectAmountColumns(markup, { headers: ['Latest amount'], values: ['$450.00'], others: ['Status', 'Active', 'Cadence', 'Monthly'] })
+    expectAmountColumns(markup, {
+      headers: ['Latest amount'],
+      values: ['$450.00'],
+      others: ['Status', 'Active', 'Cadence', 'Monthly'],
+    })
     expect(markup).toContain('<span lang="en">Its limits are in more than one currency.</span>')
   })
 })
@@ -179,48 +215,67 @@ const ACTUAL_BUDGET: ActualBudgetFile = {
 }
 
 describe('the Actual Budget import', () => {
-  it('right-aligns a skipped transaction\'s Amount', () => {
-    const markup = renderToStaticMarkup(createElement(ActualSkippedRowsTable, {
-      title: '1 transaction skipped',
-      decimals: ACTUAL_BUDGET.budgetDecimals,
-      rows: [{
-        transactionId: 'tx-1',
-        date: '2024-03-15',
-        accountName: 'Chequing',
-        amount: -4250,
-        merchantName: 'Corner Market',
-        categoryName: null,
-        notes: 'Lunch',
-        reason: 'Its account is not imported.',
-      }],
-    }))
+  it("right-aligns a skipped transaction's Amount", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ActualSkippedRowsTable, {
+        title: '1 transaction skipped',
+        decimals: ACTUAL_BUDGET.budgetDecimals,
+        rows: [
+          {
+            transactionId: 'tx-1',
+            date: '2024-03-15',
+            accountName: 'Chequing',
+            amount: -4250,
+            merchantName: 'Corner Market',
+            categoryName: null,
+            notes: 'Lunch',
+            reason: 'Its account is not imported.',
+          },
+        ],
+      }),
+    )
 
-    expectAmountColumns(markup, { headers: ['Amount'], values: ['-42.50'], others: ['Account', 'Chequing', 'Merchant', 'Corner Market'] })
+    expectAmountColumns(markup, {
+      headers: ['Amount'],
+      values: ['-42.50'],
+      others: ['Account', 'Chequing', 'Merchant', 'Corner Market'],
+    })
   })
 
-  it('right-aligns a skipped budget\'s Latest amount', () => {
-    const markup = renderToStaticMarkup(createElement(ActualBudgetImportStep, {
-      budget: ACTUAL_BUDGET,
-      importResult: null,
-      budgetDrafts: [{
-        categoryId: 'car',
-        name: 'Car',
-        categorySourceId: 'car',
-        months: [{ month: '2024-02', amount: 15000 }, { month: '2024-03', amount: 17550 }],
-        recurs: true,
-        isArchived: false,
-        disabledReason: null,
-      }],
-      budgetRefusals: new Map([['car', 'Its category is not imported.']]),
-      budgetsMissingPayments: [],
-      selectedBudgetIds: new Set<string>(),
-      toggleBudgetSelection: () => undefined,
-      setBudgetsSelected: () => undefined,
-      importedBudgetNames: new Set<string>(),
-      budgetSelectionError: null,
-      importOverlayOpen: false,
-    }))
+  it("right-aligns a skipped budget's Latest amount", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ActualBudgetImportStep, {
+        budget: ACTUAL_BUDGET,
+        importResult: null,
+        budgetDrafts: [
+          {
+            categoryId: 'car',
+            name: 'Car',
+            categorySourceId: 'car',
+            months: [
+              { month: '2024-02', amount: 15000 },
+              { month: '2024-03', amount: 17550 },
+            ],
+            recurs: true,
+            isArchived: false,
+            disabledReason: null,
+          },
+        ],
+        budgetRefusals: new Map([['car', 'Its category is not imported.']]),
+        budgetsMissingPayments: [],
+        selectedBudgetIds: new Set<string>(),
+        toggleBudgetSelection: () => undefined,
+        setBudgetsSelected: () => undefined,
+        importedBudgetNames: new Set<string>(),
+        budgetSelectionError: null,
+        importOverlayOpen: false,
+      }),
+    )
 
-    expectAmountColumns(markup, { headers: ['Latest amount'], values: ['175.50'], others: ['Months', 'First month', '2024-02'] })
+    expectAmountColumns(markup, {
+      headers: ['Latest amount'],
+      values: ['175.50'],
+      others: ['Months', 'First month', '2024-02'],
+    })
   })
 })
