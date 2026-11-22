@@ -267,8 +267,7 @@ async def _import_one_budget(client, headers, category_id, limits, name="Groceri
     result = resp.json()["budgets"][0]
 
     base_resp = await client.get(f"/base-budgets/{result['base_budget_id']}", headers=headers)
-    instances_resp = await client.get("/budgets", headers=headers)
-    own = [b for b in instances_resp.json() if b["base_budget_id"] == result["base_budget_id"]]
+    own = (await client.get(f"/base-budgets/{result['base_budget_id']}/utilizations", headers=headers)).json()
     assert result["instance_count"] == len(own)
     return base_resp.json(), own
 

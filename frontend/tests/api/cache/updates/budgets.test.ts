@@ -70,29 +70,27 @@ describe('updateCachedBaseBudget', () => {
     expect(queryClient.getQueryData(budgetKeys.baseBudgets())).toBeUndefined()
   })
 
-  it('updates the base_budget embedded in every cached period for that base budget', () => {
+  it('updates the base_budget embedded in the cached latest period of that base budget', () => {
     const queryClient = new QueryClient()
     const baseBudget = createBaseBudget({ id: 'base-1' })
     const otherBaseBudget = createBaseBudget({ id: 'base-2', name: 'Rent' })
-    const firstPeriod = createBudget(baseBudget, { id: 'period-1', period_start: '2026-05-01' })
-    const secondPeriod = createBudget(baseBudget, { id: 'period-2', period_start: '2026-06-01' })
+    const latestPeriod = createBudget(baseBudget, { id: 'period-2', period_start: '2026-06-01' })
     const unrelatedPeriod = createBudget(otherBaseBudget, { id: 'period-3' })
-    queryClient.setQueryData(budgetKeys.periods(), [firstPeriod, secondPeriod, unrelatedPeriod])
+    queryClient.setQueryData(budgetKeys.latestPeriods(), [latestPeriod, unrelatedPeriod])
 
     const updatedBaseBudget = { ...baseBudget, is_archived: true }
     updateCachedBaseBudget(queryClient, updatedBaseBudget)
 
-    const cachedPeriods = queryClient.getQueryData<Budget[]>(budgetKeys.periods())
+    const cachedPeriods = queryClient.getQueryData<Budget[]>(budgetKeys.latestPeriods())
     expect(cachedPeriods?.[0].base_budget).toEqual(updatedBaseBudget)
-    expect(cachedPeriods?.[1].base_budget).toEqual(updatedBaseBudget)
-    expect(cachedPeriods?.[2].base_budget).toEqual(otherBaseBudget)
+    expect(cachedPeriods?.[1].base_budget).toEqual(otherBaseBudget)
   })
 
-  it('does not create a periods cache entry when none was cached yet', () => {
+  it('does not create a latest periods cache entry when none was cached yet', () => {
     const queryClient = new QueryClient()
 
     updateCachedBaseBudget(queryClient, createBaseBudget({ id: 'base-1', is_archived: true }))
 
-    expect(queryClient.getQueryData(budgetKeys.periods())).toBeUndefined()
+    expect(queryClient.getQueryData(budgetKeys.latestPeriods())).toBeUndefined()
   })
 })

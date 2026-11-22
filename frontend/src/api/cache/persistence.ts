@@ -40,8 +40,10 @@ const TIMED_SAVE_INTERVAL_MS = 1000
 // sums and counts behind the spending comparison's average. Version 6 adds the bank source every
 // transaction response carries. Version 7 adds the date range import every bank link carries. Version 8
 // adds the bank's note and merchant to the bank values every review item and bank source carries. Version 9
-// adds the provider, its name, and the bank's note and merchant to every bank hold
-const PERSISTED_CACHE_SHAPE = '9'
+// adds the provider, its name, and the bank's note and merchant to every bank hold. Version 10 lists only
+// each budget's latest period, and keeps categories in a budget's spending history for its latest 12
+// periods only
+const PERSISTED_CACHE_SHAPE = '10'
 
 /**
  * What local storage holds: the saved cache sealed under the user's key, and in plain text only what

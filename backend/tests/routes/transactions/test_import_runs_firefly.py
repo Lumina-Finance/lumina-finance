@@ -183,7 +183,7 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
     [budget] = (await client.get("/base-budgets", headers=headers)).json()
     assert budget["name"] == "Food"
     assert sorted(budget["category_ids"]) == sorted(summary["category_source_ids"][source] for source in ("Groceries", "Books"))
-    periods = [period for period in (await client.get("/budgets", headers=headers)).json() if period["base_budget_id"] == budget["id"]]
+    periods = (await client.get(f"/base-budgets/{budget['id']}/utilizations", headers=headers)).json()
     assert [(period["period_start"], period["period_end"], period["overall_limit"]) for period in periods] == [
         ("2026-04-01", "2026-04-30", 30000),
     ]

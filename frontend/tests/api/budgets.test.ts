@@ -20,7 +20,7 @@ import {
   deleteBaseBudget,
   fetchBaseBudgetUtilizations,
   fetchBaseBudgets,
-  fetchBudgets,
+  fetchLatestBudgetPeriods,
   fetchLatestBudgetUtilizations,
   updateBaseBudget,
   updateBudget,
@@ -34,7 +34,7 @@ beforeEach(() => {
 describe('budget API functions', () => {
   it('requests budget list and utilization endpoints', async () => {
     await fetchBaseBudgets()
-    await fetchBudgets()
+    await fetchLatestBudgetPeriods()
     await fetchBaseBudgetUtilizations('base_123')
     await fetchLatestBudgetUtilizations()
 

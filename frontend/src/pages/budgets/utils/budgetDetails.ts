@@ -1,4 +1,5 @@
-import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
+import type { BaseBudget, BudgetUtilization } from '@/api/budgets'
+import type { BudgetPeriod } from '@/pages/budgets/types'
 import type { Category } from '@/api/categories'
 import type { BudgetChartPoint } from '@/pages/budgets/components/budget-details-modal/ChartTooltip'
 import { nextRecurringPeriodStart } from '@/pages/budgets/utils/budgetPeriods'
@@ -20,7 +21,7 @@ export type BudgetChartCategory = {
 }
 
 export type BudgetPeriodHistoryEntry = {
-  period: Budget
+  period: BudgetPeriod
   spent: number
   remaining: number
 }
@@ -37,11 +38,32 @@ export const BUDGET_CHART_LAYOUT = {
 /**
  * Sorts periods oldest-to-newest for chart rendering and newest-to-oldest derivations
  */
-export function getSortedBudgetPeriods(periods: Budget[]) {
+export function getSortedBudgetPeriods<Period extends Pick<BudgetPeriod, 'period_start'>>(periods: Period[]) {
   return periods
     .map((period) => ({ period, startTime: getYmdTime(period.period_start) }))
     .sort((a, b) => a.startTime - b.startTime)
     .map((entry) => entry.period)
+}
+
+/**
+ * Reads the periods of a budget's history off its utilization rows, oldest first, with the latest
+ * period the budgets list gave so a period the history has not caught up with still shows
+ *
+ * The latest period is the one the sidebar and the editor read, so it is kept whether or not the
+ * history has loaded, and it replaces the history's row for the same period
+ */
+export function getBudgetDetailsPeriods(
+  latestPeriod: BudgetPeriod | undefined,
+  utilizations: BudgetUtilization[] | undefined,
+): BudgetPeriod[] {
+  const periodsById = new Map<string, BudgetPeriod>()
+
+  for (const { budget_id, period_start, period_end, overall_limit } of utilizations ?? []) {
+    periodsById.set(budget_id, { id: budget_id, period_start, period_end, overall_limit })
+  }
+  if (latestPeriod) periodsById.set(latestPeriod.id, latestPeriod)
+
+  return getSortedBudgetPeriods([...periodsById.values()])
 }
 
 /**
@@ -154,7 +176,7 @@ function getBudgetChartAxisLabel(
  * Builds the chart point for a stored budget period, including its per-category utilization percentages
  */
 function buildBudgetPeriodPoint(
-  period: Budget,
+  period: BudgetPeriod,
   utilizationByBudgetId: Map<string, BudgetUtilization>,
   chartCategories: BudgetChartCategory[],
   today: string,
@@ -263,7 +285,7 @@ export function getBudgetDetailsChartData({
   baseBudget,
   today,
 }: {
-  sortedPeriods: Budget[]
+  sortedPeriods: BudgetPeriod[]
   utilizationByBudgetId: Map<string, BudgetUtilization>
   chartCategories: BudgetChartCategory[]
   baseBudget: BaseBudget
@@ -298,7 +320,7 @@ export function getBudgetDetailsChartData({
  * Builds newest-first period history rows with spent and remaining amounts
  */
 export function getBudgetPeriodHistory(
-  sortedPeriods: Budget[],
+  sortedPeriods: BudgetPeriod[],
   utilizationByBudgetId: Map<string, BudgetUtilization>,
 ): BudgetPeriodHistoryEntry[] {
   return sortedPeriods

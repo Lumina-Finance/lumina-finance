@@ -12,7 +12,7 @@ export function invalidateBudgetActivity(queryClient: QueryClient) {
 }
 
 /**
- * Writes an updated base budget into the base-budget list and every cached period that embeds it
+ * Writes an updated base budget into the base-budget list and every cached latest period that embeds it
  */
 export function updateCachedBaseBudget(queryClient: QueryClient, baseBudget: BaseBudget) {
   // Base-budget list drives the budgets page split between active and archived cards
@@ -21,10 +21,10 @@ export function updateCachedBaseBudget(queryClient: QueryClient, baseBudget: Bas
     return baseBudgets.map((item) => (item.id === baseBudget.id ? baseBudget : item))
   })
 
-  // Period rows carry a base_budget copy that budget cards prefer over the list entry, so keep both aligned
-  queryClient.setQueryData<Budget[]>(budgetKeys.periods(), (periods) => {
-    if (!periods) return periods
-    return periods.map((period) =>
+  // Latest period rows carry a base_budget copy that budget cards prefer over the list entry, so keep both aligned
+  queryClient.setQueryData<Budget[]>(budgetKeys.latestPeriods(), (latestPeriods) => {
+    if (!latestPeriods) return latestPeriods
+    return latestPeriods.map((period) =>
       period.base_budget_id === baseBudget.id ? { ...period, base_budget: baseBudget } : period,
     )
   })

@@ -101,10 +101,11 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
     last_month = {budget["name"]: max(month["month"] for month in budget["months"]) for budget in expected["budgets"]}
     name_by_budget_id = {budget["id"]: budget["name"] for budget in base_budgets}
     periods = defaultdict(list)
-    for period in (await client.get("/budgets", headers=headers)).json():
-        month = period["period_start"][:7]
-        if month <= last_month.get(name_by_budget_id[period["base_budget_id"]], month):
-            periods[period["base_budget_id"]].append((month, _format_manifest_amount(period["overall_limit"])))
+    for base_budget_id, name in name_by_budget_id.items():
+        for period in (await client.get(f"/base-budgets/{base_budget_id}/utilizations", headers=headers)).json():
+            month = period["period_start"][:7]
+            if month <= last_month.get(name, month):
+                periods[base_budget_id].append((month, _format_manifest_amount(period["overall_limit"])))
     assert {budget["name"]: {"archived": budget["is_archived"], "periods": sorted(periods[budget["id"]])} for budget in base_budgets} == {
         budget["name"]: {
             "archived": budget["hidden"],

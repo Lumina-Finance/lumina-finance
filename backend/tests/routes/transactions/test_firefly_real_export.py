@@ -137,16 +137,16 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
     base_budgets = (await client.get("/base-budgets", headers=headers)).json()
     currency_by_budget_id = {budget["id"]: budget["currency"] for budget in base_budgets}
     periods = defaultdict(list)
-    for period in (await client.get("/budgets", headers=headers)).json():
-        currency = currency_by_budget_id[period["base_budget_id"]]
-        periods[period["base_budget_id"]].append(
-            (
-                period["period_start"],
-                period["period_end"],
-                _format_manifest_amount(period["overall_limit"], CURRENCY_EXPONENTS[currency]),
-                currency,
-            ),
-        )
+    for base_budget_id, currency in currency_by_budget_id.items():
+        for period in (await client.get(f"/base-budgets/{base_budget_id}/utilizations", headers=headers)).json():
+            periods[base_budget_id].append(
+                (
+                    period["period_start"],
+                    period["period_end"],
+                    _format_manifest_amount(period["overall_limit"], CURRENCY_EXPONENTS[currency]),
+                    currency,
+                ),
+            )
     assert {
         budget["name"]: {
             "archived": budget["is_archived"],

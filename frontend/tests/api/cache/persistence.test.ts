@@ -797,7 +797,13 @@ describe('a restore that fails', () => {
   /** An entry for the first user and key number, sealing this text as the cache it holds */
   async function entryHolding(text: string) {
     const key = await importSavedCopyKey(savedCopySession().saved_copy_key!)
-    const entry = { shape: '9', userId: USER_A, keyNumber: 0, savedAt: Date.now(), ...(await sealSavedCopy(key, text)) }
+    const entry = {
+      shape: '10',
+      userId: USER_A,
+      keyNumber: 0,
+      savedAt: Date.now(),
+      ...(await sealSavedCopy(key, text)),
+    }
     sealing = []
     return JSON.stringify(entry)
   }
@@ -945,7 +951,7 @@ describe('what the saved copy keeps of the last check', () => {
         }),
       )
       const entry = {
-        shape: '9',
+        shape: '10',
         userId: USER_A,
         keyNumber: 0,
         savedAt: Date.now(),

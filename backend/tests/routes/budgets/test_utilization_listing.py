@@ -188,12 +188,10 @@ async def test_created_recurring_budget_counts_existing_historical_transactions(
     assert create_resp.status_code == 201
     base_id = create_resp.json()["id"]
 
-    periods_resp = await client.get("/budgets", headers=headers)
-    january_budget = next(
-        budget for budget in periods_resp.json() if budget["base_budget_id"] == base_id and budget["period_start"] == "2026-01-01"
-    )
+    history = (await client.get(f"/base-budgets/{base_id}/utilizations", headers=headers)).json()
+    january_budget = next(budget for budget in history if budget["period_start"] == "2026-01-01")
 
-    data = await _get_budget_utilization_entry(client, headers, base_id, january_budget["id"])
+    data = await _get_budget_utilization_entry(client, headers, base_id, january_budget["budget_id"])
     assert data["period_start"] == "2026-01-01"
     assert data["period_end"] == "2026-01-31"
     assert data["total_spent"] == 4200

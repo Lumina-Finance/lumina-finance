@@ -20,11 +20,11 @@ export function fetchBaseBudgets(signal?: AbortSignal) {
 }
 
 /**
- * Fetches budget periods
+ * Fetches the latest period of each base budget, the only period the budget list carries
  *
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
-export function fetchBudgets(signal?: AbortSignal) {
+export function fetchLatestBudgetPeriods(signal?: AbortSignal) {
   return authenticatedFetch<Budget[]>('/budgets', { signal })
 }
 
@@ -38,7 +38,8 @@ export function fetchLatestBudgetUtilizations(signal?: AbortSignal) {
 }
 
 /**
- * Fetches utilization for every stored period under a base budget in one batched request
+ * Fetches utilization for every stored period under a base budget in one batched request. Only the
+ * latest periods carry their categories, so an older period holds its total alone
  *
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */

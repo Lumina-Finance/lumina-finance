@@ -6,7 +6,7 @@ import {
   deleteBaseBudget,
   fetchBaseBudgetUtilizations,
   fetchBaseBudgets,
-  fetchBudgets,
+  fetchLatestBudgetPeriods,
   fetchLatestBudgetUtilizations,
   updateBaseBudget,
   updateBudget,
@@ -32,13 +32,13 @@ export function useBaseBudgets() {
 }
 
 /**
- * Reads budget periods
+ * Reads the latest period of each base budget
  */
-export function useBudgets() {
+export function useLatestBudgetPeriods() {
   const { accessToken } = useAuth()
   return useQuery({
-    queryKey: budgetKeys.periods(),
-    queryFn: ({ signal }) => fetchBudgets(signal),
+    queryKey: budgetKeys.latestPeriods(),
+    queryFn: ({ signal }) => fetchLatestBudgetPeriods(signal),
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000,
   })
@@ -58,7 +58,8 @@ export function useLatestBudgetUtilizations() {
 }
 
 /**
- * Reads utilization for every stored period under a base budget in one batched request
+ * Reads utilization for every stored period under a base budget in one batched request. Only the
+ * latest periods carry their categories, so an older period holds its total alone
  */
 export function useBaseBudgetUtilizations(baseBudgetId: string) {
   const { accessToken } = useAuth()

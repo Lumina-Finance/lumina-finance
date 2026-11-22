@@ -111,7 +111,7 @@ export function budgetCadenceLabel(baseBudget: BaseBudget) {
 /**
  * Formats a budget period range for compact card and modal labels
  */
-export function formatBudgetPeriod(period: Budget | undefined) {
+export function formatBudgetPeriod(period: Pick<Budget, 'period_start' | 'period_end'> | undefined) {
   if (!period) return 'No period yet'
   const start = parseYmd(period.period_start)
   const end = parseYmd(period.period_end)

@@ -34,7 +34,7 @@ describe('which answers the change check covers', () => {
   it.each([
     ['an account and its snapshots', accountKeys.snapshots('account-1', { fromDate: '2026-01-01' })],
     ['a transaction list', transactionKeys.list({ page: 1 })],
-    ['a budget period', budgetKeys.periods()],
+    ['a budget period', budgetKeys.latestPeriods()],
     ['a dashboard widget', dashboardKeys.netWorth(30)],
     ['an insights card', insightsKeys.merchants('2026-01-01', '2026-01-31')],
     ['the runway', userKeys.runway()],
@@ -82,7 +82,7 @@ const MARKINGS: Array<[name: string, key: readonly unknown[], dependsOnDate: boo
   ['the transactions', transactionKeys.list({ page: 1 }), false],
   ['a transactions overview', transactionOverviewKeys.detail({}), true],
   ['a tax-advantaged category', taxAdvantagedCategoryKeys.limits('category-1'), true],
-  ['the budgets', budgetKeys.periods(), true],
+  ['the budgets', budgetKeys.latestPeriods(), true],
   ['the net worth widget', dashboardKeys.netWorth(30), true],
   ['the credit widget', dashboardKeys.credit(), true],
   ['the credit utilization widget', dashboardKeys.creditUtilization(), true],

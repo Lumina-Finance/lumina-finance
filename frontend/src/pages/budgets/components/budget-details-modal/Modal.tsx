@@ -20,10 +20,10 @@ import { getHistoricalBudgetUtilizationFxStatusMessage } from '@/pages/budgets/u
 import {
   getBudgetChartCategories,
   getBudgetDetailsChartData,
+  getBudgetDetailsPeriods,
   getBudgetPeriodHistory,
   getBudgetUtilizationByBudgetId,
   getLatestBudgetCategories,
-  getSortedBudgetPeriods,
 } from '@/pages/budgets/utils/budgetDetails'
 import { combineFxStatuses } from '@/utils/fxStatus'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
@@ -35,7 +35,7 @@ import { ACTION_LOADING_MIN_MS, LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 export default function BudgetDetailsModal({
   open,
   baseBudget,
-  periods,
+  latestPeriod,
   categories,
   currencies,
   categoryById,
@@ -48,7 +48,9 @@ export default function BudgetDetailsModal({
 }: {
   open: boolean
   baseBudget: BaseBudget
-  periods: Budget[]
+
+  /** The budget's latest period from the budgets list, read by the sidebar and the editor */
+  latestPeriod: Budget | undefined
   categories: Category[]
   currencies: Currency[]
   categoryById: Map<string, string>
@@ -71,9 +73,14 @@ export default function BudgetDetailsModal({
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
   )
-  const sortedPeriods = useMemo(() => getSortedBudgetPeriods(periods), [periods])
-  const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
   const utilizationQuery = useBaseBudgetUtilizations(baseBudget.id)
+
+  // The card's latest period serves the sidebar and the editor from the first frame, so neither waits for the
+  // history. The history only adds the earlier periods
+  const sortedPeriods = useMemo(
+    () => getBudgetDetailsPeriods(latestPeriod, utilizationQuery.data),
+    [latestPeriod, utilizationQuery.data],
+  )
   const utilizationByBudgetId = useMemo(
     () => getBudgetUtilizationByBudgetId(initialLatestUtilization, utilizationQuery.data ?? []),
     [initialLatestUtilization, utilizationQuery.data],

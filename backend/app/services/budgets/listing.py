@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import BaseBudget, Budget, BudgetPermission
@@ -12,19 +12,27 @@ from app.services.budgets.response_helpers import build_budget_response, load_tr
 
 
 async def get_visible_budget_responses(db: AsyncSession, user_id: uuid.UUID) -> list[BudgetResponse]:
-    """Return budget instance responses visible to a user
+    """Return the latest budget instance of each base budget visible to a user
 
     Args:
         db: Active database session
         user_id: Authenticated user identifier
 
     Returns:
-        Budget instance responses visible through ownership, group admin membership, or explicit permission
+        One budget instance response per base budget visible through ownership, group admin
+        membership, or explicit permission, being the instance with the greatest period start
     """
-    # Fetch every budget instance the user can see through ownership, group admin access, or a permission row
+    # A budget's full history grows without bound, so the list carries only each base's latest instance
+    latest_start = select(Budget.base_budget_id, func.max(Budget.period_start).label("period_start")).group_by(Budget.base_budget_id).subquery()
+
+    # Fetch each base budget's latest instance when the user can see it through ownership, group admin access, or a permission row
     result = await db.execute(
         select(Budget, BaseBudget)
         .join(BaseBudget, Budget.base_budget_id == BaseBudget.id)
+        .join(
+            latest_start,
+            (latest_start.c.base_budget_id == Budget.base_budget_id) & (latest_start.c.period_start == Budget.period_start),
+        )
         .outerjoin(GroupMember, BaseBudget.group_id == GroupMember.group_id)
         .outerjoin(
             BudgetPermission,
