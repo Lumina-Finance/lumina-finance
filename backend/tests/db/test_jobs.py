@@ -7,8 +7,6 @@ against a server of its own (tests/db/conftest.py), since bootstrap creates role
 import asyncio
 import json
 import logging
-import secrets
-import subprocess
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
@@ -26,11 +24,13 @@ from tests.db.support import (
     ADMIN_LOCK_TIMEOUT_SECONDS,
     APP_PASSWORD,
     LOGIN_PASSWORD,
-    MIGRATOR_PASSWORD,
     RESTRICTED_ADMIN_LOGIN,
     SUPERUSER_LOGIN,
     Target,
+    bootstrap_environment,
+    migrate_environment,
     query,
+    run_job,
     run_module,
 )
 
@@ -90,27 +90,6 @@ _BOOTSTRAP_SNAPSHOT = """
 """
 
 
-def _migrate_environment(target: Target) -> dict[str, str]:
-    """Return what the migrate job is given and nothing more: the migrator's password and the two keys"""
-    return target.environment(
-        MIGRATOR_DB_PASSWORD=MIGRATOR_PASSWORD,
-        APP_ENCRYPTION_KEY=Fernet.generate_key().decode(),
-        BANK_TRANSACTION_HASH_KEY=secrets.token_hex(32),
-    )
-
-
-def _bootstrap_environment(target: Target) -> dict[str, str]:
-    """Return what the bootstrap job is given and nothing more: the admin login and the two role passwords"""
-    return target.environment(
-        DB_USER=SUPERUSER_LOGIN, DB_PASSWORD=LOGIN_PASSWORD, MIGRATOR_DB_PASSWORD=MIGRATOR_PASSWORD, APP_DB_PASSWORD=APP_PASSWORD
-    )
-
-
-async def _run_job(job: str, environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
-    """Run `python -m app.db.jobs <job>` in a process of its own, as the image does"""
-    return await asyncio.to_thread(run_module, "app.db.jobs", job, environment=environment)
-
-
 async def _snapshot(target: Target) -> str:
     """Return the database's state after a run of migrate"""
     return await query(target.superuser(), _SNAPSHOT.format(app_role=APP_DB_USER))
@@ -151,7 +130,7 @@ async def test_migrate_runs_with_only_the_migrators_password_and_the_keys_and_a_
     """A deployment gives the migrate job no admin login and no app password, and each release runs it again"""
     async with provision_into(SUPERUSER_LOGIN) as target:
         await run_bootstrap()
-        environment = _migrate_environment(target)
+        environment = migrate_environment(target)
 
         first = await asyncio.to_thread(run_module, "app.db.jobs", "migrate", environment=environment)
 
@@ -184,7 +163,7 @@ async def test_two_migrate_runs_started_together_leave_the_database_as_one_run_d
     """Two deploys of one release, such as two containers starting at once, both succeed, and one finds the work done"""
     async with provision_into(SUPERUSER_LOGIN) as target:
         await run_bootstrap()
-        environment = _migrate_environment(target)
+        environment = migrate_environment(target)
 
         runs = await asyncio.gather(*(asyncio.to_thread(run_module, "app.db.jobs", "migrate", environment=environment) for _ in range(2)))
 
@@ -202,21 +181,21 @@ async def test_two_migrate_runs_started_together_leave_the_database_as_one_run_d
 async def test_bootstrap_runs_with_only_the_admin_login_and_the_role_passwords_and_a_second_run_changes_nothing(provision_into):
     """A deployment gives the bootstrap job no key and no migrator login, and may run it again"""
     async with provision_into(SUPERUSER_LOGIN) as target:
-        environment = _bootstrap_environment(target)
+        environment = bootstrap_environment(target)
         # A table the admin owns, as a restored backup leaves it, so the first run has an owner to change
         superuser = target.superuser()
         async with superuser.connect() as connection:
             await connection.execute(text("CREATE TABLE restored (id serial PRIMARY KEY)"))
         await superuser.dispose()
 
-        first = await _run_job("bootstrap", environment)
+        first = await run_job("bootstrap", environment)
 
         assert first.returncode == 0, first.stdout + first.stderr
         after_first = json.loads(await _bootstrap_snapshot(target))
         assert [role["rolname"] for role in after_first["roles"]] == sorted([MIGRATOR_DB_USER, APP_DB_USER]), "both roles were created"
         assert set(after_first["owners"].values()) == {MIGRATOR_DB_USER}, "the admin's table went to the migrator"
 
-        second = await _run_job("bootstrap", environment)
+        second = await run_job("bootstrap", environment)
 
         assert second.returncode == 0, second.stdout + second.stderr
         assert json.loads(await _bootstrap_snapshot(target)) == after_first, "the second run left the roles, owners and grants as they were"
@@ -229,8 +208,8 @@ async def test_a_restored_dump_gets_its_owners_grants_and_policies_back_through_
     """
     async with provision_into(SUPERUSER_LOGIN) as target:
         await run_bootstrap()
-        environment = _migrate_environment(target)
-        migrated = await _run_job("migrate", environment)
+        environment = migrate_environment(target)
+        migrated = await run_job("migrate", environment)
         assert migrated.returncode == 0, migrated.stdout + migrated.stderr
         healthy = await _snapshot(target)
 
@@ -246,12 +225,12 @@ async def test_a_restored_dump_gets_its_owners_grants_and_policies_back_through_
         assert await _snapshot(target) != healthy, "the restored state differs from the healthy one"
         owner = "SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = 'currencies'"
 
-        bootstrapped = await _run_job("bootstrap", _bootstrap_environment(target))
+        bootstrapped = await run_job("bootstrap", bootstrap_environment(target))
 
         assert bootstrapped.returncode == 0, bootstrapped.stdout + bootstrapped.stderr
         assert await query(target.superuser(), owner) == MIGRATOR_DB_USER, "bootstrap handed the table to the migrator"
 
-        repaired = await _run_job("migrate", environment)
+        repaired = await run_job("migrate", environment)
 
         assert repaired.returncode == 0, repaired.stdout + repaired.stderr
         assert await _snapshot(target) == healthy, "migrate put back the policy and the app role's grants"
@@ -262,10 +241,10 @@ async def test_migrate_refuses_to_run_without_a_key(provision_into, missing):
     """A job with no key stops with the key named, so it is never left to run without the key its secrets are under"""
     async with provision_into(SUPERUSER_LOGIN) as target:
         await run_bootstrap()
-        environment = _migrate_environment(target)
+        environment = migrate_environment(target)
         environment[missing] = ""
 
-        run = await _run_job("migrate", environment)
+        run = await run_job("migrate", environment)
 
         assert run.returncode != 0, "the job failed"
         assert missing in run.stderr, "and named the key it lacked"
@@ -275,15 +254,15 @@ async def test_migrate_with_another_encryption_key_refuses_before_it_seeds_anyth
     """The key the stored secrets are under is recorded, and a different one stops the job before any seed runs"""
     async with provision_into(SUPERUSER_LOGIN) as target:
         await run_bootstrap()
-        environment = _migrate_environment(target)
-        migrated = await _run_job("migrate", environment)
+        environment = migrate_environment(target)
+        migrated = await run_job("migrate", environment)
         assert migrated.returncode == 0, migrated.stdout + migrated.stderr
         superuser = target.superuser()
         async with superuser.connect() as connection:
             await connection.execute(text("DELETE FROM currencies WHERE ctid = (SELECT ctid FROM currencies LIMIT 1)"))
         await superuser.dispose()
 
-        run = await _run_job("migrate", {**environment, "APP_ENCRYPTION_KEY": Fernet.generate_key().decode()})
+        run = await run_job("migrate", {**environment, "APP_ENCRYPTION_KEY": Fernet.generate_key().decode()})
 
         assert run.returncode != 0, "the job failed"
         assert "different key" in run.stderr, "and said the key is not the one the secrets are under"

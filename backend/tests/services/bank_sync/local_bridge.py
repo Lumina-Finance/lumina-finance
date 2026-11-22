@@ -10,14 +10,10 @@ import ssl
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 
-from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
+from tests.tls_authority import issue_certificate
 
 LOOPBACK = "127.0.0.1"
 
@@ -45,78 +41,12 @@ class LocalBridge:
         return f"{'https' if self.client_tls else 'http'}://{self.host}:{self.port}"
 
 
-def _key_usage(*, signs_certificates: bool) -> x509.KeyUsage:
-    """Return the key usage of a certificate authority or of a server"""
-    return x509.KeyUsage(
-        digital_signature=not signs_certificates,
-        content_commitment=False,
-        key_encipherment=False,
-        data_encipherment=False,
-        key_agreement=False,
-        key_cert_sign=signs_certificates,
-        crl_sign=signs_certificates,
-        encipher_only=False,
-        decipher_only=False,
-    )
-
-
 def _issue_tls(directory: Path, host: str) -> tuple[ssl.SSLContext, ssl.SSLContext]:
-    """Issue a certificate for the host from a throwaway authority
-
-    Built with every extension strict verification asks for. Python applies that verification by default
-
-    Args:
-        directory: Where the server's certificate and key are written
-        host: The only name the certificate covers
-
-    Returns:
-        The server's context and a client context trusting the authority
-    """
-    valid_from = datetime.now(UTC) - timedelta(minutes=5)
-    valid_until = valid_from + timedelta(hours=1)
-
-    authority_key = ec.generate_private_key(ec.SECP256R1())
-    authority_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Local bridge test authority")])
-    authority = (
-        x509.CertificateBuilder()
-        .subject_name(authority_name)
-        .issuer_name(authority_name)
-        .public_key(authority_key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(valid_from)
-        .not_valid_after(valid_until)
-        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
-        .add_extension(_key_usage(signs_certificates=True), critical=True)
-        .add_extension(x509.SubjectKeyIdentifier.from_public_key(authority_key.public_key()), critical=False)
-        .sign(authority_key, hashes.SHA256())
-    )
-
-    server_key = ec.generate_private_key(ec.SECP256R1())
-    server = (
-        x509.CertificateBuilder()
-        .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, host)]))
-        .issuer_name(authority_name)
-        .public_key(server_key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(valid_from)
-        .not_valid_after(valid_until)
-        .add_extension(x509.SubjectAlternativeName([x509.DNSName(host)]), critical=False)
-        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
-        .add_extension(_key_usage(signs_certificates=False), critical=True)
-        .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False)
-        .add_extension(x509.SubjectKeyIdentifier.from_public_key(server_key.public_key()), critical=False)
-        .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(authority_key.public_key()), critical=False)
-        .sign(authority_key, hashes.SHA256())
-    )
-
-    certificate_path = directory / "bridge.crt"
-    key_path = directory / "bridge.key"
-    certificate_path.write_bytes(server.public_bytes(serialization.Encoding.PEM))
-    key_path.write_bytes(server_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
-
+    """Return the server's context under a certificate for the host, and a client context trusting its authority"""
+    issued = issue_certificate(directory, host, "bridge")
     server_tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    server_tls.load_cert_chain(certificate_path, key_path)
-    client_tls = ssl.create_default_context(cadata=authority.public_bytes(serialization.Encoding.PEM).decode("ascii"))
+    server_tls.load_cert_chain(issued.certificate_path, issued.key_path)
+    client_tls = ssl.create_default_context(cadata=issued.authority_pem)
     return server_tls, client_tls
 
 

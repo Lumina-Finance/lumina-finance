@@ -4,12 +4,16 @@ Set-up creates roles for the whole server and needs an admin login of each kind,
 it on a server of their own, started through `docker`. Each test gets a database of its own
 """
 
+import asyncio
 import os
+import secrets
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from cryptography.fernet import Fernet
 from sqlalchemy import text
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -80,6 +84,55 @@ def docker(*arguments: str, input_text: str | None = None) -> str:
     return result.stdout.strip()
 
 
+def start_server(*options: str, command: tuple[str, ...] = ()) -> Cluster:
+    """Start a throwaway server published on loopback and wait until it accepts connections
+
+    Args:
+        options: Further `docker run` options, placed before the image
+        command: What the container runs in place of the image's own command
+
+    Returns:
+        The running server, which the caller removes
+    """
+    container_id = docker(
+        "run", "-d", "--rm", "--tmpfs", "/var/lib/postgresql/data", "-p", "127.0.0.1::5432",
+        "-e", f"POSTGRES_PASSWORD={LOGIN_PASSWORD}", *options, POSTGRES_IMAGE, *command,
+    )  # fmt: skip
+    try:
+        deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
+        # Asked over TCP, so the temporary server the image starts first to set itself up never answers
+        while run_docker("exec", container_id, "pg_isready", "-h", "127.0.0.1", "-U", SUPERUSER_LOGIN).returncode:
+            if time.monotonic() > deadline:
+                raise RuntimeError(f"The throwaway database server did not start in time: {run_docker('logs', container_id).stderr}")
+            time.sleep(0.5)
+        host, port = docker("port", container_id, "5432/tcp").splitlines()[0].rsplit(":", 1)
+    except BaseException:
+        run_docker("rm", "-f", "-v", container_id)
+        raise
+    return Cluster(container_id, host, int(port))
+
+
+def bootstrap_environment(target: Target, **settings: str) -> dict[str, str]:
+    """Return what the bootstrap job is given and nothing more: the admin login and the two role passwords"""
+    return target.environment(
+        DB_USER=SUPERUSER_LOGIN,
+        DB_PASSWORD=LOGIN_PASSWORD,
+        MIGRATOR_DB_PASSWORD=MIGRATOR_PASSWORD,
+        APP_DB_PASSWORD=APP_PASSWORD,
+        **settings,
+    )
+
+
+def migrate_environment(target: Target, **settings: str) -> dict[str, str]:
+    """Return what the migrate job is given and nothing more: the migrator's password and the two keys"""
+    return target.environment(
+        MIGRATOR_DB_PASSWORD=MIGRATOR_PASSWORD,
+        APP_ENCRYPTION_KEY=Fernet.generate_key().decode(),
+        BANK_TRANSACTION_HASH_KEY=secrets.token_hex(32),
+        **settings,
+    )
+
+
 @dataclass(frozen=True)
 class Target:
     """The database set-up is pointed at"""
@@ -132,3 +185,8 @@ def run_module(module: str, *arguments: str, environment: dict[str, str]) -> sub
     return subprocess.run(  # noqa: S603
         [sys.executable, "-m", module, *arguments], cwd=BACKEND_DIR, env=environment, check=False, capture_output=True, text=True
     )
+
+
+async def run_job(job: str, environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """Run `python -m app.db.jobs <job>` in a process of its own, as the image does"""
+    return await asyncio.to_thread(run_module, "app.db.jobs", job, environment=environment)

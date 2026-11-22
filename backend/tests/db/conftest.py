@@ -1,6 +1,5 @@
 """Fixtures for the tests that run set-up against a server of their own"""
 
-import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
@@ -16,14 +15,13 @@ from tests.db.support import (
     APP_PASSWORD,
     LOGIN_PASSWORD,
     MIGRATOR_PASSWORD,
-    POSTGRES_IMAGE,
     RESTRICTED_ADMIN_LOGIN,
-    STARTUP_TIMEOUT_SECONDS,
     SUPERUSER_LOGIN,
     Cluster,
     Target,
     docker,
     run_docker,
+    start_server,
 )
 
 
@@ -34,28 +32,18 @@ def cluster() -> Iterator[Cluster]:
     The server is removed afterwards. The managed roles belong to the whole server, so each test
     drops them when it ends
     """
-    container_id = docker(
-        "run", "-d", "--rm", "--tmpfs", "/var/lib/postgresql/data", "-p", "127.0.0.1::5432",
-        "-e", f"POSTGRES_PASSWORD={LOGIN_PASSWORD}", POSTGRES_IMAGE,
-    )  # fmt: skip
+    server = start_server()
     try:
-        deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
-        # Asked over TCP, so the temporary server the image starts first to set itself up never answers
-        while run_docker("exec", container_id, "pg_isready", "-h", "127.0.0.1", "-U", SUPERUSER_LOGIN).returncode:
-            if time.monotonic() > deadline:
-                raise RuntimeError("The throwaway database server did not start in time")
-            time.sleep(0.5)
-        host, port = docker("port", container_id, "5432/tcp").splitlines()[0].rsplit(":", 1)
         docker(
-            "exec", "-i", container_id, "psql", "-U", SUPERUSER_LOGIN, "-v", "ON_ERROR_STOP=1",
+            "exec", "-i", server.container_id, "psql", "-U", SUPERUSER_LOGIN, "-v", "ON_ERROR_STOP=1",
             input_text=(
                 f"CREATE ROLE {RESTRICTED_ADMIN_LOGIN} LOGIN CREATEDB CREATEROLE NOSUPERUSER PASSWORD '{LOGIN_PASSWORD}';"
                 f"ALTER ROLE {RESTRICTED_ADMIN_LOGIN} SET lock_timeout = '{ADMIN_LOCK_TIMEOUT_SECONDS}s'"
             ),
         )  # fmt: skip
-        yield Cluster(container_id, host, int(port))
+        yield server
     finally:
-        run_docker("rm", "-f", "-v", container_id)
+        run_docker("rm", "-f", "-v", server.container_id)
 
 
 @pytest.fixture
