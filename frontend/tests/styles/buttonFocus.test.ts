@@ -51,8 +51,10 @@ const FILLED_BUTTONS = ['.app-primary-button', '.app-glass-button-primary', '.ap
 const REASON_GUARD = ':not([aria-disabled="true"])'
 const REASON_GUARDED = [...FILLED_BUTTONS, '.app-secondary-button', '.app-glass-button', '.app-expanding-button']
 
-/** A button class with the guard its hover, press and focus rules carry, when it has one */
+/** A button class with the guard its hover, press and focus rules carry, when it has one. A busy menu item
+ * is disabled, so its hover look is written for the others only */
 function guarded(name: string) {
+  if (name === '.app-nav-link') return `${name}:not(:disabled)`
   return REASON_GUARDED.includes(name) ? `${name}${REASON_GUARD}` : name
 }
 
@@ -230,12 +232,18 @@ describe('button keyboard focus', () => {
     })
   }
 
+  // A busy menu item, such as Export all data while it downloads, takes no accent look under the pointer
+  it('leaves a disabled menu item untinted under the pointer', () => {
+    expect(rulesListing('.app-nav-link:hover')).toHaveLength(0)
+    expect(rulesListing('.app-nav-link:not(:disabled):hover').length).toBeGreaterThan(0)
+  })
+
   // Hover looks added by this change, which a touch screen would otherwise keep showing after a tap
   const POINTER_ONLY_HOVER = [
     ...SELECTED_OPTIONS.map((name) =>
       GUARDED_SELECTED_OPTIONS.includes(name) ? `${name}:not(:disabled):hover` : `${name}:hover`,
     ),
-    '.app-nav-link:hover',
+    '.app-nav-link:not(:disabled):hover',
     '.app-nav-link-active:hover',
     '.app-calendar-day[data-selected]:hover',
     '.app-range-glass:has(> .app-range-glass-head:hover)',
@@ -252,7 +260,7 @@ describe('button keyboard focus', () => {
   // selected or not, and keyboard focus shows exactly that look
   it('gives a hovered or focused menu item the accent text, soft fill and border', () => {
     const [focus] = rulesListing('.app-nav-link:focus-visible')
-    const [hover] = rulesListing('.app-nav-link:hover')
+    const [hover] = rulesListing('.app-nav-link:not(:disabled):hover')
     for (const rule of [focus, hover]) {
       expect(declared(rule, 'color')).toBe('var(--app-accent-nav-text)')
       expect(declared(rule, 'background')).toBe('var(--app-accent-soft)')
@@ -264,7 +272,7 @@ describe('button keyboard focus', () => {
   // they must declare it after the icon button rules, which share their weight, and show no ring on focus.
   for (const name of ['.app-nav-user-logout', '.app-desktop-nav-toggle']) {
     it(`gives ${name} the menu item's accent look under the pointer and on keyboard focus, after the icon button`, () => {
-      const [item] = rulesListing('.app-nav-link:hover')
+      const [item] = rulesListing('.app-nav-link:not(:disabled):hover')
       const hover = rulesListing(`${name}:hover`)
       const focus = rulesListing(`${name}:focus-visible`)
       expect(hover).toHaveLength(1)
@@ -281,7 +289,7 @@ describe('button keyboard focus', () => {
   // fill, with no border, so nothing shifts and keyboard focus keeps the ring. They show on touch screens too, so
   // the pointer look sits in the hover-only media query and a tap leaves nothing stuck
   it("gives .app-accent-hover the menu item's text and fill with no border, under the pointer only on hover screens", () => {
-    const [item] = rulesListing('.app-nav-link:hover')
+    const [item] = rulesListing('.app-nav-link:not(:disabled):hover')
     const hover = rulesListing('.app-accent-hover:hover')
     const focus = rulesListing('.app-accent-hover:focus-visible')
     expect(hover).toHaveLength(1)

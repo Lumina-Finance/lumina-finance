@@ -13,6 +13,7 @@ import SecuritySection from '@/pages/settings/components/security-section/Sectio
 import { SettingsDesktopSectionSidebar, SettingsMobileSectionMenu } from '@/pages/settings/components/SectionNavigation'
 import { SettingsPaneActions } from '@/pages/settings/components/PaneActions'
 import TaxAdvantagedCategoriesSection from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/Section'
+import { useExportAllData } from '@/pages/settings/hooks/useExportAllData'
 import { useProfileSettingsForm } from '@/pages/settings/hooks/useProfileSettingsForm'
 import { useRunwaySettingsForm } from '@/pages/settings/hooks/useRunwaySettingsForm'
 import { useSecuritySettingsForm } from '@/pages/settings/hooks/useSecuritySettingsForm'
@@ -86,6 +87,7 @@ export default function SettingsPage() {
   const sections = listSettingsSections(bankProviders)
   const sectionNavigation = useSettingsSectionNavigation(sections)
   const showBankConnections = sections.some((section) => section.id === 'bank-connections')
+  const { exportAllData, isExporting } = useExportAllData()
 
   const profileActions = (
     <SettingsPaneActions
@@ -145,6 +147,8 @@ export default function SettingsPage() {
         onMenuToggle={sectionNavigation.toggleMobileSettingsMenu}
         onSectionSelect={sectionNavigation.navigateFromMobileMenu}
         onImportSelect={sectionNavigation.navigateToImport}
+        exporting={isExporting}
+        onExportSelect={exportAllData}
       />
 
       <div className="min-[1200px]:grid min-[1200px]:grid-cols-[260px_minmax(0,1fr)] min-[1200px]:gap-10 min-[1200px]:items-start">
@@ -153,6 +157,8 @@ export default function SettingsPage() {
           activeSection={sectionNavigation.activeSection}
           onSectionSelect={sectionNavigation.navigateToSection}
           onImportSelect={sectionNavigation.navigateToImport}
+          exporting={isExporting}
+          onExportSelect={exportAllData}
         />
 
         <div className="min-w-0 space-y-10">

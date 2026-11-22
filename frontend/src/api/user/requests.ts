@@ -1,5 +1,6 @@
 import type { User } from '@/api/auth/types'
-import { authenticatedFetch } from '@/api/client'
+import { authenticatedFetch, authenticatedRequest } from '@/api/client'
+import { EXPORT_TIMEOUT_MS } from '@/api/shared/exportTimeout'
 import type { StepUpPayload } from '@/api/two-factor/types'
 import { fromRunwayResultResponse, fromRunwaySettingsResponse, toRunwaySettingsPayload } from '@/api/user/mappers'
 import type {
@@ -42,6 +43,20 @@ export function updateProfile(payload: UpdateProfilePayload) {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })
+}
+
+/**
+ * Downloads everything the current user owns as a ZIP of CSV files
+ *
+ * @param signal - Aborts the request when the export that asked for it is abandoned
+ */
+export async function fetchDataExport(signal?: AbortSignal) {
+  const response = await authenticatedRequest('/me/export', {
+    signal,
+    timeoutMs: EXPORT_TIMEOUT_MS,
+    headers: { Accept: 'application/zip' },
+  })
+  return response.blob()
 }
 
 /**

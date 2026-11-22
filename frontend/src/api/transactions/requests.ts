@@ -1,4 +1,5 @@
 import { authenticatedFetch, authenticatedRequest } from '@/api/client'
+import { EXPORT_TIMEOUT_MS } from '@/api/shared/exportTimeout'
 import { buildQueryString, type QueryStringValue } from '@/api/utils/queryString'
 import type {
   BulkDeleteTransactionsResult,
@@ -55,10 +56,6 @@ export function fetchTransactionPage(
     signal,
   )
 }
-
-// A large export is read to its end before the file is saved, so it gets longer than an ordinary
-// request before it counts as unanswered
-const EXPORT_TIMEOUT_MS = 180_000
 
 /**
  * Downloads every transaction matching the list's filters as a CSV file
