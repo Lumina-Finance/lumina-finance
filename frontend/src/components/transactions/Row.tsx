@@ -19,7 +19,7 @@ import {
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
-import { getAmountSign } from '@/utils/negativeAmount'
+import { getAmountSign, getColorOnAccentTint } from '@/utils/negativeAmount'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { LOGO_PLACEHOLDER_STYLE, resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
@@ -432,7 +432,11 @@ export function TransactionRowView({
   // A faded row draws a refund or reversal in its muted text too, through the text token it remaps to the
   // muted colour, and dims the category icon, which colour can't reach, so nothing in the row reads as
   // strongly as one that counts
-  const transactionAmountColor = isFaded ? 'var(--app-text)' : amountColor(category, amountPresentation.sign)
+  const restingAmountColor = isFaded ? 'var(--app-text)' : amountColor(category, amountPresentation.sign)
+
+  // A pressed or ticked row lies on the soft accent tint, where the amount takes the colour that still reads on it
+  const isOnAccentTint = pressed || selection?.mark === 'selected'
+  const transactionAmountColor = isOnAccentTint ? getColorOnAccentTint(restingAmountColor) : restingAmountColor
   const categoryIconStyle = { opacity: isFaded ? FADED_CATEGORY_ICON_OPACITY : 1 }
 
   // Only the limit gets a title here, since a read-only row already explains itself through the

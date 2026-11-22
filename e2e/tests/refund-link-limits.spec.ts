@@ -531,7 +531,18 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   await page.keyboard.press('Enter')
   await expect(rows.nth(1)).toHaveAttribute('data-picked', 'true')
   await page.mouse.move(0, 0)
-  await expect.poll(() => rows.nth(1).evaluate((node) => {
+
+  // The fill eases in, so the amount is measured once the fill has settled, against the tint it rests on
+  const pickedFill = await page.evaluate(() => {
+    const probe = document.createElement('div')
+    probe.style.backgroundColor = 'var(--app-accent-soft)'
+    document.body.append(probe)
+    const color = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return color
+  })
+  await expect(rows.nth(1)).toHaveCSS('background-color', pickedFill)
+  expect(await rows.nth(1).evaluate((node) => {
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = 1
     const context = canvas.getContext('2d', { willReadFrequently: true })!
