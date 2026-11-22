@@ -1062,17 +1062,32 @@ test('shows the key caps no sooner than the hold delay, and soon after it', asyn
   const { dialog } = await openAddDialogue(page, request)
   await focusFormAndExpectNoCaps(page, dialog)
 
-  // Timed on the page's own clock from the key's event to the first frame with a cap showing
-  await page.evaluate(() => {
-    const timing = { downAt: -1, showingAtQuarterSecond: -1, firstShownAt: -1 }
+  // Timed on the page's own clock from the key's event to the first frame with a cap showing. "Soon after"
+  // is counted in drawn frames from a timer of the same delay started at the key's event. The app starts
+  // its own timer a render later and needs one more render to show the caps, so a few frames separate the
+  // two. A busy host runs both timers late alike, where milliseconds on the clock would measure the host
+  await page.evaluate((delay) => {
+    const timing = {
+      downAt: -1,
+      showingAtQuarterSecond: -1,
+      firstShownAt: -1,
+      frames: 0,
+      delayEndedAtFrame: -1,
+      firstShownAtFrame: -1,
+    }
     Object.assign(window, { hintTiming: timing })
     const showing = () =>
       Array.from(document.querySelectorAll('kbd')).filter(
         (cap) => getComputedStyle(cap).visibility === 'visible' && cap.getBoundingClientRect().width > 0,
       ).length
     const watch = () => {
-      if (showing() > 0) timing.firstShownAt = performance.now()
-      else requestAnimationFrame(watch)
+      if (showing() > 0) {
+        timing.firstShownAt = performance.now()
+        timing.firstShownAtFrame = timing.frames
+        return
+      }
+      timing.frames += 1
+      requestAnimationFrame(watch)
     }
     window.addEventListener(
       'keydown',
@@ -1080,28 +1095,36 @@ test('shows the key caps no sooner than the hold delay, and soon after it', asyn
         if (event.key !== 'Alt' || event.repeat) return
         timing.downAt = event.timeStamp
         setTimeout(() => (timing.showingAtQuarterSecond = showing()), 250)
+        setTimeout(() => (timing.delayEndedAtFrame = timing.frames), delay)
         watch()
       },
       true,
     )
-  })
-  const readTiming = () =>
-    page.evaluate(
-      () =>
-        (window as unknown as { hintTiming: { downAt: number; showingAtQuarterSecond: number; firstShownAt: number } })
-          .hintTiming,
-    )
+  }, HINT_LONG_PRESS_MS)
+  type HintTiming = {
+    downAt: number
+    showingAtQuarterSecond: number
+    firstShownAt: number
+    delayEndedAtFrame: number
+    firstShownAtFrame: number
+  }
+  const readTiming = () => page.evaluate(() => (window as unknown as { hintTiming: HintTiming }).hintTiming)
 
   await page.keyboard.down('Alt')
-  await expect.poll(async () => (await readTiming()).firstShownAt, { timeout: 5_000 }).toBeGreaterThan(0)
-  const { downAt, showingAtQuarterSecond, firstShownAt } = await readTiming()
+  await expect
+    .poll(async () => {
+      const { firstShownAt, delayEndedAtFrame } = await readTiming()
+      return firstShownAt > 0 && delayEndedAtFrame >= 0
+    }, { timeout: 5_000 })
+    .toBe(true)
+  const { downAt, showingAtQuarterSecond, firstShownAt, delayEndedAtFrame, firstShownAtFrame } = await readTiming()
   await page.keyboard.up('Alt')
 
   // Nothing at about 250 ms, the first cap no earlier than the delay (less a little for timer rounding), and
-  // within a second on a slow host
+  // drawn within a few frames of the delay ending
   expect(showingAtQuarterSecond).toBe(0)
   expect(firstShownAt - downAt).toBeGreaterThanOrEqual(HINT_LONG_PRESS_MS - 10)
-  expect(firstShownAt - downAt).toBeLessThanOrEqual(1_000)
+  expect(firstShownAtFrame - delayEndedAtFrame).toBeLessThanOrEqual(5)
 })
 
 test('leaves the date, the focus and the saving alone for [, ], Alt+L and Alt+Enter while the calendar is open', async ({
