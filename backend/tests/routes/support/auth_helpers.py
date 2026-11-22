@@ -3,9 +3,11 @@
 import time
 from datetime import UTC, datetime, timedelta
 
+import jwt
 import pyotp
 from sqlalchemy import func, select
 
+from app.config.jwt import JWT_ALGORITHM
 from app.encryption import encrypt
 from app.models.auth import AuthIdentity, LoginLockout, PasswordResetToken
 from app.models.base import AuthProvider
@@ -17,6 +19,15 @@ from app.services.auth.token_hashing import hash_token
 from app.services.auth.tokens import SignupConfirmationClaims, create_signup_confirmation_token
 from tests.conftest import TestSession
 from tests.routes.support.mailbox import mailbox
+
+# Key ID the tests give a second access key
+SECOND_ACCESS_KID = "access-second-test"
+
+
+def signed_again(token: str, private_key, kid: str | None) -> str:
+    """Return the token's claims signed with another key, under the given key ID or none"""
+    claims = jwt.decode(token, options={"verify_signature": False})
+    return jwt.encode(claims, private_key, algorithm=JWT_ALGORITHM, headers={"kid": kid} if kid else None)
 
 
 def _fresh_totp_code(secret: str) -> str:

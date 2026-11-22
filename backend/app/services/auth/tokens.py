@@ -5,12 +5,13 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicKey
 
 from app.config.jwt import (
     JWT_ACCESS_KID,
     JWT_ACCESS_PRIVATE_KEY,
     JWT_ACCESS_PUBLIC_KEY,
+    JWT_ACCESS_SECOND_KEY,
     JWT_ACCESS_TOKEN_EXPIRE_SECONDS,
     JWT_ALGORITHM,
     JWT_ISSUER,
@@ -43,6 +44,30 @@ NATIVE_HANDOFF_TOKEN_USE = "native_handoff"  # noqa: S105 - token use claim, not
 
 # Long enough for the system sheet to close and the app to exchange the code, and no longer
 NATIVE_HANDOFF_TOKEN_EXPIRE_SECONDS = 60
+
+
+def access_public_keys() -> list[tuple[str, RSAPublicKey]]:
+    """Return the ID and public key of each access key the key set publishes, the signing key first"""
+    if JWT_ACCESS_SECOND_KEY is None:
+        return [(JWT_ACCESS_KID, JWT_ACCESS_PUBLIC_KEY)]
+    return [(JWT_ACCESS_KID, JWT_ACCESS_PUBLIC_KEY), JWT_ACCESS_SECOND_KEY]
+
+
+def access_verification_key(token: str) -> RSAPublicKey:
+    """Return the public key to check a token signed with an access key against
+
+    A token whose header names the second key's ID is checked against the second key, and every other token
+    against the signing key, its ID unread as before a second key existed. The header only picks between the
+    app's own keys, since the signature is still checked against the key picked
+
+    Raises:
+        PyJWTError: A second key is set and the token's header cannot be read
+    """
+    if JWT_ACCESS_SECOND_KEY is not None:
+        second_kid, second_key = JWT_ACCESS_SECOND_KEY
+        if jwt.get_unverified_header(token).get("kid") == second_kid:
+            return second_key
+    return JWT_ACCESS_PUBLIC_KEY
 
 
 def create_access_token(user_id: uuid.UUID, session_id: uuid.UUID) -> tuple[str, uuid.UUID, datetime]:
@@ -202,7 +227,7 @@ def decode_signup_confirmation_token(confirmation_token: str) -> SignupConfirmat
     """
     payload = jwt.decode(
         confirmation_token,
-        JWT_ACCESS_PUBLIC_KEY,
+        access_verification_key(confirmation_token),
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=SIGNUP_CONFIRMATION_TOKEN_USE,

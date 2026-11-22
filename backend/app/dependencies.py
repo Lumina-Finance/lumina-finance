@@ -10,13 +10,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
-from app.config.jwt import JWT_ACCESS_PUBLIC_KEY, JWT_ALGORITHM, JWT_ISSUER
+from app.config.jwt import JWT_ALGORITHM, JWT_ISSUER
 from app.database import current_session_id_ctx, current_user_id_ctx, get_db
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
 from app.models.user import User
 from app.services.auth.sessions import is_session_live
+from app.services.auth.tokens import access_verification_key
 
 _security = HTTPBearer()
 
@@ -31,7 +32,7 @@ async def get_authenticated_user(
 ) -> User:
     """Validate the access JWT and load the user, without enforcing the re-enrolment restriction
 
-    Decodes the bearer token with the access public key, checks the access token and session are
+    Decodes the bearer token with the access key its header names, checks the access token and session are
     allowlisted, then loads the user. Only the routes a restricted session may reach should depend
     on this directly, since get_current_user adds the restriction check
 
@@ -48,7 +49,7 @@ async def get_authenticated_user(
     try:
         payload = jwt.decode(
             credentials.credentials,
-            JWT_ACCESS_PUBLIC_KEY,
+            access_verification_key(credentials.credentials),
             algorithms=[JWT_ALGORITHM],
             issuer=JWT_ISSUER,
             audience="access",

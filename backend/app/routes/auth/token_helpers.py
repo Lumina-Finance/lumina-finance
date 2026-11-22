@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
 from app.config.jwt import (
-    JWT_ACCESS_PUBLIC_KEY,
     JWT_ALGORITHM,
     JWT_ISSUER,
     JWT_REFRESH_PUBLIC_KEY,
@@ -53,6 +52,7 @@ from app.services.auth.tokens import (
     NATIVE_HANDOFF_TOKEN_USE,
     OIDC_ONBOARDING_TOKEN_USE,
     OIDC_REAUTH_STEPUP_TOKEN_USE,
+    access_verification_key,
     create_access_token,
     create_refresh_token,
 )
@@ -97,7 +97,7 @@ def decode_access_token(access_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         access_token,
-        JWT_ACCESS_PUBLIC_KEY,
+        access_verification_key(access_token),
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=AuthTokenKind.ACCESS.value,
@@ -120,7 +120,7 @@ def decode_mfa_challenge_token(challenge_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         challenge_token,
-        JWT_ACCESS_PUBLIC_KEY,
+        access_verification_key(challenge_token),
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=MFA_CHALLENGE_TOKEN_USE,
@@ -143,7 +143,7 @@ def decode_native_handoff_token(handoff_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         handoff_token,
-        JWT_ACCESS_PUBLIC_KEY,
+        access_verification_key(handoff_token),
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=NATIVE_HANDOFF_TOKEN_USE,
@@ -166,7 +166,7 @@ def decode_oidc_onboarding_token(onboarding_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         onboarding_token,
-        JWT_ACCESS_PUBLIC_KEY,
+        access_verification_key(onboarding_token),
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=OIDC_ONBOARDING_TOKEN_USE,
@@ -189,7 +189,7 @@ def decode_oidc_reauth_stepup_token(stepup_token: str) -> dict[str, Any]:
     """
     payload = jwt.decode(
         stepup_token,
-        JWT_ACCESS_PUBLIC_KEY,
+        access_verification_key(stepup_token),
         algorithms=[JWT_ALGORITHM],
         issuer=JWT_ISSUER,
         audience=OIDC_REAUTH_STEPUP_TOKEN_USE,

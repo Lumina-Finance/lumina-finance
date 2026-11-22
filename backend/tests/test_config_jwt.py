@@ -164,6 +164,54 @@ def test_start_up_stops_naming_whichever_key_is_bad(tmp_path, broken, intact, na
     assert f"The {name} token signing key was not found" in completed.stderr
 
 
+_SECOND_VARIABLE = "JWT_ACCESS_SECOND_PRIVATE_KEY_PATH"
+_SECOND_KID_VARIABLE = "JWT_ACCESS_SECOND_KID"
+
+
+@pytest.mark.parametrize(
+    ("case", "refusal"),
+    [
+        ("no key ID", f"{_SECOND_KID_VARIABLE} must be set when {_SECOND_VARIABLE} is"),
+        ("the access key's ID", f"{_SECOND_KID_VARIABLE} must differ from JWT_ACCESS_KID and JWT_REFRESH_KID"),
+        ("the refresh key's ID", f"{_SECOND_KID_VARIABLE} must differ from JWT_ACCESS_KID and JWT_REFRESH_KID"),
+        ("the signing key's file", "is the access signing key itself"),
+        (
+            "a missing file",
+            f"The second access token signing key was not found at {{absent}}. Set {_SECOND_VARIABLE} to a file holding it, "
+            "either the access key about to replace the current one or the access key it replaced",
+        ),
+    ],
+)
+def test_start_up_stops_on_a_second_access_key_a_verifier_could_not_tell_apart(tmp_path, case, refusal):
+    """A key change that publishes a second key under a clashing ID, or the signing key twice, would refuse every token"""
+    from app.config.jwt import JWT_ACCESS_KID, JWT_REFRESH_KID
+
+    second = tmp_path / "second.pem"
+    second.write_bytes(_rsa_pem())
+    absent = tmp_path / "absent.pem"
+    settings = {
+        "no key ID": {_SECOND_VARIABLE: str(second), _SECOND_KID_VARIABLE: " "},
+        "the access key's ID": {_SECOND_VARIABLE: str(second), _SECOND_KID_VARIABLE: JWT_ACCESS_KID},
+        "the refresh key's ID": {_SECOND_VARIABLE: str(second), _SECOND_KID_VARIABLE: JWT_REFRESH_KID},
+        "the signing key's file": {_SECOND_VARIABLE: os.environ[_ACCESS_VARIABLE], _SECOND_KID_VARIABLE: "access-second"},
+        "a missing file": {_SECOND_VARIABLE: str(absent), _SECOND_KID_VARIABLE: "access-second"},
+    }[case]
+
+    completed = _run("import app.config.jwt", settings)
+
+    assert completed.returncode != 0
+    assert refusal.format(absent=absent) in completed.stderr
+
+
+@pytest.mark.parametrize("settings", [{_SECOND_VARIABLE: " "}, {_SECOND_KID_VARIABLE: "access-second"}])
+def test_a_second_key_id_or_a_blank_path_alone_publishes_no_second_key(settings):
+    """Only a path to a key adds a second key, so an install that sets nothing else stays as it was"""
+    completed = _run("import app.config.jwt as settings; print(settings.JWT_ACCESS_SECOND_KEY)", settings)
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "None"
+
+
 # Counts the private keys parsed while the whole app loads, runs the app's own start-up, its database checks
 # included, asks the running app for its health and its public keys, then reads the other secrets.
 # Absence of the data folder is simulated so the answer does not depend on the machine
@@ -187,7 +235,7 @@ from app.main import app
 
 with TestClient(app) as client:
     health = client.get("/health").status_code
-    public_keys = client.get("/auth/.well-known/jwks.json").status_code
+    public_keys = [key["kid"] for key in client.get("/auth/.well-known/jwks.json").json()["keys"]]
 print(json.dumps({
     "parsed": len(parsed),
     "encryption_key": resolve_encryption_key(generate=False),
@@ -198,22 +246,27 @@ print(json.dumps({
 """
 
 
-def test_the_app_starts_and_serves_with_every_secret_supplied_and_no_data_folder(tmp_path):
+@pytest.mark.parametrize("with_second_key", [False, True], ids=["one access key", "a second access key"])
+def test_the_app_starts_and_serves_with_every_secret_supplied_and_no_data_folder(tmp_path, with_second_key):
     """Keys at a path the environment filled and the other secrets as content are all a start-up needs
 
-    The start-up runs against this worker's own test database as the app role. Each of the two private
-    keys is parsed once, however many modules sign or verify with it
+    The start-up runs against this worker's own test database as the app role. Each private key is parsed
+    once, however many modules sign or verify with it, and a second access key joins the published keys
     """
-    for name in ("access", "refresh"):
+    from app.config.jwt import JWT_ACCESS_KID, JWT_REFRESH_KID
+
+    for name in ("access", "refresh", "second"):
         (tmp_path / f"{name}.pem").write_bytes(_rsa_pem())
     encryption_key = Fernet.generate_key().decode()
     hash_key = "ab" * 32
+    second_key = {_SECOND_VARIABLE: str(tmp_path / "second.pem"), _SECOND_KID_VARIABLE: "access-second"} if with_second_key else {}
 
     completed = _run(
         _START_SCRIPT,
         {
             _ACCESS_VARIABLE: str(tmp_path / "access.pem"),
             _REFRESH_VARIABLE: str(tmp_path / "refresh.pem"),
+            **second_key,
             "APP_ENCRYPTION_KEY": encryption_key,
             "BANK_TRANSACTION_HASH_KEY": hash_key,
             "APP_DB_PASSWORD": resolve_role_password("app", generate=False),
@@ -223,4 +276,11 @@ def test_the_app_starts_and_serves_with_every_secret_supplied_and_no_data_folder
 
     assert completed.returncode == 0, completed.stderr
     started = json.loads(completed.stdout)
-    assert started == {"parsed": 2, "encryption_key": encryption_key, "hash_key": hash_key, "health": 200, "public_keys": 200}
+    published = [JWT_ACCESS_KID, "access-second", JWT_REFRESH_KID] if with_second_key else [JWT_ACCESS_KID, JWT_REFRESH_KID]
+    assert started == {
+        "parsed": len(published),
+        "encryption_key": encryption_key,
+        "hash_key": hash_key,
+        "health": 200,
+        "public_keys": published,
+    }
