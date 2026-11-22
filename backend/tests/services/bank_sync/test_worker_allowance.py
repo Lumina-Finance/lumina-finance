@@ -1,7 +1,7 @@
 """What the allowance check stops in the bank sync worker: a scan queues nothing for a refused owner, and a job already queued ends
 
 A refusal never counts as a failed sync, so no link shows a failed attempt and nobody is emailed. A
-check that raises is a fault in the deployment's own code: the scan logs it for that connection and
+check that raises is a fault in the installed code: the scan logs it for that connection and
 queues every other owner's, as for any other connection that fails to queue
 """
 
@@ -12,8 +12,8 @@ import pytest
 from sqlalchemy import select, update
 
 from app.allowance_hook import AllowanceKind, AllowanceRequest, Refusal, set_allowance_check
-from app.models.bank_connection import BankAccountLink, BankConnection
-from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
+from app.models.bank_connection import BankAccountLink, BankConnection, BankProviderRequest
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus, ProviderErrorKind
 from app.services.bank_sync import worker
 from app.services.bank_sync.worker import enqueue_due_work, run_jobs
 from tests.conftest import TestSession
@@ -29,8 +29,8 @@ def _refuse_owner_of(connection: BankConnection, *, raising: bool = False) -> No
         if request.user_id != connection.owner_id or request.kind != AllowanceKind.BANK_SYNC:
             return None
         if raising:
-            raise ConnectionError("The plan service is down")
-        return Refusal("Bank sync is not part of your plan")
+            raise ConnectionError("The check failed")
+        return Refusal("This server allows no bank sync")
 
     set_allowance_check(check)
 
@@ -72,6 +72,23 @@ async def test_enqueue_due_work_logs_a_check_that_raises_and_queues_the_other_ow
 
     assert await _connections_with_jobs() == {connections[1].id}
     assert [record.args for record in caplog.records if record.name == worker.logger.name] == [(connections[0].id,)]
+
+
+async def test_run_jobs_with_a_check_that_raises_fails_the_job_without_syncing_or_emailing(connections, frozen_now, sent_action_emails, caplog):
+    """A check failing for a job's owner is a fault of the installed code, so the job is recorded as failed and nothing is fetched or sent"""
+    job = await _seed_job(connections[0], BankSyncJobKind.SCHEDULED)
+    _refuse_owner_of(connections[0], raising=True)
+
+    with caplog.at_level(logging.ERROR, logger=worker.logger.name):
+        assert await run_jobs(10) == 1
+
+    async with TestSession() as session:
+        stored = await session.get_one(BankSyncJob, job.id)
+        requests = list(await session.scalars(select(BankProviderRequest.id)))
+    assert (stored.status, stored.last_error_kind) == (BankSyncJobStatus.FAILED, ProviderErrorKind.UNKNOWN)
+    assert requests == [], "a job whose check failed still fetched from the provider"
+    assert sent_action_emails == [], "a job whose check failed emailed its owner"
+    assert [record.args for record in caplog.records if record.name == worker.logger.name] == [(job.id,)]
 
 
 async def test_run_jobs_ends_a_queued_job_of_a_refused_owner_without_failing_it_and_runs_the_others(

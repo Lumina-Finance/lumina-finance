@@ -330,6 +330,17 @@ async def test_reconnect_keeps_a_bank_sign_in_the_bank_still_needs(client, scena
     assert (state, import_kind, signin_needed_since) == ("active", "reconnect", _SIGNIN_SINCE)
 
 
+async def test_reconnect_is_not_a_new_connection_so_the_check_is_never_asked_for_one(client, scenario: FakeBridgeScenario):
+    """A user refused new connections still reconnects one they hold, with a token that works"""
+    headers, _, _, connection_id = await _rejected_with_two_links(client, scenario)
+    asked = install_check(refused={AllowanceKind.BANK_CONNECTION})
+
+    response = await _reconnect(client, headers, connection_id, await scenario.new_setup_token())
+
+    assert response.status_code == 200, response.text
+    assert [request for request in asked if request.kind == AllowanceKind.BANK_CONNECTION] == []
+
+
 async def test_reconnect_of_a_working_connection_is_refused_before_the_token_is_spent(client, scenario: FakeBridgeScenario):
     """A token pasted for a connection that still works is refused, and still claims a connection afterwards"""
     headers, _ = await _sign_up(client)
@@ -411,7 +422,7 @@ async def test_reconnect_through_a_provider_withdrawn_from_new_connections_still
 
 
 async def test_reconnect_by_a_user_who_may_not_link_bank_accounts_is_refused(client, scenario: FakeBridgeScenario):
-    """The deployment's refusal of bank sync is enforced on the reconnect, as on the claim, and the connection stays rejected"""
+    """The check's refusal of bank sync is enforced on the reconnect, as on the claim, and the connection stays rejected"""
     headers, _, _, connection_id = await _rejected_with_two_links(client, scenario)
     install_check(refused={AllowanceKind.BANK_SYNC})
 
