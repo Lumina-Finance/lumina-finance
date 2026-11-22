@@ -27,7 +27,7 @@ from app.models.user import User
 from app.schemas.bank_sync import BankLinkResponse, BankSyncState, BankSyncStatusResponse
 from app.services.accounts.access import get_own_personal_account
 from app.services.bank_sync.account_link import describe_links
-from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, PROVIDER_GONE_DETAIL, adapter_for
+from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, PROVIDER_GONE_DETAIL, adapter_for, require_bank_linking
 from app.services.bank_sync.connections import get_own_connection
 from app.services.bank_sync.jobs import enqueue_bank_sync_job
 from app.services.bank_sync.links import ACCOUNT_NOT_LINKED
@@ -73,7 +73,8 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
         its import waits to start when that is what the request did
 
     Raises:
-        HTTPException 403: The account is visible but isn't the user's own personal account
+        HTTPException 403: The account is visible but isn't the user's own personal account, or
+            the user may not use bank sync
         HTTPException 404: The user can't see the account, or it isn't linked
         HTTPException 409: An import or a sync already runs on the account, the provider rejected
             its connection or is no longer installed, its bank account has to be chosen again, or
@@ -84,6 +85,9 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
     link = await db.scalar(select(BankAccountLink).where(BankAccountLink.account_id == account.id, LIVE_LINK))
     if link is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ACCOUNT_NOT_LINKED)
+
+    # Asked before the import-waiting branch below, since that branch starts an import at once
+    await require_bank_linking(user.id)
 
     # Shared, so a disconnect waits until the sync is queued and then deletes it with the connection
     connection = await get_own_connection(db, user.id, link.connection_id, lock={"read": True, "key_share": True})

@@ -12,9 +12,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from app.allowance_hook import AllowanceKind
 from app.encryption import decrypt
-from app.services.bank_sync import availability
 from app.services.bank_sync.providers.contract import REFUSED_FIELDS_HEADER, ClaimRefused, ProviderUnreachable
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
 from tests.routes.support.authorization_helpers import (
     APPLICATION_KEY_VALUE,
     RETURN_URL,
@@ -173,15 +174,15 @@ async def test_start_with_a_provider_this_server_lacks_is_refused(client, author
     assert await _stored_authorizations() == []
 
 
-async def test_start_by_a_user_who_may_not_link_bank_accounts_is_refused(client, authorizing_provider, monkeypatch):
-    """The bank-linking check is enforced on the start, not only in the interface"""
-    monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
+async def test_start_by_a_user_who_may_not_link_bank_accounts_is_refused(client, authorizing_provider):
+    """The check's refusal of bank sync is enforced on the start, not only in the interface"""
+    install_check(refused={AllowanceKind.BANK_SYNC})
     headers, _ = await _sign_up(client)
 
     refused = await _start(client, headers)
 
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "Bank sync isn't available for your account"
+    assert refused.json()["detail"] == ALLOWANCE_REASON
     assert authorizing_provider.starts == []
 
 

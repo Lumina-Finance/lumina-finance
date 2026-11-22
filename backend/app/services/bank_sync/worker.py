@@ -23,12 +23,14 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.allowance_hook import AllowanceKind
 from app.config.bank_sync import BANK_SYNC_WORKER_CONCURRENCY
 from app.database import async_session, current_user_id_ctx, engine, verify_app_role_is_unprivileged
 from app.db.database_keys import verify_database_keys
 from app.db.rls.functions import LIST_DUE_BANK_CONNECTIONS, MIGRATION_REVISIONS, RECORD_BANK_SYNC_SCAN
 from app.models import import_all_models
 from app.models.bank_sync_job import ProviderErrorKind
+from app.services.allowance.require import find_feature_refusal
 from app.services.bank_sync.availability import enabled_adapters
 from app.services.bank_sync.heartbeat import is_sync_worker_running
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, claim_bank_sync_job
@@ -111,7 +113,8 @@ async def enqueue_due_work() -> None:
     The due list comes through a definer function, since only the worker sees across users, and
     each sync is queued as its connection's owner, for once a request is free, merging into any job
     already queued for it, as the schedule module describes. A connection that fails to queue is
-    logged and skipped, so the rest are still queued and the heartbeat still stamped
+    logged and skipped, so the rest are still queued and the heartbeat still stamped. A connection
+    whose owner the allowance check refuses bank sync is skipped quietly
     """
     now = datetime.now(UTC)
     async with async_session() as db:
@@ -120,6 +123,10 @@ async def enqueue_due_work() -> None:
     for connection_id, owner_id in due:
         try:
             with _acting_as(owner_id):
+                # Left unqueued, and asked again at the next scan. A check that raises falls to the
+                # handler below as any other failure of this connection does
+                if await find_feature_refusal(owner_id, AllowanceKind.BANK_SYNC) is not None:
+                    continue
                 async with async_session() as db:
                     await queue_scheduled_sync(db, connection_id, now=now)
                     await db.commit()

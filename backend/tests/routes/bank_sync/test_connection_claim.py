@@ -11,9 +11,10 @@ from typing import override
 import httpx
 import pytest
 
+from app.allowance_hook import AllowanceKind
 from app.schemas.bank_sync import CreateBankConnectionRequest
-from app.services.bank_sync import availability
 from app.services.bank_sync.providers.contract import CredentialField
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
 from tests.routes.support.bank_sync_helpers import _sign_up, _stored_connections
 from tests.services.bank_sync.fake_provider import ACCESS_KEY, FakeProviderAdapter, _returned, remove_provider, use_adapter
 
@@ -169,16 +170,16 @@ async def test_claim_with_a_provider_this_server_lacks_is_refused(client, fake_p
     assert await _stored_connections() == []
 
 
-async def test_claim_by_a_user_who_may_not_link_bank_accounts_is_refused(client, fake_provider, monkeypatch):
-    """The bank-linking check is enforced on the claim, not only in the interface"""
+async def test_claim_by_a_user_who_may_not_link_bank_accounts_is_refused(client, fake_provider):
+    """The check's refusal of bank sync is enforced on the claim, not only in the interface"""
     _claimable(fake_provider)
-    monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
+    install_check(refused={AllowanceKind.BANK_SYNC})
     headers, _ = await _sign_up(client)
 
     refused = await _claim(client, headers)
 
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "Bank sync isn't available for your account"
+    assert refused.json()["detail"] == ALLOWANCE_REASON
     assert await _stored_connections() == []
 
 

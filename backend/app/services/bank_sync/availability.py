@@ -1,8 +1,9 @@
 """The bank providers a deployment offers, the users who may link bank accounts, and the accounts that can take one
 
 Group-owned accounts are left out of bank linking here and nowhere else, through the own personal
-account condition, so grouped support can be added in one place later. Whether a user may link
-bank accounts, and how many institutions they may link, are each answered by one function here
+account condition, so grouped support can be added in one place later. Whether a user may use bank
+sync is asked of the installed allowance check, and how many institutions they may link is answered
+by one function here
 """
 
 import uuid
@@ -15,12 +16,14 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.config.bank_sync import read_provider_settings
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, UnavailableReason
 from app.models.user import User
 from app.schemas.bank_sync import BankProviderResponse, BankProvidersResponse, CredentialFieldResponse
 from app.services.accounts.access import own_personal_account_condition
+from app.services.allowance.require import find_feature_refusal, require_feature
 from app.services.bank_sync.heartbeat import is_sync_worker_running
 from app.services.bank_sync.providers.contract import ProviderAdapter, is_iso_currency_code
 from app.services.bank_sync.providers.registry import load_adapters
@@ -144,22 +147,13 @@ def is_offered(provider: str) -> bool:
     return installed is not None and installed.offered
 
 
-def may_link_bank_accounts(user_id: uuid.UUID) -> bool:
-    """Return whether a user may link bank accounts. The provider list and every linking request check this
-
-    Every user may, so it always returns true
-    """
-    return True
-
-
-def require_bank_linking(user_id: uuid.UUID) -> None:
-    """Refuse a user who may not link bank accounts
+async def require_bank_linking(user_id: uuid.UUID) -> None:
+    """Refuse a user who may not use bank sync, as every linking request does
 
     Raises:
-        HTTPException 403: The bank-linking check fails for the user
+        HTTPException 403: The installed allowance check refused, with its reason as the detail
     """
-    if not may_link_bank_accounts(user_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bank sync isn't available for your account")
+    await require_feature(user_id, AllowanceKind.BANK_SYNC)
 
 
 def get_enabled_adapter(provider: str) -> ProviderAdapter:
@@ -301,7 +295,7 @@ async def list_providers(db: AsyncSession, user: User) -> BankProvidersResponse:
         whether it is offered and the user's institution limit for it. A user who may not link
         bank accounts is offered no provider
     """
-    may_link = may_link_bank_accounts(user.id)
+    may_link = await find_feature_refusal(user.id, AllowanceKind.BANK_SYNC) is None
     providers = []
     listed = sorted(enabled_adapters().items(), key=lambda entry: (entry[1].display_order, entry[0])) if may_link else []
     for provider, adapter in listed:

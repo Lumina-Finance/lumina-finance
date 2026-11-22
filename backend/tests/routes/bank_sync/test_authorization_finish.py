@@ -12,10 +12,12 @@ from datetime import UTC, datetime
 
 import pytest
 
+from app.allowance_hook import AllowanceKind
 from app.encryption import decrypt
-from app.services.bank_sync import availability, release
+from app.services.bank_sync import release
 from app.services.bank_sync.availability import PROVIDER_GONE_DETAIL
 from app.services.bank_sync.providers.contract import ClaimRefused, ProviderUnreachable
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
 from tests.routes.support.authorization_helpers import (
     CODE,
     OLD_ACCESS,
@@ -222,15 +224,16 @@ async def test_finish_with_the_provider_turned_off_or_deleted_midway_claims_noth
     assert authorizing_provider.authorized == []
 
 
-async def test_finish_by_a_user_who_may_no_longer_link_bank_accounts_claims_nothing(client, authorizing_provider, monkeypatch):
-    """The bank-linking check is repeated on the return, not only on the start"""
+async def test_finish_by_a_user_who_may_no_longer_link_bank_accounts_claims_nothing(client, authorizing_provider):
+    """The check's refusal of bank sync is repeated on the return, not only on the start"""
     headers, _ = await _sign_up(client)
     state = await _started_state(client, headers, authorizing_provider)
-    monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
+    install_check(refused={AllowanceKind.BANK_SYNC})
 
     refused = await _finish(client, headers, state)
 
     assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == ALLOWANCE_REASON
     assert authorizing_provider.authorized == []
 
 

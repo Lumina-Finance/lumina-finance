@@ -11,10 +11,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from app.allowance_hook import AllowanceKind
 from app.models.bank_connection import BankLinkState
 from app.models.bank_sync_job import BankSyncHeartbeat
-from app.services.bank_sync import availability
 from tests.conftest import TestSession
+from tests.routes.support.allowance_helpers import install_check
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
     _build_bank_connection,
@@ -147,9 +148,9 @@ async def test_providers_leave_out_a_provider_turned_off_or_removed(client, fake
     assert response.json() == {"may_link": True, "sync_running": True, "providers": []}
 
 
-async def test_providers_offer_nothing_to_a_user_who_may_not_link_bank_accounts(client, monkeypatch):
-    """A user failing the bank-linking check sees no provider options"""
-    monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
+async def test_providers_offer_nothing_to_a_user_who_may_not_link_bank_accounts(client):
+    """A user the check refuses bank sync sees no provider options"""
+    install_check(refused={AllowanceKind.BANK_SYNC})
     headers, _ = await _sign_up(client)
     await _record_heartbeat(minutes_ago=0)
 

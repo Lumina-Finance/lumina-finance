@@ -75,12 +75,14 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.database import async_session
 from app.encryption import decrypt
 from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, ProviderRequestPurpose
 from app.models.bank_sync_job import BankSyncJob, ProviderErrorKind
 from app.models.user import User
+from app.services.allowance.require import find_feature_refusal
 from app.services.bank_sync.action_needed import (
     ActionEmail,
     choose_account_emails,
@@ -163,7 +165,8 @@ async def run_sync_job(job: ClaimedJob) -> None:
 
     The worker has already set the owner's identity, so every session opened here works under
     row-level security as that user. A rejected credential can't work until the user reconnects, so
-    nothing is sent with it. A job that met an answer to a credential since replaced ends there,
+    nothing is sent with it, and nothing is sent for an owner the allowance check refuses bank sync,
+    whose job ends as finished. A job that met an answer to a credential since replaced ends there,
     neither failed nor queued again, so whatever replaces a connection's credential has to queue the
     connection's next sync itself. The action-needed emails a save recorded are sent right after it
     commits, within the job's time limit. One a cancelled job hadn't sent is logged as unsent
@@ -191,7 +194,11 @@ async def run_sync_job(job: ClaimedJob) -> None:
     outbox: list[ActionEmail] = []
     try:
         adapter = enabled_adapters().get(connection.provider)
-        if adapter_for(connection.provider) is None:
+        if await find_feature_refusal(job.owner_id, AllowanceKind.BANK_SYNC) is not None:
+            # Asked of every job, so a retry, a continuation and a job queued before the refusal stop
+            # too. It ends without an error, so no link records a failed attempt and nobody is emailed
+            await _end_job(job, started_at=now, outbox=outbox)
+        elif adapter_for(connection.provider) is None:
             await _end_job(job, ProviderError(ProviderErrorKind.UNKNOWN, PROVIDER_GONE_DETAIL), started_at=now, outbox=outbox)
         elif adapter is None:
             error = ProviderError(ProviderErrorKind.UNKNOWN, f"{provider_label(connection.provider)} is turned off on this server")
