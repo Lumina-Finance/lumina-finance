@@ -9,6 +9,7 @@ import jwt as pyjwt
 import pytest
 from sqlalchemy import select, update
 
+from app import signup_check_hook
 from app.config.oidc import OIDC_REAUTH_MAX_AGE_SECONDS
 from app.encryption import encrypt
 from app.models.auth import AuthIdentity
@@ -539,6 +540,92 @@ async def test_callback_closed_registration_keeps_email_conflict(client, provide
 
     assert resp.status_code == 409
     assert resp.json()["detail"]["code"] == "email_already_registered"
+
+
+@pytest.fixture
+def refusing_signup_check(monkeypatch):
+    """Install a sign-up check refusing every address for this test alone"""
+
+    async def refuse(attempt: signup_check_hook.SignupAttempt) -> bool:
+        return False
+
+    monkeypatch.setattr(signup_check_hook, "_check", refuse)
+
+
+async def test_callback_signup_check_refuses_new_user_as_closed_registration(client, provider_protocol, refusing_signup_check):
+    """A first-time sign-in the sign-up check refuses gets the closed-registration answer and starts no onboarding"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Registration is closed on this instance"
+    async with TestSession() as session:
+        assert (await session.execute(select(User))).scalars().all() == []
+
+
+async def test_callback_signup_check_keeps_email_conflict(client, provider_protocol, refusing_signup_check):
+    """An existing account's owner still gets the sign-in-and-link path while the sign-up check refuses everyone"""
+    await _seed_currency()
+    await sign_up_confirmed(client, SIGNUP_PAYLOAD)
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email=SIGNUP_PAYLOAD["email"], email_verified=True)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "email_already_registered"
+
+
+async def test_callback_signup_check_keeps_unverified_email_refusal(client, provider_protocol, refusing_signup_check):
+    """An address the provider did not verify keeps its own refusal while the sign-up check refuses everyone"""
+    await _seed_provider()
+
+    resp = await _callback_with_unverified_email(client, provider_protocol, False)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Identity provider did not verify the email address"
+
+
+async def test_callback_signup_check_signs_in_linked_identity(client, provider_protocol, refusing_signup_check):
+    """An already linked provider sign-in keeps working while the sign-up check refuses everyone"""
+    await _seed_currency()
+    signup = await sign_up_confirmed(client, SIGNUP_PAYLOAD)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    provider = await _seed_provider()
+    async with TestSession() as session:
+        session.add(OidcIdentity(user_id=user_id, provider_id=provider.id, subject="subject-1", email="sso-user@example.com"))
+        await session.commit()
+    provider_protocol["claims"] = _claims()
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert resp.json()["user"]["id"] == str(user_id)
+
+
+async def test_callback_signup_check_allowing_the_provider_email_onboards(client, provider_protocol, monkeypatch):
+    """The check is asked about the provider's address, and allowing it lets onboarding start"""
+    asked = []
+
+    async def allow_sso_user(attempt: signup_check_hook.SignupAttempt) -> bool:
+        asked.append(attempt.email)
+        return attempt.email == "sso-user@example.com"
+
+    monkeypatch.setattr(signup_check_hook, "_check", allow_sso_user)
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert resp.json()["onboarding_required"] is True
+    assert asked == ["sso-user@example.com"]
 
 
 async def test_callback_burns_state_once(client, provider_protocol):

@@ -104,9 +104,9 @@ async def signup_route(
     background_tasks: BackgroundTasks,
     session_factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)],
 ):
-    """Email a confirmation link to a new address, and send an address that has an account nothing
+    """Email a confirmation link to a new address, and send an address that has an account or the sign-up check refuses nothing
 
-    The response is always 204 so the endpoint never reveals whether an email is registered, and the
+    The response is always 204 so the endpoint never reveals whether an email is registered or refused, and the
     email goes out after it so the response takes as long either way. No account exists until the
     link is confirmed
 

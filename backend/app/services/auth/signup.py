@@ -32,6 +32,7 @@ from app.services.auth.tokens import (
 )
 from app.services.auth.user_lookup import find_user_id_by_email
 from app.services.email import get_email_sender, render_signup_confirmation_email
+from app.signup_check_hook import is_signup_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -89,11 +90,12 @@ async def request_signup(
     background_tasks: BackgroundTasks,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Email a new address its confirmation link, creating no account, and send a registered address nothing
+    """Email a new address its confirmation link, creating no account, and send a registered or refused address nothing
 
     The caller answers the same way either way, so the endpoint never reveals whether an email is
-    registered. A registered address has nothing to act on, so no email goes to it. Both paths do the
-    same work before answering, the cap record included, and the rendering and the send wait until
+    registered or was refused by the installed sign-up check. A registered address has nothing to act
+    on, so no email goes to it, and a refused one takes the same path. Every path does the
+    same work after the check and before answering, the cap record included, and the rendering and the send wait until
     after the answer, since the time they take would otherwise tell a registered address apart. The
     wait after a failed send and the one-send-at-a-time claim are checked after the answer too, and a
     skipped send releases its cap record. The profile rides inside the link's signed token and no
@@ -111,14 +113,17 @@ async def request_signup(
         HTTPException: Registration is closed or the base currency is invalid
     """
     reject_closed_registration()
+
+    # Asked before any query, so a slow check holds no database connection while it waits
+    allowed = await is_signup_allowed(data.email)
     await reject_missing_base_currency(db, data.base_currency)
 
-    # Signed on both paths, so the registered path does the same work as the new one
+    # Signed on every path, so a registered or refused address does the same work as an allowed new one
     claims = SignupConfirmationClaims(data.email, data.first_name, data.last_name, data.tz, data.base_currency)
     token = create_signup_confirmation_token(claims)
     registered = await find_user_id_by_email(db, data.email) is not None
     send_id = await _reserve_send(db, data.email)
-    if send_id is not None and not registered:
+    if send_id is not None and allowed and not registered:
         background_tasks.add_task(_send_confirmation_email, data.email, token, send_id, session_factory)
 
 
