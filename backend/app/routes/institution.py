@@ -97,7 +97,8 @@ async def create_institution(
         The created institution with PENDING status
 
     Raises:
-        HTTPException 403: The user already has the most pending institutions one person may add
+        HTTPException 403: The user already has the most pending institutions one person may add, with a
+            blank detail so the limit isn't revealed
         HTTPException 409: Institution with the same name and country already exists
     """
     # Before the shared cache row is marked, so a refused addition never holds or waits on that row's lock

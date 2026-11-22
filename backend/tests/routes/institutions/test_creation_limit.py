@@ -14,7 +14,8 @@ from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.support.authorization_helpers import _sign_up_other_user
 from tests.routes.support.lock_helpers import _wait_until_waiting_on
 
-LIMIT_DETAIL = "This institution isn't added: you already have 20 waiting to be approved. Please pick one from the list"
+# Blank, so the app shows its generic error and the limit isn't revealed
+LIMIT_DETAIL = ""
 
 NEW_INSTITUTION = {"name": "Twenty-first Bank", "country_code": "CA", "website": "https://twentyfirst.example.com"}
 

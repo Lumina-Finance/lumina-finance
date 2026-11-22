@@ -16,9 +16,10 @@ from app.schemas.institution import CreateInstitutionRequest
 # picker. An institution stops counting once it's approved or deleted, so the person can add another
 MAX_PENDING_SUBMISSIONS = 20
 
-LIMIT_REACHED_DETAIL = (
-    f"This institution isn't added: you already have {MAX_PENDING_SUBMISSIONS} waiting to be approved. Please pick one from the list"
-)
+# Blank on purpose, an exception to every refusal giving its reason, so the app shows its generic error
+# and someone adding in bulk doesn't learn the limit. The frontend shows that error for any refusal
+# without a sentence of its own
+LIMIT_REACHED_DETAIL = ""
 
 
 async def require_room_for_submission(db: AsyncSession, user: User) -> None:
