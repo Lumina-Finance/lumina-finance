@@ -1,9 +1,6 @@
 import { useMemo } from 'react'
 import { Store } from 'lucide-react'
-import {
-  useInfiniteMerchants,
-  type Merchant,
-} from '@/api/merchants'
+import { useInfiniteMerchants, type Merchant } from '@/api/merchants'
 import MergeDeleteReferenceModal from '@/pages/settings/components/shared/modals/MergeDeleteReferenceModal'
 import {
   DELETE_SPINNER_MS,

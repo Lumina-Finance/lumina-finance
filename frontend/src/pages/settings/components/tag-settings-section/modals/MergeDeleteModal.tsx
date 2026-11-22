@@ -2,10 +2,7 @@ import { useMemo } from 'react'
 import { Tag as TagIcon } from 'lucide-react'
 import { useInfiniteTags, type Tag } from '@/api/tags'
 import MergeDeleteReferenceModal from '@/pages/settings/components/shared/modals/MergeDeleteReferenceModal'
-import {
-  DELETE_SPINNER_MS,
-  TAG_MERGE_PAGE_SIZE,
-} from '@/pages/settings/components/tag-settings-section/constants'
+import { DELETE_SPINNER_MS, TAG_MERGE_PAGE_SIZE } from '@/pages/settings/components/tag-settings-section/constants'
 import { tagMergeOptions } from '@/pages/settings/components/tag-settings-section/utils'
 
 /**
