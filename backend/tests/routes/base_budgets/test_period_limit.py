@@ -44,42 +44,26 @@ async def _create_recurring(client, headers, category_id, **overrides):
     return await _create_base_budget(client, headers, category_ids=[category_id], recurs=True, overall_limit=75000, **overrides)
 
 
-@pytest.mark.parametrize(
-    ("overrides", "periods"),
-    [
-        ({"period_start": "1976-06-01"}, 600),
-        ({"period_start": "1926-06-01"}, 1200),
-        ({"period_start": "1926-05-31", "recurrence_dom": 31}, 1200),
-        ({"recurrence_freq": "weekly", "recurrence_weekday": 0, "recurrence_dom": None, "period_start": "2003-05-12"}, 1200),
-    ],
-)
-async def test_create_recurring_budget_within_the_limit_makes_every_period_to_today(client, overrides, periods):
-    """A monthly budget from 50 years ago has 600 periods, and one from 100 years ago exactly 1,200"""
+async def test_create_recurring_budget_within_the_limit_makes_every_period_to_today(client):
+    """A monthly budget from 50 years ago has 600 periods. The count on each side of 1,200 is pinned in the service tests"""
     headers = _get_auth_header(await _create_user(client))
     category_id = await _create_category(client, headers)
 
-    resp = await _create_recurring(client, headers, category_id, **overrides)
+    resp = await _create_recurring(client, headers, category_id, period_start="1976-06-01")
 
     assert resp.status_code == 201
     starts = await _period_starts(resp.json()["id"])
-    assert len(starts) == periods
-    assert starts[0] == date.fromisoformat(overrides["period_start"])
+    assert (len(starts), starts[0], starts[-1]) == (600, date(1976, 6, 1), date(2026, 5, 1))
 
 
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        {"period_start": "1926-05-01"},
-        {"period_start": "1926-03-31", "recurrence_dom": 31},
-        {"recurrence_freq": "weekly", "recurrence_weekday": 0, "recurrence_dom": None, "period_start": "1996-05-06"},
-    ],
-)
-async def test_create_recurring_budget_past_the_limit_is_refused_and_creates_nothing(client, overrides):
-    """1,201 monthly periods, or a weekly budget from 30 years ago, is refused with no budget left behind"""
+async def test_create_recurring_budget_past_the_limit_is_refused_and_creates_nothing(client):
+    """A weekly budget from 30 years ago is refused with no budget left behind"""
     headers = _get_auth_header(await _create_user(client))
     category_id = await _create_category(client, headers)
 
-    resp = await _create_recurring(client, headers, category_id, **overrides)
+    resp = await _create_recurring(
+        client, headers, category_id, recurrence_freq="weekly", recurrence_weekday=0, recurrence_dom=None, period_start="1996-05-06"
+    )
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == SETUP_REFUSAL
@@ -223,12 +207,44 @@ async def test_switching_a_one_off_budget_to_recurring_is_refused_past_the_limit
 
 
 async def test_group_budget_is_not_held_to_the_period_limit(client):
-    """A group's budget keeps every period, since removing one would change what each member sees"""
+    """A group's budget keeps every period, at setup and as new periods arrive, since removing one would
+    change what each member sees
+    """
     headers = _get_auth_header(await _create_user(client))
     group_id = await _create_group(client, headers)
     category_id = await _create_category(client, headers, group_id=group_id)
 
     resp = await _create_recurring(client, headers, category_id, group_id=group_id, period_start="1926-05-01")
-
     assert resp.status_code == 201
     assert len(await _period_starts(resp.json()["id"])) == 1201
+
+    new_period = await _create_budget_instance(client, headers, resp.json()["id"], period_start="2026-06-01")
+
+    assert new_period.status_code == 201
+    starts = await _period_starts(resp.json()["id"])
+    assert (len(starts), starts[0], starts[-1]) == (1202, date(1926, 5, 1), date(2026, 6, 1))
+
+
+async def test_group_one_off_budget_switches_to_recurring_however_far_back_it_starts(client):
+    """A group's one-off weekly budget from 30 years ago can repeat, since a group's budgets keep every period"""
+    headers = _get_auth_header(await _create_user(client))
+    group_id = await _create_group(client, headers)
+    category_id = await _create_category(client, headers, group_id=group_id)
+    base_id = (
+        await _create_base_budget(
+            client,
+            headers,
+            category_ids=[category_id],
+            group_id=group_id,
+            recurrence_freq="weekly",
+            recurrence_weekday=0,
+            recurrence_dom=None,
+            period_start="1996-05-06",
+            overall_limit=75000,
+        )
+    ).json()["id"]
+
+    resp = await client.patch(f"/base-budgets/{base_id}", json={"recurs": True}, headers=headers)
+
+    assert resp.status_code == 200, resp.text
+    assert (await client.get(f"/base-budgets/{base_id}", headers=headers)).json()["recurs"] is True
