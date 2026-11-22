@@ -3,7 +3,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openPage, readSettledBox } from '../support/app'
+import { logInViaApi, openPage, readSettledBox, SAVED_QUERY_CACHE_KEY } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // The link icon a list row shows on a refund and on the expense it refunds
@@ -189,6 +189,101 @@ test('keeps the edit window open with the reason when Save is refused', async ({
 
   await expect(expense.getByRole('alert')).toContainText('already linked')
   await expect(expense).toBeVisible()
+})
+
+// An expense and its refunds read as one chain from either side, with a badge for how much came back and what is
+// left to refund. Both follow a link removed in the window before Save
+test('shows an expense and its refunds as one chain with what is left to refund', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 100000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const link = (refundId: string, expenseId: string) =>
+    request.post(`${API_BASE_URL}/transactions/${refundId}/refund-link`, {
+      headers: asUser(user),
+      data: { original_transaction_id: expenseId },
+    })
+  const orderId = await createTransaction(request, user, { ...row, amount: -64000, date: daysFromTodayInTestTimezone(-20) })
+  const refundIds: string[] = []
+  // Linked newest first, so the chain has to put them in date order itself
+  for (const [amount, days] of [[12000, -5], [32000, -15], [20000, -10]]) {
+    const refundId = await createTransaction(request, user, { ...row, amount, date: daysFromTodayInTestTimezone(days) })
+    expect((await link(refundId, orderId)).status()).toBe(204)
+    refundIds.push(refundId)
+  }
+  // Money in, linked to nothing and dated before every refund, so the picker offers it as an older refund
+  await createTransaction(request, user, { ...row, amount: 12000, date: daysFromTodayInTestTimezone(-18), notes: 'Store credit' })
+  const lampId = await createTransaction(request, user, { ...row, amount: -18000, date: daysFromTodayInTestTimezone(-12) })
+  const lampRefundId = await createTransaction(request, user, { ...row, amount: 4500, date: daysFromTodayInTestTimezone(-3) })
+  expect((await link(lampRefundId, lampId)).status()).toBe(204)
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+
+  await test.step('an expense refunded in full by three refunds', async () => {
+    const order = await openRow(page, orderId)
+    await expect(order.getByTestId('linked-transaction')).toContainText(['+$320.00', '+$200.00', '+$120.00'])
+    await expect(order.getByText('3 refunds linked', { exact: true })).toBeVisible()
+    await expect(order.getByTestId('refund-status')).toHaveText('Refunded in full')
+    await expect(order.getByTestId('refund-room')).toHaveText('$0.00')
+
+    // Unlinking the newest refund is held until Save, and gives its amount back at once
+    await order.getByRole('button', { name: /^Unlink / }).last().click()
+    await expect(order.getByTestId('linked-transaction')).toHaveCount(2)
+    await expect(order.getByText('2 refunds linked', { exact: true })).toBeVisible()
+    await expect(order.getByTestId('refund-status')).toHaveText('Partly refunded')
+    await expect(order.getByTestId('refund-room')).toHaveText('$120.00')
+
+    // An older refund linked from the picker is held until Save, and takes its place by date above the saved ones
+    await order.getByRole('button', { name: 'Link an existing refund', exact: true }).click()
+    const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+    await picker.getByPlaceholder('Merchant or note…').fill('Store credit')
+    await expect(picker.getByTestId('link-candidate')).toHaveCount(1)
+    await picker.getByTestId('link-candidate').getByRole('button').click()
+    await picker.getByRole('button', { name: 'Link', exact: true }).click()
+    await expect(picker).toBeHidden()
+    await expect(order.getByTestId('linked-transaction')).toContainText(['+$120.00', '+$320.00', '+$200.00'])
+    await expect(order.getByTestId('linked-transaction').first()).toContainText('Not saved yet')
+    await expect(order.getByTestId('refund-room')).toHaveText('$0.00')
+    await order.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(order).toBeHidden()
+  })
+
+  await test.step('a refund shows its expense with every refund of it', async () => {
+    const refund = await openRow(page, refundIds[1])
+    await expect(refund.getByTestId('linked-transaction')).toContainText('−$640.00')
+    await expect(refund.getByTestId('refund-chain-sibling')).toHaveCount(2)
+    await expect(refund.getByTestId('refund-chain-self')).toContainText('This refund')
+    await expect(refund.getByTestId('refund-status')).toHaveText('Refunded in full')
+    await expect(refund.getByTestId('refund-room')).toHaveText('$0.00')
+    await refund.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(refund).toBeHidden()
+  })
+
+  await test.step('an expense refunded in part', async () => {
+    const lamp = await openRow(page, lampId)
+    await expect(lamp.getByText('Linked', { exact: true })).toBeVisible()
+    await expect(lamp.getByTestId('refund-status')).toHaveText('Partly refunded')
+    await expect(lamp.getByTestId('refund-room')).toHaveText('$135.00')
+  })
+
+  await test.step('a refund that fails to load leaves what is left to refund unsaid', async () => {
+    const failing: string[] = []
+    await page.route(
+      (url) => url.pathname.endsWith(`/transactions/${lampRefundId}`),
+      (route) => {
+        failing.push(route.request().url())
+        return route.fulfill({ status: 500 })
+      },
+    )
+    // The app restores its saved cache on load, the refund included, so the next load starts without it
+    await page.addInitScript((key) => localStorage.removeItem(key), SAVED_QUERY_CACHE_KEY)
+    await page.reload()
+    const lamp = await openRow(page, lampId)
+    await expect.poll(() => failing.length).toBeGreaterThan(0)
+    await expect(lamp.getByRole('alert')).toContainText('something went wrong loading the linked transaction')
+    await expect(lamp.getByTestId('refund-room')).toHaveCount(0)
+    await expect(lamp.getByText('Loading…', { exact: true })).toHaveCount(0)
+  })
 })
 
 // The picker lists only what linking would accept, so an expense is offered money that came in and a

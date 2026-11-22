@@ -124,14 +124,30 @@ export function useTransaction(transactionId: string | null | undefined) {
 export function useTransactionsById(transactionIds: readonly string[]) {
   const { accessToken } = useAuth()
   return useQueries({
-    queries: transactionIds.map((transactionId) => ({
-      queryKey: transactionKeys.detail(transactionId),
-      queryFn: ({ signal }: { signal: AbortSignal }) => fetchTransaction(transactionId, signal),
-      enabled: !!accessToken,
-      staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
-    })),
+    queries: transactionIds.map((transactionId) => transactionDetailQuery(transactionId, accessToken)),
     combine: (results) => results.map((result) => result.data),
   })
+}
+
+/**
+ * Whether reading any of these transactions failed with nothing loaded to show, through the same cache entries as
+ * `useTransactionsById`, so a total worked out from them can say it won't arrive rather than wait for it
+ */
+export function useTransactionsLoadFailed(transactionIds: readonly string[]) {
+  const { accessToken } = useAuth()
+  return useQueries({
+    queries: transactionIds.map((transactionId) => transactionDetailQuery(transactionId, accessToken)),
+    combine: (results) => results.some((result) => result.isError && !result.data),
+  })
+}
+
+function transactionDetailQuery(transactionId: string, accessToken: string | null | undefined) {
+  return {
+    queryKey: transactionKeys.detail(transactionId),
+    queryFn: ({ signal }: { signal: AbortSignal }) => fetchTransaction(transactionId, signal),
+    enabled: !!accessToken,
+    staleTime: TRANSACTION_DETAIL_STALE_TIME_MS,
+  }
 }
 
 /**
