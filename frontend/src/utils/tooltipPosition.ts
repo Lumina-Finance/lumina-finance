@@ -15,6 +15,11 @@ type CursorTooltipPositionOptions = {
 
   // With a box to keep clear, rise above it while there is room, and hang below only otherwise
   preferAbove?: boolean
+
+  // A box the tooltip sits beside instead, level with it and one gap away, on its left side while there is
+  // room there and on its right side otherwise. With room on neither side the tooltip is placed as if
+  // this were not given
+  besideOf?: DOMRect
   offset?: number
   margin?: number
   strategy?: CursorTooltipPositionStrategy
@@ -62,6 +67,7 @@ export function getCursorTooltipPosition({
   bounds,
   keepClear,
   preferAbove = false,
+  besideOf,
   offset = DEFAULT_CURSOR_TOOLTIP_OFFSET,
   margin = DEFAULT_CURSOR_TOOLTIP_MARGIN,
   strategy = DEFAULT_CURSOR_TOOLTIP_STRATEGY,
@@ -74,6 +80,20 @@ export function getCursorTooltipPosition({
   const minY = boundsRect.top - coordinateTop + margin
   const maxX = boundsRect.right - coordinateLeft - tooltip.offsetWidth - margin
   const pointerX = clientX - coordinateLeft
+  const maxWidth = Math.max(boundsRect.width - margin * 2, 1)
+
+  if (besideOf) {
+    const leftOfBox = besideOf.left - coordinateLeft - offset - tooltip.offsetWidth
+    const rightOfBox = besideOf.right - coordinateLeft + offset
+    const x = leftOfBox >= minX ? leftOfBox : rightOfBox <= maxX ? rightOfBox : null
+    if (x !== null) {
+      // Its middle is on the box's middle, as far as the bounds allow
+      const centred = besideOf.top + besideOf.height / 2 - coordinateTop - tooltip.offsetHeight / 2
+      const y = clamp(centred, minY, boundsRect.bottom - coordinateTop - margin - tooltip.offsetHeight)
+      return { x, y, flipY: 0, maxWidth }
+    }
+  }
+
   // With a box to keep clear, the tooltip hangs from the box's bottom edge, or from its top edge when
   // there is no room below, in place of from the cursor
   const maxY = boundsRect.bottom - coordinateTop - margin
@@ -96,7 +116,7 @@ export function getCursorTooltipPosition({
     x: clamp(pointerX - tooltip.offsetWidth - (keepClear ? 0 : offset), minX, maxX),
     y: pointerY,
     flipY,
-    maxWidth: Math.max(boundsRect.width - margin * 2, 1),
+    maxWidth,
   }
 }
 

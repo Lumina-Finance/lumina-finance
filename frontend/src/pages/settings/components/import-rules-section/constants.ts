@@ -6,6 +6,19 @@ import type { ConditionAttribute } from '@/pages/settings/components/import-rule
 /** Rules shown before "Show more", as many as the merchants and tags lists show */
 export const RULE_LIST_VISIBLE_ROWS = 10
 export const RULE_LIST_PAGE_SIZE = RULE_LIST_VISIBLE_ROWS
+
+/**
+ * The columns of a rule's row from 750px, shared by the row and the heading line over the rows so each heading
+ * sits over its column: the rule's name, the sentence of its conditions and what it sets
+ */
+export const RULE_COLUMNS_CLASS_NAME = 'grid-cols-[minmax(0,3fr)_minmax(0,4fr)_minmax(0,3fr)] gap-x-4'
+
+/** The grip's slot and the Actions slot, as wide in the heading line as in the rows, so the columns between line up */
+export const RULE_GRIP_SLOT_CLASS_NAME = 'w-8 shrink-0'
+export const RULE_ACTIONS_SLOT_CLASS_NAME = 'shrink-0 min-[750px]:w-24'
+
+/** The pause before typed text is searched for, as the merchants and tags lists have it */
+export const RULE_SEARCH_DEBOUNCE_MS = 300
 export const RULE_LIST_HEIGHT_TRANSITION = { duration: 0.24, ease: CONTENT_EASE_CURVE }
 export const DELETE_SPINNER_MS = LOADING_ANIMATION_MIN_MS
 

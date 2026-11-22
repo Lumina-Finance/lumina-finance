@@ -7,6 +7,7 @@ import { FeatureCover } from '@/components/feature-cover/Cover'
 import { useFeatureCover } from '@/components/feature-cover/useFeatureCover'
 import { BankConnectionsSection } from '@/pages/settings/components/bank-connections-section/Section'
 import CategorySettingsSection from '@/pages/settings/components/category-settings-section/Section'
+import ImportRulesSettingsSection from '@/pages/settings/components/import-rules-section/Section'
 import MerchantSettingsSection from '@/pages/settings/components/merchant-settings-section/Section'
 import TagSettingsSection from '@/pages/settings/components/tag-settings-section/Section'
 import ProfileSection from '@/pages/settings/components/ProfileSection'
@@ -143,7 +144,8 @@ export default function SettingsPage() {
       <header className="app-page-header mb-3 min-[1050px]:mb-4 min-[1200px]:mb-6">
         <h1 className="app-page-title">Settings</h1>
         <p className="app-page-description">
-          Manage your profile, security, runway preferences, categories, merchants, tags, and tax-advantaged categories.
+          Manage your profile, security, runway preferences, categories, merchants, tags, import rules, and
+          tax-advantaged categories.
         </p>
       </header>
 
@@ -242,6 +244,8 @@ export default function SettingsPage() {
           <MerchantSettingsSection />
 
           <TagSettingsSection />
+
+          <ImportRulesSettingsSection />
 
           <TaxAdvantagedCategoriesSection
             accounts={accounts ?? []}

@@ -1,6 +1,7 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import { invalidateImportRules } from '@/api/cache/invalidation'
 import { importRuleKeys } from '@/api/cache/queryKeys'
+import { moveImportRuleInList, numberImportRules } from '@/api/import-rules/order'
 import type { ImportRule } from '@/api/import-rules/types'
 
 type RulePages = InfiniteData<ImportRule[]>
@@ -44,7 +45,7 @@ function withoutSearchedRule(data: RulePages | undefined, ruleId: string): RuleP
  * loaded. A page keeps as many rows as it held, so a removed row leaves the last page one short
  */
 function rechunk(data: RulePages, rows: ImportRule[]): RulePages {
-  const numbered = rows.map((row, index) => (row.position === index ? row : { ...row, position: index }))
+  const numbered = numberImportRules(rows)
   let start = 0
   const pages = data.pages.map((page) => {
     const next = numbered.slice(start, start + page.length)
@@ -66,12 +67,8 @@ function rechunk(data: RulePages, rows: ImportRule[]): RulePages {
 export function moveRuleInPages(data: RulePages | undefined, ruleId: string, position: number): RulePages | undefined {
   if (!data) return data
   const rows = data.pages.flat()
-  const from = rows.findIndex((row) => row.id === ruleId)
-  if (from === -1 || position < 0 || position >= rows.length || position === from) return data
-  const moved = [...rows]
-  const [rule] = moved.splice(from, 1)
-  moved.splice(position, 0, rule)
-  return rechunk(data, moved)
+  const moved = moveImportRuleInList(rows, ruleId, position)
+  return moved === rows ? data : rechunk(data, moved)
 }
 
 /**

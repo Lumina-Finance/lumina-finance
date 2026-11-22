@@ -26,7 +26,7 @@ export type {
   UpdateImportRuleRequest,
 } from '@/api/import-rules/types'
 
-export { countImportRuleConditions } from '@/api/import-rules/order'
+export { countImportRuleConditions, moveImportRuleInList, numberImportRules } from '@/api/import-rules/order'
 
 export {
   createImportRule,

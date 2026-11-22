@@ -41,6 +41,8 @@ import {
   fetchImportRuleBudget,
   fetchImportRulesPage,
   moveImportRule,
+  moveImportRuleInList,
+  numberImportRules,
   updateImportRule,
   type ImportRule,
   type ImportRuleBudget,
@@ -212,6 +214,19 @@ describe('showing a move before the server answers', () => {
     const pages = buildPages()
 
     expect(moveRuleInPages(pages, ruleId, position)).toBe(pages)
+  })
+
+  it('moves the rows the list shows the same way, numbered from zero, and hands back the same array when nothing moves', () => {
+    const rows = buildPages().pages.flat()
+
+    expect(moveImportRuleInList(rows, 'd', 1).map(({ id, position }) => [id, position])).toEqual([
+      ['a', 0],
+      ['d', 1],
+      ['b', 2],
+      ['c', 3],
+    ])
+    expect(moveImportRuleInList(rows, 'b', 1)).toBe(rows)
+    expect(numberImportRules(rows)).toEqual(rows)
   })
 
   it('puts the old order back where the server refuses the move', () => {
