@@ -310,14 +310,17 @@ test('collapses a dropdown when its shortcut is pressed again, with Alt as the a
 })
 
 test('picks a tag with the keyboard from a list opened by a click', async ({ page, request }) => {
-  const { dialog } = await openAddDialogue(page, request)
+  // A second tag the search leaves out. With Holiday alone, the list shown before the search answers
+  // would already hold exactly the one option the search returns
+  const { dialog } = await openAddDialogue(page, request, { tags: ['Annual'] })
 
   await dialog.getByRole('combobox', { name: 'Account' }).click()
   await dialog.getByRole('option', { name: 'Everyday Chequing', exact: true }).click()
   await dialog.getByRole('combobox', { name: 'Tags' }).click()
   await expect(dialog.getByPlaceholder('Search tags...')).toBeFocused()
   await page.keyboard.type('Holi')
-  // Enter chooses what the search has narrowed to, so it waits for the narrowing to finish
+  // The search runs on the server once typing pauses, and an Enter before its answer shows runs the search
+  // instead of picking. One option on screen is that answer
   await expect(dialog.getByRole('option')).toHaveCount(1)
   await expect(dialog.getByRole('option', { name: 'Holiday', exact: true })).toBeVisible()
   await page.keyboard.press('Enter')
