@@ -49,6 +49,7 @@ const NativePasskeyPage = lazyPage(() => import('@/pages/auth/NativePasskeyPage'
 const PAGE_TRANSITION_MS = 350
 const PAGE_TRANSITION_OFFSET_PX = 12
 const ROUTE_LOADER_DELAY_MS = 300
+const AUTH_FORM_PATHS = new Set(['/login', '/signup', '/forgot-password'])
 
 type PageTransitionPhase = 'idle' | 'exiting' | 'loading' | 'entering'
 
@@ -426,13 +427,11 @@ function AnimatedRoutes() {
         !user.second_factor_reenrollment_required &&
         isProtectedPath(displayLocation.pathname) &&
         hasRevealedApp && <Navigation />}
+      {/* Login, sign-up and forgot-password share one key, so moving between them morphs the form in
+          place and keeps what the user typed */}
       <Routes
         location={displayLocation}
-        key={
-          displayLocation.pathname === '/signup' || displayLocation.pathname === '/forgot-password'
-            ? '/login'
-            : `${displayLocation.pathname}:${returnCount}`
-        }
+        key={AUTH_FORM_PATHS.has(displayLocation.pathname) ? '/login' : `${displayLocation.pathname}:${returnCount}`}
       >
         {/* Public routes — login, signup, password reset */}
         <Route element={<PublicRoute />}>
