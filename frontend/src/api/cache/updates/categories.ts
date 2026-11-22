@@ -5,6 +5,7 @@ import {
   invalidateDashboardBudgets,
   invalidateDashboardIncomeExpense,
   invalidateDashboardRecent,
+  invalidateImportRules,
   invalidateInsightsIncomeExpense,
   invalidateMerchants,
   invalidateTransactionOverview,
@@ -17,6 +18,8 @@ import type { Category } from '@/api/categories/types'
  * Invalidates views whose rendered labels, rollups, or defaults depend on categories
  */
 function invalidateCategoryUsageQueries(queryClient: QueryClient) {
+  // A rule's row shows the category it sets by name, and a merge moves the rule to the replacement
+  invalidateImportRules(queryClient)
   invalidateTransactions(queryClient)
   invalidateTransactionOverview(queryClient)
   invalidateAccounts(queryClient)

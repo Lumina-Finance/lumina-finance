@@ -103,7 +103,15 @@ const REQUEST_PARTS = new Set(['body', 'query', 'path', 'header', 'cookie'])
 
 /** A request field the server's validation refused, and why */
 export interface ApiFieldError {
+  /** The field's own name, the last name in its location */
   field: string
+
+  /**
+   * Where the field sits in the request, without the part of the request it was found in. Keeps the
+   * list indices that `field` leaves out, so an error at `["conditions", 2, "condition", "amount",
+   * "value"]` can be told from one on another row
+   */
+  path: Array<string | number>
   message: string
 }
 
@@ -116,8 +124,12 @@ function readFieldErrors(detail: unknown): ApiFieldError[] | undefined {
   const fieldErrors = detail.flatMap((entry): ApiFieldError[] => {
     if (typeof entry !== 'object' || entry === null || typeof entry.msg !== 'string') return []
     const loc: unknown[] = Array.isArray(entry.loc) ? entry.loc : []
-    const names = loc.filter((part): part is string => typeof part === 'string' && !REQUEST_PARTS.has(part))
-    return [{ field: names.at(-1) ?? '', message: entry.msg }]
+    const path = loc.filter(
+      (part): part is string | number =>
+        typeof part === 'number' || (typeof part === 'string' && !REQUEST_PARTS.has(part)),
+    )
+    const names = path.filter((part): part is string => typeof part === 'string')
+    return [{ field: names.at(-1) ?? '', path, message: entry.msg }]
   })
   return fieldErrors.length > 0 ? fieldErrors : undefined
 }

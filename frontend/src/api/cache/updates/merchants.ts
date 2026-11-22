@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import {
   invalidateDashboardRecent,
+  invalidateImportRules,
   invalidateInsightsMerchants,
   invalidateMerchantNameMatches,
   invalidateMerchantLookupPages,
@@ -16,6 +17,9 @@ import type { Merchant, UpdateMerchantPayload } from '@/api/merchants/types'
  */
 function invalidateMerchantUsageQueries(queryClient: QueryClient) {
   invalidateMerchants(queryClient)
+
+  // A rule's row shows the merchant it sets by name, and a merge moves the rule to the replacement
+  invalidateImportRules(queryClient)
   invalidateTransactions(queryClient)
   invalidateTransactionOverview(queryClient)
   invalidateDashboardRecent(queryClient)

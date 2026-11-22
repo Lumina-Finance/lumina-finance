@@ -61,7 +61,9 @@ describe('buildErrorReport', () => {
     const report = buildErrorReport({
       componentStack: null,
       error: new ApiError("Oops, the credit limit wasn't accepted. Please check it and try again.", 422, {
-        fieldErrors: [{ field: 'credit_limit', message: 'Input should be greater than or equal to 0' }],
+        fieldErrors: [
+          { field: 'credit_limit', path: ['credit_limit'], message: 'Input should be greater than or equal to 0' },
+        ],
       }),
       occurredAt: OCCURRED_AT,
       path: '/accounts',

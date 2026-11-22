@@ -9,6 +9,7 @@ import {
   invalidateDashboardCreditUtilization,
   invalidateDashboardIncomeExpense,
   invalidateDashboardRecent,
+  invalidateImportRules,
   invalidateInsightsBalance,
   invalidateInsightsIncomeExpense,
   invalidateInsightsMerchants,
@@ -61,6 +62,22 @@ export function invalidateAccountCreditData(
 }
 
 /**
+ * Refreshes the import rules when an account is renamed, since a rule's row names the account its
+ * condition is about
+ *
+ * @param previous - The account as cached before the update, or undefined when it was not cached,
+ *   which refreshes the rules since what changed is unknown
+ */
+export function invalidateRenamedAccountData(
+  queryClient: QueryClient,
+  previous: Pick<AccountsOverview, 'name'> | undefined,
+  account: Pick<AccountsOverview, 'name'>,
+) {
+  if (previous?.name === account.name) return
+  invalidateImportRules(queryClient)
+}
+
+/**
  * Refreshes the credit widget's account list when a revolving account's name or institution changes,
  * since the chooser shows both but no total changes
  *
@@ -109,6 +126,10 @@ export function invalidateAccountAggregateData(
   { isDeleted = false }: { isDeleted?: boolean } = {},
 ) {
   invalidateAccountData(queryClient, isDeleted ? [] : [accountId])
+
+  // A rule's account condition says whether its account is gone, and archiving or deleting one
+  // changes what the rule's row says
+  invalidateImportRules(queryClient)
   if (isDeleted) {
     markTransactionsStale(queryClient)
   } else {

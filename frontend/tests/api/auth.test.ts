@@ -255,7 +255,7 @@ describe('auth API functions', () => {
 
     await expect(signup(payload)).rejects.toMatchObject({
       message: "Oops, the email wasn't accepted. Please check it and try again.",
-      fieldErrors: [{ field: 'email', message: 'value is not a valid email address' }],
+      fieldErrors: [{ field: 'email', path: ['email'], message: 'value is not a valid email address' }],
       status: 422,
     })
   })

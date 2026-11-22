@@ -148,6 +148,28 @@ export const tagKeys = {
   nameMatches: (names: string[]) => ['tags', 'name-matches', names] as const,
 }
 
+export const importRuleKeys = {
+  all: ['import-rules'] as const,
+
+  /** Every page of the rules, in the order they are checked, read at one page size */
+  infinite: (pageSize: number) => ['import-rules', 'infinite', pageSize] as const,
+
+  /** Every list of pages, whatever page size it was read at */
+  infiniteAll: ['import-rules', 'infinite'] as const,
+
+  /**
+   * Every page of the rules that hold some text, read at one page size. Kept apart from the whole list, whose rows a
+   * move or a delete numbers again, since a search shows only some of the rules and each keeps its own place
+   */
+  searched: (pageSize: number, search: string) => ['import-rules', 'searched', pageSize, search] as const,
+
+  /** Every list of searched pages, whatever page size or text it was read at */
+  searchedAll: ['import-rules', 'searched'] as const,
+
+  /** The conditions the rules may hold together and how many they hold */
+  budget: () => ['import-rules', 'budget'] as const,
+}
+
 export const institutionKeys = {
   all: ['institutions'] as const,
   detail: (institutionId: string | null | undefined) => ['institutions', institutionId] as const,
