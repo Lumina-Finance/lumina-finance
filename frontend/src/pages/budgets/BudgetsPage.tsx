@@ -11,6 +11,7 @@ import {
 } from '@/api/budgets'
 import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
@@ -19,6 +20,7 @@ import BudgetArchivedSection from '@/pages/budgets/components/budget-cards/Archi
 import BudgetCreateModal from '@/pages/budgets/components/budget-editor-modal/CreateModal'
 import BudgetDetailsModal from '@/pages/budgets/components/budget-details-modal/Modal'
 import { useBudgetCards } from '@/pages/budgets/hooks/useBudgetCards'
+import { countOwnedBaseBudgets, getBudgetCountLimitReason } from '@/utils/budgetLimits'
 import { useRecurringBudgetBackfill } from '@/pages/budgets/hooks/useRecurringBudgetBackfill'
 import type { BudgetCardViewModel } from '@/pages/budgets/types'
 import { getTodayYmd, resolveTimeZone } from '@/utils/date'
@@ -126,14 +128,14 @@ export default function BudgetsPage() {
           <h1 className="app-page-title">Budgets</h1>
           <p className="app-page-description">Plan ahead and keep your spending in check.</p>
         </header>
-        <button
-          type="button"
+        <DisabledReasonButton
           className="app-primary-button w-full min-[750px]:w-auto"
+          disabledReason={getBudgetCountLimitReason(countOwnedBaseBudgets(baseBudgetsQuery.data))}
           onClick={() => requireCurrencies(() => setCreateOpen(true))}
         >
           <Plus size={18} aria-hidden />
           New budget
-        </button>
+        </DisabledReasonButton>
       </div>
 
       <BudgetCardsSection

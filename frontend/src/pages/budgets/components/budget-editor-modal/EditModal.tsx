@@ -18,7 +18,7 @@ import type {
 } from '@/pages/budgets/components/budget-editor-modal/types'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
-import { NO_CATEGORY_ERROR } from '@/pages/budgets/utils/budgetCreateValidation'
+import { getEditCategoryError } from '@/pages/budgets/utils/budgetFormValidation'
 import { BUDGET_FORM_FIELD_ORDER, getBudgetControlIds, sameStringSet } from '@/pages/budgets/utils/form'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -147,7 +147,8 @@ export default function BudgetEditModal({
   // every other edit to the budget
   const problems: BudgetFormFieldErrors = {}
   if (!form.name.trim()) problems.name = 'Name is required'
-  if (!hasCategory) problems.categoryIds = NO_CATEGORY_ERROR
+  const categoryError = getEditCategoryError(form.categoryIds, baseBudget.category_ids, hasCategory)
+  if (categoryError) problems.categoryIds = categoryError
   if (latestPeriod && !isLimitLocked && limitMinorUnits === null) problems.limit = 'Limit must be greater than zero'
   const refusal = useRefusedSubmit(problems, BUDGET_FORM_FIELD_ORDER, getBudgetControlIds(EDIT_FIELD_IDS))
   const resetRefusal = refusal.reset

@@ -60,6 +60,9 @@ type FireflyBudgetImportStepProps = Pick<
   | 'setBudgetsSelected'
   | 'importedBudgetNames'
   | 'budgetSelectionError'
+  | 'budgetSelectionCheck'
+  | 'retryBudgetCount'
+  | 'isRetryingBudgetCount'
   | 'budgetCountingNotes'
   | 'importOverlayOpen'
 >
@@ -76,6 +79,9 @@ export function FireflyBudgetImportStep({
   setBudgetsSelected,
   importedBudgetNames,
   budgetSelectionError,
+  budgetSelectionCheck,
+  retryBudgetCount,
+  isRetryingBudgetCount,
   budgetCountingNotes,
   importOverlayOpen,
 }: FireflyBudgetImportStepProps) {
@@ -111,6 +117,9 @@ export function FireflyBudgetImportStep({
       skippedRows={skippedRows}
       skippedReasonLang="en"
       selectionError={budgetSelectionError}
+      selectionCheck={budgetSelectionCheck}
+      onRetrySelectionCheck={retryBudgetCount}
+      isRetryingSelectionCheck={isRetryingBudgetCount}
       noBudgetsDescription="The budgets CSV has no budget limit rows."
       allSkippedDescription="Every budget in the export is skipped, for the reasons listed below."
       budgets={importableDrafts}

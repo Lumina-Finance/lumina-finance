@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { BudgetFormState } from '@/pages/budgets/types'
-import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
+import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetFormValidation'
 
 // A fixed today, since the far edge of the window moves with it
 const TODAY = '2026-06-10'

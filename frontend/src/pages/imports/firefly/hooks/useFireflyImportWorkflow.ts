@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useExistingBudgetCount } from '@/pages/imports/hooks/useExistingBudgetCount'
 import { getTodayYmd } from '@/utils/date'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
-  IMPORT_MAX_BUDGETS,
   IMPORT_SAMPLE_PREVIEW_LIMIT,
   IMPORT_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/constants'
@@ -27,6 +27,7 @@ import {
   buildProviderRunBudgets,
   countCreatedImportSources,
   getImportUploadBlockReason,
+  getBudgetCountCheck,
   getProviderBudgetSelectionError,
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
@@ -76,6 +77,12 @@ const FIREFLY_FILE_KINDS: readonly FireflyFileKind[] = ['transactions', 'budgets
  */
 export function useFireflyImportWorkflow() {
   const { user } = useAuth()
+  const {
+    existingBudgetCount,
+    budgetsFailed,
+    isRetrying: isRetryingBudgetCount,
+    retry: retryBudgetCount,
+  } = useExistingBudgetCount()
   const todayYmd = getTodayYmd(user?.tz)
   const [transactionsFile, setTransactionsFile] = useState<ImportFileDraft | null>(null)
   const [budgetsFile, setBudgetsFile] = useState<ImportFileDraft | null>(null)
@@ -499,10 +506,12 @@ export function useFireflyImportWorkflow() {
   }, [importBuild.payload, pendingBudgetDrafts])
 
   const budgetSelectionError = getProviderBudgetSelectionError(
-    pendingBudgetDrafts.length,
-    IMPORT_MAX_BUDGETS,
+    pendingBudgetDrafts.map((draft) => ({ name: draft.name, categoryCount: new Set(draft.categoryNames).size })),
+    existingBudgetCount,
+    budgetsFailed,
     runBudgetsBuild.error,
   )
+  const budgetSelectionCheck = getBudgetCountCheck(existingBudgetCount, budgetsFailed, pendingBudgetDrafts.length)
 
   const canCommitImport = run.canCommit({
     hasPayload: importBuild.payload !== null,
@@ -648,6 +657,9 @@ export function useFireflyImportWorkflow() {
     budgetDrafts,
     selectedBudgetNames: resolvedSelectedBudgets,
     budgetSelectionError,
+    budgetSelectionCheck,
+    retryBudgetCount,
+    isRetryingBudgetCount,
     budgetCountingNotes,
     accountsLoading,
     currenciesLoading,

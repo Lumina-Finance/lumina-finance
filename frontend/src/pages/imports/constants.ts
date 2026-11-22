@@ -223,9 +223,6 @@ export const IMPORT_CATEGORY_NAME_MAX_LENGTH = 256
 export const IMPORT_TAG_NAME_MAX_LENGTH = 64
 export const IMPORT_BUDGET_NAME_MAX_LENGTH = 256
 
-// Most budgets one import takes, mirroring the backend schema
-export const IMPORT_MAX_BUDGETS = 1000
-
 /**
  * Longest value the journal import endpoint takes in each row field, mirroring the backend schema
  *

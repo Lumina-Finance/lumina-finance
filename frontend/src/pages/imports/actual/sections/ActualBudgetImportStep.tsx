@@ -20,6 +20,9 @@ type ActualBudgetImportStepProps = Pick<
   | 'setBudgetsSelected'
   | 'importedBudgetNames'
   | 'budgetSelectionError'
+  | 'budgetSelectionCheck'
+  | 'retryBudgetCount'
+  | 'isRetryingBudgetCount'
   | 'importOverlayOpen'
 >
 
@@ -41,6 +44,9 @@ export function ActualBudgetImportStep({
   setBudgetsSelected,
   importedBudgetNames,
   budgetSelectionError,
+  budgetSelectionCheck,
+  retryBudgetCount,
+  isRetryingBudgetCount,
   importOverlayOpen,
 }: ActualBudgetImportStepProps) {
   if (!budget) return null
@@ -112,6 +118,9 @@ export function ActualBudgetImportStep({
       skippedAmountHeaders={SKIPPED_BUDGET_AMOUNT_HEADERS}
       skippedRows={skippedRows}
       selectionError={budgetSelectionError}
+      selectionCheck={budgetSelectionCheck}
+      onRetrySelectionCheck={retryBudgetCount}
+      isRetryingSelectionCheck={isRetryingBudgetCount}
       noBudgetsDescription="Nothing in this budget was given an amount above zero."
       allSkippedDescription="Every budget is skipped, for the reasons listed above."
       budgets={importableDrafts}

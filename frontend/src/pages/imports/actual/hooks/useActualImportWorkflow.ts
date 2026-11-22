@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useExistingBudgetCount } from '@/pages/imports/hooks/useExistingBudgetCount'
 import { getTodayYmd, resolveTimeZone } from '@/utils/date'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { createRandomId } from '@/utils/randomId'
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_CATEGORY_VALUE,
-  IMPORT_MAX_BUDGETS,
   IMPORT_SAMPLE_PREVIEW_LIMIT,
   IMPORT_TRANSFER_CATEGORY_NAME,
 } from '@/pages/imports/constants'
@@ -29,6 +29,7 @@ import {
   buildProviderRunBudgets,
   countCreatedImportSources,
   getImportUploadBlockReason,
+  getBudgetCountCheck,
   getProviderBudgetSelectionError,
   getSupportedCurrencyCodes,
   groupPreviewRowsByDate,
@@ -103,6 +104,12 @@ const EMPTY_BUILD: ActualImportBuild = {
  */
 export function useActualImportWorkflow() {
   const { user } = useAuth()
+  const {
+    existingBudgetCount,
+    budgetsFailed,
+    isRetrying: isRetryingBudgetCount,
+    retry: retryBudgetCount,
+  } = useExistingBudgetCount()
   const today = getTodayYmd(resolveTimeZone(user?.tz))
   const [stagedFile, setStagedFile] = useState<ActualStagedFile | null>(null)
   const [budget, setBudget] = useState<ActualBudgetFile | null>(null)
@@ -451,11 +458,14 @@ export function useActualImportWorkflow() {
     )
   }, [budget, currencyExponent, importBuild, pendingBudgetDrafts])
 
+  // An Actual budget tracks its one category
   const budgetSelectionError = getProviderBudgetSelectionError(
-    pendingBudgetDrafts.length,
-    IMPORT_MAX_BUDGETS,
+    pendingBudgetDrafts.map((draft) => ({ name: draft.name, categoryCount: 1 })),
+    existingBudgetCount,
+    budgetsFailed,
     runBudgetsBuild.error,
   )
+  const budgetSelectionCheck = getBudgetCountCheck(existingBudgetCount, budgetsFailed, pendingBudgetDrafts.length)
 
   // Rows the reader left out and rows the chosen currency can't hold, in date order
   const predictedSkippedRows = useMemo(
@@ -663,6 +673,9 @@ export function useActualImportWorkflow() {
     budgetsMissingPayments,
     selectedBudgetIds: resolvedSelectedBudgetIds,
     budgetSelectionError,
+    budgetSelectionCheck,
+    retryBudgetCount,
+    isRetryingBudgetCount,
     importEstimate,
     previewRows,
     previewGroups,

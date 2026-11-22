@@ -19,7 +19,7 @@ import { CREATE_BUDGET_MIN_LOADING_MS, MODAL_SURFACE_TRANSITION_MS } from '@/pag
 import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
 import type { BudgetFormState } from '@/pages/budgets/types'
 import { recurrenceAnchorsFromStart } from '@/pages/budgets/utils/budgetPeriods'
-import { validateBudgetCreateForm } from '@/pages/budgets/utils/budgetCreateValidation'
+import { getCreateCategoryError, validateBudgetCreateForm } from '@/pages/budgets/utils/budgetFormValidation'
 import { BUDGET_FORM_FIELD_ORDER, getBudgetControlIds } from '@/pages/budgets/utils/form'
 import { getTodayYmd } from '@/utils/date'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
@@ -106,7 +106,11 @@ export default function BudgetCreateModal({
     filteredCategories: filteredExpenseCategories,
     currencies,
   }
-  const showError: BudgetEditorModalErrorGetter = (field) => refusal.errors[field]
+  // A pick past the category limit is shown at once, since the person has just made it so
+  const showError: BudgetEditorModalErrorGetter = (field) =>
+    field === 'categoryIds'
+      ? getCreateCategoryError(form.categoryIds.length, refusal.errors[field])
+      : refusal.errors[field]
 
   /**
    * Restores the create form to the latest default currency and local start date

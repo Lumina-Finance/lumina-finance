@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { TriangleAlert } from 'lucide-react'
+import type { BudgetCountCheck } from '@/pages/imports/utils/providerImportRun'
 import {
   EmptyState,
   ImportBudgetSelectionTable,
@@ -27,6 +29,13 @@ type ImportBudgetStepProps<Budget extends { name: string; isArchived: boolean }>
     /** The language the skipped budgets' reasons are written in when it differs from the page's */
     skippedReasonLang?: string
     selectionError: string | null
+
+    /** Set while the selection waits on the count of the person's budgets. The wait shows apart from an error */
+    selectionCheck: BudgetCountCheck
+    onRetrySelectionCheck: () => void
+
+    /** The count of budgets is being asked for again after a failure */
+    isRetryingSelectionCheck: boolean
     noBudgetsDescription: string
     allSkippedDescription: string
   }
@@ -47,6 +56,9 @@ export function ImportBudgetStep<Budget extends { name: string; isArchived: bool
   skippedRows,
   skippedReasonLang,
   selectionError,
+  selectionCheck,
+  onRetrySelectionCheck,
+  isRetryingSelectionCheck,
   noBudgetsDescription,
   allSkippedDescription,
   ...table
@@ -70,7 +82,33 @@ export function ImportBudgetStep<Budget extends { name: string; isArchived: bool
         />
       )}
 
-      {selectionError && (
+      {selectionError && selectionCheck === 'failed' && (
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-lg py-1 pl-3 pr-1.5 text-xs"
+          style={{ background: 'var(--app-negative-soft)', color: 'var(--app-text)' }}
+        >
+          <TriangleAlert size={14} aria-hidden className="shrink-0" style={{ color: 'var(--app-negative)' }} />
+          <span className="min-w-0 flex-1 text-pretty">{selectionError}</span>
+          <button
+            type="button"
+            onClick={() => {
+              if (!isRetryingSelectionCheck) onRetrySelectionCheck()
+            }}
+            aria-disabled={isRetryingSelectionCheck}
+            aria-busy={isRetryingSelectionCheck}
+            className="app-inline-link shrink-0 font-medium underline underline-offset-2 aria-disabled:cursor-default"
+          >
+            {isRetryingSelectionCheck ? 'Retrying…' : 'Try again'}
+          </button>
+        </div>
+      )}
+      {selectionError && selectionCheck === 'checking' && (
+        <p role="status" className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>
+          {selectionError}
+        </p>
+      )}
+      {selectionError && selectionCheck === null && (
         <p role="alert" className="text-sm font-medium" style={{ color: 'var(--app-negative)' }}>
           {selectionError}
         </p>
