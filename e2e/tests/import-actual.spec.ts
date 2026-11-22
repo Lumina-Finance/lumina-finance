@@ -81,13 +81,21 @@ test('imports an Actual Budget export with the balances and budgets Actual showe
   expect(balances).toEqual(Object.fromEntries(YEN_MANIFEST.accounts.map((account) => [account.name, `JPY ${Number(account.balance)}`])))
 
   // Each month Actual budgeted above zero is one period of that many whole yen, and neither
-  // budget repeats, since both ended before this month
-  const periods = await (await request.get(`${API_BASE_URL}/budgets`, { headers })).json() as {
-    period_start: string
-    overall_limit: number
-    base_budget: { name: string; recurs: boolean }
+  // budget repeats, since both ended before this month. The budget list carries only each
+  // budget's latest period, so each budget's periods are read from its utilizations
+  const baseBudgets = await (await request.get(`${API_BASE_URL}/base-budgets`, { headers })).json() as {
+    id: string
+    name: string
+    recurs: boolean
   }[]
-  expect(periods.map((period) => [period.base_budget.name, period.period_start.slice(0, 7), period.overall_limit, period.base_budget.recurs]).sort())
+  const periods = (await Promise.all(baseBudgets.map(async (baseBudget) => {
+    const history = await (await request.get(`${API_BASE_URL}/base-budgets/${baseBudget.id}/utilizations`, { headers })).json() as {
+      period_start: string
+      overall_limit: number
+    }[]
+    return history.map((period) => [baseBudget.name, period.period_start.slice(0, 7), period.overall_limit, baseBudget.recurs])
+  }))).flat()
+  expect(periods.sort())
     .toEqual(YEN_MANIFEST.budgets
       .filter((figure) => !figure.isIncome && Number(figure.budgeted) > 0)
       .map((figure) => [figure.category, figure.month, Number(figure.budgeted), false])
