@@ -11,10 +11,6 @@ interface RevealRowProps {
 
   /** The padding that spaces this row from the next, for a list that wants less than the default */
   spacingClassName?: string
-
-  /** Places the clipping box itself, such as a negative margin that, with padding to match, lets the content draw
-      past the list's edges without being cut off */
-  className?: string
 }
 
 /**
@@ -23,7 +19,7 @@ interface RevealRowProps {
  * uses the timing the collapsible sections use. The row spaces itself with bottom padding, since a
  * margin or a gap between siblings would still snap as the row goes
  */
-export default function RevealRow({ children, testId, spacingClassName = 'pb-2', className }: RevealRowProps) {
+export default function RevealRow({ children, testId, spacingClassName = 'pb-2' }: RevealRowProps) {
   const prefersReducedMotion = useReducedMotion()
   const transition = {
     duration: prefersReducedMotion ? 0 : COLLAPSIBLE_SECTION_TRANSITION_SECONDS,
@@ -36,7 +32,6 @@ export default function RevealRow({ children, testId, spacingClassName = 'pb-2',
       exit={{ height: 0, opacity: 0 }}
       transition={transition}
       style={{ overflow: 'hidden' }}
-      className={className}
       data-testid={testId}
     >
       <div className={spacingClassName}>{children}</div>

@@ -256,25 +256,12 @@ test('shows an expense and its refunds as one chain with what is left to refund'
     await picker.getByRole('button', { name: 'Link', exact: true }).click()
     await expect(picker).toBeHidden()
     await expect(order.getByTestId('linked-transaction')).toContainText(['+$120.00', '+$320.00', '+$200.00'])
-    // Only the held link sits in the dashed box with the Unsaved tag
+    // Only the held link carries the Unsaved tag
     const held = order.locator('[data-not-saved]')
     await expect(held).toHaveCount(1)
     await expect(order.getByTestId('linked-transaction').first()).toHaveAttribute('data-not-saved', 'true')
     await expect(held).toContainText('Unsaved')
-    await expect(held).toHaveCSS('border-top-style', 'dashed')
-
-    // The box draws past the row's text on every side, and the row that grows it into place clips, so the whole box
-    // has to sit inside that row to show its edges once the row has finished growing in
-    await expect(async () => {
-      const [heldBox, heldRowBox] = await Promise.all([
-        held.boundingBox(),
-        order.getByTestId('linked-row').filter({ has: page.locator('[data-not-saved]') }).boundingBox(),
-      ])
-      expect(heldBox!.x).toBeGreaterThanOrEqual(heldRowBox!.x)
-      expect(heldBox!.y).toBeGreaterThanOrEqual(heldRowBox!.y)
-      expect(heldBox!.x + heldBox!.width).toBeLessThanOrEqual(heldRowBox!.x + heldRowBox!.width)
-      expect(heldBox!.y + heldBox!.height).toBeLessThanOrEqual(heldRowBox!.y + heldRowBox!.height)
-    }).toPass()
+    await expect(order.getByText('Unsaved', { exact: true })).toHaveCount(1)
     await expect(order.getByTestId('refund-room')).toHaveText('$0.00')
     await order.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(order).toBeHidden()

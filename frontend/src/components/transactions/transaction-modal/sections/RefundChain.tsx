@@ -43,9 +43,9 @@ function ChainSegment({ drawn }: { drawn: boolean }) {
 }
 
 /**
- * Half the dashed line between two refunds, drawn above and below each one. An unsaved refund's box spreads over both
- * halves, so the box stays inside the refund's own row. That row clips as it grows and collapses. Under the last refund
- * the half keeps its room with no line, so the line ends at that refund's icon
+ * Half the dashed line between two refunds, drawn above and below each one inside the refund's own row, so the room
+ * grows and collapses with the row. Under the last refund the half keeps its room with no line, so the line ends at
+ * that refund's icon
  */
 export function RefundChainGap({ drawn = true }: { drawn?: boolean }) {
   return (
@@ -128,13 +128,8 @@ export function RefundChainRow({
 }: RefundChainRowProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   return (
-    // A link Save has yet to make sits in a dashed amber box. The box reaches past the row by 8px on each side and 4px
-    // above and below, into the room between rows, and its padding and border take that back. So the row keeps its
-    // place and height, and nothing moves when Save turns the box back into a plain row. Two unsaved refunds in a row
-    // keep 4px of the 12px between them, so their boxes never touch
     <div
-      className={`flex items-center gap-3 ${notSaved ? '-mx-2 -my-1 rounded-lg border border-dashed px-[7px] py-[3px]' : ''}`}
-      style={notSaved ? { background: 'var(--app-warning-soft)', borderColor: 'var(--app-warning-dot)' } : undefined}
+      className="flex items-center gap-3"
       data-testid={testId}
       data-link-id={linkId}
       data-not-saved={notSaved ? 'true' : undefined}
@@ -143,12 +138,8 @@ export function RefundChainRow({
       <span className="flex w-9 shrink-0 flex-col items-center self-stretch">
         <ChainSegment drawn={lineAbove} />
         <span
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg leading-none ${notSaved ? 'border-[1.5px] border-dashed' : ''}`}
-          style={
-            notSaved
-              ? { borderColor: 'var(--app-warning-dot)', background: 'var(--app-surface-soft)' }
-              : { background: 'var(--app-surface-soft)' }
-          }
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg leading-none"
+          style={{ background: 'var(--app-surface-soft)' }}
           aria-hidden
         >
           {icon}
@@ -176,10 +167,7 @@ export function RefundChainRow({
             dot in front, and the negative margin pushes the dot of a phrase starting a line out of the clipped box.
             The dot is drawn rather than written, with empty alternative text, so screen readers skip it */}
         <div className="overflow-hidden">
-          <p
-            className="-ml-3 flex flex-wrap text-xs leading-4"
-            style={{ color: notSaved ? 'var(--app-text-muted-on-warning)' : 'var(--app-text-muted)' }}
-          >
+          <p className="-ml-3 flex flex-wrap text-xs leading-4" style={{ color: 'var(--app-text-muted)' }}>
             {[kind, formatDateLabel(dt)].map((part) => (
               <span
                 key={part}
@@ -193,18 +181,14 @@ export function RefundChainRow({
       </div>
       <span
         className="font-financial shrink-0 text-sm"
-        // On the unsaved row's amber the plain green reads under 4.5:1 in the light theme, so it takes the darker green
-        style={{
-          color: amount <= 0 ? 'var(--app-text)' : notSaved ? 'var(--app-positive-text)' : 'var(--app-positive)',
-        }}
+        style={{ color: amount <= 0 ? 'var(--app-text)' : 'var(--app-positive)' }}
       >
         {formatMovedCurrency(amount, currency)}
       </span>
       {/* The row grows and collapses inside a box that clips, so the focus ring is drawn inside the button's edge */}
       {unlink && (
         <HintButton
-          // On the unsaved row's amber the usual ring falls under 3:1 in the dark theme, so it takes the box's edge colour
-          className={`app-icon-button shrink-0 focus-visible:[outline-offset:calc(var(--app-focus-offset)*-1)] ${notSaved ? 'focus-visible:[outline-color:var(--app-warning-dot)]' : ''}`}
+          className="app-icon-button shrink-0 focus-visible:[outline-offset:calc(var(--app-focus-offset)*-1)]"
           hint="Unlink"
           aria-label={`Unlink ${unlink.otherName}`}
           disabled={unlink.disabled}

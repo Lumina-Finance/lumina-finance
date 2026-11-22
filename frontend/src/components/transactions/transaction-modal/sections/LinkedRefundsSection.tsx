@@ -256,7 +256,7 @@ export default function TransactionModalLinkedRefundsSection({
     onUnlink: () => void,
     last: boolean,
   ) => (
-    <RevealRow key={key} testId="linked-row" className="-mx-2" spacingClassName="px-2">
+    <RevealRow key={key} testId="linked-row" spacingClassName="">
       <RefundChainGap />
       <RefundChainRow
         icon={iconOf(current)}
@@ -283,7 +283,7 @@ export default function TransactionModalLinkedRefundsSection({
       ...savedRefundIds.map((refundId, index) => ({
         dt: savedRefunds[index]?.dt,
         row: (last: boolean) => (
-          <RevealRow key={refundId} testId="linked-row" className="-mx-2" spacingClassName="px-2">
+          <RevealRow key={refundId} testId="linked-row" spacingClassName="">
             <RefundChainGap />
             <SavedRefundRow
               refundId={refundId}
