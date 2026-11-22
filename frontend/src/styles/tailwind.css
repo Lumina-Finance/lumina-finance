@@ -2465,14 +2465,13 @@
     background: var(--app-hover-soft);
   }
 
-  /* An option held back with its reason stays focusable, faded as a locked control is, with no hover fill */
-  .app-segmented-option[aria-disabled="true"] {
+  /* An option held back with its reason stays focusable, with no hover or focus fill. Its label is faded
+     by halving its colour's alpha rather than with opacity, which would fade the focus ring too */
+  .app-segmented-option[aria-disabled="true"],
+  .app-segmented-option[aria-disabled="true"]:hover,
+  .app-segmented-option[aria-disabled="true"]:focus-visible {
     cursor: not-allowed;
-    opacity: 0.6;
-  }
-
-  .app-segmented-option[aria-disabled="true"]:hover {
-    color: var(--app-text-muted);
+    color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
     background: transparent;
   }
 

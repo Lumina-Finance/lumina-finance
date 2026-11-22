@@ -17,6 +17,14 @@ export const BUDGET_PERIOD_LIMIT_ERROR = `A budget can go back at most ${MAX_BUD
 export const BUDGET_REPEAT_LIMIT_REASON = `This budget can't repeat: a budget can go back at most ${MAX_BUDGET_PERIODS.toLocaleString('en-CA')} periods.`
 
 /**
+ * Whether a budget is held to the most periods one keeps, as on the server. Only a person's own budgets
+ * are, since a group's budget keeps every period its members see
+ */
+export function isPeriodLimited(baseBudget: Pick<BaseBudget, 'group_id'>) {
+  return baseBudget.group_id === null
+}
+
+/**
  * Counts the budgets toward the most a person keeps. Those are the ones they own, archived included,
  * and a group's budgets belong to the group and are not counted
  */

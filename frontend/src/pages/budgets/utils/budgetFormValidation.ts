@@ -9,6 +9,7 @@ import {
   BUDGET_REPEAT_LIMIT_REASON,
   MAX_BUDGET_PERIODS,
   getBudgetCategoryLimitError,
+  isPeriodLimited,
 } from '@/utils/budgetLimits'
 import { toMinorUnits } from '@/pages/budgets/utils/money'
 import { getDateWindowError } from '@/utils/dateWindow'
@@ -42,7 +43,7 @@ export function getRepeatLimitReason(
   latestPeriod: Pick<Budget, 'period_start'> | undefined,
   todayYmd: string,
 ) {
-  if (baseBudget.recurs || baseBudget.group_id !== null || !latestPeriod) return undefined
+  if (baseBudget.recurs || !isPeriodLimited(baseBudget) || !latestPeriod) return undefined
 
   const count = countRecurringPeriodsThrough(baseBudget, latestPeriod.period_start, todayYmd, MAX_BUDGET_PERIODS)
   return count !== null && count > MAX_BUDGET_PERIODS ? BUDGET_REPEAT_LIMIT_REASON : undefined

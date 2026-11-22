@@ -86,6 +86,34 @@ def ensure_series_within_period_limit(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
 
 
+async def ensure_one_off_budget_can_repeat(db: AsyncSession, base_budget: BaseBudget, today: date) -> None:
+    """Raise when a one-off budget switched to recurring would fill in more periods than a budget keeps
+
+    The Budgets page fills in every period from the latest one to today, so a series that long would
+    remove the period the person set up. A group's budget keeps every period, so it can always repeat
+
+    Raises:
+        HTTPException: Raised with 422 when the periods from the latest one to today pass the limit
+    """
+    if not is_period_limited(base_budget.group_id):
+        return
+
+    latest_start_query = select(func.max(Budget.period_start)).where(Budget.base_budget_id == base_budget.id)
+    latest_start = (await db.execute(latest_start_query)).scalar_one()
+    if latest_start is None:
+        return
+
+    ensure_series_within_period_limit(
+        latest_start,
+        today,
+        base_budget.recurrence_freq,
+        base_budget.instance_length,
+        dom=base_budget.recurrence_dom,
+        month=base_budget.recurrence_month,
+        detail=REPEAT_PAST_PERIOD_LIMIT_MESSAGE,
+    )
+
+
 async def lock_base_budget_periods(db: AsyncSession, base_budget_id: uuid.UUID) -> None:
     """Hold the base budget's row until commit, so periods added at once count and remove in turn
 
