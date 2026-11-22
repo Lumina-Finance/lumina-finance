@@ -11,7 +11,6 @@ heartbeat and what the worker needs before it starts are covered last
 """
 
 import asyncio
-import contextlib
 import json
 import os
 import signal
@@ -314,18 +313,12 @@ async def _run_worker_until_first_scan_then_stop(monkeypatch) -> None:
     async def nothing(*_) -> None:
         """Stand in for a start-up check"""
 
-    @contextlib.asynccontextmanager
-    async def connect():
-        """Stand in for a database connection"""
-        yield None
-
     loop = asyncio.get_running_loop()
     monkeypatch.setattr(loop, "add_signal_handler", lambda sig, callback, *args: handlers.__setitem__(sig, callback))
     monkeypatch.setattr(worker, "enqueue_due_work", scan)
     monkeypatch.setattr(worker, "_wait_for_database", nothing)
-    monkeypatch.setattr(worker, "verify_app_role_is_unprivileged", nothing)
-    monkeypatch.setattr(worker, "verify_key_matches_data", nothing)
-    monkeypatch.setattr(worker, "engine", SimpleNamespace(connect=connect, dispose=nothing))
+    monkeypatch.setattr(worker, "verify_ready_to_sync", nothing)
+    monkeypatch.setattr(worker, "engine", SimpleNamespace(dispose=nothing))
 
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(worker.run_worker())
@@ -370,11 +363,6 @@ async def test_worker_with_no_provider_enabled_keeps_its_heartbeat_and_claims_no
     async def nothing(*_) -> None:
         """Stand in for a start-up check"""
 
-    @contextlib.asynccontextmanager
-    async def connect():
-        """Stand in for a database connection"""
-        yield None
-
     remove_provider(monkeypatch, "fake")
     loop = asyncio.get_running_loop()
     monkeypatch.setattr(loop, "add_signal_handler", lambda sig, callback, *args: handlers.__setitem__(sig, callback))
@@ -382,9 +370,8 @@ async def test_worker_with_no_provider_enabled_keeps_its_heartbeat_and_claims_no
     monkeypatch.setattr(worker, "enqueue_due_work", refuse)
     monkeypatch.setattr(worker, "run_jobs", refuse)
     monkeypatch.setattr(worker, "_wait_for_database", nothing)
-    monkeypatch.setattr(worker, "verify_app_role_is_unprivileged", nothing)
-    monkeypatch.setattr(worker, "verify_key_matches_data", nothing)
-    monkeypatch.setattr(worker, "engine", SimpleNamespace(connect=connect, dispose=nothing))
+    monkeypatch.setattr(worker, "verify_ready_to_sync", nothing)
+    monkeypatch.setattr(worker, "engine", SimpleNamespace(dispose=nothing))
 
     async with asyncio.timeout(_WAIT_SECONDS):
         running = asyncio.create_task(worker.run_worker())

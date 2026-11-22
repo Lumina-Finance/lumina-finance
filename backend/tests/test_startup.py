@@ -19,6 +19,7 @@ import pytest
 from app import extension, main, startup
 from app import valkey_store as store_module
 from app.config.env import require
+from app.db import database_keys
 from app.services.fx import rate_cache
 from app.services.fx.rate_cache import CachedFxRateProvider
 from app.services.maintenance import expired_records
@@ -186,9 +187,9 @@ async def test_the_database_key_checks_run_on_one_connection_and_the_data_check_
     async def record(name: str, given) -> None:
         seen.append((name, given))
 
-    monkeypatch.setattr(startup, "engine", SimpleNamespace(connect=connect))
-    monkeypatch.setattr(startup, "verify_key_matches_data", lambda given: record("data", given))
-    monkeypatch.setattr(startup, "verify_key_matches_hashes", lambda given: record("hashes", given))
+    monkeypatch.setattr(database_keys, "engine", SimpleNamespace(connect=connect))
+    monkeypatch.setattr(database_keys, "verify_key_matches_data", lambda given: record("data", given))
+    monkeypatch.setattr(database_keys, "verify_key_matches_hashes", lambda given: record("hashes", given))
 
     await extension.verify_database_keys()
 
