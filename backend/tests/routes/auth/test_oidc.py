@@ -9,6 +9,7 @@ import jwt as pyjwt
 import pytest
 from sqlalchemy import select, update
 
+from app import signup_check_hook
 from app.config.oidc import OIDC_REAUTH_MAX_AGE_SECONDS
 from app.encryption import encrypt
 from app.models.auth import AuthIdentity
@@ -533,6 +534,44 @@ async def test_callback_closed_registration_keeps_email_conflict(client, provide
     await _seed_provider()
     provider_protocol["claims"] = _claims(email=SIGNUP_PAYLOAD["email"], email_verified=True)
     monkeypatch.setattr(registration, "REGISTRATION_ENABLED", False)
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "email_already_registered"
+
+
+@pytest.fixture
+def refusing_signup_check(monkeypatch):
+    """Install a sign-up check refusing every address for this test alone"""
+
+    async def refuse(attempt: signup_check_hook.SignupAttempt) -> bool:
+        return False
+
+    monkeypatch.setattr(signup_check_hook, "_check", refuse)
+
+
+async def test_callback_signup_check_refuses_new_user_as_closed_registration(client, provider_protocol, refusing_signup_check):
+    """A first-time sign-in the sign-up check refuses gets the closed-registration answer and starts no onboarding"""
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Registration is closed on this instance"
+    async with TestSession() as session:
+        assert (await session.execute(select(User))).scalars().all() == []
+
+
+async def test_callback_signup_check_keeps_email_conflict(client, provider_protocol, refusing_signup_check):
+    """An existing account's owner still gets the sign-in-and-link path while the sign-up check refuses everyone"""
+    await _seed_currency()
+    await sign_up_confirmed(client, SIGNUP_PAYLOAD)
+    await _seed_provider()
+    provider_protocol["claims"] = _claims(email=SIGNUP_PAYLOAD["email"], email_verified=True)
 
     state = await _start_sign_in(client)
     resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})

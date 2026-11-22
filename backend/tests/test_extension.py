@@ -63,6 +63,8 @@ EXPECTED_SHAPES: dict[str, str] = {
     "EmailSender": "async EmailSender.send(self, recipient: str, message: RenderedEmail) -> None",
     "RenderedEmail": "RenderedEmail(subject: str, text_body: str, html_body: str | None = ...)",
     "set_service_name": "set_service_name(name: str) -> None",
+    "set_signup_check": "set_signup_check(check: Callable[[SignupAttempt], Awaitable[bool]]) -> None",
+    "SignupAttempt": "SignupAttempt(email: str)",
     "verify_ready_to_sync": "async verify_ready_to_sync() -> None",
     "enqueue_due_work": "async enqueue_due_work() -> None",
     "run_jobs": "async run_jobs(max_jobs: int, deadline: datetime | None = ...) -> int",

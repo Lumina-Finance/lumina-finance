@@ -34,7 +34,7 @@ from app.services.auth.oidc_client import (
     verify_provider_id_token,
 )
 from app.services.auth.oidc_providers import get_enabled_oidc_provider_by_id
-from app.services.auth.registration import reject_closed_registration
+from app.services.auth.registration import reject_closed_registration, reject_refused_provider_signup
 from app.services.auth.sessions import delete_other_user_auth_sessions
 from app.services.auth.signup import reject_missing_base_currency, reject_registered_email
 from app.services.auth.token_hashing import hash_token
@@ -189,7 +189,7 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser
         HTTPException: The roundtrip is unknown or expired, the binding secret is missing
             or wrong, the provider rejects the exchange, the token does not verify, the email is
             missing, unverified when verification is required, or verified and already registered,
-            or a new user would be onboarded while registration is closed
+            or a new user would be onboarded while registration is closed or the sign-up check refuses
     """
     request_row = await _consume_authorization_request(db, state, OIDC_PURPOSE_LOGIN)
 
@@ -240,6 +240,9 @@ async def complete_oidc_sign_in(db: AsyncSession, code: str, state: str, browser
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Identity provider did not verify the email address",
         )
+
+    # Asked after the email conflict above, so a registered address keeps its own answer
+    await reject_refused_provider_signup(email)
 
     return OidcOnboardingClaims(
         provider_slug=provider.slug,
