@@ -2,11 +2,12 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.request_hook import UNMATCHED_ROUTE
+from app.request_security import MAX_REQUEST_BODY_BYTES
 from tests.routes.support import SIGNUP_PAYLOAD, _create_account, _create_user, _get_auth_header
 
 _SERVER_ERROR_PATH = "/test/server-error"
 
-_OVERSIZED_BODY = b"x" * (10 * 1024 * 1024 + 1)
+_OVERSIZED_BODY = b"x" * (MAX_REQUEST_BODY_BYTES + 1)
 
 
 @app.get(_SERVER_ERROR_PATH)
