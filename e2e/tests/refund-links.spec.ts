@@ -226,16 +226,19 @@ test('shows an expense and its refunds as one chain with what is left to refund'
     await expect(order.getByTestId('refund-status')).toHaveText('Refunded in full')
     await expect(order.getByTestId('refund-room')).toHaveText('$0.00')
 
-    // The first refund sits twice as far from the expense as the refunds sit from each other
-    const [expenseBox, firstBox, secondBox] = await Promise.all([
-      order.getByTestId('refund-chain-expense').boundingBox(),
-      order.getByTestId('linked-transaction').nth(0).boundingBox(),
-      order.getByTestId('linked-transaction').nth(1).boundingBox(),
-    ])
-    const leadGap = firstBox!.y - (expenseBox!.y + expenseBox!.height)
-    const refundGap = secondBox!.y - (firstBox!.y + firstBox!.height)
-    expect(refundGap).toBeGreaterThan(0)
-    expect(leadGap).toBeCloseTo(refundGap * 2, 0)
+    // The first refund sits twice as far from the expense as the refunds sit from each other, read again until the
+    // rows have finished growing in
+    await expect(async () => {
+      const [expenseBox, firstBox, secondBox] = await Promise.all([
+        order.getByTestId('refund-chain-expense').boundingBox(),
+        order.getByTestId('linked-transaction').nth(0).boundingBox(),
+        order.getByTestId('linked-transaction').nth(1).boundingBox(),
+      ])
+      const leadGap = firstBox!.y - (expenseBox!.y + expenseBox!.height)
+      const refundGap = secondBox!.y - (firstBox!.y + firstBox!.height)
+      expect(refundGap).toBeGreaterThan(0)
+      expect(leadGap).toBeCloseTo(refundGap * 2, 0)
+    }).toPass()
 
     // Unlinking the newest refund is held until Save, and gives its amount back at once
     await order.getByRole('button', { name: /^Unlink / }).last().click()
@@ -261,15 +264,17 @@ test('shows an expense and its refunds as one chain with what is left to refund'
     await expect(held).toHaveCSS('border-top-style', 'dashed')
 
     // The box draws past the row's text on every side, and the row that grows it into place clips, so the whole box
-    // has to sit inside that row to show its edges
-    const [heldBox, heldRowBox] = await Promise.all([
-      held.boundingBox(),
-      order.getByTestId('linked-row').filter({ has: page.locator('[data-not-saved]') }).boundingBox(),
-    ])
-    expect(heldBox!.x).toBeGreaterThanOrEqual(heldRowBox!.x)
-    expect(heldBox!.y).toBeGreaterThanOrEqual(heldRowBox!.y)
-    expect(heldBox!.x + heldBox!.width).toBeLessThanOrEqual(heldRowBox!.x + heldRowBox!.width)
-    expect(heldBox!.y + heldBox!.height).toBeLessThanOrEqual(heldRowBox!.y + heldRowBox!.height)
+    // has to sit inside that row to show its edges once the row has finished growing in
+    await expect(async () => {
+      const [heldBox, heldRowBox] = await Promise.all([
+        held.boundingBox(),
+        order.getByTestId('linked-row').filter({ has: page.locator('[data-not-saved]') }).boundingBox(),
+      ])
+      expect(heldBox!.x).toBeGreaterThanOrEqual(heldRowBox!.x)
+      expect(heldBox!.y).toBeGreaterThanOrEqual(heldRowBox!.y)
+      expect(heldBox!.x + heldBox!.width).toBeLessThanOrEqual(heldRowBox!.x + heldRowBox!.width)
+      expect(heldBox!.y + heldBox!.height).toBeLessThanOrEqual(heldRowBox!.y + heldRowBox!.height)
+    }).toPass()
     await expect(order.getByTestId('refund-room')).toHaveText('$0.00')
     await order.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(order).toBeHidden()
