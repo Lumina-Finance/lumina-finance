@@ -156,12 +156,16 @@ export function RefundChainRow({
         <ChainSegment drawn={lineBelow} />
       </span>
       <div className="min-w-0 flex-1">
-        {/* A long name wraps on a phone rather than cutting off, since the row has room to grow */}
-        <p className="break-words text-sm font-medium leading-5" style={{ color: 'var(--app-text)' }}>
-          {merchantName}
+        {/* A long name wraps on a phone rather than cutting off, since the row has room to grow. A tag with no room
+            beside the name starts a line of its own, lined up with the name */}
+        <p
+          className="flex flex-wrap items-center gap-x-1.5 text-sm font-medium leading-5"
+          style={{ color: 'var(--app-text)' }}
+        >
+          <span className="min-w-0 break-words">{merchantName}</span>
           {notSaved && (
             <span
-              className="ml-1.5 inline-block rounded-full px-1.5 align-[1px] text-xs font-medium leading-4"
+              className="rounded-full px-1.5 text-xs font-medium leading-4"
               style={{ background: 'var(--app-warning-text)', color: 'var(--app-bg)' }}
             >
               Unsaved
@@ -189,7 +193,10 @@ export function RefundChainRow({
       </div>
       <span
         className="font-financial shrink-0 text-sm"
-        style={{ color: amount > 0 ? 'var(--app-positive)' : 'var(--app-text)' }}
+        // On the unsaved row's amber the plain green reads under 4.5:1 in the light theme, so it takes the darker green
+        style={{
+          color: amount <= 0 ? 'var(--app-text)' : notSaved ? 'var(--app-positive-text)' : 'var(--app-positive)',
+        }}
       >
         {formatMovedCurrency(amount, currency)}
       </span>
