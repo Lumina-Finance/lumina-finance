@@ -25,7 +25,7 @@ interface ApiErrorOptions {
 export class ApiError extends Error {
   status: number
 
-  /** Step-up attempts left before the shared lockout signs the user out, when the response reports it */
+  /** Step-up attempts left before the session's step-up count locks and signs the user out, when the response reports it */
   attemptsRemaining?: number
 
   // Set only where the response body carried a `detail`, so an empty one is the app's own way of

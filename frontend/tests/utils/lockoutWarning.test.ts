@@ -39,18 +39,14 @@ describe('describeStepUpFailure', () => {
 
 describe('buildLockoutWarning', () => {
   it('counts down while tries remain', () => {
-    expect(buildLockoutWarning(3)).toBe(
-      "3 attempts remaining before your account is locked and you're signed out everywhere.",
-    )
+    expect(buildLockoutWarning(3)).toBe('You have 3 attempts remaining.')
   })
 
   it('uses the singular for the last try', () => {
-    expect(buildLockoutWarning(1)).toBe(
-      "1 attempt remaining before your account is locked and you're signed out everywhere.",
-    )
+    expect(buildLockoutWarning(1)).toBe('You have 1 attempt remaining.')
   })
 
-  it('reports the outcome once the lock has tripped', () => {
-    expect(buildLockoutWarning(0)).toBe("Your account is now locked and you've been signed out everywhere.")
+  it('reports the outcome once the count has run out, without claiming the account is locked', () => {
+    expect(buildLockoutWarning(0)).toBe("You've been signed out everywhere.")
   })
 })

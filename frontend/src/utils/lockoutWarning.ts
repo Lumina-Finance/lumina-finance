@@ -1,7 +1,7 @@
 import { ApiError } from '@/api/auth'
 
 /**
- * Returns the step-up attempts left before the shared lockout, or null when the error does not carry it
+ * Returns the step-up attempts left before the session's step-up count runs out, or null when the error does not carry it
  *
  * Only the credential-failure step-up 401s report the count, so a plain failure or a passkey ceremony
  * error yields null and the caller falls back to its generic message
@@ -28,14 +28,14 @@ export function describeStepUpFailure(factor: 'code' | 'passkey', passwordOnly: 
 }
 
 /**
- * Builds the warning shown after a failed step-up, counting down to the lockout that signs the user out
+ * Builds the warning shown after a failed step-up, counting down to the sign-out of every session
  *
- * Zero means the failure just tripped the lock, so the wording shifts from a countdown to the outcome
+ * Zero means the failure just used up the count, so the wording shifts from a countdown to the outcome
  */
 export function buildLockoutWarning(attemptsRemaining: number): string {
   if (attemptsRemaining <= 0) {
-    return "Your account is now locked and you've been signed out everywhere."
+    return "You've been signed out everywhere."
   }
   const attempts = attemptsRemaining === 1 ? '1 attempt' : `${attemptsRemaining} attempts`
-  return `${attempts} remaining before your account is locked and you're signed out everywhere.`
+  return `You have ${attempts} remaining.`
 }
