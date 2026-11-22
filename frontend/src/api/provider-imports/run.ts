@@ -1,5 +1,6 @@
 import { commitStagedRun, runImport } from '@/api/import-runs/run'
 import type { ImportRunRoutes, OnImportStaged } from '@/api/import-runs/types'
+import { buildImportBudgetParts } from '@/api/provider-imports/budgetBatching'
 import { buildJournalStageBatches } from '@/api/provider-imports/batching'
 import { putImportRunArchive, putImportRunBudgets } from '@/api/provider-imports/requests'
 import type {
@@ -51,7 +52,9 @@ export function runJournalImport(
       routes: JOURNAL_IMPORT_ROUTES,
       buildBatches: () => buildJournalStageBatches(payload),
       stageExtras: async (runId, stageSignal) => {
-        if (budgets && budgets.budgets.length > 0) await putImportRunBudgets(runId, budgets, stageSignal)
+        if (budgets) {
+          for (const part of buildImportBudgetParts(budgets)) await putImportRunBudgets(runId, part, stageSignal)
+        }
         if (archiveAccountSources.length > 0) await putImportRunArchive(runId, archiveAccountSources, stageSignal)
       },
     },

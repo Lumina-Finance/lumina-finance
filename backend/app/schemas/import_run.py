@@ -613,14 +613,19 @@ class ImportBudgetDraft(BaseModel):
 
 
 class ImportRunBudgetsRequest(BaseModel):
-    """Every budget a run creates, replacing what it held, with the category mappings they need
+    """One part of the budgets a run creates, with the category mappings they need
 
     A budget can track a category no staged row uses, so the mappings it needs are declared here
-    as well and merged into the run's like a batch's
+    as well and merged into the run's like a batch's. The budgets go in parts of a bounded size,
+    each replacing the run's budgets from its start index onward
     """
 
     categories: list[TransactionImportCategoryMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
     budgets: list[ImportBudgetDraft] = Field(default=[], max_length=MAX_JOURNAL_BUDGETS)
+
+    # Where this part starts among the run's budgets, so a part sent twice stages the same
+    # positions and the second copy is absorbed
+    start_index: int = Field(default=0, ge=0)
 
 
 class ImportRunArchiveRequest(BaseModel):

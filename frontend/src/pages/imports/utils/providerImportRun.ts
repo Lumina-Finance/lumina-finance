@@ -1,15 +1,8 @@
 import type { ImportRunBudgets, JournalImportRunResponse } from '@/api/provider-imports'
-import { getJsonByteSize } from '@/api/shared/importBatchSize'
 import { joinImportSummaryParts } from '@/pages/imports/utils/common'
 
 /** What the overlay calls the upload of an export from another app */
 export const PROVIDER_IMPORT_UPLOAD_LABEL = 'Uploading the export'
-
-/**
- * Largest budgets request an import sends, kept under the server's 10 MiB request limit with room
- * for the rest of the request, so a selection too large to send is refused before anything uploads
- */
-export const PROVIDER_MAX_BUDGETS_REQUEST_BYTES = 9 * 1024 * 1024
 
 /**
  * Builds the budgets a provider import creates alongside its rows, or the reason it can't. Built
@@ -20,13 +13,7 @@ export function buildProviderRunBudgets(build: () => ImportRunBudgets): {
   error: string | null
 } {
   try {
-    const budgets = build()
-
-    // The budgets go in one request, and a request past the server's limit is refused whole
-    if (getJsonByteSize(budgets) > PROVIDER_MAX_BUDGETS_REQUEST_BYTES) {
-      return { budgets: null, error: 'The selected budgets are too large to import at once. Select fewer budgets.' }
-    }
-    return { budgets, error: null }
+    return { budgets: build(), error: null }
   } catch (error) {
     return { budgets: null, error: error instanceof Error ? error.message : String(error) }
   }

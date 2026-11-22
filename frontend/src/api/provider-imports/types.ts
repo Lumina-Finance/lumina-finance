@@ -132,6 +132,13 @@ export interface ImportRunBudgets {
   budgets: ImportBudgetDraft[]
 }
 
+/**
+ * One request's share of a run's budgets, starting at `start_index` among all of them
+ */
+export type ImportRunBudgetsPart = ImportRunBudgets & {
+  start_index: number
+}
+
 export interface ImportBudgetResult {
   name: string
   base_budget_id: string

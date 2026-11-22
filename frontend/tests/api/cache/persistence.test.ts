@@ -312,12 +312,12 @@ describe('restoring the saved copy', () => {
     expect(otherLoad.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
   })
 
-  it("removes a copy saved before bank holds carried their provider and the bank's note and merchant", async () => {
+  it('removes a copy saved before budget lists carried one row per budget, even one holding bank holds', async () => {
     const stored = await savedCopyOf((client) =>
       client.setQueryData(['bank-sync', 'holds'], [{ id: 'saved-before-the-hold-card' }]),
     )
-    // The shape that was current before. This copy then reads as saved by it
-    stored[QUERY_CACHE_STORAGE_KEY] = JSON.stringify({ ...JSON.parse(stored[QUERY_CACHE_STORAGE_KEY]), shape: '8' })
+    // The shape that was current before, '9'. This copy then reads as saved by it
+    stored[QUERY_CACHE_STORAGE_KEY] = JSON.stringify({ ...JSON.parse(stored[QUERY_CACHE_STORAGE_KEY]), shape: '9' })
 
     const reloaded = loadPage(stored)
     await reloaded.restore()

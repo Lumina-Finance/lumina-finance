@@ -1,12 +1,13 @@
 import { authenticatedFetch } from '@/api/client'
-import type { ImportRunBudgets } from '@/api/provider-imports/types'
+import type { ImportRunBudgetsPart } from '@/api/provider-imports/types'
 
 /**
- * Replaces the budgets a run creates once its transactions are written
+ * Stages one part of the budgets a run creates once its transactions are written
  *
- * Replacing rather than adding is what makes this safe to send again when a response goes missing
+ * The part replaces the run's budgets from its start index onward. Sending it again when a
+ * response goes missing therefore changes nothing
  */
-export function putImportRunBudgets(runId: string, budgets: ImportRunBudgets, signal?: AbortSignal) {
+export function putImportRunBudgets(runId: string, budgets: ImportRunBudgetsPart, signal?: AbortSignal) {
   return authenticatedFetch<void>(`/transactions/import/runs/${runId}/budgets`, {
     method: 'PUT',
     body: JSON.stringify(budgets),
