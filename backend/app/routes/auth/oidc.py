@@ -150,7 +150,7 @@ async def oidc_callback_route(
     Raises:
         HTTPException: The roundtrip, binding, exchange, or token does not verify, the email
             collides with an account it cannot be linked to, or a new user would be onboarded
-            while registration is closed
+            while registration is closed or the sign-up check refuses
     """
     # The binding cookie is single-use, so remove it whatever the outcome of this callback, a refused
     # one included

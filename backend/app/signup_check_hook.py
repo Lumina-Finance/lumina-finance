@@ -24,8 +24,8 @@ class SignupAttempt:
     The check is never told whether the address already has an account, so its answer cannot reveal it
 
     Attributes:
-        email: Address as the person typed it, with only its domain lower-cased, so a check comparing
-            addresses must do so without regard to case
+        email: Address spelled as a typed address is stored, with the capitals of the part before the @
+            kept, so a check comparing addresses must do so without regard to case
     """
 
     email: str
@@ -65,4 +65,8 @@ async def is_signup_allowed(email: str) -> bool:
         # class is logged, since the error text may quote the address
         logger.warning("The sign-up check failed, so the sign-up was refused: %s", type(error).__name__)
         return False
+    if not isinstance(answer, bool):
+        # A check answering something other than True or False is a mistake in it, so it refuses as an
+        # error does, and is logged the same way so its owner can find why every sign-up is refused
+        logger.warning("The sign-up check answered a %s, not True or False, so the sign-up was refused", type(answer).__name__)
     return answer is True

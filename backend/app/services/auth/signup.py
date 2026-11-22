@@ -94,8 +94,8 @@ async def request_signup(
 
     The caller answers the same way either way, so the endpoint never reveals whether an email is
     registered or was refused by the installed sign-up check. A registered address has nothing to act
-    on, so no email goes to it, and a refused one takes the same path. Both paths do the
-    same work before answering, the cap record included, and the rendering and the send wait until
+    on, so no email goes to it, and a refused one takes the same path. Every path does the
+    same work after the check and before answering, the cap record included, and the rendering and the send wait until
     after the answer, since the time they take would otherwise tell a registered address apart. The
     wait after a failed send and the one-send-at-a-time claim are checked after the answer too, and a
     skipped send releases its cap record. The profile rides inside the link's signed token and no

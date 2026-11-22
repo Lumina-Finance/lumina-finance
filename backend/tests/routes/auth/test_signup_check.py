@@ -94,17 +94,25 @@ async def _take_too_long(email: str) -> bool:
     return True
 
 
-@pytest.mark.parametrize("answer", [_answer_text, _answer_none, _take_too_long], ids=["text", "none", "too-slow"])
-async def test_sign_up_the_check_does_not_clearly_allow_sends_nothing(client, captured_email, install_check, monkeypatch, answer):
-    """Only a plain True allows, and a check slower than its time limit refuses"""
+@pytest.mark.parametrize(
+    ("answer", "logged"),
+    [(_answer_text, "answered a str"), (_answer_none, "answered a NoneType"), (_take_too_long, "TimeoutError")],
+    ids=["text", "none", "too-slow"],
+)
+async def test_sign_up_the_check_does_not_clearly_allow_sends_nothing(
+    client, captured_email, install_check, monkeypatch, caplog, answer, logged
+):
+    """Only a plain True allows, a check slower than its time limit refuses, and each refusal says why in the log"""
     await _seed_currency()
     monkeypatch.setattr(signup_check_hook, "SIGNUP_CHECK_TIMEOUT_SECONDS", 0.05)
     install_check(answer)
 
-    resp = await client.post("/auth/signup", json=_PROFILE)
+    with caplog.at_level(logging.WARNING, logger=signup_check_hook.__name__):
+        resp = await client.post("/auth/signup", json=_PROFILE)
 
     assert resp.status_code == 204
     assert captured_email.sent == []
+    assert logged in caplog.text
 
 
 async def test_sign_up_the_check_fails_on_sends_nothing_and_logs_no_address(client, captured_email, install_check, caplog):
