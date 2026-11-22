@@ -92,7 +92,7 @@ export function cadenceSummary(form: BudgetFormState) {
     cadence = safeLength === 1 ? 'yearly' : `every ${safeLength} years`
   }
 
-  const startLabel = start ? formatPeriodDate(start) : (form.periodStart || 'the selected start date')
+  const startLabel = start ? formatPeriodDate(start) : form.periodStart || 'the selected start date'
 
   return `"${name}" will repeat ${cadence} starting ${startLabel}`
 }
@@ -177,10 +177,7 @@ export function nextBudgetPeriods(baseBudget: BaseBudget, latestPeriod: Budget |
   const nextStart = addBudgetPeriod(latestStart, baseBudget)
   const followingStart = addBudgetPeriod(nextStart, baseBudget)
 
-  return [
-    formatPeriodRange(nextStart, baseBudget),
-    formatPeriodRange(followingStart, baseBudget),
-  ]
+  return [formatPeriodRange(nextStart, baseBudget), formatPeriodRange(followingStart, baseBudget)]
 }
 
 /**
