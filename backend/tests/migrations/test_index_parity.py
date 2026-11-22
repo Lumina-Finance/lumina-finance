@@ -34,6 +34,10 @@ _CLEANUP_TABLES = (
 )
 
 
+# The tables import rules are stored in
+_IMPORT_RULE_TABLES = ("import_rules", "import_rule_tags")
+
+
 async def _index_definitions(conn: AsyncConnection, tables: tuple[str, ...] | None = None) -> dict[str, str]:
     """Return each index's definition by name, for every table or only the given ones"""
     rows = await conn.execute(
@@ -57,6 +61,24 @@ async def test_indexes_built_by_the_migrations_match_those_the_models_declare():
         await migrated_engine.dispose()
         await _drop_database(_INDEX_PARITY_DB_NAME)
 
+    assert migrated == declared
+
+
+async def test_import_rule_indexes_built_by_the_migrations_match_those_the_models_declare():
+    """The unique rule name on the folded name and the indexes the delete checks use exist in a deployed database as the models declare them"""
+    await _recreate_database(_INDEX_PARITY_DB_NAME)
+    migrated_engine = _create_engine_for_database(_INDEX_PARITY_DB_NAME)
+    try:
+        _run_alembic_upgrade(_INDEX_PARITY_DB_NAME)
+        async with migrated_engine.connect() as conn:
+            migrated = await _index_definitions(conn, _IMPORT_RULE_TABLES)
+        async with engine.connect() as conn:
+            declared = await _index_definitions(conn, _IMPORT_RULE_TABLES)
+    finally:
+        await migrated_engine.dispose()
+        await _drop_database(_INDEX_PARITY_DB_NAME)
+
+    assert "uq_import_rules_owner_name" in declared
     assert migrated == declared
 
 

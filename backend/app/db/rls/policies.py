@@ -45,6 +45,10 @@ _SEES_CONNECTION = "EXISTS (SELECT 1 FROM public.bank_connections c WHERE c.id =
 # Whether the ledger transaction a row names is one the current user can see
 _SEES_LEDGER_ROW = "EXISTS (SELECT 1 FROM public.transactions t WHERE t.id = transaction_id)"
 
+# Whether the merchant or category a row names, when it names one, is one the current user can see
+_SEES_NAMED_MERCHANT = "(merchant_id IS NULL OR EXISTS (SELECT 1 FROM public.merchants m WHERE m.id = merchant_id))"
+_SEES_NAMED_CATEGORY = "(category_id IS NULL OR EXISTS (SELECT 1 FROM public.categories c WHERE c.id = category_id))"
+
 # (table, USING, WITH CHECK) for tables secured by a single policy. A read rule on a table
 # holding personal rows tests membership in a set worked out once per statement, so a read
 # narrows to the caller's rows by key. A write rule checks only the rows written, so it calls
@@ -144,6 +148,18 @@ SECURED_TABLES = (
         "transaction_tags",
         "EXISTS (SELECT 1 FROM public.transactions t WHERE t.id = transaction_id)",
         "EXISTS (SELECT 1 FROM public.transactions t WHERE t.id = transaction_id) AND EXISTS (SELECT 1 FROM public.tags g WHERE g.id = tag_id)",
+    ),
+    # Foreign keys skip row-level security, so a rule naming a merchant or category also has to see
+    # it. That keeps one user from putting another's, found by id, on a rule of their own
+    (
+        "import_rules",
+        f"owner_id = {CURRENT_USER_ID}()",
+        f"owner_id = {CURRENT_USER_ID}() AND {_SEES_NAMED_MERCHANT} AND {_SEES_NAMED_CATEGORY}",
+    ),
+    (
+        "import_rule_tags",
+        "EXISTS (SELECT 1 FROM public.import_rules r WHERE r.id = import_rule_id)",
+        "EXISTS (SELECT 1 FROM public.import_rules r WHERE r.id = import_rule_id) AND EXISTS (SELECT 1 FROM public.tags g WHERE g.id = tag_id)",
     ),
 )
 
