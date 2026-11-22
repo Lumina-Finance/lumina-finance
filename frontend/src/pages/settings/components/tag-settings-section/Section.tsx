@@ -34,6 +34,8 @@ export default function TagSettingsSection() {
   const [mergeDeleteTag, setMergeDeleteTag] = useState<Tag | null>(null)
   // Held apart from the item so the panel keeps its contents while it animates out
   const [isTagMergeDeleteOpen, setIsTagMergeDeleteOpen] = useState(false)
+  // The server's reason for the refusal. It says whether transactions or an import rule are in the way
+  const [mergeDeleteReason, setMergeDeleteReason] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [locallyDeletedTagIds, setLocallyDeletedTagIds] = useState<string[]>([])
   const tagList = useTagSettingsList(locallyDeletedTagIds)
@@ -84,6 +86,7 @@ export default function TagSettingsSection() {
       if (error instanceof ApiError && error.status === 409) {
         setConfirmingDeleteTagId(null)
         setMergeDeleteTag(tag)
+        setMergeDeleteReason(error.message)
         setIsTagMergeDeleteOpen(true)
       } else {
         setDeleteError(error instanceof Error ? error.message : 'Failed to delete tag.')
@@ -178,6 +181,7 @@ export default function TagSettingsSection() {
           key={mergeDeleteTag.id}
           tag={mergeDeleteTag}
           isPending={mergeTag.isPending}
+          reason={mergeDeleteReason}
           onClose={() => setIsTagMergeDeleteOpen(false)}
           onExitComplete={() => setMergeDeleteTag(null)}
           onMerge={async (replacementTagId) => {

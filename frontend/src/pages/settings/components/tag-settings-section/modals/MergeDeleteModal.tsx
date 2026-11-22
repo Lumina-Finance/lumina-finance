@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Tag as TagIcon } from 'lucide-react'
 import { useInfiniteTags, type Tag } from '@/api/tags'
+import { getImportRuleWording } from '@/pages/settings/components/shared/modals/importRuleReason'
 import MergeDeleteReferenceModal from '@/pages/settings/components/shared/modals/MergeDeleteReferenceModal'
 import { DELETE_SPINNER_MS, TAG_MERGE_PAGE_SIZE } from '@/pages/settings/components/tag-settings-section/constants'
 import { tagMergeOptions } from '@/pages/settings/components/tag-settings-section/utils'
@@ -37,6 +38,7 @@ export default function MergeDeleteTagModal({
   open,
   tag,
   isPending,
+  reason,
   onClose,
   onExitComplete,
   onMerge,
@@ -44,6 +46,9 @@ export default function MergeDeleteTagModal({
   open: boolean
   tag: Tag
   isPending: boolean
+
+  /** The server's message for the refused delete. It names the import rule in the way, if one is */
+  reason: string | null
   onClose: () => void
   onExitComplete: () => void
   onMerge: (replacementTagId: string) => Promise<void>
@@ -69,6 +74,7 @@ export default function MergeDeleteTagModal({
         loadingPlaceholder: 'Loading tags...',
         requireSelectionError: 'Select a replacement tag',
         deleteErrorFallback: 'Failed to delete tag.',
+        ...getImportRuleWording(reason, 'tag'),
       }}
       onClose={onClose}
       onExitComplete={onExitComplete}

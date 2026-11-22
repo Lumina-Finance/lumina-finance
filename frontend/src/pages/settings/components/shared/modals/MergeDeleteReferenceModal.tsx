@@ -36,6 +36,12 @@ export interface MergeDeleteReferenceModalWording {
   loadingPlaceholder?: string
   requireSelectionError: string
   deleteErrorFallback: string
+
+  /** The dialogue's title where it isn't about moving transactions, such as when an import rule is in the way */
+  title?: string
+
+  /** Why nothing can be chosen, where it isn't about moving transactions */
+  noReplacementReason?: string
 }
 
 export interface MergeDeleteReferenceModalProps<TItem> {
@@ -96,7 +102,8 @@ export default function MergeDeleteReferenceModal<TItem>({
   const errorId = `${selectId}-error`
   const hasNoReplacement = !replacementQuery.isLoading && options.length === 0
   // Only a settled empty list is a reason, since the list is also empty while it loads and while the move runs
-  const noReplacementReason = !isSubmitting && hasNoReplacement ? NO_REPLACEMENT_REASON : undefined
+  const noReplacementReason =
+    !isSubmitting && hasNoReplacement ? (wording.noReplacementReason ?? NO_REPLACEMENT_REASON) : undefined
   // A replacement is chosen for the person once the list has arrived, so one is missing only while it loads.
   // A list that settled empty is a state of its own, with nothing to fill in
   const refusal = useRefusedSubmit(
@@ -133,7 +140,7 @@ export default function MergeDeleteReferenceModal<TItem>({
       onClose={onClose}
       onSubmit={handleSubmit}
       titleId={titleId}
-      title="Move transactions first"
+      title={wording.title ?? 'Move transactions first'}
       eyebrow={`${wording.entityLabel} in use`}
       RailIcon={Icon}
       railLabel={wording.entityLabel}

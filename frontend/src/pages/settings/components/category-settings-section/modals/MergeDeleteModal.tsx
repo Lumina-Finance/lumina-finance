@@ -1,5 +1,6 @@
 import { Tag } from 'lucide-react'
 import type { Category } from '@/api/categories'
+import { getImportRuleWording } from '@/pages/settings/components/shared/modals/importRuleReason'
 import MergeDeleteReferenceModal from '@/pages/settings/components/shared/modals/MergeDeleteReferenceModal'
 import { categoryMergeOptions } from '@/pages/settings/components/category-settings-section/utils'
 import { ACTION_LOADING_MIN_MS } from '@/utils/timing'
@@ -16,6 +17,7 @@ export default function MergeDeleteCategoryModal({
   category,
   categories,
   isPending,
+  reason,
   onClose,
   onExitComplete,
   onMerge,
@@ -24,6 +26,9 @@ export default function MergeDeleteCategoryModal({
   category: Category
   categories: Category[]
   isPending: boolean
+
+  /** The server's message for the refused delete. It names the import rule in the way, if one is */
+  reason: string | null
   onClose: () => void
   onExitComplete: () => void
   onMerge: (replacementCategoryId: string) => Promise<void>
@@ -56,6 +61,7 @@ export default function MergeDeleteCategoryModal({
         emptyOptionsPlaceholder: 'No compatible categories',
         requireSelectionError: 'Select a replacement category',
         deleteErrorFallback: 'Failed to delete category.',
+        ...getImportRuleWording(reason, 'category'),
       }}
       onClose={onClose}
       onExitComplete={onExitComplete}

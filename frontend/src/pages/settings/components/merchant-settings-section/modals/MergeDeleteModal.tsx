@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Store } from 'lucide-react'
 import { useInfiniteMerchants, type Merchant } from '@/api/merchants'
+import { getImportRuleWording } from '@/pages/settings/components/shared/modals/importRuleReason'
 import MergeDeleteReferenceModal from '@/pages/settings/components/shared/modals/MergeDeleteReferenceModal'
 import {
   DELETE_SPINNER_MS,
@@ -40,6 +41,7 @@ export default function MergeDeleteMerchantModal({
   open,
   merchant,
   isPending,
+  reason,
   onClose,
   onExitComplete,
   onMerge,
@@ -47,6 +49,9 @@ export default function MergeDeleteMerchantModal({
   open: boolean
   merchant: Merchant
   isPending: boolean
+
+  /** The server's message for the refused delete. It names the import rule in the way, if one is */
+  reason: string | null
   onClose: () => void
   onExitComplete: () => void
   onMerge: (replacementMerchantId: string) => Promise<void>
@@ -72,6 +77,7 @@ export default function MergeDeleteMerchantModal({
         loadingPlaceholder: 'Loading merchants...',
         requireSelectionError: 'Select a replacement merchant',
         deleteErrorFallback: 'Failed to delete merchant.',
+        ...getImportRuleWording(reason, 'merchant'),
       }}
       onClose={onClose}
       onExitComplete={onExitComplete}

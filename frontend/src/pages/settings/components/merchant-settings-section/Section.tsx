@@ -37,6 +37,8 @@ export default function MerchantSettingsSection() {
   const [mergeDeleteMerchant, setMergeDeleteMerchant] = useState<Merchant | null>(null)
   // Held apart from the item so the panel keeps its contents while it animates out
   const [isMerchantMergeDeleteOpen, setIsMerchantMergeDeleteOpen] = useState(false)
+  // The server's reason for the refusal. It says whether transactions or an import rule are in the way
+  const [mergeDeleteReason, setMergeDeleteReason] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [locallyDeletedMerchantIds, setLocallyDeletedMerchantIds] = useState<string[]>([])
   const merchantList = useMerchantSettingsList(locallyDeletedMerchantIds)
@@ -88,6 +90,7 @@ export default function MerchantSettingsSection() {
       if (error instanceof ApiError && error.status === 409) {
         setConfirmingDeleteMerchantId(null)
         setMergeDeleteMerchant(merchant)
+        setMergeDeleteReason(error.message)
         setIsMerchantMergeDeleteOpen(true)
       } else {
         setDeleteError(error instanceof Error ? error.message : 'Failed to delete merchant.')
@@ -182,6 +185,7 @@ export default function MerchantSettingsSection() {
           key={mergeDeleteMerchant.id}
           merchant={mergeDeleteMerchant}
           isPending={mergeMerchant.isPending}
+          reason={mergeDeleteReason}
           onClose={() => setIsMerchantMergeDeleteOpen(false)}
           onExitComplete={() => setMergeDeleteMerchant(null)}
           onMerge={async (replacementMerchantId) => {

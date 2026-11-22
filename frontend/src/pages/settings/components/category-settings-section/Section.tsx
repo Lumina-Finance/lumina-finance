@@ -36,6 +36,8 @@ export default function CategorySettingsSection() {
   const [mergeDeleteCategory, setMergeDeleteCategory] = useState<Category | null>(null)
   // Held apart from the item so the panel keeps its contents while it animates out
   const [isCategoryMergeDeleteOpen, setIsCategoryMergeDeleteOpen] = useState(false)
+  // The server's reason for the refusal. It says whether transactions or an import rule are in the way
+  const [mergeDeleteReason, setMergeDeleteReason] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const { expandedKinds, expandKind, groupedCategories, hasMatches, toggleKind } = useCategorySettingsGroups(
     categories,
@@ -66,6 +68,7 @@ export default function CategorySettingsSection() {
       if (error instanceof ApiError && error.status === 409) {
         setConfirmingDeleteCategoryId(null)
         setMergeDeleteCategory(category)
+        setMergeDeleteReason(error.message)
         setIsCategoryMergeDeleteOpen(true)
       } else {
         setDeleteError(error instanceof Error ? error.message : 'Failed to delete category.')
@@ -178,6 +181,7 @@ export default function CategorySettingsSection() {
           category={mergeDeleteCategory}
           categories={categories}
           isPending={mergeCategory.isPending}
+          reason={mergeDeleteReason}
           onClose={() => setIsCategoryMergeDeleteOpen(false)}
           onExitComplete={() => setMergeDeleteCategory(null)}
           onMerge={async (replacementCategoryId) => {
