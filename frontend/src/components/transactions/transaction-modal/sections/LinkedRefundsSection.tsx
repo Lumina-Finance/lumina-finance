@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence } from 'motion/react'
 import { useCategories } from '@/api/categories'
 import TransactionModalLinkRefundPicker from '@/components/transactions/transaction-modal/modals/LinkRefundPicker'
@@ -22,6 +22,7 @@ import {
 import CreateModalSectionFrame from '@/components/create-modal/SectionFrame'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { DEFAULT_CATEGORY_ICON } from '@/components/transactions/transaction-modal/constants'
+import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import type { PendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 import {
   getRefundLinkMarker,
@@ -31,9 +32,8 @@ import {
   orderRefundsByDate,
 } from '@/components/transactions/transaction-modal/utils/refund'
 
-// Why the button that opens the picker is held off
-const NO_REFUND_FITS = 'No money that came in fits what is left to refund'
-const NO_EXPENSE_FITS = 'No expense has room for this refund'
+// Shown in place of the button that opens the picker while nothing in it could be picked
+const NO_EXPENSE_FITS = 'No expense has room for this refund.'
 
 const NO_MERCHANT = 'No merchant'
 const LOAD_FAILED = 'Oops, something went wrong loading the linked transaction. Please reopen this transaction.'
@@ -134,6 +134,7 @@ export default function TransactionModalLinkedRefundsSection({
 }: LinkedRefundsSectionProps) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const { data: categories = [] } = useCategories()
+  const { formatCurrency } = useMoneyFormatters()
 
   // The list row the modal opened from is a snapshot, so the links come from the live copy once it loads
   const live = useTransaction(transaction.id)
@@ -180,7 +181,14 @@ export default function TransactionModalLinkedRefundsSection({
     pending.unlinkedRefundIds.length > 0 ? { unlinked_id: pending.unlinkedRefundIds } : {},
   )
   const unheld = candidates.data?.filter((candidate) => !pending.links.some((link) => link.id === candidate.id))
-  const anythingFits = unheld === undefined || unheld.length > getRefusedRooms(current, unheld, refundRoom, []).size
+  // Until what is left to refund is known, the button shows, so the reason never goes without its amount
+  const anythingFits =
+    unheld === undefined ||
+    (!isRefund && refundRoom === undefined) ||
+    unheld.length > getRefusedRooms(current, unheld, refundRoom, []).size
+  // The prompt and its reason wait for the list and what is left, so the dialogue never opens on one and swaps to the
+  // other. A list that fails to load leaves the button, for the picker to say what went wrong
+  const fitKnown = candidates.isError || (unheld !== undefined && (isRefund || refundRoom !== undefined))
   const refundCount =
     savedRefundIds.length +
     appliedRefundLinks.length +
@@ -190,6 +198,31 @@ export default function TransactionModalLinkedRefundsSection({
   const showRefunds = refundCount > 0 || canLinkRefund
   const showRefundOf =
     Boolean(savedOriginalId) || appliedOriginal !== undefined || pendingOriginal !== undefined || canLinkExpense
+  const refundOfStatus = original && originalRoom !== undefined ? getRefundStatus(original, originalRoom) : null
+  const refundsStatus = refundCount > 0 && refundRoom !== undefined ? getRefundStatus(current, refundRoom) : null
+
+  // An expense refunded in full offers no link, and where nothing could be picked the reason shows in the button's
+  // place, so the section never offers what the picker would refuse
+  const offersRefundLink = canLinkRefund && refundsStatus !== 'full'
+  const offersExpenseLink = showRefundOf && !original
+  const linkButtonShown = anythingFits && (isRefund ? offersExpenseLink : offersRefundLink)
+
+  // The picker gives focus back to the button that opened it. Where the link it made takes that button away, focus
+  // moves on to Unlink on the row the link made, after the picker's own hand back a frame on
+  const focusAfterPick = useRef<string | null>(null)
+  useEffect(() => {
+    const linkId = focusAfterPick.current
+    if (pickerOpen || linkId === null) return
+    focusAfterPick.current = null
+    if (linkButtonShown) return
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>(`[data-link-id="${CSS.escape(linkId)}"] button[aria-label^="Unlink"]`)
+        ?.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [pickerOpen, linkButtonShown])
+
   if (!showRefunds && !showRefundOf) return null
 
   // Every row in a chain takes the icon of the expense's category, so the refunds read as part of it
@@ -232,6 +265,7 @@ export default function TransactionModalLinkedRefundsSection({
         unlink={readOnly ? undefined : { otherName: refund.merchant_name ?? NO_MERCHANT, disabled, onUnlink }}
         lineAbove
         lineBelow={!last}
+        linkId={key}
         testId="linked-transaction"
       />
     </RevealRow>
@@ -283,28 +317,32 @@ export default function TransactionModalLinkedRefundsSection({
       className="app-secondary-button whitespace-nowrap"
       data-testid="link-existing"
       disabled={disabled}
-      disabledReason={anythingFits ? undefined : isRefund ? NO_EXPENSE_FITS : NO_REFUND_FITS}
       onClick={() => setPickerOpen(true)}
     >
       {label}
     </DisabledReasonButton>
   )
-  const prompt = (text: string, label: string) => (
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-      <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        {text}
-      </p>
-      {linkButton(label)}
-    </div>
+  const promptText = (text: string) => (
+    <p className="text-sm text-pretty" style={{ color: 'var(--app-text-muted)' }} data-testid="link-prompt">
+      {text}
+    </p>
   )
+  const prompt = (text: string, label: string, reason: string) =>
+    anythingFits ? (
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        {promptText(text)}
+        {linkButton(label)}
+      </div>
+    ) : (
+      promptText(reason)
+    )
+  const noRefundFits = `No money that comes in fits the ${formatCurrency(refundRoom ?? 0, current.currency)} left to refund.`
 
   // Unlinking a refund from its expense takes back a saved or applied link, or drops one only held in the window
   const unlinkOriginal = () =>
     pendingOriginal && original === pendingOriginal
       ? pending.removeLink(pendingOriginal.id)
       : pending.unlink(current.id)
-  const refundOfStatus = original && originalRoom !== undefined ? getRefundStatus(original, originalRoom) : null
-  const refundsStatus = refundCount > 0 && refundRoom !== undefined ? getRefundStatus(current, refundRoom) : null
 
   return (
     <>
@@ -351,6 +389,7 @@ export default function TransactionModalLinkedRefundsSection({
                             }
                             lineAbove
                             lineBelow={index < chainIds.length - 1}
+                            linkId={current.id}
                             testId="refund-chain-self"
                           />
                         ) : (
@@ -371,9 +410,15 @@ export default function TransactionModalLinkedRefundsSection({
                   </RefundChainBox>
                 </RevealRow>
               ) : (
-                <RevealRow key="prompt">
-                  {prompt('If this gives money back for an expense, you can link them here.', 'Link to an expense')}
-                </RevealRow>
+                fitKnown && (
+                  <RevealRow key={anythingFits ? 'prompt' : 'reason'}>
+                    {prompt(
+                      'If this gives money back for an expense, you can link them here.',
+                      'Link to an expense',
+                      NO_EXPENSE_FITS,
+                    )}
+                  </RevealRow>
+                )
               )}
             </AnimatePresence>
           </div>
@@ -401,11 +446,14 @@ export default function TransactionModalLinkedRefundsSection({
                   </RefundChainBox>
                 </RevealRow>
               )}
-              {canLinkRefund && (
-                <RevealRow key="prompt">
+              {/* The reason and the prompt are rows of their own, so one eases out as the other and any new refund ease
+                  in, with no jump in the section's height */}
+              {offersRefundLink && fitKnown && (
+                <RevealRow key={anythingFits ? 'prompt' : 'reason'}>
                   {prompt(
                     'If a refund for this expense is already recorded, you can link them here.',
                     'Link an existing refund',
+                    noRefundFits,
                   )}
                 </RevealRow>
               )}
@@ -420,7 +468,10 @@ export default function TransactionModalLinkedRefundsSection({
         heldIds={pending.links.map((link) => link.id)}
         unlinkedIds={pending.unlinkedRefundIds}
         refundRoom={refundRoom}
-        onPick={(picked) => picked.forEach(pending.addLink)}
+        onPick={(picked) => {
+          picked.forEach(pending.addLink)
+          focusAfterPick.current = isRefund ? current.id : (picked.at(-1)?.id ?? null)
+        }}
       />
     </>
   )

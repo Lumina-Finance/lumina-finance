@@ -90,6 +90,9 @@ interface RefundChainRowProps {
   /** Carries the dashed line from the row above down to the icon, and from the icon on to the row below */
   lineAbove?: boolean
   lineBelow?: boolean
+
+  /** The id of the transaction on the row, so focus can find its Unlink once a link made in the picker lands here */
+  linkId?: string
   testId?: string
 }
 
@@ -106,11 +109,17 @@ export function RefundChainRow({
   keepsUnlinkRoom = false,
   lineAbove = false,
   lineBelow = false,
+  linkId,
   testId,
 }: RefundChainRowProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   return (
-    <div className="flex items-center gap-3" data-testid={testId} data-not-saved={notSaved ? 'true' : undefined}>
+    <div
+      className="flex items-center gap-3"
+      data-testid={testId}
+      data-link-id={linkId}
+      data-not-saved={notSaved ? 'true' : undefined}
+    >
       {/* The icon stays centred on the row's text, with the line filling the room a wrapped row leaves around it */}
       <span className="flex w-9 shrink-0 flex-col items-center self-stretch">
         <ChainSegment drawn={lineAbove} />

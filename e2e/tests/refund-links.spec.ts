@@ -491,7 +491,7 @@ for (const size of [
 
     const phone = size.width < 750
     const header = [
-      picker.getByText(/^Pick money that came in/),
+      picker.getByText(/^Pick money that comes in/),
       picker.getByPlaceholder('Merchant or note…'),
       phone ? picker.getByRole('button', { name: /^Filters/ }) : picker.getByRole('button', { name: 'Transaction filters' }),
     ]
@@ -500,7 +500,7 @@ for (const size of [
     const tops = () =>
       picker.evaluate((dialog, isPhone) => {
         const dialogTop = dialog.getBoundingClientRect().top
-        const explanation = [...dialog.querySelectorAll('p')].find((p) => p.textContent?.startsWith('Pick money that came in'))
+        const explanation = [...dialog.querySelectorAll('p')].find((p) => p.textContent?.startsWith('Pick money that comes in'))
         const filters = isPhone
           ? [...dialog.querySelectorAll('button')].find((button) => /^Filters/.test(button.textContent ?? ''))
           : dialog.querySelector('button[aria-label="Transaction filters"]')
