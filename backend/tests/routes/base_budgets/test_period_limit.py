@@ -207,8 +207,9 @@ async def test_switching_a_one_off_budget_to_recurring_is_refused_past_the_limit
 
 
 async def test_group_budget_is_not_held_to_the_period_limit(client):
-    """A group's budget keeps every period, at setup and as new periods arrive, since removing one would
-    change what each member sees
+    """A group's budget keeps every period, at setup and as new periods arrive
+
+    Removing one would change what each member sees
     """
     headers = _get_auth_header(await _create_user(client))
     group_id = await _create_group(client, headers)
