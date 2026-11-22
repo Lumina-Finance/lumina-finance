@@ -177,7 +177,10 @@ function AccountLogo({
   accountName: string | undefined
   institution: Institution | null | undefined
 
-  /** The row lies on the accent tint, whose deeper fill under the pointer takes the badge's usual "$" under 4.5:1 */
+  /**
+   * The row lies on the accent tint, at rest or deeper still under the pointer, where the badge's usual "$" can fall
+   * under 4.5:1, so the "$" takes the darker bronze in every tinted state
+   */
   onAccentTint: boolean
 }) {
   const logo = useUsableLogo(resolveInstitutionLogoUrl(institution))
