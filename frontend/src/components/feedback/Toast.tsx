@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { useLayoutEffect, useRef, type RefObject } from 'react'
+import { AnimatePresence, cancelFrame, frame, motion } from 'motion/react'
 import { createPortal } from 'react-dom'
 import { CircleCheck, LoaderCircle, TriangleAlert, X } from 'lucide-react'
 import { getToastLift, TOAST_KEEP_CLEAR_SELECTOR } from '@/components/feedback/toastLift'
@@ -43,41 +43,38 @@ export default function Toast({ toast, onDismiss }: ToastProps) {
 
 /**
  * Keeps the message clear of the elements the page marks with `data-toast-keep-clear`, moving it up
- * above them for as long as it would cover one, and returns how far
+ * above them for as long as it would cover one
  *
  * Measured on every frame while the message shows, since the element can move under it by a scroll,
- * a resize or the page changing around it, none of which tells the message
+ * a resize or the page changing around it, and nothing tells the message when that happens. The lift
+ * goes onto the card in the frame it is measured in, after the animations have drawn theirs, so that
+ * frame shows the message at the element's new place. A lift held in React state would render only
+ * after the frame was drawn and leave the message a frame behind an element that is moving. The lift
+ * sets the card's `translate`, apart from the transform its entrance and exit slide use
  */
 function useToastLift(cardRef: RefObject<HTMLElement | null>) {
-  const [lift, setLift] = useState(0)
-
-  useEffect(() => {
-    let frame = 0
-    const measure = () => {
+  useLayoutEffect(() => {
+    const follow = () => {
       const card = cardRef.current
-      if (card) {
-        const { left, right } = card.getBoundingClientRect()
-        // Worked out from the layout rather than the drawn box, which the entrance and this lift move
-        const bottom = document.documentElement.clientHeight - parseFloat(getComputedStyle(card).bottom)
-        const usualBox = { left, right, top: bottom - card.offsetHeight, bottom }
-        const keepClear = [...document.querySelectorAll(TOAST_KEEP_CLEAR_SELECTOR)]
-          .map((element) => element.getBoundingClientRect())
-          .filter((box) => box.width > 0 && box.height > 0)
-        const next = getToastLift(usualBox, keepClear)
-        setLift((current) => (Math.abs(current - next) < 0.5 ? current : next))
-      }
-      frame = requestAnimationFrame(measure)
+      if (!card) return
+      const { left, right } = card.getBoundingClientRect()
+      // Worked out from the layout, since the entrance and this lift both move the drawn box
+      const bottom = document.documentElement.clientHeight - parseFloat(getComputedStyle(card).bottom)
+      const usualBox = { left, right, top: bottom - card.offsetHeight, bottom }
+      const keepClear = [...document.querySelectorAll(TOAST_KEEP_CLEAR_SELECTOR)]
+        .map((element) => element.getBoundingClientRect())
+        .filter((box) => box.width > 0 && box.height > 0)
+      card.style.translate = `0 ${-getToastLift(usualBox, keepClear)}px`
     }
-    measure()
-    return () => cancelAnimationFrame(frame)
+    follow()
+    frame.postRender(follow, true)
+    return () => cancelFrame(follow)
   }, [cardRef])
-
-  return lift
 }
 
 function ToastCard({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () => void }) {
   const cardRef = useRef<HTMLDivElement>(null)
-  const lift = useToastLift(cardRef)
+  useToastLift(cardRef)
 
   return (
     <motion.div
@@ -89,10 +86,6 @@ function ToastCard({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () =>
         background: 'var(--app-bg)',
         border: '1px solid var(--app-border-strong)',
         color: 'var(--app-text)',
-        // Set on every frame rather than eased, so it stays the same gap above an element that is
-        // itself moving, such as the footer while the page settles after an undo, and never lags behind
-        // it and overshoots. The entrance and exit slide below is its own, separate transform
-        translate: `0 ${-lift}px`,
       }}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
