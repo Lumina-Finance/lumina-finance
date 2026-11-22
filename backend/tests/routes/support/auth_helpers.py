@@ -152,6 +152,18 @@ async def _create_user(client):
     return await sign_up_confirmed(client, SIGNUP_PAYLOAD)
 
 
+async def _create_second_user(client):
+    """Sign up a second user, for tests that another user's records are not found
+
+    Args:
+        client: Async test client
+
+    Returns:
+        API response from confirming the second user's sign-up
+    """
+    return await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "other@example.com", "first_name": "Other"})
+
+
 async def _seed_reset_token(user_id, raw_token="reset-token-abc", *, expires_in_seconds=600, used=False, age_seconds=None):  # noqa: S107
     """Insert a reset token row with a known raw value so the consume route can be exercised
 

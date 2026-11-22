@@ -16,6 +16,7 @@ from app.routes.merchants.access_helpers import (
 )
 from app.routes.merchants.scope_filter_helpers import get_personal_merchant_filter
 from app.services.cache_state import mark_cache_changed_for_scope
+from app.services.import_rules.references import move_merchant_rules
 
 
 async def merge_merchant_into_replacement_for_user(
@@ -40,9 +41,10 @@ async def merge_merchant_into_replacement_for_user(
     await require_group_merchant_admin(db, merchant, user_id)
     replacement = await get_merge_replacement_merchant(db, merchant, replacement_merchant_id, user_id)
     await move_merchant_references(db, merchant.id, replacement.id)
+    await move_merchant_rules(db, merchant.id, replacement.id)
     await mark_cache_changed_for_scope(db, user_id=merchant.owner_id, group_id=merchant.group_id)
 
-    # Delete the source merchant after all transaction references point to the replacement
+    # Delete the source merchant after all transaction and import rule references point to the replacement
     await db.delete(merchant)
     await db.commit()
 

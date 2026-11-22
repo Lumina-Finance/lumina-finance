@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.routes.tags.access_helpers import get_accessible_tag_or_404, require_group_tag_admin
 from app.services.cache_state import mark_cache_changed_for_scope
+from app.services.import_rules.references import refuse_tag_used_by_rule
 
 
 async def delete_tag_for_user(
@@ -23,10 +24,13 @@ async def delete_tag_for_user(
         user_id: Authenticated user identifier
 
     Raises:
-        HTTPException: Tag is inaccessible, admin access is missing, or tag is referenced
+        HTTPException: Tag is inaccessible, admin access is missing, or tag is used by an import rule or referenced by transactions
     """
     tag = await get_accessible_tag_or_404(db, tag_id, user_id)
     await require_group_tag_admin(db, tag, user_id)
+
+    # A rule adding the tag is refused first, so its name shows even when transactions use the tag too
+    await refuse_tag_used_by_rule(db, tag.id)
 
     # Delete the tag and let the database reject existing transaction references
     await db.delete(tag)

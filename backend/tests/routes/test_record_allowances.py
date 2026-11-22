@@ -56,12 +56,25 @@ async def _saved_range(client, headers) -> tuple[str, dict, str]:
     return "/insights/saved-ranges", {"name": "Half-year review", "amount": 6, "unit": "month"}, "/insights/saved-ranges"
 
 
+async def _import_rule(client, headers) -> tuple[str, dict, str]:
+    """Return the create path, a valid payload and the list path of import rules, after creating the tag the rule adds"""
+    tag = await client.post("/tags", json={"name": "rule-tag"}, headers=headers)
+    payload = {
+        "name": "Market",
+        "match": "all",
+        "conditions": [{"kind": "condition", "attribute": "description", "operator": "contains", "value": "market"}],
+        "tag_ids": [tag.json()["id"]],
+    }
+    return "/import-rules", payload, "/import-rules"
+
+
 @pytest.mark.parametrize(
     ("kind", "prepare"),
     [
         pytest.param(AllowanceKind.CATEGORY, _category, id="category"),
         pytest.param(AllowanceKind.TAG, _tag, id="tag"),
         pytest.param(AllowanceKind.MERCHANT, _merchant, id="merchant"),
+        pytest.param(AllowanceKind.IMPORT_RULE, _import_rule, id="import-rule"),
         pytest.param(AllowanceKind.BUDGET, _budget, id="budget"),
         pytest.param(AllowanceKind.TAX_ADVANTAGED_CATEGORY, _tax_advantaged_category, id="tax-advantaged-category"),
         pytest.param(AllowanceKind.TAX_ADVANTAGED_CATEGORY_LIMIT, _tax_advantaged_category_limit, id="tax-advantaged-category-limit"),
@@ -149,6 +162,7 @@ async def test_create_never_asks_about_other_currencies_for_the_main_currency_or
         pytest.param(AllowanceKind.CATEGORY, _category, {"name": "Gardening"}, False, id="category"),
         pytest.param(AllowanceKind.TAG, _tag, {"name": "work"}, False, id="tag"),
         pytest.param(AllowanceKind.MERCHANT, _merchant, {"name": "Metro"}, False, id="merchant"),
+        pytest.param(AllowanceKind.IMPORT_RULE, _import_rule, {"name": "Second"}, False, id="import-rule"),
         pytest.param(AllowanceKind.BUDGET, _budget, {"name": "April"}, False, id="budget"),
         pytest.param(AllowanceKind.BUDGET, _budget, {"name": "April"}, True, id="archived-budget"),
         pytest.param(AllowanceKind.TAX_ADVANTAGED_CATEGORY, _tax_advantaged_category, {"name": "RRSP"}, False, id="tax-advantaged-category"),

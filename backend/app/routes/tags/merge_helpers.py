@@ -12,6 +12,7 @@ from app.models.tag import Tag, TransactionTag
 from app.routes.tags.access_helpers import get_accessible_tag_or_404, require_group_tag_admin
 from app.routes.tags.scope_filter_helpers import get_personal_tag_filter
 from app.services.cache_state import mark_cache_changed_for_scope
+from app.services.import_rules.references import move_tag_rules
 
 
 async def get_merge_replacement_tag(
@@ -109,8 +110,9 @@ async def merge_tag_into_replacement_for_user(
     await require_group_tag_admin(db, tag, user_id)
     replacement = await get_merge_replacement_tag(db, tag, replacement_tag_id, user_id)
     await move_tag_references(db, tag.id, replacement.id)
+    await move_tag_rules(db, tag.id, replacement.id)
     await mark_cache_changed_for_scope(db, user_id=tag.owner_id, group_id=tag.group_id)
 
-    # Delete the source tag after all transaction references point to the replacement
+    # Delete the source tag after all transaction and import rule references point to the replacement
     await db.delete(tag)
     await db.commit()

@@ -19,6 +19,7 @@ from app.routes.categories.access_helpers import (
 from app.routes.categories.scope_filter_helpers import get_system_or_personal_category_filter
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
+from app.services.import_rules.references import move_category_rules
 
 
 async def get_merge_replacement_category(
@@ -146,6 +147,7 @@ async def merge_category_into_replacement_for_user(
     await require_group_category_admin(db, category, user_id)
     replacement = await get_merge_replacement_category(db, category, replacement_category_id, user_id)
     await move_category_references(db, category.id, replacement)
+    await move_category_rules(db, category.id, replacement.id)
     await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
 
     # Delete the source category after all category references point to the replacement

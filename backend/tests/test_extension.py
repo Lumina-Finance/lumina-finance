@@ -102,6 +102,7 @@ EXPECTED_MEMBERS: dict[str, dict[str, str]] = {
         "CATEGORY": "category",
         "TAG": "tag",
         "MERCHANT": "merchant",
+        "IMPORT_RULE": "import_rule",
         "TAX_ADVANTAGED_CATEGORY": "tax_advantaged_category",
         "TAX_ADVANTAGED_CATEGORY_LIMIT": "tax_advantaged_category_limit",
         "SAVED_INSIGHTS_RANGE": "saved_insights_range",

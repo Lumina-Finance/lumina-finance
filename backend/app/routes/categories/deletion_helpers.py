@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.routes.categories.access_helpers import get_accessible_category_or_404, require_group_category_admin
 from app.services.cache_state import mark_cache_changed_for_scope
+from app.services.import_rules.references import refuse_category_used_by_rule
 
 
 async def delete_category_for_user(
@@ -25,7 +26,7 @@ async def delete_category_for_user(
         user_id: Authenticated user identifier
 
     Raises:
-        HTTPException: Category is inaccessible, immutable, or referenced by transactions
+        HTTPException: Category is inaccessible, immutable, used by an import rule or referenced by transactions
     """
     category = await get_accessible_category_or_404(db, category_id, user_id)
 
@@ -33,6 +34,9 @@ async def delete_category_for_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="System categories cannot be deleted")
 
     await require_group_category_admin(db, category, user_id)
+
+    # A rule setting the category is refused first, so its name shows even when transactions use the category too
+    await refuse_category_used_by_rule(db, category.id)
 
     # Delete the category and let the database reject existing transaction references
     await db.delete(category)
