@@ -79,6 +79,8 @@ SECURED_TABLES = (
     ("user_runway_accounts", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)"),
     ("user_credit_excluded_accounts", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}() AND {CAN_ACCESS_ACCOUNT}(account_id)"),
     ("saved_insights_ranges", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}()"),
+    # Who added an institution is the adder's alone to read, though the institution is everyone's
+    ("institution_submissions", f"user_id = {CURRENT_USER_ID}()", f"user_id = {CURRENT_USER_ID}()"),
     ("import_runs", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}()"),
     ("import_staged_rows", f"owner_id = {CURRENT_USER_ID}()", f"owner_id = {CURRENT_USER_ID}()"),
     # Bank sync records belong to their owner, and those tied to an account also need

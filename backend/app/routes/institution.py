@@ -19,7 +19,7 @@ from app.schemas.institution import (
     UpdateInstitutionRequest,
 )
 from app.services.cache_state import mark_shared_cache_changed
-from app.services.institutions import list_institutions
+from app.services.institutions import add_submitted_institution, list_institutions, require_room_for_submission
 from app.utils.pagination import LIST_PAGE_SIZE, LIST_SEARCH_MAX_LENGTH, MAX_LIST_OFFSET
 
 # Auth is required on every endpoint, since institution data is internal to signed-in users
@@ -97,23 +97,18 @@ async def create_institution(
         The created institution with PENDING status
 
     Raises:
+        HTTPException 403: The user already has the most pending institutions one person may add
         HTTPException 409: Institution with the same name and country already exists
     """
+    # Before the shared cache row is marked, so a refused addition never holds or waits on that row's lock
+    await require_room_for_submission(db, user)
     await _raise_for_duplicate_institution(db, data.name, data.country_code)
 
     # Before the row is added, since a query issued afterwards would flush it early and the
     # unique violation would escape the commit guard
     await mark_shared_cache_changed(db)
 
-    # Explicitly set PENDING, since client input for status is never trusted
-    institution = Institution(
-        name=data.name,
-        country_code=data.country_code,
-        website=data.website,
-        logo_url=data.logo_url,
-        status=InstitutionStatus.PENDING,
-    )
-    db.add(institution)
+    institution = add_submitted_institution(db, user, data)
     await _commit_or_raise_for_duplicate(db)
     await db.refresh(institution)
     return institution
