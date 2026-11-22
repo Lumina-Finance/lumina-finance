@@ -4,11 +4,11 @@
  * useUpdateBaseBudget itself calls useMutation and useQueryClient, which need a live React tree to
  * invoke, so this covers updateCachedBaseBudget directly against a real QueryClient instead
  */
-import { describe, expect, it } from 'vitest';
-import { QueryClient } from '@tanstack/react-query';
-import type { BaseBudget, Budget } from '@/api/budgets';
-import { budgetKeys } from '@/api/cache/queryKeys';
-import { updateCachedBaseBudget } from '@/api/cache/updates/budgets';
+import { describe, expect, it } from 'vitest'
+import { QueryClient } from '@tanstack/react-query'
+import type { BaseBudget, Budget } from '@/api/budgets'
+import { budgetKeys } from '@/api/cache/queryKeys'
+import { updateCachedBaseBudget } from '@/api/cache/updates/budgets'
 
 /**
  * Creates a base budget fixture with valid recurring monthly defaults
@@ -30,7 +30,7 @@ function createBaseBudget(overrides: Partial<BaseBudget> = {}): BaseBudget {
     is_archived: false,
     category_ids: ['groceries'],
     ...overrides,
-  };
+  }
 }
 
 /**
@@ -46,53 +46,53 @@ function createBudget(baseBudget: BaseBudget, overrides: Partial<Budget> = {}): 
     created_at: '2026-06-01T00:00:00Z',
     base_budget: baseBudget,
     ...overrides,
-  };
+  }
 }
 
 describe('updateCachedBaseBudget', () => {
   it('replaces the matching entry in the cached base-budget list and leaves others untouched', () => {
-    const queryClient = new QueryClient();
-    const archived = createBaseBudget({ id: 'base-1' });
-    const other = createBaseBudget({ id: 'base-2', name: 'Rent' });
-    queryClient.setQueryData(budgetKeys.baseBudgets(), [archived, other]);
+    const queryClient = new QueryClient()
+    const archived = createBaseBudget({ id: 'base-1' })
+    const other = createBaseBudget({ id: 'base-2', name: 'Rent' })
+    queryClient.setQueryData(budgetKeys.baseBudgets(), [archived, other])
 
-    const updated = { ...archived, is_archived: true };
-    updateCachedBaseBudget(queryClient, updated);
+    const updated = { ...archived, is_archived: true }
+    updateCachedBaseBudget(queryClient, updated)
 
-    expect(queryClient.getQueryData<BaseBudget[]>(budgetKeys.baseBudgets())).toEqual([updated, other]);
-  });
+    expect(queryClient.getQueryData<BaseBudget[]>(budgetKeys.baseBudgets())).toEqual([updated, other])
+  })
 
   it('does not create a base-budget list cache entry when none was cached yet', () => {
-    const queryClient = new QueryClient();
+    const queryClient = new QueryClient()
 
-    updateCachedBaseBudget(queryClient, createBaseBudget({ id: 'base-1', is_archived: true }));
+    updateCachedBaseBudget(queryClient, createBaseBudget({ id: 'base-1', is_archived: true }))
 
-    expect(queryClient.getQueryData(budgetKeys.baseBudgets())).toBeUndefined();
-  });
+    expect(queryClient.getQueryData(budgetKeys.baseBudgets())).toBeUndefined()
+  })
 
   it('updates the base_budget embedded in every cached period for that base budget', () => {
-    const queryClient = new QueryClient();
-    const baseBudget = createBaseBudget({ id: 'base-1' });
-    const otherBaseBudget = createBaseBudget({ id: 'base-2', name: 'Rent' });
-    const firstPeriod = createBudget(baseBudget, { id: 'period-1', period_start: '2026-05-01' });
-    const secondPeriod = createBudget(baseBudget, { id: 'period-2', period_start: '2026-06-01' });
-    const unrelatedPeriod = createBudget(otherBaseBudget, { id: 'period-3' });
-    queryClient.setQueryData(budgetKeys.periods(), [firstPeriod, secondPeriod, unrelatedPeriod]);
+    const queryClient = new QueryClient()
+    const baseBudget = createBaseBudget({ id: 'base-1' })
+    const otherBaseBudget = createBaseBudget({ id: 'base-2', name: 'Rent' })
+    const firstPeriod = createBudget(baseBudget, { id: 'period-1', period_start: '2026-05-01' })
+    const secondPeriod = createBudget(baseBudget, { id: 'period-2', period_start: '2026-06-01' })
+    const unrelatedPeriod = createBudget(otherBaseBudget, { id: 'period-3' })
+    queryClient.setQueryData(budgetKeys.periods(), [firstPeriod, secondPeriod, unrelatedPeriod])
 
-    const updatedBaseBudget = { ...baseBudget, is_archived: true };
-    updateCachedBaseBudget(queryClient, updatedBaseBudget);
+    const updatedBaseBudget = { ...baseBudget, is_archived: true }
+    updateCachedBaseBudget(queryClient, updatedBaseBudget)
 
-    const cachedPeriods = queryClient.getQueryData<Budget[]>(budgetKeys.periods());
-    expect(cachedPeriods?.[0].base_budget).toEqual(updatedBaseBudget);
-    expect(cachedPeriods?.[1].base_budget).toEqual(updatedBaseBudget);
-    expect(cachedPeriods?.[2].base_budget).toEqual(otherBaseBudget);
-  });
+    const cachedPeriods = queryClient.getQueryData<Budget[]>(budgetKeys.periods())
+    expect(cachedPeriods?.[0].base_budget).toEqual(updatedBaseBudget)
+    expect(cachedPeriods?.[1].base_budget).toEqual(updatedBaseBudget)
+    expect(cachedPeriods?.[2].base_budget).toEqual(otherBaseBudget)
+  })
 
   it('does not create a periods cache entry when none was cached yet', () => {
-    const queryClient = new QueryClient();
+    const queryClient = new QueryClient()
 
-    updateCachedBaseBudget(queryClient, createBaseBudget({ id: 'base-1', is_archived: true }));
+    updateCachedBaseBudget(queryClient, createBaseBudget({ id: 'base-1', is_archived: true }))
 
-    expect(queryClient.getQueryData(budgetKeys.periods())).toBeUndefined();
-  });
-});
+    expect(queryClient.getQueryData(budgetKeys.periods())).toBeUndefined()
+  })
+})

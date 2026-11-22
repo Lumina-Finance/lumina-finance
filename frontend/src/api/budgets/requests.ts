@@ -1,4 +1,4 @@
-import { authenticatedFetch } from '@/api/client';
+import { authenticatedFetch } from '@/api/client'
 import type {
   BaseBudget,
   Budget,
@@ -8,7 +8,7 @@ import type {
   LatestBudgetUtilization,
   UpdateBaseBudgetPayload,
   UpdateBudgetPayload,
-} from '@/api/budgets/types';
+} from '@/api/budgets/types'
 
 /**
  * Fetches base budget definitions
@@ -16,7 +16,7 @@ import type {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchBaseBudgets(signal?: AbortSignal) {
-  return authenticatedFetch<BaseBudget[]>('/base-budgets', { signal });
+  return authenticatedFetch<BaseBudget[]>('/base-budgets', { signal })
 }
 
 /**
@@ -25,7 +25,7 @@ export function fetchBaseBudgets(signal?: AbortSignal) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchBudgets(signal?: AbortSignal) {
-  return authenticatedFetch<Budget[]>('/budgets', { signal });
+  return authenticatedFetch<Budget[]>('/budgets', { signal })
 }
 
 /**
@@ -34,7 +34,7 @@ export function fetchBudgets(signal?: AbortSignal) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchLatestBudgetUtilizations(signal?: AbortSignal) {
-  return authenticatedFetch<LatestBudgetUtilization[]>('/budgets/latest-utilizations', { signal });
+  return authenticatedFetch<LatestBudgetUtilization[]>('/budgets/latest-utilizations', { signal })
 }
 
 /**
@@ -43,7 +43,7 @@ export function fetchLatestBudgetUtilizations(signal?: AbortSignal) {
  * @param signal - Aborts the request when the load that asked for it is abandoned
  */
 export function fetchBaseBudgetUtilizations(baseBudgetId: string, signal?: AbortSignal) {
-  return authenticatedFetch<BudgetUtilization[]>(`/base-budgets/${baseBudgetId}/utilizations`, { signal });
+  return authenticatedFetch<BudgetUtilization[]>(`/base-budgets/${baseBudgetId}/utilizations`, { signal })
 }
 
 /**
@@ -53,7 +53,7 @@ export function createBaseBudget(payload: CreateBaseBudgetPayload) {
   return authenticatedFetch<BaseBudget>('/base-budgets', {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -63,7 +63,7 @@ export function createBudgetInstance({ baseBudgetId, ...payload }: CreateBudgetP
   return authenticatedFetch<Budget>(`/base-budgets/${baseBudgetId}/budgets`, {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  })
 }
 
 /**
@@ -72,7 +72,7 @@ export function createBudgetInstance({ baseBudgetId, ...payload }: CreateBudgetP
 export function deleteBaseBudget(baseBudgetId: string) {
   return authenticatedFetch<void>(`/base-budgets/${baseBudgetId}`, {
     method: 'DELETE',
-  });
+  })
 }
 
 /**
@@ -82,7 +82,7 @@ export function updateBaseBudget({ id, patch }: UpdateBaseBudgetPayload) {
   return authenticatedFetch<BaseBudget>(`/base-budgets/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
-  });
+  })
 }
 
 /**
@@ -92,5 +92,5 @@ export function updateBudget({ id, patch }: UpdateBudgetPayload) {
   return authenticatedFetch<Budget>(`/budgets/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
-  });
+  })
 }

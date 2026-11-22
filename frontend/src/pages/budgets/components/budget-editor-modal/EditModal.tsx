@@ -9,7 +9,13 @@ import BudgetEditorModalCategorySection from '@/pages/budgets/components/budget-
 import BudgetEditorModalFooter from '@/pages/budgets/components/budget-editor-modal/layout/Footer'
 import BudgetEditorModalScopeSection from '@/pages/budgets/components/budget-editor-modal/sections/ScopeSection'
 import BudgetEditorModalShell from '@/pages/budgets/components/budget-editor-modal/layout/Shell'
-import type { BudgetEditorModalErrorGetter, BudgetEditorModalFieldIds, BudgetEditorModalHandlers, BudgetEditorModalOptions, BudgetEditorModalViewState } from '@/pages/budgets/components/budget-editor-modal/types'
+import type {
+  BudgetEditorModalErrorGetter,
+  BudgetEditorModalFieldIds,
+  BudgetEditorModalHandlers,
+  BudgetEditorModalOptions,
+  BudgetEditorModalViewState,
+} from '@/pages/budgets/components/budget-editor-modal/types'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
 import { NO_CATEGORY_ERROR } from '@/pages/budgets/utils/budgetCreateValidation'
@@ -38,16 +44,18 @@ const EDIT_FIELD_IDS: BudgetEditorModalFieldIds = {
  * The limit stays blank when the budget's currency is missing from the table, since the stored amount
  * can only be turned into text through that currency's decimal places
  */
-function getInitialEditForm(baseBudget: BaseBudget, latestPeriod: Budget | undefined, currencies: Currency[]): BudgetFormState {
+function getInitialEditForm(
+  baseBudget: BaseBudget,
+  latestPeriod: Budget | undefined,
+  currencies: Currency[],
+): BudgetFormState {
   const limitExponent = findCurrencyExponent(currencies, baseBudget.currency)
 
   return {
     name: baseBudget.name,
     currency: baseBudget.currency,
     categoryIds: baseBudget.category_ids,
-    limit: latestPeriod && limitExponent !== null
-      ? fromMinorUnits(latestPeriod.overall_limit, limitExponent)
-      : '',
+    limit: latestPeriod && limitExponent !== null ? fromMinorUnits(latestPeriod.overall_limit, limitExponent) : '',
     recurrenceFreq: baseBudget.recurrence_freq,
     instanceLength: String(baseBudget.instance_length),
     periodStart: latestPeriod?.period_start ?? '',
@@ -94,10 +102,12 @@ export default function BudgetEditModal({
 
   // Preserve the budget's ownership scope so shared and personal budgets cannot cross category boundaries
   const categoryOptions = useMemo(
-    () => categories.filter((category) => (
-      category.kind === 'expense'
-      && (baseBudget.group_id ? category.group_id === baseBudget.group_id : category.group_id === null)
-    )),
+    () =>
+      categories.filter(
+        (category) =>
+          category.kind === 'expense' &&
+          (baseBudget.group_id ? category.group_id === baseBudget.group_id : category.group_id === null),
+      ),
     [baseBudget.group_id, categories],
   )
   const filteredCategories = useMemo(() => {
@@ -121,10 +131,12 @@ export default function BudgetEditModal({
     categoryOptions.some((category) => category.id === categoryId),
   )
   const baseChanged =
-    form.name.trim() !== baseBudget.name
-    || form.recurs !== baseBudget.recurs
-    || !sameStringSet(form.categoryIds, baseBudget.category_ids)
-  const periodChanged = Boolean(latestPeriod && limitMinorUnits !== null && limitMinorUnits !== latestPeriod.overall_limit)
+    form.name.trim() !== baseBudget.name ||
+    form.recurs !== baseBudget.recurs ||
+    !sameStringSet(form.categoryIds, baseBudget.category_ids)
+  const periodChanged = Boolean(
+    latestPeriod && limitMinorUnits !== null && limitMinorUnits !== latestPeriod.overall_limit,
+  )
   const archiveChanged = isArchived !== baseBudget.is_archived
 
   // The backend rejects any non-unarchive change to an archived budget, so every other field is locked
@@ -196,11 +208,8 @@ export default function BudgetEditModal({
   }, [closeAndReset, open])
 
   const limitExponent = findCurrencyExponent(currencies, baseBudget.currency)
-  const readyLimit = limitExponent === null
-    ? null
-    : latestPeriod
-      ? fromMinorUnits(latestPeriod.overall_limit, limitExponent)
-      : ''
+  const readyLimit =
+    limitExponent === null ? null : latestPeriod ? fromMinorUnits(latestPeriod.overall_limit, limitExponent) : ''
 
   // Budget restoration stays mount-only; reopening continues to use resetEditState without rearming it
   useRestoreOnceWhenReady({
@@ -266,11 +275,7 @@ export default function BudgetEditModal({
         }
       }
 
-      await Promise.all([
-        saveChanges(),
-
-        waitForMilliseconds(ACTION_LOADING_MIN_MS),
-      ])
+      await Promise.all([saveChanges(), waitForMilliseconds(ACTION_LOADING_MIN_MS)])
       closeAndReset()
       onSaved(archiveChanged)
     } catch (error) {
@@ -302,7 +307,7 @@ export default function BudgetEditModal({
       level="stacked"
       onClose={closeAndReset}
       onSubmit={handleSubmit}
-      footer={(
+      footer={
         <BudgetEditorModalFooter
           level="stacked"
           isPending={isPending}
@@ -311,7 +316,7 @@ export default function BudgetEditModal({
           submitLabel="Save changes"
           onClose={closeAndReset}
         />
-      )}
+      }
     >
       {fieldsLocked && (
         <p className="mb-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
@@ -347,10 +352,7 @@ export default function BudgetEditModal({
             handlers={handlers}
           />
 
-          <BudgetEditorModalArchiveSection
-            isArchived={isArchived}
-            onToggle={setIsArchived}
-          />
+          <BudgetEditorModalArchiveSection isArchived={isArchived} onToggle={setIsArchived} />
         </div>
 
         <BudgetEditorModalCategorySection

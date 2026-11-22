@@ -1,5 +1,5 @@
-import { authenticatedFetch } from '@/api/client';
-import type { ImportRunBudgets } from '@/api/provider-imports/types';
+import { authenticatedFetch } from '@/api/client'
+import type { ImportRunBudgets } from '@/api/provider-imports/types'
 
 /**
  * Replaces the budgets a run creates once its transactions are written
@@ -11,7 +11,7 @@ export function putImportRunBudgets(runId: string, budgets: ImportRunBudgets, si
     method: 'PUT',
     body: JSON.stringify(budgets),
     signal,
-  });
+  })
 }
 
 /**
@@ -25,5 +25,5 @@ export function putImportRunArchive(runId: string, accountSources: string[], sig
     method: 'PUT',
     body: JSON.stringify({ account_sources: accountSources }),
     signal,
-  });
+  })
 }

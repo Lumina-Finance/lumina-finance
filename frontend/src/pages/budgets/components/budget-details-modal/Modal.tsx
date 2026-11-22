@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { useBaseBudgetUtilizations, useDeleteBaseBudget, type BaseBudget, type Budget, type BudgetUtilization } from '@/api/budgets'
+import {
+  useBaseBudgetUtilizations,
+  useDeleteBaseBudget,
+  type BaseBudget,
+  type Budget,
+  type BudgetUtilization,
+} from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import BudgetDetailsSidebar from '@/pages/budgets/components/budget-details-modal/Sidebar'
@@ -195,7 +201,9 @@ export default function BudgetDetailsModal({
             <header className="flex shrink-0 items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Historical utilization</h3>
+                  <h3 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>
+                    Historical utilization
+                  </h3>
                   <BudgetFxStatusBadge
                     fxStatus={utilizationHistoryFxStatus}
                     label="Historical utilization FX status"
@@ -206,7 +214,12 @@ export default function BudgetDetailsModal({
                   Percentage used for each budget period.
                 </p>
               </div>
-              <button type="button" className="app-icon-button hidden min-[1050px]:inline-flex" aria-label="Close budget details" onClick={onClose}>
+              <button
+                type="button"
+                className="app-icon-button hidden min-[1050px]:inline-flex"
+                aria-label="Close budget details"
+                onClick={onClose}
+              >
                 <X size={20} aria-hidden />
               </button>
             </header>
@@ -227,9 +240,8 @@ export default function BudgetDetailsModal({
               loading={utilizationHistoryLoading}
               error={utilizationHistoryError}
             />
-
           </section>
-          </div>
+        </div>
       </ModalShell>
 
       <BudgetEditModal

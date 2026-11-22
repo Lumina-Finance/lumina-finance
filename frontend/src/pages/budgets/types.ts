@@ -1,4 +1,3 @@
-
 import type React from 'react'
 import type { BaseBudget, Budget, RecurrenceFreq } from '@/api/budgets'
 

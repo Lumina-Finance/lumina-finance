@@ -15,7 +15,10 @@ export const PROVIDER_MAX_BUDGETS_REQUEST_BYTES = 9 * 1024 * 1024
  * Builds the budgets a provider import creates alongside its rows, or the reason it can't. Built
  * ahead of the import so a budget it cannot send is refused while the selection can still change
  */
-export function buildProviderRunBudgets(build: () => ImportRunBudgets): { budgets: ImportRunBudgets | null; error: string | null } {
+export function buildProviderRunBudgets(build: () => ImportRunBudgets): {
+  budgets: ImportRunBudgets | null
+  error: string | null
+} {
   try {
     const budgets = build()
 

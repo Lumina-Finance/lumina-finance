@@ -93,21 +93,23 @@ export function getBudgetChartCategories({
   const latestSpentByCategoryId = new Map(
     (latestUtilization?.categories ?? []).map((category) => [category.category_id, category.spent]),
   )
-  const trackedCategories = baseBudget.category_ids.map((categoryId) => {
-    const category = categoryDetailsById.get(categoryId)
+  const trackedCategories = baseBudget.category_ids
+    .map((categoryId) => {
+      const category = categoryDetailsById.get(categoryId)
 
-    return {
-      id: categoryId,
-      name: category?.name ?? categoryById.get(categoryId) ?? 'Uncategorized',
-      kind: category?.kind ?? 'expense',
-    }
-  }).sort((a, b) => {
-    // A category the latest period never spent against ranks alongside one that spent nothing
-    const spendDifference = (latestSpentByCategoryId.get(b.id) ?? 0) - (latestSpentByCategoryId.get(a.id) ?? 0)
-    if (spendDifference !== 0) return spendDifference
+      return {
+        id: categoryId,
+        name: category?.name ?? categoryById.get(categoryId) ?? 'Uncategorized',
+        kind: category?.kind ?? 'expense',
+      }
+    })
+    .sort((a, b) => {
+      // A category the latest period never spent against ranks alongside one that spent nothing
+      const spendDifference = (latestSpentByCategoryId.get(b.id) ?? 0) - (latestSpentByCategoryId.get(a.id) ?? 0)
+      if (spendDifference !== 0) return spendDifference
 
-    return a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
-  })
+      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
+    })
   const categoryColors = getCategoryColorMap(trackedCategories)
 
   return trackedCategories.map((category, index) => ({
@@ -164,7 +166,10 @@ function buildBudgetPeriodPoint(
     (utilization?.categories ?? []).map((category) => [category.category_id, category.spent]),
   )
   const categoryValues = chartCategories.reduce<Record<string, number>>((values, category) => {
-    values[category.dataKey] = getBudgetUtilizationPercent(categorySpentById.get(category.id) ?? 0, period.overall_limit)
+    values[category.dataKey] = getBudgetUtilizationPercent(
+      categorySpentById.get(category.id) ?? 0,
+      period.overall_limit,
+    )
     return values
   }, {})
   const periodStart = parseYmd(period.period_start)
@@ -267,7 +272,9 @@ export function getBudgetDetailsChartData({
   if (!baseBudget.recurs) {
     return sortedPeriods
       .slice(-BUDGET_CHART_MAX_PERIODS)
-      .map((period) => buildBudgetPeriodPoint(period, utilizationByBudgetId, chartCategories, today, baseBudget.recurrence_freq))
+      .map((period) =>
+        buildBudgetPeriodPoint(period, utilizationByBudgetId, chartCategories, today, baseBudget.recurrence_freq),
+      )
   }
 
   const firstPeriod = sortedPeriods[0]
@@ -294,25 +301,26 @@ export function getBudgetPeriodHistory(
   sortedPeriods: Budget[],
   utilizationByBudgetId: Map<string, BudgetUtilization>,
 ): BudgetPeriodHistoryEntry[] {
-  return sortedPeriods.slice().reverse().map((period) => {
-    const utilization = utilizationByBudgetId.get(period.id)
-    const spent = utilization?.total_spent ?? 0
-    const remaining = period.overall_limit - spent
-    return {
-      period,
-      spent,
-      remaining,
-    }
-  })
+  return sortedPeriods
+    .slice()
+    .reverse()
+    .map((period) => {
+      const utilization = utilizationByBudgetId.get(period.id)
+      const spent = utilization?.total_spent ?? 0
+      const remaining = period.overall_limit - spent
+      return {
+        period,
+        spent,
+        remaining,
+      }
+    })
 }
 
 /**
  * Sorts current-period category spending from highest spend to lowest spend
  */
 export function getLatestBudgetCategories(latestUtilization: BudgetUtilization | undefined) {
-  return (latestUtilization?.categories ?? [])
-    .slice()
-    .sort((a, b) => b.spent - a.spent)
+  return (latestUtilization?.categories ?? []).slice().sort((a, b) => b.spent - a.spent)
 }
 
 /**
@@ -349,11 +357,6 @@ export function getBudgetChartGuideMaxWidth(
   if (pointCount <= 0) return BUDGET_CHART_HOVER_HIGHLIGHT_WIDTH
   return Math.max(
     1,
-    (
-      chartWidth -
-      BUDGET_CHART_LAYOUT.margin.left -
-      BUDGET_CHART_LAYOUT.margin.right -
-      yAxisWidth
-    ) / pointCount,
+    (chartWidth - BUDGET_CHART_LAYOUT.margin.left - BUDGET_CHART_LAYOUT.margin.right - yAxisWidth) / pointCount,
   )
 }
