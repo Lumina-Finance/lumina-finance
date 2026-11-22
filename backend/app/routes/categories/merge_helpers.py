@@ -1,4 +1,5 @@
 """Category merge route helpers"""
+
 import uuid
 
 import sqlalchemy as sa
@@ -50,9 +51,7 @@ async def get_merge_replacement_category(
     if source_category.group_id is None:
         replacement_filter = replacement_filter & get_system_or_personal_category_filter(user_id)
     else:
-        replacement_filter = replacement_filter & (
-            Category.is_system.is_(True) | (Category.group_id == source_category.group_id)
-        )
+        replacement_filter = replacement_filter & (Category.is_system.is_(True) | (Category.group_id == source_category.group_id))
 
     # Fetch a replacement category from the scope allowed by the category being merged
     replacement_result = await db.execute(select(Category).where(replacement_filter))
@@ -107,16 +106,12 @@ async def move_category_references(
         transaction_values["counterparty_account_scope"] = None
 
     await db.execute(
-        sa.update(Transaction)
-        .where(Transaction.category_id == source_category_id)
-        .values(**transaction_values),
+        sa.update(Transaction).where(Transaction.category_id == source_category_id).values(**transaction_values),
     )
 
     # Move merchant default categories from the source category to the replacement
     await db.execute(
-        sa.update(Merchant)
-        .where(Merchant.default_category_id == source_category_id)
-        .values(default_category_id=replacement_category_id),
+        sa.update(Merchant).where(Merchant.default_category_id == source_category_id).values(default_category_id=replacement_category_id),
     )
 
     # Move tracked budget categories from the source category to the replacement

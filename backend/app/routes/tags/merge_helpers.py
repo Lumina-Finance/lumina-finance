@@ -1,4 +1,5 @@
 """Tag merge route helpers"""
+
 import uuid
 
 import sqlalchemy as sa
@@ -83,9 +84,7 @@ async def move_tag_references(
 
     # Move source transaction-tag rows to the replacement tag
     await db.execute(
-        sa.update(TransactionTag)
-        .where(TransactionTag.tag_id == source_tag_id)
-        .values(tag_id=replacement_tag_id),
+        sa.update(TransactionTag).where(TransactionTag.tag_id == source_tag_id).values(tag_id=replacement_tag_id),
     )
 
 

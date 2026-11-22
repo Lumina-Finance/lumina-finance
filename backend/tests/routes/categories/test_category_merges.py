@@ -17,31 +17,50 @@ async def test_merge_category_reassigns_references_and_deletes_source(client):
     replacement_resp = await _create_category(client, headers, name="New Groceries")
     replacement_id = replacement_resp.json()["id"]
 
-    account_resp = await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
-    }, headers=headers)
+    account_resp = await client.post(
+        "/accounts",
+        json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": "Chequing",
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
     account_id = account_resp.json()["id"]
 
-    await client.post("/transactions", json={
-        "account_id": account_id,
-        "category_id": source_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
-    merchant_resp = await client.post("/merchants", json={
-        "name": "Costco",
-        "default_category_id": source_id,
-    }, headers=headers)
+    await client.post(
+        "/transactions",
+        json={
+            "account_id": account_id,
+            "category_id": source_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
+    )
+    merchant_resp = await client.post(
+        "/merchants",
+        json={
+            "name": "Costco",
+            "default_category_id": source_id,
+        },
+        headers=headers,
+    )
     merchant_id = merchant_resp.json()["id"]
-    base_budget_resp = await client.post("/base-budgets", json={
-        "name": "Food",
-        "currency": "CAD",
-        "recurrence_freq": "monthly",
-        "recurrence_dom": 1,
-        "category_ids": [source_id, replacement_id],
-    }, headers=headers)
+    base_budget_resp = await client.post(
+        "/base-budgets",
+        json={
+            "name": "Food",
+            "currency": "CAD",
+            "recurrence_freq": "monthly",
+            "recurrence_dom": 1,
+            "category_ids": [source_id, replacement_id],
+        },
+        headers=headers,
+    )
     base_budget_id = base_budget_resp.json()["id"]
 
     resp = await client.post(
@@ -145,27 +164,47 @@ async def test_merge_into_balance_adjustment_clears_the_recorded_counterparty_ac
 
     source_id = (await _create_category(client, headers, name="Account Move", kind="transfer")).json()["id"]
     categories = await client.get("/categories", headers=headers)
-    balance_adjustment_id = next(
-        category["id"] for category in categories.json() if category["name"] == "Balance Adjustment"
+    balance_adjustment_id = next(category["id"] for category in categories.json() if category["name"] == "Balance Adjustment")
+
+    holder_id = (
+        await client.post(
+            "/accounts",
+            json={
+                "account_kind": "asset",
+                "account_type": "checking",
+                "name": "Chequing",
+                "currency": "CAD",
+            },
+            headers=headers,
+        )
+    ).json()["id"]
+    recorded_id = (
+        await client.post(
+            "/accounts",
+            json={
+                "account_kind": "asset",
+                "account_type": "savings",
+                "name": "Savings",
+                "currency": "CAD",
+            },
+            headers=headers,
+        )
+    ).json()["id"]
+
+    created = await client.post(
+        "/transactions",
+        json={
+            "account_id": holder_id,
+            "category_id": source_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+            "counterparty_account_scope": "tracked",
+            "counterparty_account_id": recorded_id,
+            "merchant_id": await _get_system_merchant_id(client, headers),
+        },
+        headers=headers,
     )
-
-    holder_id = (await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
-    }, headers=headers)).json()["id"]
-    recorded_id = (await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "savings", "name": "Savings", "currency": "CAD",
-    }, headers=headers)).json()["id"]
-
-    created = await client.post("/transactions", json={
-        "account_id": holder_id,
-        "category_id": source_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-        "counterparty_account_scope": "tracked",
-        "counterparty_account_id": recorded_id,
-        "merchant_id": await _get_system_merchant_id(client, headers),
-    }, headers=headers)
     assert created.status_code == 201
     txn_id = created.json()["id"]
 

@@ -1,4 +1,5 @@
 """Merchant merge route helpers"""
+
 import uuid
 
 import sqlalchemy as sa
@@ -105,11 +106,7 @@ async def move_merchant_references(
         source_merchant_id: Merchant being merged away
         replacement_merchant_id: Merchant receiving the transaction references
     """
-    update_statement = (
-        sa.update(Transaction)
-        .where(Transaction.merchant_id == source_merchant_id)
-        .values(merchant_id=replacement_merchant_id)
-    )
+    update_statement = sa.update(Transaction).where(Transaction.merchant_id == source_merchant_id).values(merchant_id=replacement_merchant_id)
 
     # Move source transactions to the replacement merchant
     await db.execute(update_statement)
