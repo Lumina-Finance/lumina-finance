@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { expectSignedIn, logIn } from '../support/app'
+import { expectSignedIn, logIn, readSettledBox } from '../support/app'
 import { PATHS, card, expectLoaded, matchesApi, navigate, seedRichInsights } from '../support/insights'
 import { AT_EVERY_SIZE } from '../support/sizes'
 
@@ -25,14 +25,11 @@ type PositionRecorder = { tops: number[]; stop: boolean }
 async function press(page: Page, role: 'button' | 'tab', name: string | RegExp): Promise<void> {
   const control = page.getByRole(role, { name, exact: typeof name === 'string' }).filter({ visible: true }).first()
 
-  // A control inside the panel is pressed only once the panel has finished opening under it
-  let box = await control.boundingBox()
-  await expect.poll(async () => {
-    const previous = box
-    box = await control.boundingBox()
-    return box !== null && previous !== null && box.x === previous.x && box.y === previous.y && box.width === previous.width
-  }).toBe(true)
-  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  // A control inside the panel is pressed only once the panel has finished opening under it. Two
+  // reads of its box inside one frame agree while the panel is still sliding, so the click would
+  // land where the control was rather than where it comes to rest
+  const box = await readSettledBox(control)
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
 }
 
 /**
@@ -92,10 +89,19 @@ test('switching the period keeps the card being read where it is', AT_EVERY_SIZE
   const resting = (await card(page, 0).boundingBox())!.y
   const pageHeights = new Set<number>()
 
-  for (const code of ['LM', 'MTD', '30D', 'MTD']) {
+  const periods = [
+    { code: 'LM', label: 'Last month' },
+    { code: 'MTD', label: 'This month' },
+    { code: '30D', label: 'Last 30 days' },
+    { code: 'MTD', label: 'This month' },
+  ]
+  for (const { code, label } of periods) {
     await startRecording(page)
     await press(page, 'button', /Insights date range/)
     await press(page, 'tab', code)
+    // A press that missed its tab leaves the period as it was, and the checks below would then
+    // pass on a page that never changed
+    await expect(page.getByRole('button', { name: `Insights date range: ${label}`, exact: true }).filter({ visible: true })).toBeVisible()
     // The loading indicator appears a frame after the press, so a count taken at once would pass early
     await page.waitForTimeout(LOADING_START_MS)
     await expect(page.locator('.space-y-4').getByRole('status')).toHaveCount(0)

@@ -52,29 +52,60 @@ test('keeps the upload area clear of the Import undone message when no files are
 
 test('keeps the Import undone message the same gap above the footer while the page settles after an undo', async ({ page, request }) => {
   await finishImport(page, request, UNDO_SIZES[0])
-  // Records, on every frame, how far the message's lower edge is above the footer's top
+  // Records, for every frame as it will be drawn, how far the message's lower edge is above the
+  // footer's top. A resize observer reports after every animation frame callback and layout, just
+  // before the frame is drawn, so a box flipped in size each frame makes the observer read every drawn frame
+  // rather than one caught partway through the page's own frame work. Only frames where the
+  // footer reaches into the message's corner count, since only then is the message lifted
   await page.evaluate(() => {
     const store = window as unknown as { gaps: number[] }
     store.gaps = []
-    const tick = () => {
+    const probe = document.createElement('div')
+    probe.style.cssText = 'position: fixed; top: 0; left: 0; width: 1px; height: 1px; pointer-events: none'
+    document.body.append(probe)
+    new ResizeObserver(() => {
       const message = Array.from(document.querySelectorAll('[role="status"]')).find((node) => node.textContent?.includes('Import undone'))
       const footer = document.querySelector('[data-toast-keep-clear]')
-      if (message && footer && Number(getComputedStyle(message).opacity) > 0.9) {
-        store.gaps.push(footer.getBoundingClientRect().top - message.getBoundingClientRect().bottom)
-      }
-      requestAnimationFrame(tick)
+      if (!message || !footer || Number(getComputedStyle(message).opacity) <= 0.9) return
+      const cornerBottom = innerHeight - parseFloat(getComputedStyle(message).bottom)
+      const footerTop = footer.getBoundingClientRect().top
+      if (footerTop < cornerBottom + 12) store.gaps.push(footerTop - message.getBoundingClientRect().bottom)
+    }).observe(probe)
+    const flip = () => {
+      probe.style.width = probe.style.width === '1px' ? '2px' : '1px'
+      requestAnimationFrame(flip)
     }
-    tick()
+    flip()
   })
   await undoImport(page, 'mouse')
   await expect(page.getByRole('status').filter({ hasText: REOPENED_MESSAGE })).toBeVisible()
-  await page.waitForTimeout(2000)
-  const gaps = await page.evaluate(() => (window as unknown as { gaps: number[] }).gaps)
+  const readGaps = () => page.evaluate(() => (window as unknown as { gaps: number[] }).gaps)
+  await expect.poll(async () => (await readGaps()).at(-1)).toBeCloseTo(12, 0)
 
+  // Scrolls the steps a few pixels at a time from timers, so each move lands between frames rather than
+  // in step with them, and the footer moves under the message while it shows
+  const scrolledTo = await page.getByRole('region', { name: 'Import steps' }).evaluate(async (steps) => {
+    const STEP_PX = 4
+    const STEPS = 10
+    const positions = new Set<number>()
+    for (const direction of [-1, 1]) {
+      for (let step = 0; step < STEPS; step += 1) {
+        steps.scrollTop += direction * STEP_PX
+        positions.add(steps.scrollTop)
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      }
+    }
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    return positions.size
+  })
+  const gaps = await readGaps()
+
+  // Without the steps actually moving, the frames read above would all be of a still footer
+  expect(scrolledTo).toBeGreaterThan(5)
   expect(gaps.length).toBeGreaterThan(20)
-  // The footer moves under the message as the importer reopens, and the message must follow it at
-  // once rather than easing after it, which leaves it too high for a moment before it comes back
-  expect(Math.max(...gaps)).toBeLessThanOrEqual(12.5)
+  // The footer moves under the message as the importer reopens and as the steps scroll, and the
+  // message must be drawn at the footer's new place in the same frame, never a frame behind it
+  expect(Math.max(...gaps.map((gap) => Math.abs(gap - 12)))).toBeLessThan(0.5)
   expect(gaps.at(-1)).toBeCloseTo(12, 0)
 })
 

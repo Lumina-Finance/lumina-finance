@@ -12,6 +12,11 @@ test('corrects the highlighted institution by keyboard and the original inline a
   const headers = asUser(user)
   const name = `E2E correction bank ${crypto.randomUUID()}`
   const institutionId = await createInstitution(request, user, name)
+
+  // A second institution the search leaves out. Every user shares the institutions table, and on a
+  // fresh database this test's institution can be its only row, so without this the list shown
+  // before the search answers would already hold exactly the one option the search returns
+  await createInstitution(request, user, `E2E other bank ${crypto.randomUUID()}`)
   const account = await createAccount(request, user, { name: 'Institution correction account' })
   const linked = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, {
     headers, data: { institution_id: institutionId },
@@ -39,7 +44,9 @@ test('corrects the highlighted institution by keyboard and the original inline a
   await search.fill(name)
   const target = create.getByRole('option', { name, exact: true })
   await expect(target).toBeVisible()
-  // The search runs on the server, so the first page stays on screen until the match replaces it
+
+  // The search runs on the server, so the first page stays on screen until the match replaces it.
+  // Pressing a key before then would act on that page, and the list empties while the search loads
   await expect(create.getByRole('listbox').getByRole('option')).toHaveCount(1)
   await expect(create.getByRole('listbox').getByRole('button')).toHaveCount(0)
 
@@ -73,6 +80,7 @@ test('corrects the highlighted institution by keyboard and the original inline a
   await current.click()
   const editSearch = edit.getByPlaceholder('Search institutions...', { exact: true })
   await editSearch.fill(name)
+  await expect(edit.getByRole('listbox').getByRole('option')).toHaveCount(1)
   const currentOption = edit.getByRole('option', { name, exact: true })
   const inlineEdit = currentOption.locator('.app-dropdown-row-edit')
   await expect(inlineEdit).toHaveAttribute('title', 'Correct institution (Alt+Enter)')

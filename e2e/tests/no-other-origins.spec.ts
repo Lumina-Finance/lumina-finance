@@ -64,8 +64,12 @@ test('opens the emoji panel with every other site unreachable and contacts none'
   await dialog.getByRole('button', { name: 'Select New category icon' }).click()
 
   const panel = page.getByRole('dialog', { name: 'Select New category icon' })
-  await expect(panel.getByRole('searchbox')).toBeVisible({ timeout: 15000 })
+  const search = panel.getByRole('searchbox')
+  await expect(search).toBeVisible({ timeout: 15000 })
+  // The panel draws the search box a frame before moving focus into it, and the keys go wherever focus is
+  await expect(search).toBeFocused()
   await page.keyboard.type('dog')
+  await expect(search).toHaveValue('dog')
   await expect(panel.getByRole('button', { name: '🐶', exact: true })).toBeVisible()
 
   expect(refused).toEqual([])
