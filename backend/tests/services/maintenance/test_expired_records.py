@@ -288,8 +288,8 @@ async def test_the_cleanup_forgets_failure_counts_idle_for_a_week_and_keeps_rece
     async with TestSession() as session:
         session.add_all(
             [
-                LoginLockout(email_hash="idle", failed_attempt_count=3, last_failed_at=idle_week),
-                LoginLockout(email_hash="recent", failed_attempt_count=3, last_failed_at=idle_week + timedelta(hours=1)),
+                LoginLockout(email_hash="idle", bucket_hash="", failed_attempt_count=3, last_failed_at=idle_week),
+                LoginLockout(email_hash="recent", bucket_hash="", failed_attempt_count=3, last_failed_at=idle_week + timedelta(hours=1)),
             ]
         )
         await session.commit()
@@ -466,8 +466,8 @@ async def _seed_email_change_requests() -> None:
 
 async def _seed_login_lockouts() -> None:
     now = datetime.now(UTC)
-    live = [LoginLockout(email_hash=f"live{index}", failed_attempt_count=1, last_failed_at=now) for index in range(LIVE_ROWS)]
-    await _save(live, [LoginLockout(email_hash="idle", failed_attempt_count=1, last_failed_at=now - timedelta(days=8))])
+    live = [LoginLockout(email_hash=f"live{index}", bucket_hash="", failed_attempt_count=1, last_failed_at=now) for index in range(LIVE_ROWS)]
+    await _save(live, [LoginLockout(email_hash="idle", bucket_hash="", failed_attempt_count=1, last_failed_at=now - timedelta(days=8))])
 
 
 async def _seed_signup_email_sends() -> None:

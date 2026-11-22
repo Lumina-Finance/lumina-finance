@@ -6,7 +6,7 @@ HMAC of it under a key held outside the database, which a copy of the database a
 
 The key derives from the server's bank transaction hash key, which every install already holds, so
 there is no new setting. Changing that key only makes saved counters unmatched, which forgets
-short-lived lockouts
+short-lived lockouts, and makes every known-browser cookie unrecognised until its browser signs in again
 """
 
 import functools
@@ -28,6 +28,18 @@ LOCKOUT_KEY_LABEL = b"login-lockout"
 def _lockout_key() -> bytes:
     """Return the lockout key derived from the server key, resolved once for the life of the process"""
     return hmac.new(resolve_key(generate=False), LOCKOUT_KEY_LABEL, hashlib.sha256).digest()
+
+
+def derive_lockout_subkey(label: bytes) -> bytes:
+    """Return a key for another use of the lockout key, so the two never produce the same value
+
+    Args:
+        label: Names the use, and must differ from every other label
+
+    Returns:
+        HMAC-SHA256 of the label under the lockout key
+    """
+    return hmac.new(_lockout_key(), label, hashlib.sha256).digest()
 
 
 def seal_login_email(email: str) -> str:

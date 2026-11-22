@@ -13,7 +13,7 @@ from tests.routes.support import (
     _enroll,
     _fresh_totp_code,
     _get_auth_header,
-    _get_login_lockout,
+    _get_step_up_lockout,
     _sign_in_again,
     sign_up_confirmed,
 )
@@ -53,7 +53,7 @@ async def test_end_others_without_password_refused_keeps_other_sessions(client):
     wrong = await client.post(_END_OTHERS, headers=caller[0], json={"password": "WrongPassword123!"})
     assert wrong.status_code == 401
     assert wrong.json()["detail"] == "Invalid credentials"
-    assert (await _get_login_lockout(SIGNUP_PAYLOAD["email"])).failed_attempt_count == 1
+    assert (await _get_step_up_lockout(caller[0])).failed_attempt_count == 1
 
     await _assert_other_sessions_kept(client, caller, other)
 

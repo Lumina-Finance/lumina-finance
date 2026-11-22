@@ -21,6 +21,13 @@ REFRESH_COOKIE_KEY = "refresh_token"
 _COOKIE_PATH = "/"
 _COOKIE_MAX_AGE = JWT_REFRESH_TOKEN_EXPIRE_SECONDS
 
+# Marks a browser an address has signed in from, so a stranger's failed guesses at the address don't
+# count against it (services/auth/known_browser.py). It outlives the refresh token on purpose: a sign-out
+# or an expired session must leave the browser known, or the owner would be counted with strangers
+# at the very moment they sign in again. 400 days is the longest a browser keeps a cookie
+KNOWN_BROWSER_COOKIE_KEY = "known_browser"
+_KNOWN_BROWSER_COOKIE_MAX_AGE = 400 * 24 * 60 * 60
+
 # The header the Apple apps send so their refresh token comes back in the body
 NATIVE_CLIENT_HEADER = "x-lumina-client"
 NATIVE_CLIENT_MARKER = "native"
@@ -73,6 +80,11 @@ def read_refresh_cookie(request: Request) -> str | None:
     return request.cookies.get(cookie_name(request, REFRESH_COOKIE_KEY))
 
 
+def read_known_browser_cookie(request: Request) -> str | None:
+    """Return the known-browser value the browser sent under this request's cookie name"""
+    return request.cookies.get(cookie_name(request, KNOWN_BROWSER_COOKIE_KEY))
+
+
 def read_oidc_login_binding_cookie(request: Request) -> str | None:
     """Return the login binding secret the browser sent under this request's cookie name"""
     return request.cookies.get(cookie_name(request, OIDC_BINDING_COOKIE_KEY))
@@ -109,6 +121,27 @@ def set_refresh_cookie(request: Request, response: Response, token: str) -> None
         secure=request_is_https(request),
         samesite="lax",
         max_age=_COOKIE_MAX_AGE,
+        path=_COOKIE_PATH,
+    )
+
+
+def set_known_browser_cookie(request: Request, response: Response, value: str) -> None:
+    """Set the known-browser value as an httpOnly cookie on the response
+
+    Sign-out does not remove it, so there is no clearing helper
+
+    Args:
+        request: FastAPI request object
+        response: FastAPI response object
+        value: What remember_address returned
+    """
+    response.set_cookie(
+        key=cookie_name(request, KNOWN_BROWSER_COOKIE_KEY),
+        value=value,
+        httponly=True,
+        secure=request_is_https(request),
+        samesite="lax",
+        max_age=_KNOWN_BROWSER_COOKIE_MAX_AGE,
         path=_COOKIE_PATH,
     )
 

@@ -840,7 +840,7 @@ async def test_reset_verify_locked_account_is_rejected(client):
     user_id = uuid.UUID(signup.json()["user"]["id"])
     raw_token, challenge = await _begin_reset_with_factor(client, user_id)
 
-    # Five wrong passwords trip the shared lockout
+    # Five wrong passwords trip the lockout of the browser that signed up
     for _ in range(5):
         await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": "WrongPassword123!"})
 

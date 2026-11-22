@@ -892,6 +892,106 @@ async def test_login_lockout_migration_carries_counts_and_locks_both_ways() -> N
         await _drop_database(database_name)
 
 
+_ALEMBIC_LOCKOUT_BUCKET_DB_NAME = f"{WORKER_DB_NAME}_alembic_lockout_bucket"
+_BEFORE_LOCKOUT_BUCKET_REVISION = "c7e4a9d2b3f5"
+_LOCKOUT_BUCKET_REVISION = "5d3c8f1a7b92"
+_LOCKED_EMAIL_HASH = "a" * 64
+_COUNTING_EMAIL_HASH = "b" * 64
+_BROWSER_BUCKET_HASH = "c" * 64
+
+
+async def _read_lockout_primary_key(conn: AsyncConnection) -> list[str]:
+    """Return the columns of the lockout table's primary key, in name order"""
+    return list(
+        (
+            await conn.execute(
+                text(
+                    "SELECT a.attname FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)"
+                    " WHERE i.indrelid = 'login_lockouts'::regclass AND i.indisprimary ORDER BY a.attname"
+                )
+            )
+        ).scalars()
+    )
+
+
+async def test_lockout_bucket_migration_files_existing_counts_in_the_shared_bucket_and_downgrades_to_them() -> None:
+    """Verify upgrade, downgrade and reupgrade keep every shared count and lock and drop the other buckets' on the way back
+
+    A count or lock that moved to another bucket would unlock an address a stranger had locked or hand
+    it a fresh allowance, and a downgrade that kept a bucket row would break the older one-row-per-email key
+    """
+    database_name = _ALEMBIC_LOCKOUT_BUCKET_DB_NAME
+    await _recreate_database(database_name)
+    engine = _create_engine_for_database(database_name)
+    try:
+        _run_alembic_upgrade(database_name, revision=_BEFORE_LOCKOUT_BUCKET_REVISION)
+        async with engine.begin() as conn:
+            assert await _read_lockout_primary_key(conn) == ["email_hash"]
+            for email_hash, count, locked in ((_LOCKED_EMAIL_HASH, 5, True), (_COUNTING_EMAIL_HASH, 2, False)):
+                await conn.execute(
+                    text(
+                        "INSERT INTO login_lockouts (email_hash, failed_attempt_count, locked_until, last_failed_at)"
+                        " VALUES (:email_hash, :count, CASE WHEN :locked THEN now() + interval '20 minutes' END, now())"
+                    ),
+                    {"email_hash": email_hash, "count": count, "locked": locked},
+                )
+
+        expected = {(_LOCKED_EMAIL_HASH, ""): (5, True), (_COUNTING_EMAIL_HASH, ""): (2, False)}
+        for reupgrade in (False, True):
+            _run_alembic_upgrade(database_name, revision=_LOCKOUT_BUCKET_REVISION)
+            async with engine.connect() as conn:
+                rows = (
+                    await conn.execute(
+                        text("SELECT email_hash, bucket_hash, failed_attempt_count, locked_until IS NOT NULL FROM login_lockouts")
+                    )
+                ).all()
+                primary_key = await _read_lockout_primary_key(conn)
+            assert {(row[0], row[1]): (row[2], row[3]) for row in rows} == expected, f"reupgrade={reupgrade}"
+            assert primary_key == ["bucket_hash", "email_hash"]
+
+            # The login reads and writes the table as the app role, so the new column must stay reachable by it
+            app_engine = _create_app_role_engine(database_name)
+            try:
+                async with app_engine.begin() as conn:
+                    assert await conn.scalar(text("SELECT count(*) FROM login_lockouts")) == len(expected)
+            finally:
+                await app_engine.dispose()
+
+            if not reupgrade:
+                # A second bucket for an address already counted is what the old key refused
+                async with engine.begin() as conn:
+                    await conn.execute(
+                        text(
+                            "INSERT INTO login_lockouts (email_hash, bucket_hash, failed_attempt_count, last_failed_at)"
+                            " VALUES (:email_hash, :bucket_hash, 3, now())"
+                        ),
+                        {"email_hash": _LOCKED_EMAIL_HASH, "bucket_hash": _BROWSER_BUCKET_HASH},
+                    )
+                _run_alembic_downgrade(database_name, _BEFORE_LOCKOUT_BUCKET_REVISION)
+                async with engine.connect() as conn:
+                    kept = {
+                        row[0]: (row[1], row[2])
+                        for row in (
+                            await conn.execute(text("SELECT email_hash, failed_attempt_count, locked_until IS NOT NULL FROM login_lockouts"))
+                        )
+                    }
+                    primary_key = await _read_lockout_primary_key(conn)
+                    bucket_column = await conn.scalar(
+                        text(
+                            "SELECT count(*) FROM information_schema.columns"
+                            " WHERE table_name = 'login_lockouts' AND column_name = 'bucket_hash'"
+                        )
+                    )
+                assert kept == {_LOCKED_EMAIL_HASH: (5, True), _COUNTING_EMAIL_HASH: (2, False)}, (
+                    "the shared rows are kept and the browser's is dropped"
+                )
+                assert primary_key == ["email_hash"]
+                assert bucket_column == 0
+    finally:
+        await engine.dispose()
+        await _drop_database(database_name)
+
+
 async def _read_email_fold_state(conn: AsyncConnection) -> tuple[str, bool, bool]:
     """Return the schema revision, whether the exact-match constraint exists and whether the folded index does"""
     revision = await conn.scalar(text("SELECT version_num FROM alembic_version"))

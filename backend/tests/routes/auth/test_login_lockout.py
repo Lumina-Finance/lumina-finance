@@ -13,6 +13,7 @@ from tests.conftest import TestSession
 from tests.routes.support import (
     SIGNUP_PAYLOAD,
     _create_user,
+    _get_browser_lockout,
     _get_login_lockout,
     _seed_currency,
     _seed_reset_token,
@@ -154,6 +155,6 @@ async def test_password_reset_clears_the_lockout(client):
     reset = await client.post("/auth/password/reset", json={"token": raw_token, "new_password": _NEW_PASSWORD})
     assert reset.status_code == 204
 
-    assert await _get_login_lockout(SIGNUP_PAYLOAD["email"]) is None
+    assert await _get_browser_lockout(client) is None
     login = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _NEW_PASSWORD})
     assert login.status_code == 200

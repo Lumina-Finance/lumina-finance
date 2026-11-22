@@ -1,6 +1,7 @@
 """Shared auth route test helpers"""
 
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -13,7 +14,9 @@ from app.models.auth import AuthIdentity, LoginLockout, PasswordResetToken
 from app.models.base import AuthProvider
 from app.models.currency import Currency
 from app.models.oidc import OidcIdentity, OidcProvider
+from app.routes.auth.cookie_helpers import KNOWN_BROWSER_COOKIE_KEY
 from app.schemas.auth import SignupRequest
+from app.services.auth.known_browser import SHARED_BUCKET, session_bucket, sign_in_bucket
 from app.services.auth.login_email_hash import seal_login_email
 from app.services.auth.token_hashing import hash_token
 from app.services.auth.tokens import SignupConfirmationClaims, create_signup_confirmation_token
@@ -40,10 +43,34 @@ def _fresh_totp_code(secret: str) -> str:
     return totp.at(int(time.time()) + totp.interval)
 
 
-async def _get_login_lockout(email: str) -> LoginLockout | None:
-    """Return the lockout record for an email, or None when no failure is counted for it"""
+async def _get_login_lockout(email: str, bucket: str = SHARED_BUCKET) -> LoginLockout | None:
+    """Return the lockout record for an email in a bucket, or None when no failure is counted there
+
+    The bucket is the shared one unless a test names another. A request without a known-browser cookie
+    counts there, so a test that clears the client's cookies reads the default
+    """
     async with TestSession() as session:
-        return await session.get(LoginLockout, seal_login_email(email))
+        return await session.get(LoginLockout, (seal_login_email(email), bucket))
+
+
+def _browser_bucket(client, email: str = "test@example.com") -> str:
+    """Return the bucket a client's browser counts its sign-in failures in
+
+    The client holds the known-browser cookie its sign-up or sign-in was given, so this is where the
+    address's owner counts, as opposed to a stranger's shared bucket
+    """
+    return sign_in_bucket(client.cookies.get(KNOWN_BROWSER_COOKIE_KEY), email)
+
+
+async def _get_browser_lockout(client, email: str = "test@example.com") -> LoginLockout | None:
+    """Return the lockout record of the bucket a client's browser counts its sign-in failures in"""
+    return await _get_login_lockout(email, _browser_bucket(client, email))
+
+
+async def _get_step_up_lockout(auth: dict, email: str = "test@example.com") -> LoginLockout | None:
+    """Return the lockout record of the session an access token belongs to, where its step-up failures count"""
+    claims = jwt.decode(auth["Authorization"].removeprefix("Bearer "), options={"verify_signature": False})
+    return await _get_login_lockout(email, session_bucket(uuid.UUID(claims["sid"])))
 
 
 SIGNUP_PAYLOAD = {

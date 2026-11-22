@@ -67,6 +67,9 @@ async def _challenges(purpose: str) -> list[str]:
 async def test_login_burst_of_wrong_passwords_checks_five_and_locks_the_rest(client, monkeypatch, email, primitive):
     """Twenty wrong passwords sent at once cost five hashes whether or not the email has an account, and the other fifteen find it locked"""
     await _create_user(client)
+
+    # Without its cookie the client is a browser the address never signed in from, so the burst counts in the shared bucket
+    client.cookies.clear()
     held = HeldCheck(getattr(login_service, primitive))
     monkeypatch.setattr(login_service, primitive, held)
 
@@ -100,6 +103,7 @@ async def test_login_with_the_right_password_after_a_held_burst_is_locked_out(cl
 async def test_second_factor_burst_of_wrong_codes_checks_five_and_locks_the_rest(client, monkeypatch, path, purpose):
     """Twenty wrong codes, each on its own challenge, sent at once run five checks at sign-in and at password reset alike"""
     await _enroll(client)
+    client.cookies.clear()
     tokens = await _challenges(purpose)
     reset_token = await _seed_reset_token(await _only_user_id()) if purpose == MFA_PURPOSE_PASSWORD_RESET else None
     held = HeldCheck(token_helpers.verify_login_second_factor)
