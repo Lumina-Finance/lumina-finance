@@ -1,7 +1,7 @@
 """What the allowance check does to account creation, the full table every other record kind's route repeats one case of
 
-A refusal answers 403 with the deployment's own sentence and creates nothing. A check that raises is a
-fault in the deployment's code, so the request fails as any server fault does and creates nothing
+A refusal answers 403 with the check's own sentence and creates nothing. A check that raises is a
+fault in the installed code, so the request fails as any server fault does and creates nothing
 """
 
 import asyncio
@@ -13,7 +13,8 @@ from app.allowance_hook import AllowanceKind, AllowanceRequest, Refusal, set_all
 from app.main import app
 from tests.routes.accounts._account_helpers import _create_second_user
 from tests.routes.support import _account_names, _create_account, _create_user, _get_auth_header
-from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check, sign_up_other_user
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+from tests.routes.support.authorization_helpers import _sign_up_other_user
 
 # How long a check waits for another request to join it, long enough for a loaded host to start both
 _PARTNER_WAIT_SECONDS = 3
@@ -49,8 +50,8 @@ def _install_check_waiting_for_another_request_with_a_maximum_of_one() -> list[i
     return overlaps
 
 
-async def test_create_account_refused_by_the_check_says_the_deployments_reason_and_creates_nothing(client):
-    """The sentence the deployment gave is what the user reads, and the account isn't there afterwards"""
+async def test_create_account_refused_by_the_check_says_the_checks_reason_and_creates_nothing(client):
+    """The sentence the check gave is what the user reads, and the account isn't there afterwards"""
     headers = _get_auth_header(await _create_user(client))
     install_check(refused={AllowanceKind.ACCOUNT})
 
@@ -61,7 +62,7 @@ async def test_create_account_refused_by_the_check_says_the_deployments_reason_a
     assert await _account_names(client, headers) == []
 
 
-async def test_create_account_at_the_limit_is_refused_until_one_is_deleted(client):
+async def test_create_account_refused_by_a_check_allowing_one_passes_once_one_is_deleted(client):
     """The check is told what the user holds and is adding, and deleting an account makes room for another"""
     headers = _get_auth_header(await _create_user(client))
     asked = install_check(maximum=1)
@@ -77,7 +78,7 @@ async def test_create_account_at_the_limit_is_refused_until_one_is_deleted(clien
 
 
 async def test_create_account_counts_an_archived_account_until_it_is_deleted(client):
-    """Archiving gives no room back at the limit, and only deleting the archived account does"""
+    """An archived account still counts for the check, and only deleting it lets another in"""
     headers = _get_auth_header(await _create_user(client))
     asked = install_check(maximum=1)
     first = await _create_account(client, headers, name="First")
@@ -105,7 +106,7 @@ async def test_create_account_counts_only_the_users_own_accounts(client):
 
 
 async def test_create_account_with_a_check_that_raises_fails_as_a_server_fault_and_creates_nothing(client):
-    """A deployment's check that errors never lets the account in, and the user is shown the usual server fault"""
+    """A check that errors never lets the account in, and the user is shown the usual server fault"""
     headers = _get_auth_header(await _create_user(client))
 
     async def check(request: AllowanceRequest) -> Refusal | None:
@@ -119,7 +120,7 @@ async def test_create_account_with_a_check_that_raises_fails_as_a_server_fault_a
     assert await _account_names(client, headers) == []
 
 
-async def test_two_creates_at_once_at_the_limit_of_one_let_exactly_one_in(client):
+async def test_two_creates_at_once_under_a_check_allowing_one_let_exactly_one_in(client):
     """The second request waits for the first to end before counting, so it sees the account the first made and is refused"""
     headers = _get_auth_header(await _create_user(client))
     overlaps = _install_check_waiting_for_another_request_with_a_maximum_of_one()
@@ -134,7 +135,7 @@ async def test_two_creates_at_once_at_the_limit_of_one_let_exactly_one_in(client
 async def test_two_users_creating_at_once_do_not_wait_for_each_other(client):
     """The lock is the user's own, so a second user's create runs beside the first's and both get their account"""
     headers = _get_auth_header(await _create_user(client))
-    other_headers, _ = await sign_up_other_user(client)
+    other_headers, _ = await _sign_up_other_user(client)
     overlaps = _install_check_waiting_for_another_request_with_a_maximum_of_one()
 
     responses = await asyncio.gather(_create_account(client, headers, name="Mine"), _create_account(client, other_headers, name="Theirs"))

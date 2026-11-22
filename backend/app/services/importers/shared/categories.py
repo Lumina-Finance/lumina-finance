@@ -178,7 +178,7 @@ async def _get_or_create_import_category_for_mapping(
         Existing or newly created category row for the import source
 
     Raises:
-        HTTPException: Raised with 404 or 422 when the existing category can't be used
+        HTTPException: Raised with 422 when the existing category can't be used
     """
     if mapping.category_id is not None:
         category = await get_visible_import_category(db, mapping.category_id, user_id, categories_by_id=categories_by_id)

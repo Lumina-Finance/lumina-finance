@@ -5,6 +5,8 @@ reaches these. The user is told what to fix in their file rather than refused so
 may not ask for
 """
 
+import uuid
+
 import pytest
 from fastapi import HTTPException
 
@@ -16,6 +18,9 @@ from app.services.importers.shared.stats import ImportStats
 from tests.conftest import TestSession
 from tests.routes.support.allowance_helpers import install_check
 from tests.services.importers._helpers import _seed_user
+
+_NEW_ACCOUNT = {"name": "Chequing", "account_type": "checking", "currency": "CAD"}
+_NEW_CATEGORY = {"name": "Hobbies", "kind": "expense"}
 
 
 async def test_accounts_listed_twice_answer_422_before_the_check_refuses_accounts():
@@ -42,3 +47,41 @@ async def test_categories_listed_twice_answer_422_before_the_check_refuses_categ
             await get_or_create_import_categories_by_source(session, user, [mapping, mapping], ImportStats())
 
     assert (exc_info.value.status_code, exc_info.value.detail) == (422, "The category source Hobbies is listed more than once")
+
+
+@pytest.mark.parametrize(
+    "both_or_neither",
+    [{"account_id": uuid.uuid4(), "create": _NEW_ACCOUNT}, {}],
+    ids=["account-and-create", "neither"],
+)
+async def test_an_account_mapping_without_one_action_answers_422_before_the_check_refuses_accounts(both_or_neither):
+    """A mapping naming an account and a new one, or neither, is the file's mistake and is told so ahead of a later create the check refuses"""
+    install_check(refused={AllowanceKind.ACCOUNT})
+    creating = TransactionImportAccountMapping(source="Savings", create=_NEW_ACCOUNT)
+    mistaken = TransactionImportAccountMapping(source="Chequing", **both_or_neither)
+    async with TestSession() as session:
+        user = await _seed_user(session)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await resolve_import_account_sources(session, user, [creating, mistaken], ImportStats(), set())
+
+    assert (exc_info.value.status_code, exc_info.value.detail) == (422, "The account source Chequing must map to exactly one account action")
+
+
+@pytest.mark.parametrize(
+    "both_or_neither",
+    [{"category_id": uuid.uuid4(), "create": _NEW_CATEGORY}, {}],
+    ids=["category-and-create", "neither"],
+)
+async def test_a_category_mapping_without_one_action_answers_422_before_the_check_refuses_categories(both_or_neither):
+    """A mapping naming a category and a new one, or neither, is the file's mistake and is told so ahead of a later create the check refuses"""
+    install_check(refused={AllowanceKind.CATEGORY})
+    creating = TransactionImportCategoryMapping(source="Travel", create=_NEW_CATEGORY)
+    mistaken = TransactionImportCategoryMapping(source="Hobbies", **both_or_neither)
+    async with TestSession() as session:
+        user = await _seed_user(session)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_or_create_import_categories_by_source(session, user, [creating, mistaken], ImportStats())
+
+    assert (exc_info.value.status_code, exc_info.value.detail) == (422, "The category source Hobbies must map to exactly one category action")

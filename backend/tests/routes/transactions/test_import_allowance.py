@@ -1,6 +1,6 @@
 """What the allowance check refuses in an import: each kind of record the import creates, asked once with how many it adds
 
-An import saves everything or nothing, so a refusal of any kind answers 403 with the deployment's own
+An import saves everything or nothing, so a refusal of any kind answers 403 with the check's own
 sentence and leaves the account and every other record the import would have created unsaved
 """
 
@@ -130,9 +130,8 @@ async def test_import_reusing_everything_it_names_never_asks_the_check(client):
     assert asked == [], "an import adding no account, category, merchant or tag asked the check"
 
 
-async def test_import_of_budgets_refused_saves_nothing_at_all(client):
-    """A journal import whose budgets are refused leaves the new account it also creates unsaved"""
-    headers = _get_auth_header(await _create_user(client))
+async def _stage_journal_run_with_budgets(client, headers, budget_names: list[str]) -> str:
+    """Stage a journal import creating an account, with one Groceries budget for each name, and return the path of its run"""
     groceries_id = await _get_system_category_id(client, headers, "Groceries")
     run_id = await _open_staged_run(
         client,
@@ -156,19 +155,44 @@ async def test_import_of_budgets_refused_saves_nothing_at_all(client):
         "firefly",
     )
     run_path = f"/transactions/import/runs/{run_id}"
-    budget = {
-        "name": "Groceries",
-        "currency": "CAD",
-        "category_sources": [groceries_id],
-        "recurrence": None,
-        "limits": [{"start": "2023-01-01", "end": "2023-01-31", "amount": "100.00"}],
-    }
+    budgets = [
+        {
+            "name": name,
+            "currency": "CAD",
+            "category_sources": [groceries_id],
+            "recurrence": None,
+            "limits": [{"start": "2023-01-01", "end": "2023-01-31", "amount": "100.00"}],
+        }
+        for name in budget_names
+    ]
     staged = await client.put(
         f"{run_path}/budgets",
-        json={"categories": [{"source": groceries_id, "category_id": groceries_id}], "budgets": [budget]},
+        json={"categories": [{"source": groceries_id, "category_id": groceries_id}], "budgets": budgets},
         headers=headers,
     )
     assert staged.status_code == 204, staged.text
+    return run_path
+
+
+async def test_import_of_two_budgets_asks_once_with_the_one_the_user_already_holds(client):
+    """Two new budgets beside one the user has make one ask, holding 1 and adding 2, and the import is saved"""
+    headers = _get_auth_header(await _create_user(client))
+    category = await client.post("/categories", json={"name": "Hobbies", "kind": "expense"}, headers=headers)
+    existing = {"name": "March", "currency": "CAD", "recurrence_freq": "monthly", "recurrence_dom": 1, "category_ids": [category.json()["id"]]}
+    assert (await client.post("/base-budgets", json=existing, headers=headers)).status_code == 201
+    run_path = await _stage_journal_run_with_budgets(client, headers, ["Groceries", "Dining"])
+    asked = install_check()
+
+    committed = await client.post(f"{run_path}/journal/commit", headers=headers)
+
+    assert committed.status_code == 201, committed.text
+    assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.BUDGET] == [(1, 2)]
+
+
+async def test_import_of_budgets_refused_saves_nothing_at_all(client):
+    """A journal import whose budgets are refused leaves the new account it also creates unsaved"""
+    headers = _get_auth_header(await _create_user(client))
+    run_path = await _stage_journal_run_with_budgets(client, headers, ["Groceries"])
     asked = install_check(refused={AllowanceKind.BUDGET})
 
     refused = await client.post(f"{run_path}/journal/commit", headers=headers)

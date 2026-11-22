@@ -1,9 +1,10 @@
 """What the allowance check refuses in bank sync besides linking, which each linking route's own refusal test covers
 
 A new connection is refused before the user is sent to their bank or a one-time token is spent, and
-Sync now is refused with the deployment's sentence and queues nothing
+Sync now is refused with the check's sentence and queues nothing
 """
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -11,10 +12,11 @@ from app.allowance_hook import AllowanceKind
 from app.models.bank_connection import BankAccountLink
 from app.services.bank_sync import account_link, range_import
 from tests.conftest import TestSession
-from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check, sign_up_other_user
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
 from tests.routes.support.authorization_helpers import (
     _commit_rejected_connection,
     _finish,
+    _sign_up_other_user,
     _start,
     _started_state,
     _stored_authorizations,
@@ -73,9 +75,9 @@ async def test_claim_tells_the_check_how_many_connections_the_user_holds_and_nev
     fake_provider.claimable[_CREDENTIAL] = "fake-stored-access"
     fake_provider.outcomes = [_returned("ACT-1")]
     headers, user_id = await _sign_up(client)
-    _, other_id = await sign_up_other_user(client)
+    _, other_id = await _sign_up_other_user(client)
     await _commit_listed_connection(user_id)
-    await _commit_listed_connection(other_id)
+    await _commit_listed_connection(uuid.UUID(other_id))
     asked = install_check()
 
     claimed = await client.post("/bank-sync/connections", json={"provider": "fake", "credentials": {ACCESS_KEY: _CREDENTIAL}}, headers=headers)
@@ -100,7 +102,7 @@ async def test_finish_refused_a_new_connection_stores_none_and_the_code_is_never
 
 
 async def test_reconnecting_a_connection_never_asks_for_a_new_one(client, authorizing_provider):
-    """A user at their limit can still sign in again at the bank, since the reconnection replaces the access of a connection they hold"""
+    """A user refused a new connection can still sign in again at the bank, since a reconnection replaces a held connection's access"""
     headers, user_id = await _sign_up(client)
     rejected = await _commit_rejected_connection(user_id)
     authorizing_provider.outcomes = [_returned("ACT-1")]

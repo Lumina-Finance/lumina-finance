@@ -1,12 +1,10 @@
-"""Installing an allowance check that refuses, as a deployment's own code would"""
+"""Installing an allowance check that refuses, as code built on the app would"""
 
-import uuid
 from collections.abc import Collection
 
 from app.allowance_hook import AllowanceKind, AllowanceRequest, Refusal, set_allowance_check
-from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD, _get_auth_header, sign_up_confirmed
 
-# The deployment's own sentence a refusing check gives
+# The sentence a refusing check gives
 ALLOWANCE_REASON = "This server allows no more of these"
 
 
@@ -32,9 +30,3 @@ def install_check(
 
     set_allowance_check(check)
     return asked
-
-
-async def sign_up_other_user(client) -> tuple[dict, uuid.UUID]:
-    """Sign up a second user, and return their auth headers and id"""
-    response = await sign_up_confirmed(client, {**SIGNUP_PAYLOAD, "email": "other@example.com"})
-    return _get_auth_header(response), uuid.UUID(response.json()["user"]["id"])
