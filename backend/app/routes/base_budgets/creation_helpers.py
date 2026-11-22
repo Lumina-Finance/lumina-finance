@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.budget import BaseBudget, BudgetTrackedCategory
 from app.models.currency import Currency
 from app.models.group import GroupMember
@@ -14,6 +15,7 @@ from app.models.user import User
 from app.routes.base_budgets.instance_helpers import add_initial_budget_instances
 from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.schemas.budget import BaseBudgetResponse, CreateBaseBudgetRequest
+from app.services.allowance.require import require_allowance
 from app.services.budgets.limits import ensure_category_count_within_limit, ensure_room_for_base_budgets
 from app.services.budgets.periods import validate_period_start
 from app.services.budgets.tracked_categories import get_valid_tracked_category_ids
@@ -48,6 +50,7 @@ async def create_base_budget_and_get_response(
     ensure_category_count_within_limit(len(valid_tracked_category_ids))
     if group_id is None:
         await ensure_room_for_base_budgets(db, user.id, 1)
+    await require_allowance(db, user.id, AllowanceKind.BUDGET, group_id=group_id)
 
     base_budget = BaseBudget(
         owner_id=owner_id,

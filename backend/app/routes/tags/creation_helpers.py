@@ -6,9 +6,11 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.tag import Tag
 from app.routes.tags.access_helpers import require_group_member, require_tag_name_available
 from app.schemas.tag import CreateTagRequest
+from app.services.allowance.require import require_allowance
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
@@ -35,6 +37,7 @@ async def create_tag_for_user(
         await require_group_member(db, group_id, user_id)
 
     await require_tag_name_available(db, data.name, user_id, group_id)
+    await require_allowance(db, user_id, AllowanceKind.TAG, group_id=group_id)
 
     tag = Tag(owner_id=user_id, group_id=group_id, name=data.name)
     db.add(tag)

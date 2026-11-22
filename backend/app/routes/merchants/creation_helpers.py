@@ -4,6 +4,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.merchant import Merchant
 from app.routes.merchants.access_helpers import (
     require_default_category_available,
@@ -11,6 +12,7 @@ from app.routes.merchants.access_helpers import (
     require_merchant_name_available,
 )
 from app.schemas.merchant import CreateMerchantRequest
+from app.services.allowance.require import require_allowance
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
@@ -38,6 +40,7 @@ async def create_merchant_for_user(
 
     await require_merchant_name_available(db, data.name, user_id, group_id)
     await require_default_category_available(db, user_id, group_id, data.default_category_id)
+    await require_allowance(db, user_id, AllowanceKind.MERCHANT, group_id=group_id)
 
     merchant = Merchant(
         owner_id=user_id,
