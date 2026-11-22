@@ -95,9 +95,8 @@ export const FIREFLY_BUDGET_PERIOD_ENDS_BEFORE_START_REASON = 'A limit period en
 export const FIREFLY_BUDGET_OVERLAPPING_PERIODS_REASON = 'Two of its limit periods overlap'
 
 /**
- * Most limit periods and most tracked categories the budget import takes, mirroring the backend schema
+ * Most tracked categories the budget import takes, mirroring the backend schema
  */
-export const FIREFLY_BUDGET_MAX_LIMIT_PERIODS = 1200
 export const FIREFLY_BUDGET_MAX_CATEGORIES = 1000
 
 /**

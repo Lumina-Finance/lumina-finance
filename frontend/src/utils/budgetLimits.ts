@@ -5,6 +5,13 @@ import type { BaseBudget } from '@/api/budgets'
 export const MAX_BASE_BUDGETS = 100
 export const MAX_BUDGET_CATEGORIES = 100
 
+// Most periods one budget keeps, mirroring the backend. The create form refuses a start date whose
+// periods to today would pass it, and the budget import refuses a budget with more limit periods
+export const MAX_BUDGET_PERIODS = 1200
+
+/** Shown on the start date when a recurring budget would start more periods back than a budget keeps */
+export const BUDGET_PERIOD_LIMIT_ERROR = `A budget can go back at most ${MAX_BUDGET_PERIODS.toLocaleString('en-CA')} periods. Please choose a later start date.`
+
 /**
  * Counts the budgets toward the most a person keeps. Those are the ones they own, archived included,
  * and a group's budgets belong to the group and are not counted

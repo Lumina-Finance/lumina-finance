@@ -119,10 +119,13 @@ export function formatBudgetPeriod(period: Pick<Budget, 'period_start' | 'period
   return formatDateRange(start, end, DATE_FORMATS.monthDayYear)
 }
 
+/** The settings that decide where each period of a recurring budget starts */
+type BudgetCadence = Pick<BaseBudget, 'recurrence_freq' | 'instance_length' | 'recurrence_dom'>
+
 /**
  * Converts monthly and yearly recurrence intervals into whole months
  */
-function periodLengthInMonths(baseBudget: BaseBudget) {
+function periodLengthInMonths(baseBudget: BudgetCadence) {
   if (baseBudget.recurrence_freq === 'monthly') return baseBudget.instance_length
   if (baseBudget.recurrence_freq === 'yearly') return baseBudget.instance_length * 12
   return 0
@@ -131,7 +134,7 @@ function periodLengthInMonths(baseBudget: BaseBudget) {
 /**
  * Advances a period start by one configured recurrence interval
  */
-function addBudgetPeriod(start: Date, baseBudget: BaseBudget) {
+function addBudgetPeriod(start: Date, baseBudget: BudgetCadence) {
   if (baseBudget.recurrence_freq === 'weekly') {
     return addDays(start, baseBudget.instance_length * 7)
   }
@@ -178,6 +181,30 @@ export function nextBudgetPeriods(baseBudget: BaseBudget, latestPeriod: Budget |
   const followingStart = addBudgetPeriod(nextStart, baseBudget)
 
   return [formatPeriodRange(nextStart, baseBudget), formatPeriodRange(followingStart, baseBudget)]
+}
+
+/**
+ * Counts a recurring series' periods from its first start to the one holding today, as the backend
+ * creates them, stopping once the count passes stopAfter. Returns null when either day is not a real date
+ */
+export function countRecurringPeriodsThrough(
+  cadence: BudgetCadence,
+  periodStart: string,
+  today: string,
+  stopAfter: number,
+) {
+  const start = parseYmd(periodStart)
+  if (!start || !parseYmd(today)) return null
+
+  // Starts are compared by the day they name, as missingRecurringPeriodStarts does
+  const todayTime = getYmdTime(today)
+  let count = 1
+  let nextStart = addBudgetPeriod(start, cadence)
+  while (count <= stopAfter && getYmdTime(formatYmd(nextStart)) <= todayTime) {
+    count += 1
+    nextStart = addBudgetPeriod(nextStart, cadence)
+  }
+  return count
 }
 
 /**

@@ -74,13 +74,33 @@ describe('create budget validation', () => {
   })
 
   it('refuses a start outside the window every date must sit in, on the start field', () => {
+    // One-off, so a start in 1900 makes a single period and only the window decides
     const startError = (periodStart: string) =>
-      validateBudgetCreateForm(createForm({ periodStart }), currencies, categories, TODAY).periodStart
+      validateBudgetCreateForm(createForm({ periodStart, recurs: false }), currencies, categories, TODAY).periodStart
 
     expect(startError('2024-01-01')).toBeUndefined()
     expect(startError('1900-01-01')).toBeUndefined()
     expect(startError('2036-06-10')).toBeUndefined()
     expect(startError('1850-01-01')).toBe('Must be on or after Jan 1, 1900')
     expect(startError('2040-01-01')).toBe('Must be within ten years of today')
+  })
+
+  it('refuses a recurring start whose periods to today pass 1,200, on the start field', () => {
+    // The same today and dates as the backend's route tests, so the two counts cannot drift apart
+    const periodLimitToday = '2026-05-04'
+    const startError = (overrides: Partial<BudgetFormState>) =>
+      validateBudgetCreateForm(createForm(overrides), currencies, categories, periodLimitToday).periodStart
+    const refusal = 'A budget can go back at most 1,200 periods. Please choose a later start date.'
+
+    expect(startError({ periodStart: '1976-06-01' }), '600 monthly periods').toBeUndefined()
+    expect(startError({ periodStart: '1926-06-01' }), '1,200 monthly periods').toBeUndefined()
+    expect(startError({ periodStart: '1926-05-01' }), '1,201 monthly periods').toBe(refusal)
+    expect(startError({ periodStart: '1926-05-31' }), '1,200 periods on day 31').toBeUndefined()
+    expect(startError({ periodStart: '1926-03-31' }), '1,202 periods on day 31').toBe(refusal)
+    expect(startError({ periodStart: '2003-05-12', recurrenceFreq: 'weekly' }), '1,200 weeks').toBeUndefined()
+    expect(startError({ periodStart: '2003-05-05', recurrenceFreq: 'weekly' }), '1,201 weeks').toBe(refusal)
+    expect(startError({ periodStart: '1996-05-06', recurrenceFreq: 'weekly' }), '30 years of weeks').toBe(refusal)
+    expect(startError({ periodStart: '1926-05-01', instanceLength: '2' }), '601 two-month periods').toBeUndefined()
+    expect(startError({ periodStart: '1926-05-01', recurs: false }), 'one-off').toBeUndefined()
   })
 })

@@ -6,6 +6,7 @@ settings
 """
 
 import calendar
+from collections.abc import Iterator
 from datetime import date, timedelta
 
 from app.models.base import RecurrenceFreq
@@ -91,6 +92,28 @@ def compute_period_end(
 
     msg = f"Unknown recurrence frequency: {freq}"
     raise ValueError(msg)
+
+
+def iter_period_starts_through(
+    period_start: date,
+    today: date,
+    freq: RecurrenceFreq,
+    instance_length: int,
+    *,
+    dom: int | None = None,
+    month: int | None = None,
+) -> Iterator[date]:
+    """Yield a recurring series' period starts from its first period to the one holding today
+
+    The first start always comes, even when it is after today, and each later one begins the day after
+    the period before it ends
+    """
+    next_start = period_start
+    while True:
+        yield next_start
+        next_start = compute_period_end(next_start, freq, instance_length, dom=dom, month=month) + timedelta(days=1)
+        if next_start > today:
+            return
 
 
 def _anchor_day(year: int, month: int, dom: int) -> int:
