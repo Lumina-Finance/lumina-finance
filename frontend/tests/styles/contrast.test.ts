@@ -457,6 +457,22 @@ describe('a chosen checklist row under the pointer', () => {
   )
 })
 
+describe('a picked refund row', () => {
+  // LinkCandidateRow: a picked row rests in the soft accent tint and deepens to the chosen hover fill under the
+  // pointer, on the dialogue's page colour. A positive amount on it takes the green made for the accent tint
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) =>
+    ['--app-accent-soft', '--app-accent-chosen-hover-fill'].map((fill) => ({ theme, fill })),
+  )
+
+  it.each(cases)('keeps a positive amount at 4.5:1 on $fill in the $theme theme', ({ theme, fill }) => {
+    const tokens = THEMES[theme]
+    const tint = washOver(tokens, fill, solid(tokens, '--app-bg'))
+    expect(contrast(resolve(tokens, '--app-positive-on-accent-tint'), tint)).toBeGreaterThanOrEqual(
+      MINIMUM_TEXT_CONTRAST,
+    )
+  })
+})
+
 describe('hover on shaded surfaces', () => {
   // The smallest step between a surface and the same surface under the pointer that shows, where the flat light
   // hover colour is 1.0 on the card and about 1.01 on the import panel
