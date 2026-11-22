@@ -172,9 +172,13 @@ function amountColor(category: Category | undefined, amount: number) {
 function AccountLogo({
   accountName,
   institution,
+  onAccentTint,
 }: {
   accountName: string | undefined
   institution: Institution | null | undefined
+
+  /** The row lies on the accent tint, whose deeper fill under the pointer takes the badge's usual "$" under 4.5:1 */
+  onAccentTint: boolean
 }) {
   const logo = useUsableLogo(resolveInstitutionLogoUrl(institution))
   const logoSrc = logo.src
@@ -197,7 +201,7 @@ function AccountLogo({
       ) : (
         <span
           className="select-none text-[0.625rem] font-semibold leading-none"
-          style={{ color: 'var(--app-accent-on-page-tint)' }}
+          style={{ color: onAccentTint ? 'var(--app-accent-on-hover-fill)' : 'var(--app-accent-on-page-tint)' }}
         >
           $
         </span>
@@ -666,7 +670,11 @@ export function TransactionRowView({
               {hasAccountMeta && (
                 <>
                   <span className="inline-flex min-w-0 max-w-full items-center gap-2">
-                    <AccountLogo accountName={accountName} institution={accountInstitution} />
+                    <AccountLogo
+                      accountName={accountName}
+                      institution={accountInstitution}
+                      onAccentTint={isOnAccentTint}
+                    />
                     {accountName && (
                       <span id={accountId('wide')} className="min-w-0 truncate">
                         {accountName}
@@ -804,7 +812,11 @@ export function TransactionRowView({
               <span className="flex min-w-0 flex-1 flex-col gap-1">
                 {hasAccountMeta && (
                   <span className="inline-flex min-w-0 items-center gap-1.5">
-                    <AccountLogo accountName={accountName} institution={accountInstitution} />
+                    <AccountLogo
+                      accountName={accountName}
+                      institution={accountInstitution}
+                      onAccentTint={isOnAccentTint}
+                    />
                     {accountName && (
                       <span id={accountId('narrow')} className="min-w-0 truncate">
                         {accountName}

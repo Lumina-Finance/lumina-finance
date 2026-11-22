@@ -4,6 +4,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
 import { logInViaApi, openModal, openPage, readSettledBox } from '../support/app'
+import { faintestText } from '../support/contrast'
 import { API_BASE_URL } from '../support/target'
 
 function saveButton(dialog: Locator) {
@@ -492,7 +493,8 @@ for (const [anchor, size] of [
 }
 
 // Tab goes from the Filters button into the rows, a greyed row takes the focus ring at full strength with its reason
-// in the tooltip, and the amount of a picked row reads at 4.5 to 1 against the picked fill it sits on
+// in the tooltip, and the text of a picked row reads at 4.5 to 1 against the picked fill it sits on, at rest and
+// under the pointer
 test('reaches the rows from Filters with Tab and keeps the focus ring of a greyed row at full strength', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
@@ -533,15 +535,7 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   await page.mouse.move(0, 0)
 
   // The fill eases in, so the amount is measured once the fill has settled, against the tint it rests on
-  const pickedFill = await page.evaluate(() => {
-    const probe = document.createElement('div')
-    probe.style.backgroundColor = 'var(--app-accent-soft)'
-    document.body.append(probe)
-    const color = getComputedStyle(probe).backgroundColor
-    probe.remove()
-    return color
-  })
-  await expect(rows.nth(1)).toHaveCSS('background-color', pickedFill)
+  await expect(rows.nth(1)).toHaveCSS('background-color', await fillColour(page, '--app-accent-soft'))
   expect(await rows.nth(1).evaluate((node) => {
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = 1
@@ -575,7 +569,26 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
     const [lighter, darker] = [luminance(text), luminance(background)].sort((a, b) => b - a)
     return (lighter + 0.05) / (darker + 0.05)
   })).toBeGreaterThanOrEqual(4.5)
+
+  // Under the pointer the picked row deepens its fill, and every text on it, the account's badge included, still
+  // reads at 4.5 to 1 once that fill has settled
+  await rows.nth(1).hover()
+  await expect(rows.nth(1)).toHaveCSS('background-color', await fillColour(page, '--app-accent-chosen-hover-fill'))
+  const faintest = await faintestText(rows.nth(1))
+  expect(faintest.contrast, `"${faintest.text}" on a picked row under the pointer`).toBeGreaterThanOrEqual(4.5)
 })
+
+/** The colour a fill token computes to on the page, for waiting until a row's fill has eased into it */
+async function fillColour(page: Page, token: string): Promise<string> {
+  return page.evaluate((name) => {
+    const probe = document.createElement('div')
+    probe.style.backgroundColor = `var(${name})`
+    document.body.append(probe)
+    const color = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return color
+  }, token)
+}
 
 // A refund in another currency is not offered at all, not even greyed out, and counts as nothing that fits when the
 // opening button decides whether to grey out
