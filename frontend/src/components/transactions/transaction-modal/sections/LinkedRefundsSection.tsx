@@ -181,14 +181,18 @@ export default function TransactionModalLinkedRefundsSection({
     pending.unlinkedRefundIds.length > 0 ? { unlinked_id: pending.unlinkedRefundIds } : {},
   )
   const unheld = candidates.data?.filter((candidate) => !pending.links.some((link) => link.id === candidate.id))
-  // Until what is left to refund is known, the button shows, so the reason never goes without its amount
+  // Until what is left to refund is known, the button shows, so the reason never goes without its amount. An unlink
+  // asks for the list again, and until the new list lands the old one shows without the link just freed. That link
+  // always fits, so the button shows meanwhile
   const anythingFits =
     unheld === undefined ||
+    candidates.isPlaceholderData ||
     (!isRefund && refundRoom === undefined) ||
     unheld.length > getRefusedRooms(current, unheld, refundRoom, []).size
   // The prompt and its reason wait for the list and what is left, so the dialogue never opens on one and swaps to the
-  // other. A list that fails to load leaves the button, for the picker to say what went wrong
-  const fitKnown = candidates.isError || (unheld !== undefined && (isRefund || refundRoom !== undefined))
+  // other. A list or refund that fails to load leaves the button, for the picker to say what went wrong
+  const fitKnown =
+    candidates.isError || (unheld !== undefined && (isRefund || refundRoom !== undefined || refundsLoadFailed))
   const refundCount =
     savedRefundIds.length +
     appliedRefundLinks.length +

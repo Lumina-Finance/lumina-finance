@@ -266,7 +266,7 @@ test('shows an expense and its refunds as one chain with what is left to refund'
     await expect(lamp.getByTestId('refund-room')).toHaveText('$135.00')
   })
 
-  await test.step('a refund that fails to load leaves what is left to refund unsaid', async () => {
+  await test.step('a refund that fails to load leaves what is left to refund unsaid, and still offers the link', async () => {
     const failing: string[] = []
     await page.route(
       (url) => url.pathname.endsWith(`/transactions/${lampRefundId}`),
@@ -283,6 +283,7 @@ test('shows an expense and its refunds as one chain with what is left to refund'
     await expect(lamp.getByRole('alert')).toContainText('something went wrong loading the linked transaction')
     await expect(lamp.getByTestId('refund-room')).toHaveCount(0)
     await expect(lamp.getByText('Loading…', { exact: true })).toHaveCount(0)
+    await expect(lamp.getByTestId('link-existing')).toBeVisible()
   })
 })
 

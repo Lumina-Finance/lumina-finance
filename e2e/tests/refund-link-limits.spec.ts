@@ -691,6 +691,49 @@ test('shows why a refund has no expense to link to, and moves focus to its Unlin
   await expect(small.getByTestId('refund-chain-self').getByRole('button', { name: /^Unlink / })).toBeFocused()
 })
 
+// Unlinking the only refund of an expense refunded in full asks for the list again. The old list has nothing in it, and
+// while the new one loads the section offers the link, never saying that nothing fits
+test('offers the link at once when an unlink frees the only refund, while the list loads again', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -4000, date: daysFromTodayInTestTimezone(-5) })
+  const refundId = await createTransaction(request, user, { ...row, amount: 4000, date: daysFromTodayInTestTimezone(-2) })
+  await request.post(`${API_BASE_URL}/transactions/${refundId}/refund-link`, {
+    headers: asUser(user),
+    data: { original_transaction_id: expenseId },
+  })
+
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await page.route(
+    (url) => url.pathname.endsWith('/refund-link-candidates') && url.searchParams.has('unlinked_id'),
+    async (route) => {
+      await held
+      await route.continue()
+    },
+  )
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const expense = await openRow(page, expenseId)
+  const open = expense.getByTestId('link-existing')
+  await expect(expense.getByTestId('refund-status')).toHaveText('Refunded in full')
+  await expect(open).toHaveCount(0)
+
+  const refetch = page.waitForRequest((req) => new URL(req.url()).searchParams.has('unlinked_id'))
+  await expense.getByRole('button', { name: /^Unlink / }).click()
+  await refetch
+  await expect(open).toBeVisible()
+  await expect(expense.getByTestId('link-prompt')).toHaveText(/you can link them here/)
+
+  const landed = page.waitForResponse((res) => new URL(res.url()).searchParams.has('unlinked_id'))
+  release()
+  await landed
+  await expect(open).toBeVisible()
+  await expect(expense.getByTestId('link-prompt')).toHaveText(/you can link them here/)
+})
+
 // Save applies each held link one at a time and the window then closes. The linked section must hold its height, and
 // every row must stay whole inside it, on each frame from Save until the window is gone. A row that left as its link
 // was made, and came back once the transaction reloaded, shrank the section and clipped the last row
