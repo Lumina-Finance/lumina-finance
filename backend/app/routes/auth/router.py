@@ -648,7 +648,7 @@ async def jwks():
     """Publish public keys for external token verification
 
     Returns:
-        JWKS document containing access and refresh public keys
+        JWKS document containing each access public key and the refresh public key
     """
     jwks_response = build_jwks_response()
     return jwks_response
