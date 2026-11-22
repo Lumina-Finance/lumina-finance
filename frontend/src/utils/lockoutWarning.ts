@@ -1,4 +1,4 @@
-import { ApiError } from '@/api/auth';
+import { ApiError } from '@/api/auth'
 
 /**
  * Returns the step-up attempts left before the shared lockout, or null when the error does not carry it
@@ -8,9 +8,9 @@ import { ApiError } from '@/api/auth';
  */
 export function getAttemptsRemaining(error: unknown): number | null {
   if (error instanceof ApiError && typeof error.attemptsRemaining === 'number') {
-    return error.attemptsRemaining;
+    return error.attemptsRemaining
   }
-  return null;
+  return null
 }
 
 /**
@@ -22,9 +22,9 @@ export function getAttemptsRemaining(error: unknown): number | null {
  */
 export function describeStepUpFailure(factor: 'code' | 'passkey', passwordOnly: boolean): string {
   if (passwordOnly) {
-    return 'Your password was incorrect.';
+    return 'Your password was incorrect.'
   }
-  return `Your password or ${factor} was incorrect.`;
+  return `Your password or ${factor} was incorrect.`
 }
 
 /**
@@ -34,8 +34,8 @@ export function describeStepUpFailure(factor: 'code' | 'passkey', passwordOnly: 
  */
 export function buildLockoutWarning(attemptsRemaining: number): string {
   if (attemptsRemaining <= 0) {
-    return "Your account is now locked and you've been signed out everywhere.";
+    return "Your account is now locked and you've been signed out everywhere."
   }
-  const attempts = attemptsRemaining === 1 ? '1 attempt' : `${attemptsRemaining} attempts`;
-  return `${attempts} remaining before your account is locked and you're signed out everywhere.`;
+  const attempts = attemptsRemaining === 1 ? '1 attempt' : `${attemptsRemaining} attempts`
+  return `${attempts} remaining before your account is locked and you're signed out everywhere.`
 }
