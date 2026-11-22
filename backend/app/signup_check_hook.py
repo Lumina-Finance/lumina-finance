@@ -68,5 +68,7 @@ async def is_signup_allowed(email: str) -> bool:
     if not isinstance(answer, bool):
         # A check answering something other than True or False is a mistake in it, so it refuses as an
         # error does, and is logged the same way so its owner can find why every sign-up is refused
-        logger.warning("The sign-up check answered a %s, not True or False, so the sign-up was refused", type(answer).__name__)
+        logger.warning(
+            "The sign-up check answered with a value of type %s, not True or False, so the sign-up was refused", type(answer).__name__
+        )
     return answer is True

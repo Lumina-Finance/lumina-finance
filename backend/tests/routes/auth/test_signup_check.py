@@ -96,7 +96,7 @@ async def _take_too_long(email: str) -> bool:
 
 @pytest.mark.parametrize(
     ("answer", "logged"),
-    [(_answer_text, "answered a str"), (_answer_none, "answered a NoneType"), (_take_too_long, "TimeoutError")],
+    [(_answer_text, "of type str"), (_answer_none, "of type NoneType"), (_take_too_long, "TimeoutError")],
     ids=["text", "none", "too-slow"],
 )
 async def test_sign_up_the_check_does_not_clearly_allow_sends_nothing(
