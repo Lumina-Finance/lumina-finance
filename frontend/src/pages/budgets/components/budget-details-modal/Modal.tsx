@@ -257,6 +257,7 @@ export default function BudgetDetailsModal({
         latestPeriod={latestPeriod}
         categories={categories}
         currencies={currencies}
+        today={today}
         onClose={() => setEditOpen(false)}
         onSaved={(archiveChanged) => {
           refetchUtilizationHistory()

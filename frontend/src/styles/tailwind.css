@@ -2465,6 +2465,17 @@
     background: var(--app-hover-soft);
   }
 
+  /* An option held back with its reason stays focusable, faded as a locked control is, with no hover fill */
+  .app-segmented-option[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .app-segmented-option[aria-disabled="true"]:hover {
+    color: var(--app-text-muted);
+    background: transparent;
+  }
+
   .app-segmented-option-active {
     background: var(--app-accent-soft);
     color: var(--app-accent);

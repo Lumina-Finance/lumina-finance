@@ -1,9 +1,15 @@
+import type { BaseBudget, Budget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { sameStringSet } from '@/pages/budgets/utils/form'
 import { countRecurringPeriodsThrough, recurrenceAnchorsFromStart } from '@/pages/budgets/utils/budgetPeriods'
-import { BUDGET_PERIOD_LIMIT_ERROR, MAX_BUDGET_PERIODS, getBudgetCategoryLimitError } from '@/utils/budgetLimits'
+import {
+  BUDGET_PERIOD_LIMIT_ERROR,
+  BUDGET_REPEAT_LIMIT_REASON,
+  MAX_BUDGET_PERIODS,
+  getBudgetCategoryLimitError,
+} from '@/utils/budgetLimits'
 import { toMinorUnits } from '@/pages/budgets/utils/money'
 import { getDateWindowError } from '@/utils/dateWindow'
 
@@ -24,6 +30,22 @@ function isPastPeriodLimit(form: BudgetFormState, instanceLength: number, todayY
   }
   const count = countRecurringPeriodsThrough(cadence, form.periodStart, todayYmd, MAX_BUDGET_PERIODS)
   return count !== null && count > MAX_BUDGET_PERIODS
+}
+
+/**
+ * Why a one-off budget can't be made recurring, or undefined when it can. Repeating adds a period for each
+ * step from its latest period to today, so a latest period too far back would pass the most a budget keeps.
+ * A group's budgets keep every period, as on the server
+ */
+export function getRepeatLimitReason(
+  baseBudget: Pick<BaseBudget, 'recurs' | 'group_id' | 'recurrence_freq' | 'instance_length' | 'recurrence_dom'>,
+  latestPeriod: Pick<Budget, 'period_start'> | undefined,
+  todayYmd: string,
+) {
+  if (baseBudget.recurs || baseBudget.group_id !== null || !latestPeriod) return undefined
+
+  const count = countRecurringPeriodsThrough(baseBudget, latestPeriod.period_start, todayYmd, MAX_BUDGET_PERIODS)
+  return count !== null && count > MAX_BUDGET_PERIODS ? BUDGET_REPEAT_LIMIT_REASON : undefined
 }
 
 /**
