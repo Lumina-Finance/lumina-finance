@@ -1,15 +1,18 @@
 """What the allowance check refuses on each record kind's create route besides accounts, whose route tests hold the full table
 
-A refusal answers 403 with the deployment's own sentence and creates nothing, and asking for another
-kind never refuses. The tax-advantaged category's yearly limit and the saved insights range each have
-their own kind
+A refusal answers 403 with the deployment's own sentence and creates nothing, and the check is told
+how many of the kind the user owns alone. The tax-advantaged category's yearly limit and the saved
+insights range each have their own kind
 """
 
 import pytest
 
 from app.allowance_hook import AllowanceKind
 from tests.routes.support import _create_user, _get_auth_header
-from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check, sign_up_other_user
+
+_TAX_CATEGORY = {"name": "TFSA", "tax_treatment": "tax_free", "currency": "CAD"}
+_LIMIT = {"year": 2026, "contribution_limit": 700_000}
 
 
 async def _category(client, headers) -> tuple[str, dict, str]:
@@ -36,16 +39,14 @@ async def _budget(client, headers) -> tuple[str, dict, str]:
 
 async def _tax_advantaged_category(client, headers) -> tuple[str, dict, str]:
     """Return the create path, a valid payload and the list path of tax-advantaged categories"""
-    return "/tax-advantaged-categories", {"name": "TFSA", "tax_treatment": "tax_free", "currency": "CAD"}, "/tax-advantaged-categories"
+    return "/tax-advantaged-categories", _TAX_CATEGORY, "/tax-advantaged-categories"
 
 
 async def _tax_advantaged_category_limit(client, headers) -> tuple[str, dict, str]:
     """Return the create path, a valid payload and the list path of a category's yearly limits, after creating the category"""
-    category = await client.post(
-        "/tax-advantaged-categories", json={"name": "TFSA", "tax_treatment": "tax_free", "currency": "CAD"}, headers=headers
-    )
+    category = await client.post("/tax-advantaged-categories", json=_TAX_CATEGORY, headers=headers)
     path = f"/tax-advantaged-categories/{category.json()['id']}/limits"
-    return path, {"year": 2026, "contribution_limit": 700_000}, path
+    return path, _LIMIT, path
 
 
 async def _saved_range(client, headers) -> tuple[str, dict, str]:
@@ -66,7 +67,7 @@ async def _saved_range(client, headers) -> tuple[str, dict, str]:
     ],
 )
 async def test_create_refused_by_the_check_says_the_deployments_reason_and_creates_nothing(client, kind, prepare):
-    """The sentence the deployment gave is what the user reads, and refusing one kind leaves every other kind alone"""
+    """The sentence the deployment gave is what the user reads, the check is asked once for the one more, and a yes lets the same create in"""
     headers = _get_auth_header(await _create_user(client))
     create_path, payload, list_path = await prepare(client, headers)
     before = (await client.get(list_path, headers=headers)).json()
@@ -85,17 +86,59 @@ async def test_create_refused_by_the_check_says_the_deployments_reason_and_creat
     assert allowed.status_code == 201, allowed.text
 
 
-async def test_create_budget_counts_an_archived_budget_until_it_is_deleted(client):
-    """Archiving a budget gives no room back at the limit, and only deleting it does"""
+@pytest.mark.parametrize(
+    ("kind", "prepare", "second_payload", "archive"),
+    [
+        pytest.param(AllowanceKind.CATEGORY, _category, {"name": "Gardening"}, False, id="category"),
+        pytest.param(AllowanceKind.TAG, _tag, {"name": "work"}, False, id="tag"),
+        pytest.param(AllowanceKind.MERCHANT, _merchant, {"name": "Metro"}, False, id="merchant"),
+        pytest.param(AllowanceKind.BUDGET, _budget, {"name": "April"}, False, id="budget"),
+        pytest.param(AllowanceKind.BUDGET, _budget, {"name": "April"}, True, id="archived-budget"),
+        pytest.param(AllowanceKind.TAX_ADVANTAGED_CATEGORY, _tax_advantaged_category, {"name": "RRSP"}, False, id="tax-advantaged-category"),
+        pytest.param(
+            AllowanceKind.TAX_ADVANTAGED_CATEGORY_LIMIT, _tax_advantaged_category_limit, {"year": 2027}, False, id="tax-advantaged-limit"
+        ),
+        pytest.param(
+            AllowanceKind.SAVED_INSIGHTS_RANGE, _saved_range, {"name": "Quarter review", "amount": 3}, False, id="saved-insights-range"
+        ),
+    ],
+)
+async def test_create_tells_the_check_how_many_the_user_holds_and_never_counts_another_users(client, kind, prepare, second_payload, archive):
+    """One record of the user's own and one of another user's make the user's count one, an archived budget included"""
     headers = _get_auth_header(await _create_user(client))
-    create_path, payload, _ = await _budget(client, headers)
-    asked = install_check(maximum=1)
+    other_headers, _ = await sign_up_other_user(client)
+    create_path, payload, _ = await prepare(client, headers)
     first = await client.post(create_path, json=payload, headers=headers)
-    archived = await client.patch(f"/base-budgets/{first.json()['id']}", json={"is_archived": True}, headers=headers)
+    assert first.status_code == 201, first.text
+    if archive:
+        archived = await client.patch(f"{create_path}/{first.json()['id']}", json={"is_archived": True}, headers=headers)
+        assert archived.status_code == 200, archived.text
+    other_path, other_payload, _ = await prepare(client, other_headers)
+    assert (await client.post(other_path, json=other_payload, headers=other_headers)).status_code == 201
+    asked = install_check()
 
-    second = await client.post(create_path, json={**payload, "name": "April"}, headers=headers)
-    deleted = await client.delete(f"/base-budgets/{first.json()['id']}", headers=headers)
-    third = await client.post(create_path, json={**payload, "name": "May"}, headers=headers)
+    second = await client.post(create_path, json={**payload, **second_payload}, headers=headers)
 
-    assert [response.status_code for response in (first, archived, second, deleted, third)] == [201, 200, 403, 204, 201]
-    assert [request.held for request in asked if request.kind == AllowanceKind.BUDGET] == [0, 1, 0]
+    assert second.status_code == 201, second.text
+    assert [(request.held, request.adding) for request in asked if request.kind == kind] == [(1, 1)]
+
+
+async def test_create_a_limit_counts_the_limits_of_every_personal_category_of_the_user_and_no_others(client):
+    """A limit in each of two categories makes two, whichever category the next is added to, and another user's limit is not counted"""
+    headers = _get_auth_header(await _create_user(client))
+    other_headers, _ = await sign_up_other_user(client)
+    paths = []
+    for name in ("TFSA", "RRSP"):
+        category = await client.post("/tax-advantaged-categories", json={**_TAX_CATEGORY, "name": name}, headers=headers)
+        paths.append(f"/tax-advantaged-categories/{category.json()['id']}/limits")
+        assert (await client.post(paths[-1], json=_LIMIT, headers=headers)).status_code == 201
+    theirs = await client.post("/tax-advantaged-categories", json=_TAX_CATEGORY, headers=other_headers)
+    assert (
+        await client.post(f"/tax-advantaged-categories/{theirs.json()['id']}/limits", json=_LIMIT, headers=other_headers)
+    ).status_code == 201
+    asked = install_check()
+
+    added = await client.post(paths[0], json={**_LIMIT, "year": 2027}, headers=headers)
+
+    assert added.status_code == 201, added.text
+    assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.TAX_ADVANTAGED_CATEGORY_LIMIT] == [(2, 1)]

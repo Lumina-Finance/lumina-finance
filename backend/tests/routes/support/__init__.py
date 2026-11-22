@@ -1,6 +1,6 @@
 """Shared route test support helpers"""
 
-from tests.routes.support.account_helpers import ACCOUNT_PAYLOAD, _create_account, _record_starting_balance
+from tests.routes.support.account_helpers import ACCOUNT_PAYLOAD, _account_names, _create_account, _record_starting_balance
 from tests.routes.support.auth_helpers import (
     SIGNUP_PAYLOAD,
     _assert_bare_cookie,
@@ -35,6 +35,7 @@ __all__ = [
     "ACCOUNT_PAYLOAD",
     "SIGNUP_PAYLOAD",
     "HeldCheck",
+    "_account_names",
     "_assert_bare_cookie",
     "_assert_host_bound_cookie",
     "_assert_other_sessions_ended",

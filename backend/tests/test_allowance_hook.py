@@ -20,11 +20,11 @@ async def test_find_refusal_returns_the_refusal_the_check_gave():
 
     async def check(request: AllowanceRequest) -> Refusal | None:
         seen.append(request)
-        return Refusal("You have reached your limit")
+        return Refusal("This server allows no more of these")
 
     set_allowance_check(check)
 
-    assert await find_refusal(_REQUEST) == Refusal("You have reached your limit")
+    assert await find_refusal(_REQUEST) == Refusal("This server allows no more of these")
     assert seen == [_REQUEST]
 
 
@@ -32,7 +32,7 @@ async def test_find_refusal_lets_an_error_the_check_raises_reach_the_caller():
     """A check that fails never lets anyone in by default, so its error is the caller's to fail the request with"""
 
     async def check(request: AllowanceRequest) -> Refusal | None:
-        raise ConnectionError("the plan service is down")
+        raise ConnectionError("The check failed")
 
     set_allowance_check(check)
 
