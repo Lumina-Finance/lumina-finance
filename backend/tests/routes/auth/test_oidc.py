@@ -580,6 +580,54 @@ async def test_callback_signup_check_keeps_email_conflict(client, provider_proto
     assert resp.json()["detail"]["code"] == "email_already_registered"
 
 
+async def test_callback_signup_check_keeps_unverified_email_refusal(client, provider_protocol, refusing_signup_check):
+    """An address the provider did not verify keeps its own refusal while the sign-up check refuses everyone"""
+    await _seed_provider()
+
+    resp = await _callback_with_unverified_email(client, provider_protocol, False)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "Identity provider did not verify the email address"
+
+
+async def test_callback_signup_check_signs_in_linked_identity(client, provider_protocol, refusing_signup_check):
+    """An already linked provider sign-in keeps working while the sign-up check refuses everyone"""
+    await _seed_currency()
+    signup = await sign_up_confirmed(client, SIGNUP_PAYLOAD)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    provider = await _seed_provider()
+    async with TestSession() as session:
+        session.add(OidcIdentity(user_id=user_id, provider_id=provider.id, subject="subject-1", email="sso-user@example.com"))
+        await session.commit()
+    provider_protocol["claims"] = _claims()
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert resp.json()["user"]["id"] == str(user_id)
+
+
+async def test_callback_signup_check_allowing_the_provider_email_onboards(client, provider_protocol, monkeypatch):
+    """The check is asked about the provider's address, and allowing it lets onboarding start"""
+    asked = []
+
+    async def allow_sso_user(attempt: signup_check_hook.SignupAttempt) -> bool:
+        asked.append(attempt.email)
+        return attempt.email == "sso-user@example.com"
+
+    monkeypatch.setattr(signup_check_hook, "_check", allow_sso_user)
+    await _seed_provider()
+    provider_protocol["claims"] = _claims()
+
+    state = await _start_sign_in(client)
+    resp = await client.post("/auth/oidc/callback", json={"code": "any", "state": state})
+
+    assert resp.status_code == 200
+    assert resp.json()["onboarding_required"] is True
+    assert asked == ["sso-user@example.com"]
+
+
 async def test_callback_burns_state_once(client, provider_protocol):
     """A replayed callback finds the roundtrip already spent"""
     await _seed_provider()
