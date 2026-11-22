@@ -19,7 +19,7 @@ import {
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
-import { getAmountSign } from '@/utils/negativeAmount'
+import { getAmountSign, getColorOnAccentTint } from '@/utils/negativeAmount'
 import { useUsableLogo } from '@/hooks/useUsableLogo'
 import { LOGO_PLACEHOLDER_STYLE, resolveInstitutionLogoUrl } from '@/utils/institutionLogo'
 
@@ -172,9 +172,16 @@ function amountColor(category: Category | undefined, amount: number) {
 function AccountLogo({
   accountName,
   institution,
+  onAccentTint,
 }: {
   accountName: string | undefined
   institution: Institution | null | undefined
+
+  /**
+   * The row lies on the accent tint, at rest or deeper still under the pointer, where the badge's usual "$" can fall
+   * under 4.5:1, so the "$" takes the darker bronze in every tinted state
+   */
+  onAccentTint: boolean
 }) {
   const logo = useUsableLogo(resolveInstitutionLogoUrl(institution))
   const logoSrc = logo.src
@@ -197,7 +204,7 @@ function AccountLogo({
       ) : (
         <span
           className="select-none text-[0.625rem] font-semibold leading-none"
-          style={{ color: 'var(--app-accent-on-page-tint)' }}
+          style={{ color: onAccentTint ? 'var(--app-accent-on-hover-fill)' : 'var(--app-accent-on-page-tint)' }}
         >
           $
         </span>
@@ -432,7 +439,11 @@ export function TransactionRowView({
   // A faded row draws a refund or reversal in its muted text too, through the text token it remaps to the
   // muted colour, and dims the category icon, which colour can't reach, so nothing in the row reads as
   // strongly as one that counts
-  const transactionAmountColor = isFaded ? 'var(--app-text)' : amountColor(category, amountPresentation.sign)
+  const restingAmountColor = isFaded ? 'var(--app-text)' : amountColor(category, amountPresentation.sign)
+
+  // A pressed or ticked row lies on the soft accent tint, where the amount takes the colour that still reads on it
+  const isOnAccentTint = pressed || selection?.mark === 'selected'
+  const transactionAmountColor = isOnAccentTint ? getColorOnAccentTint(restingAmountColor) : restingAmountColor
   const categoryIconStyle = { opacity: isFaded ? FADED_CATEGORY_ICON_OPACITY : 1 }
 
   // Only the limit gets a title here, since a read-only row already explains itself through the
@@ -662,7 +673,11 @@ export function TransactionRowView({
               {hasAccountMeta && (
                 <>
                   <span className="inline-flex min-w-0 max-w-full items-center gap-2">
-                    <AccountLogo accountName={accountName} institution={accountInstitution} />
+                    <AccountLogo
+                      accountName={accountName}
+                      institution={accountInstitution}
+                      onAccentTint={isOnAccentTint}
+                    />
                     {accountName && (
                       <span id={accountId('wide')} className="min-w-0 truncate">
                         {accountName}
@@ -800,7 +815,11 @@ export function TransactionRowView({
               <span className="flex min-w-0 flex-1 flex-col gap-1">
                 {hasAccountMeta && (
                   <span className="inline-flex min-w-0 items-center gap-1.5">
-                    <AccountLogo accountName={accountName} institution={accountInstitution} />
+                    <AccountLogo
+                      accountName={accountName}
+                      institution={accountInstitution}
+                      onAccentTint={isOnAccentTint}
+                    />
                     {accountName && (
                       <span id={accountId('narrow')} className="min-w-0 truncate">
                         {accountName}

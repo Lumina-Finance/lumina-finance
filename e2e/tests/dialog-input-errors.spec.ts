@@ -418,6 +418,29 @@ test.describe('dialog input errors', () => {
     await expect(add).not.toHaveAttribute('aria-disabled', 'true')
   })
 
+  test('leaves focus on the field a person moved to before a refused press brings the first problem into focus', async ({ page, request }) => {
+    const user = await signUpUser(request)
+    await createAccount(request, user, { name: 'Everyday' })
+    await logInViaApi(page, user)
+    await openPage(page, '/transactions')
+    const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+    const add = dialog.getByTestId('transaction-submit')
+    const notes = dialog.getByLabel('Notes')
+
+    // The press and the move to Notes land in the same frame, as when someone types on quickly or a slow
+    // machine draws late, so the frame that would focus the first problem only comes once Notes holds focus
+    await add.evaluate((button, field) => {
+      ;(button as HTMLElement).click()
+      ;(field as HTMLElement).focus()
+    }, await notes.elementHandle())
+    await expect(add).toHaveAttribute('aria-disabled', 'true')
+    await nextFrame(page)
+    await nextFrame(page)
+    await expect(notes).toBeFocused()
+    await page.keyboard.type('Receipt')
+    await expect(notes).toHaveValue('Receipt')
+  })
+
   test('leaves the cleared amount unmarked after an add that keeps the Add transaction dialogue open', async ({ page, request }) => {
     const user = await signUpUser(request)
     const account = await createAccount(request, user, { name: 'Everyday' })

@@ -141,6 +141,9 @@ test('cash flow axis refits when the range changes from short labels to very lon
   // Widening the range after load brings the large amount in, with no reload to fit the axis again
   await page.getByRole('button', { name: /^Insights date range: / }).filter({ visible: true }).click()
   await page.getByRole('tab', { name: '90D', exact: true }).click()
+
+  // The card loads the new range only while it is in view, and the range change can leave it off screen
+  await card(page, 1).scrollIntoViewIfNeeded()
   await expect(amountLabels.filter({ hasText: '1,250,000,000' }).first()).toBeVisible()
   await expect.poll(() => problemsWith(amountLabels)).toEqual([])
 })

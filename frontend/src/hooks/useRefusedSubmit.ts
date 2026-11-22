@@ -15,7 +15,8 @@ const REVEAL_ROOM_BELOW = '1.5rem'
  *
  * A refused press focuses the first field with a problem and, only when it and its message are not
  * already fully in view, scrolls just far enough to show them, so a message on a row that sits off
- * screen, most of all on a phone, is never missed and a form that already shows the problem stays put
+ * screen, most of all on a phone, is never missed and a form that already shows the problem stays put.
+ * When focus has moved to another control before that frame, focus stays on that control
  *
  * @param problems - Every problem the form has right now, by field
  * @param order - The fields in the order the dialog draws them
@@ -52,10 +53,15 @@ export function useRefusedSubmit<F extends string>(
 
     setRefused(true)
     const controlId = controlIds[firstProblem.field]
+    const focusedAtPress = document.activeElement
     // Waits a frame so the messages the refusal shows are on the page before the body scrolls
     window.requestAnimationFrame(() => {
       const control = document.getElementById(controlId)
       if (!control) return
+      // Someone who moved to another field before the frame came is already typing there, and taking focus
+      // away would send their next keys into the first problem
+      const focused = document.activeElement
+      if (focused !== focusedAtPress && focused !== document.body) return
       control.focus({ preventScroll: true, focusVisible: true })
       // Room above for the label row that carries the message, and below so the field never rests on the footer's edge
       // A footer that sticks to the bottom of the scrolling body covers the last rows of its scroll view, so the room below

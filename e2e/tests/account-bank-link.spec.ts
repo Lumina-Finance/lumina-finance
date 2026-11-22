@@ -523,6 +523,9 @@ test("lists the bank accounts that can't be linked with the reason for each", NE
   await dialog.getByRole('button', { name: 'Link bank account' }).click()
   const flow = page.getByRole('dialog', { name: 'Link bank account' })
 
+  // The panel takes focus a frame after it opens, and takes it back from a card focused before then
+  await expect(flow).toBeFocused()
+
   const reasons = [
     [SAMPLE_CHEQUING, 'Already linked to Household'],
     ['US Dollar Savings', 'In USD, but Everyday is in CAD'],

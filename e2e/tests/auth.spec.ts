@@ -26,6 +26,28 @@ test('signs a new user up through the form and the emailed link', async ({ page 
   await expectSignedIn(page)
 })
 
+// Login, sign-up and forgot-password are one form that changes in place, so an email typed on one is still there on
+// the next
+test('keeps the typed email when the login form turns into forgot-password or sign-up', async ({ page }) => {
+  const email = 'kept-across-forms@example.com'
+  await page.goto('/login')
+  const field = page.getByLabel('Email')
+  await expect(field).toHaveValue('')
+  await field.fill(email)
+
+  await page.getByRole('button', { name: 'Forgot password?', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible()
+  await expect(field).toHaveValue(email)
+
+  await page.getByRole('button', { name: 'Log in', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Forgot password?', exact: true })).toBeVisible()
+  await expect(field).toHaveValue(email)
+
+  await page.getByRole('button', { name: 'Sign up' }).click()
+  await expect(page.getByRole('button', { name: 'Sign up', exact: true })).toBeVisible()
+  await expect(field).toHaveValue(email)
+})
+
 // The backend's email validator refuses reserved domains such as example.test, which the form's own
 // check lets through, and the page says the address is the problem rather than that something went wrong
 //

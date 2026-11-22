@@ -482,9 +482,12 @@ test('regrouping fades the headers and glides the rows over 300ms with no rollin
     const before = await page.getByRole('heading').allTextContents()
     await page.evaluate((title) => {
       const frames: Frame[] = []
-      const target = window as unknown as { __frames: Frame[]; __start: number }
+      const target = window as unknown as { __frames: Frame[]; __changedAt?: number }
       target.__frames = frames
-      target.__start = performance.now()
+      target.__changedAt = undefined
+
+      // The second runs from the option's click, since on a busy runner the click itself can take most of it
+      document.addEventListener('click', () => { target.__changedAt = performance.now() }, { capture: true, once: true })
       const getOpacity = (element: Element | null) => {
         let opacity = 1
         for (let node = element; node; node = node.parentElement) opacity *= Number(getComputedStyle(node).opacity)
@@ -510,12 +513,12 @@ test('regrouping fades the headers and glides the rows over 300ms with no rollin
       requestAnimationFrame(tick)
     }, newHeading)
     await page.getByRole('option', { name: optionName, exact: true }).click()
-    // Sampling goes on until a full second has passed, well past the 300ms glide
+    // Sampling goes on until a full second has passed since the click, well past the 300ms glide
     await expect
       .poll(() =>
         page.evaluate(() => {
-          const target = window as unknown as { __frames: Frame[]; __start: number }
-          return (target.__frames.at(-1)?.t ?? 0) - target.__start
+          const target = window as unknown as { __frames: Frame[]; __changedAt?: number }
+          return target.__changedAt === undefined ? 0 : (target.__frames.at(-1)?.t ?? 0) - target.__changedAt
         }),
       )
       .toBeGreaterThan(1000)
