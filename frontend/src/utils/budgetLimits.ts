@@ -1,0 +1,35 @@
+import type { BaseBudget } from '@/api/budgets'
+
+// Most budgets a person keeps and most categories one tracks, mirroring the backend. The budgets page
+// holds back its add control at the first, and the forms and the import refuse a pick past either
+export const MAX_BASE_BUDGETS = 100
+export const MAX_BUDGET_CATEGORIES = 100
+
+/**
+ * Counts the budgets toward the most a person keeps. Those are the ones they own, archived included,
+ * and a group's budgets belong to the group and are not counted
+ */
+export function countOwnedBaseBudgets(baseBudgets: readonly Pick<BaseBudget, 'group_id'>[] | undefined) {
+  return (baseBudgets ?? []).filter((baseBudget) => baseBudget.group_id === null).length
+}
+
+/** Why no budget can be added, or null while the person is under the most they keep */
+export function getBudgetCountLimitReason(ownedBudgetCount: number) {
+  return ownedBudgetCount >= MAX_BASE_BUDGETS
+    ? `You can keep up to ${MAX_BASE_BUDGETS} budgets. Please delete one to add another.`
+    : null
+}
+
+/**
+ * The refusal for a budget tracking too many categories, or null when it is within the limit.
+ * A budget already past the limit keeps saving while its categories stay as they are, so a form
+ * passes the categories' change as well
+ */
+export function getBudgetCategoryLimitError(selectedCount: number, isChanged = true) {
+  return isChanged && selectedCount > MAX_BUDGET_CATEGORIES ? `Select up to ${MAX_BUDGET_CATEGORIES} categories` : null
+}
+
+/** The count of budgets a person keeps, or null while the list of them has no data */
+export function getExistingBudgetCount(baseBudgets: readonly Pick<BaseBudget, 'group_id'>[] | undefined) {
+  return baseBudgets ? countOwnedBaseBudgets(baseBudgets) : null
+}

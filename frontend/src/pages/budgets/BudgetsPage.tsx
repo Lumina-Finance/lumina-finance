@@ -4,13 +4,14 @@ import { Plus } from 'lucide-react'
 import { useSearchParams } from 'react-router'
 import {
   useBaseBudgets,
-  useBudgets,
   useCreateBudgetInstance,
+  useLatestBudgetPeriods,
   useLatestBudgetUtilizations,
   type CreateBudgetPayload,
 } from '@/api/budgets'
 import { useCategories } from '@/api/categories'
 import { useCurrencies } from '@/api/currency'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { useAuth } from '@/hooks/useAuth'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
@@ -19,6 +20,7 @@ import BudgetArchivedSection from '@/pages/budgets/components/budget-cards/Archi
 import BudgetCreateModal from '@/pages/budgets/components/budget-editor-modal/CreateModal'
 import BudgetDetailsModal from '@/pages/budgets/components/budget-details-modal/Modal'
 import { useBudgetCards } from '@/pages/budgets/hooks/useBudgetCards'
+import { countOwnedBaseBudgets, getBudgetCountLimitReason } from '@/utils/budgetLimits'
 import { useRecurringBudgetBackfill } from '@/pages/budgets/hooks/useRecurringBudgetBackfill'
 import type { BudgetCardViewModel } from '@/pages/budgets/types'
 import { getTodayYmd, resolveTimeZone } from '@/utils/date'
@@ -33,7 +35,7 @@ export default function BudgetsPage() {
   const { data: categories, isLoading: categoriesLoading } = useCategories()
   const { data: currencies } = useCurrencies()
   const baseBudgetsQuery = useBaseBudgets()
-  const budgetsQuery = useBudgets()
+  const latestPeriodsQuery = useLatestBudgetPeriods()
   const latestUtilizationsQuery = useLatestBudgetUtilizations()
   const createBackfillBudget = useCreateBudgetInstance()
   const requireCurrencies = useCurrencyGuard()
@@ -50,7 +52,7 @@ export default function BudgetsPage() {
   )
   const budgetCards = useBudgetCards({
     baseBudgets: baseBudgetsQuery.data,
-    periods: budgetsQuery.data,
+    latestPeriods: latestPeriodsQuery.data,
     categoryById,
   })
   const activeBudgetCards = useMemo(() => budgetCards.filter((card) => !card.baseBudget.is_archived), [budgetCards])
@@ -63,13 +65,13 @@ export default function BudgetsPage() {
   // are held a fetch updates the cards in place, and only a list with no cards to show waits for its answer
   const budgetsLoading = useMinimumVisibleFlag(
     baseBudgetsQuery.isPending ||
-      budgetsQuery.isPending ||
+      latestPeriodsQuery.isPending ||
       latestUtilizationsQuery.isPending ||
       (budgetCards.length === 0 &&
-        (baseBudgetsQuery.isFetching || budgetsQuery.isFetching || latestUtilizationsQuery.isFetching)),
+        (baseBudgetsQuery.isFetching || latestPeriodsQuery.isFetching || latestUtilizationsQuery.isFetching)),
     LOADING_ANIMATION_MIN_MS,
   )
-  const budgetsError = baseBudgetsQuery.isError || budgetsQuery.isError || latestUtilizationsQuery.isError
+  const budgetsError = baseBudgetsQuery.isError || latestPeriodsQuery.isError || latestUtilizationsQuery.isError
   const selectedBudget = budgetCards.find(({ baseBudget }) => baseBudget.id === selectedBudgetId)
   const visibleBudgetDetails =
     selectedBudget ?? (budgetDetailsSnapshot?.baseBudget.id === selectedBudgetId ? budgetDetailsSnapshot : null)
@@ -107,12 +109,12 @@ export default function BudgetsPage() {
     (payload: CreateBudgetPayload) => createBackfillBudget.mutateAsync(payload),
     [createBackfillBudget],
   )
-  const refetchBudgets = useCallback(() => budgetsQuery.refetch(), [budgetsQuery])
+  const refetchBudgets = useCallback(() => latestPeriodsQuery.refetch(), [latestPeriodsQuery])
 
   useRecurringBudgetBackfill({
     // Wait for both budget queries to settle so backfill never acts on the stale pre-archive periods that
     // linger between an unarchive and its refetch, which would otherwise recreate the suppressed gap periods
-    enabled: Boolean(user) && !baseBudgetsQuery.isFetching && !budgetsQuery.isFetching,
+    enabled: Boolean(user) && !baseBudgetsQuery.isFetching && !latestPeriodsQuery.isFetching,
     budgetCards,
     today,
     createBudgetInstance,
@@ -126,14 +128,14 @@ export default function BudgetsPage() {
           <h1 className="app-page-title">Budgets</h1>
           <p className="app-page-description">Plan ahead and keep your spending in check.</p>
         </header>
-        <button
-          type="button"
+        <DisabledReasonButton
           className="app-primary-button w-full min-[750px]:w-auto"
+          disabledReason={getBudgetCountLimitReason(countOwnedBaseBudgets(baseBudgetsQuery.data))}
           onClick={() => requireCurrencies(() => setCreateOpen(true))}
         >
           <Plus size={18} aria-hidden />
           New budget
-        </button>
+        </DisabledReasonButton>
       </div>
 
       <BudgetCardsSection
@@ -176,7 +178,7 @@ export default function BudgetsPage() {
           key={detailsBudget.baseBudget.id}
           open={Boolean(visibleBudgetDetails)}
           baseBudget={detailsBudget.baseBudget}
-          periods={detailsBudget.periods}
+          latestPeriod={detailsBudget.latestPeriod}
           categories={categories ?? []}
           currencies={currencies ?? []}
           categoryById={categoryById}
@@ -188,12 +190,12 @@ export default function BudgetsPage() {
           onExitComplete={() => setBudgetDetailsSnapshot(null)}
           onDeleted={() => {
             void baseBudgetsQuery.refetch()
-            void budgetsQuery.refetch()
+            void latestPeriodsQuery.refetch()
             void latestUtilizationsQuery.refetch()
           }}
           onSaved={() => {
             void baseBudgetsQuery.refetch()
-            void budgetsQuery.refetch()
+            void latestPeriodsQuery.refetch()
             void latestUtilizationsQuery.refetch()
           }}
         />

@@ -1,4 +1,5 @@
 """Budget route handlers"""
+
 import uuid
 from typing import Annotated
 
@@ -116,13 +117,15 @@ async def get_budgets(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Return budget instances visible to the user
+    """Return the latest budget instance of each base budget visible to the user
+
+    A base budget's earlier instances are read from its utilizations
 
     Args:
         user: Authenticated user requesting budget instances
         db: Active database session
 
     Returns:
-        Budget instances visible through ownership, group admin membership, or explicit permission
+        One budget instance per base budget visible through ownership, group admin membership, or explicit permission
     """
     return await get_visible_budget_responses(db, user.id)

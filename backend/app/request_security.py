@@ -8,9 +8,9 @@ from starlette.datastructures import MutableHeaders
 # Every sign-in route lives under this prefix, the passkey, provider and native app routes included
 _SIGN_IN_PREFIX = "/auth/"
 
-# 10 MB. The frontend batches a transaction import into 750 KB requests, and the one
-# request it cannot split, a journal import's budgets, is a few MB at its largest
-MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024
+# 5 MiB. An import goes in parts of at most 750 KiB, so the app's largest request stays well under
+# it. The rest of the limit is room for any other request to grow
+MAX_REQUEST_BODY_BYTES = 5 * 1024 * 1024
 
 _TOO_LARGE_DETAIL = "Request body is too large"
 _TOO_LARGE_BODY = json.dumps({"detail": _TOO_LARGE_DETAIL}).encode()

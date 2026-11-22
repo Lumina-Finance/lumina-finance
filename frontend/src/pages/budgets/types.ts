@@ -1,4 +1,3 @@
-
 import type React from 'react'
 import type { BaseBudget, Budget, RecurrenceFreq } from '@/api/budgets'
 
@@ -19,9 +18,14 @@ export interface BudgetEditorFieldLabelRowProps {
   error?: string | false
 }
 
+/**
+ * What the budget details read of a period. The card's latest period and every row of the history
+ * both give it
+ */
+export type BudgetPeriod = Pick<Budget, 'id' | 'period_start' | 'period_end' | 'overall_limit'>
+
 export interface BudgetCardViewModel {
   baseBudget: BaseBudget
-  periods: Budget[]
   latestPeriod: Budget | undefined
   categoryNames: string[]
 }

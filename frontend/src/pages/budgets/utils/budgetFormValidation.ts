@@ -1,6 +1,8 @@
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
+import { sameStringSet } from '@/pages/budgets/utils/form'
+import { getBudgetCategoryLimitError } from '@/utils/budgetLimits'
 import { toMinorUnits } from '@/pages/budgets/utils/money'
 import { getDateWindowError } from '@/utils/dateWindow'
 
@@ -39,6 +41,34 @@ export function validateBudgetCreateForm(
     errors.instanceLength = 'Enter at least 1'
   }
   if (!hasSelectedExpenseCategory) errors.categoryIds = NO_CATEGORY_ERROR
+  else {
+    const categoryLimitError = getBudgetCategoryLimitError(form.categoryIds.length)
+    if (categoryLimitError) errors.categoryIds = categoryLimitError
+  }
 
   return errors
+}
+
+/**
+ * The refusal shown on an edit form's category field, or undefined when the categories are fine. A budget
+ * already past the limit still saves while its categories stay as the saved ones
+ *
+ * @param selectedIds - The categories chosen in the form
+ * @param savedIds - The categories the budget tracks now
+ * @param hasCategory - Whether any chosen category is one the form can list
+ */
+export function getEditCategoryError(selectedIds: string[], savedIds: string[], hasCategory: boolean) {
+  if (!hasCategory) return NO_CATEGORY_ERROR
+  return getBudgetCategoryLimitError(selectedIds.length, !sameStringSet(selectedIds, savedIds)) ?? undefined
+}
+
+/**
+ * The error on the create form's category field. A pick past the limit shows at once, as well as on submit,
+ * since the person has just made it so
+ *
+ * @param selectedCount - Categories chosen in the form
+ * @param shownError - What the form shows by its own rules, after a refused submit or leaving the field
+ */
+export function getCreateCategoryError(selectedCount: number, shownError: string | undefined) {
+  return getBudgetCategoryLimitError(selectedCount) ?? shownError
 }

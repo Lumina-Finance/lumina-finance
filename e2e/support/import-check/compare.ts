@@ -53,6 +53,8 @@ export interface LuminaSnapshot {
   transactions: LuminaTransaction[]
   categories: { id: string; name: string }[]
   baseBudgets: LuminaBaseBudget[]
+
+  // Every period of every base budget, read from each one's utilizations
   budgetPeriods: LuminaBudgetPeriod[]
 }
 

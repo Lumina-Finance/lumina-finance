@@ -13,6 +13,13 @@ from app.utils.date_window import WindowDate
 # Longest cadence a base budget stores, the largest value its small-integer column holds
 MAX_BUDGET_INSTANCE_LENGTH = 32767
 
+# Budgets a person keeps, archived ones included and group budgets not counted. It keeps the budget
+# list and the home page's latest utilizations small, and the budgets page's add control repeats it
+MAX_BASE_BUDGETS = 100
+
+# Categories one budget tracks. It keeps a period's utilization and the budget forms small
+MAX_BUDGET_CATEGORIES = 100
+
 
 def validate_recurrence_anchor_fields(
     freq: RecurrenceFreq,
@@ -157,8 +164,10 @@ class BudgetUtilizationResponse(BaseModel):
     """Aggregated spending for a budget, grouped by tracked category
 
     `spent` values are positive when the net is an outflow. Currently-active
-    tracked categories are always included even with zero spend so the
-    frontend can render all of them
+    tracked categories are included even with zero spend so the frontend can
+    render all of them. A base budget's history keeps categories on its latest
+    periods only, and an older period lists none while its total_spent still
+    counts every category
     """
 
     budget_id: uuid.UUID

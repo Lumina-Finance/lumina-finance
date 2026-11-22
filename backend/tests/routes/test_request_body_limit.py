@@ -9,6 +9,11 @@ from app.request_security import MAX_REQUEST_BODY_BYTES
 _TARGET_PATH = "/transactions/import/runs"
 
 
+def test_the_request_body_limit_is_5_mib():
+    """The limit is the 5 MiB the app states, whatever it is written as"""
+    assert MAX_REQUEST_BODY_BYTES == 5 * 1024 * 1024
+
+
 def _oversized_payload() -> bytes:
     """Return a body one byte past the cap"""
     return b"x" * (MAX_REQUEST_BODY_BYTES + 1)
@@ -65,6 +70,20 @@ async def test_refusal_carries_cors_headers(client):
     response = await client.post(
         _TARGET_PATH,
         content=_oversized_payload(),
+        headers={"Origin": origin},
+    )
+
+    assert response.status_code == 413
+    assert response.headers["access-control-allow-origin"] == origin
+
+
+async def test_counted_refusal_carries_cors_headers(client):
+    """A body refused while it is counted, with no declared length, carries CORS headers as a declared one does"""
+    origin = ALLOWED_ORIGINS[0]
+
+    response = await client.post(
+        _TARGET_PATH,
+        content=_stream_oversized_payload(),
         headers={"Origin": origin},
     )
 

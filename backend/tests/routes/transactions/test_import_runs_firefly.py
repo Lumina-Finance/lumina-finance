@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import text
 
+from app.schemas.import_run import MAX_JOURNAL_BUDGETS
 from tests.conftest import TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
 from tests.routes.transactions._helpers import _create_account, _seed_usd_currency, _setup_user_with_deps
@@ -182,7 +183,7 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
     [budget] = (await client.get("/base-budgets", headers=headers)).json()
     assert budget["name"] == "Food"
     assert sorted(budget["category_ids"]) == sorted(summary["category_source_ids"][source] for source in ("Groceries", "Books"))
-    periods = [period for period in (await client.get("/budgets", headers=headers)).json() if period["base_budget_id"] == budget["id"]]
+    periods = (await client.get(f"/base-budgets/{budget['id']}/utilizations", headers=headers)).json()
     assert [(period["period_start"], period["period_end"], period["overall_limit"]) for period in periods] == [
         ("2026-04-01", "2026-04-30", 30000),
     ]
@@ -207,6 +208,49 @@ async def test_a_firefly_run_commits_more_rows_than_one_batch_carries(client):
     resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
     assert resp.status_code == 201, resp.text
     assert (resp.json()["rows_imported"], resp.json()["transactions_created"]) == (5001, 5001)
+
+
+async def _put_budgets(client, headers, run_id, start_index, names):
+    """Send one part of a run's budgets, starting at the given index, and return the response"""
+    return await client.put(
+        f"/transactions/import/runs/{run_id}/budgets",
+        json={"categories": [_GROCERIES], "budgets": [_budget(name=name) for name in names], "start_index": start_index},
+        headers=headers,
+    )
+
+
+async def test_a_firefly_run_commits_every_part_of_its_budgets_and_a_part_sent_again_changes_nothing(client):
+    """Parts sent in order land every budget, and a part whose response was lost can be sent again."""
+    headers = _get_auth_header(await _create_user(client))
+    run_id = await _open_run(client, headers, 1, "firefly")
+    await _stage(client, headers, run_id, 0, [_firefly_row()])
+
+    for start_index, names in ((0, ["Food", "Fuel"]), (2, ["Gifts"]), (2, ["Gifts"]), (3, ["Home", "Rent"])):
+        resp = await _put_budgets(client, headers, run_id, start_index, names)
+        assert resp.status_code == 204, resp.text
+
+    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
+    assert resp.status_code == 201, resp.text
+    assert [budget["name"] for budget in resp.json()["budgets"]] == ["Food", "Fuel", "Gifts", "Home", "Rent"]
+
+
+async def test_a_firefly_run_refuses_a_part_of_budgets_that_leaves_a_gap_or_passes_the_cap(client):
+    """A part may start where the staged budgets end but not past it, and the run holds at most the cap."""
+    headers = _get_auth_header(await _create_user(client))
+    run_id = await _open_run(client, headers, 1, "firefly")
+    await _stage(client, headers, run_id, 0, [_firefly_row()])
+
+    resp = await _put_budgets(client, headers, run_id, 1, ["Food"])
+    assert (resp.status_code, resp.json()["detail"]) == (422, "The budgets start past the ones already staged")
+
+    resp = await _put_budgets(client, headers, run_id, 0, [f"Budget {index}" for index in range(MAX_JOURNAL_BUDGETS)])
+    assert resp.status_code == 204, resp.text
+    resp = await _put_budgets(client, headers, run_id, MAX_JOURNAL_BUDGETS, ["One too many"])
+    assert (resp.status_code, resp.json()["detail"]) == (422, f"An import can take up to {MAX_JOURNAL_BUDGETS} budgets")
+
+    # The last position the cap allows still takes a budget
+    resp = await _put_budgets(client, headers, run_id, MAX_JOURNAL_BUDGETS - 1, ["Last budget"])
+    assert resp.status_code == 204, resp.text
 
 
 def _future_date():

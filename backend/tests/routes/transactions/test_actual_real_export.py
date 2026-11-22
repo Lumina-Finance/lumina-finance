@@ -63,9 +63,7 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
     # What each category source became is read off the created names
     categories = {category["id"]: category["name"] for category in (await client.get("/categories", headers=headers)).json()}
     created_name_by_source = {
-        mapping["source"]: mapping["create"]["name"]
-        for batch in FIXTURE["transactions"]
-        for mapping in batch["categories"]
+        mapping["source"]: mapping["create"]["name"] for batch in FIXTURE["transactions"] for mapping in batch["categories"]
     }
 
     # Rows dated after the export date are imported with their account and category like any other
@@ -103,14 +101,12 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
     last_month = {budget["name"]: max(month["month"] for month in budget["months"]) for budget in expected["budgets"]}
     name_by_budget_id = {budget["id"]: budget["name"] for budget in base_budgets}
     periods = defaultdict(list)
-    for period in (await client.get("/budgets", headers=headers)).json():
-        month = period["period_start"][:7]
-        if month <= last_month.get(name_by_budget_id[period["base_budget_id"]], month):
-            periods[period["base_budget_id"]].append((month, _format_manifest_amount(period["overall_limit"])))
-    assert {
-        budget["name"]: {"archived": budget["is_archived"], "periods": sorted(periods[budget["id"]])}
-        for budget in base_budgets
-    } == {
+    for base_budget_id, name in name_by_budget_id.items():
+        for period in (await client.get(f"/base-budgets/{base_budget_id}/utilizations", headers=headers)).json():
+            month = period["period_start"][:7]
+            if month <= last_month.get(name, month):
+                periods[base_budget_id].append((month, _format_manifest_amount(period["overall_limit"])))
+    assert {budget["name"]: {"archived": budget["is_archived"], "periods": sorted(periods[budget["id"]])} for budget in base_budgets} == {
         budget["name"]: {
             "archived": budget["hidden"],
             "periods": sorted((month["month"], month["budgeted"]) for month in budget["months"]),
@@ -121,19 +117,17 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
     # A budget tracks its one category in every account, and payments to off-budget accounts come in
     # as spending in it, so each month before the export month shows spent what Actual counted
     # against the category. Spending is negative in Actual's totals and positive as spent here
-    totals_by_source = {
-        (source, month["month"]): month["total"]
-        for month in expected["categoryMonths"]
-        for source in month["sources"]
-    }
+    totals_by_source = {(source, month["month"]): month["total"] for month in expected["categoryMonths"] for source in month["sources"]}
     base_budget_id_by_name = {budget["name"]: budget["id"] for budget in base_budgets}
     compared_months = 0
     for budget in FIXTURE["budgets"]["budgets"]:
         [source] = budget["category_sources"]
-        utilizations = (await client.get(
-            f"/base-budgets/{base_budget_id_by_name[budget['name']]}/utilizations",
-            headers=headers,
-        )).json()
+        utilizations = (
+            await client.get(
+                f"/base-budgets/{base_budget_id_by_name[budget['name']]}/utilizations",
+                headers=headers,
+            )
+        ).json()
         for utilization in utilizations:
             month = utilization["period_start"][:7]
             if month >= as_of[:7]:

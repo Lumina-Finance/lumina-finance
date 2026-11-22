@@ -18,6 +18,10 @@ from app.services.budgets.utilization.query_helpers import (
 from app.services.fx import FxConverter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
+# Periods at the end of a budget's history that keep their categories. The details chart shows this
+# many periods (BUDGET_CHART_MAX_PERIODS in the frontend), so older ones need only their totals
+HISTORY_CATEGORY_PERIODS = 12
+
 
 async def get_budget_utilization_responses(
     db: AsyncSession,
@@ -63,6 +67,30 @@ async def get_budget_utilization_responses(
         )
         responses.append(budget_response)
     return responses
+
+
+async def get_budget_history_responses(
+    db: AsyncSession,
+    budget_rows: list[tuple[Budget, BaseBudget]],
+) -> list[BudgetUtilizationResponse]:
+    """Return utilization responses for a base budget's periods, with categories on the latest ones only
+
+    Each total is worked out from every category before any category is dropped, so an older
+    period keeps its true total
+
+    Args:
+        db: Active database session
+        budget_rows: Budget instance rows of one base budget, ordered by period start ascending
+
+    Returns:
+        Utilization responses in the same order, with no categories on all but the latest periods
+    """
+    responses = await get_budget_utilization_responses(db, budget_rows)
+    first_with_categories = len(responses) - HISTORY_CATEGORY_PERIODS
+    return [
+        response.model_copy(update={"categories": []}) if index < first_with_categories else response
+        for index, response in enumerate(responses)
+    ]
 
 
 async def get_latest_budget_utilization_responses(

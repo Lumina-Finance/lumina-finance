@@ -13,6 +13,7 @@ from app.models.import_run import ImportRun, ImportRunSource, ImportStagedRow
 from app.models.user import User
 from app.permissions import check_account_access
 from app.schemas.import_run import (
+    MAX_JOURNAL_BUDGETS,
     ImportBudgetDraft,
     ImportRunArchiveRequest,
     ImportRunBudgetsRequest,
@@ -94,9 +95,10 @@ async def stage_journal_batch(
 
 
 async def stage_import_budgets(db: AsyncSession, user: User, run_id: uuid.UUID, data: ImportRunBudgetsRequest) -> None:
-    """Replace the budgets a provider run creates once its transactions are written
+    """Stage one part of the budgets a provider run creates once its transactions are written
 
-    Replacing rather than adding is what lets a request whose response was lost be sent again.
+    The part replaces the run's budgets from its start index onward and keeps those before it, so
+    a part sent again changes nothing and a request whose response was lost can be sent again.
     The category mappings the budgets name are merged like a batch's, since a budget can track a
     category no staged row uses. Whether every named source has a mapping is checked at the
     commit, which is the first point that has every batch
@@ -105,7 +107,7 @@ async def stage_import_budgets(db: AsyncSession, user: User, run_id: uuid.UUID, 
         db: Active database session
         user: Authenticated user running the import
         run_id: Run the budgets belong to
-        data: Budget drafts and the category mappings they need
+        data: Start index, budget drafts of this part and the category mappings they need
 
     Returns:
         None
@@ -113,7 +115,8 @@ async def stage_import_budgets(db: AsyncSession, user: User, run_id: uuid.UUID, 
     Raises:
         HTTPException: Raised with 404 for a run that is not the caller's, 409 for a run already
             committed or one another request is working on, and 422 for a CSV or OFX run, which
-            has no budgets, or a category mapping staging can already tell is unusable
+            has no budgets, a part starting past the budgets already staged, a part taking the
+            run past its budget cap, or a category mapping staging can already tell is unusable
     """
     run = await load_uncommitted_run(db, run_id)
     if run.source not in JOURNAL_RUN_SOURCES:
@@ -122,12 +125,24 @@ async def stage_import_budgets(db: AsyncSession, user: User, run_id: uuid.UUID, 
             detail=f"{_capitalize_first(describe_run_source(run.source))} has no budgets",
         )
 
+    # A part may start where the staged budgets end but not past it, since a gap would leave budgets missing
+    if data.start_index > len(run.budget_drafts):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="The budgets start past the ones already staged",
+        )
+    if data.start_index + len(data.budgets) > MAX_JOURNAL_BUDGETS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"An import can take up to {MAX_JOURNAL_BUDGETS} budgets",
+        )
+
     references = await load_staging_references(db, user, [], data.categories)
     for category_mapping in data.categories:
         await validate_category_mapping(db, user, category_mapping, references)
 
     run.category_mappings = merge_import_mappings(run.category_mappings, data.categories, "Category source")
-    run.budget_drafts = [budget.model_dump(mode="json") for budget in data.budgets]
+    run.budget_drafts = run.budget_drafts[: data.start_index] + [budget.model_dump(mode="json") for budget in data.budgets]
     await db.commit()
 
 

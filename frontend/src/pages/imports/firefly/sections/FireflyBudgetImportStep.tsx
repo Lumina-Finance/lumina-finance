@@ -18,9 +18,26 @@ const SKIPPED_BUDGET_AMOUNT_HEADERS = ['Latest amount']
 
 const BUDGET_COLUMNS: ImportBudgetColumn<FireflyBudgetDraft>[] = [
   { header: 'Cadence', widthClassName: 'w-[11%]', tone: 'muted', render: (draft) => draft.periodLabel ?? '' },
-  { header: 'Latest amount', widthClassName: 'w-[14%]', align: 'right', tone: 'figure', render: (draft) => draft.amount },
-  { header: 'Categories', widthClassName: 'w-[26%]', tone: 'muted', truncate: true, render: (draft) => formatValueList(draft.categoryNames) },
-  { header: 'First period', widthClassName: 'w-[13%]', tone: 'figure', render: (draft) => draft.firstPeriodStart ?? '' },
+  {
+    header: 'Latest amount',
+    widthClassName: 'w-[14%]',
+    align: 'right',
+    tone: 'figure',
+    render: (draft) => draft.amount,
+  },
+  {
+    header: 'Categories',
+    widthClassName: 'w-[26%]',
+    tone: 'muted',
+    truncate: true,
+    render: (draft) => formatValueList(draft.categoryNames),
+  },
+  {
+    header: 'First period',
+    widthClassName: 'w-[13%]',
+    tone: 'figure',
+    render: (draft) => draft.firstPeriodStart ?? '',
+  },
   {
     header: 'Changes',
     widthClassName: 'w-[14%]',
@@ -43,6 +60,9 @@ type FireflyBudgetImportStepProps = Pick<
   | 'setBudgetsSelected'
   | 'importedBudgetNames'
   | 'budgetSelectionError'
+  | 'budgetSelectionCheck'
+  | 'retryBudgetCount'
+  | 'isRetryingBudgetCount'
   | 'budgetCountingNotes'
   | 'importOverlayOpen'
 >
@@ -59,6 +79,9 @@ export function FireflyBudgetImportStep({
   setBudgetsSelected,
   importedBudgetNames,
   budgetSelectionError,
+  budgetSelectionCheck,
+  retryBudgetCount,
+  isRetryingBudgetCount,
   budgetCountingNotes,
   importOverlayOpen,
 }: FireflyBudgetImportStepProps) {
@@ -67,20 +90,22 @@ export function FireflyBudgetImportStep({
   const importableDrafts = budgetDrafts.filter((draft) => !draft.disabledReason)
   const skippedRows: ImportSkippedTableRow[] = budgetDrafts.flatMap((draft) => {
     if (!draft.disabledReason) return []
-    return [{
-      key: draft.name,
-      lead: draft.name,
-      reason: draft.disabledReason,
-      cells: {
-        'Status': draft.isArchived ? 'Archived' : 'Active',
-        'Currencies': formatValueList(draft.currencyCodes),
-        'Periods': draft.limits.length > 0 ? String(draft.limits.length) : '',
-        'Cadence': draft.periodLabel ?? '',
-        'First period': draft.firstPeriodStart ?? '',
-        'Last period': draft.lastPeriodEnd ?? '',
-        'Latest amount': draft.amount,
+    return [
+      {
+        key: draft.name,
+        lead: draft.name,
+        reason: draft.disabledReason,
+        cells: {
+          Status: draft.isArchived ? 'Archived' : 'Active',
+          Currencies: formatValueList(draft.currencyCodes),
+          Periods: draft.limits.length > 0 ? String(draft.limits.length) : '',
+          Cadence: draft.periodLabel ?? '',
+          'First period': draft.firstPeriodStart ?? '',
+          'Last period': draft.lastPeriodEnd ?? '',
+          'Latest amount': draft.amount,
+        },
       },
-    }]
+    ]
   })
 
   return (
@@ -92,6 +117,9 @@ export function FireflyBudgetImportStep({
       skippedRows={skippedRows}
       skippedReasonLang="en"
       selectionError={budgetSelectionError}
+      selectionCheck={budgetSelectionCheck}
+      onRetrySelectionCheck={retryBudgetCount}
+      isRetryingSelectionCheck={isRetryingBudgetCount}
       noBudgetsDescription="The budgets CSV has no budget limit rows."
       allSkippedDescription="Every budget in the export is skipped, for the reasons listed below."
       budgets={importableDrafts}
@@ -100,22 +128,32 @@ export function FireflyBudgetImportStep({
       nameWidthClassName="w-[18%]"
       minWidthClassName="min-w-[58rem]"
       // After an import the boxes show what was created rather than what was chosen
-      isChecked={(draft) => importedBudgetNames.has(draft.name) || (!importResult && selectedBudgetNames.has(draft.name))}
+      isChecked={(draft) =>
+        importedBudgetNames.has(draft.name) || (!importResult && selectedBudgetNames.has(draft.name))
+      }
       selectionLocked={importOverlayOpen || Boolean(importResult)}
       onToggle={toggleBudgetSelection}
       onSetAll={setBudgetsSelected}
     >
       <ImportInfoCard title="Periods as exported">
-        Each budget keeps its limit periods exactly as exported, with their original dates and amounts, and continues on the cadence of its most recent period. A budget whose most recent period fits no Lumina Finance cadence is imported without recurring, shown as Not recurring below.
+        Each budget keeps its limit periods exactly as exported, with their original dates and amounts, and continues on
+        the cadence of its most recent period. A budget whose most recent period fits no Lumina Finance cadence is
+        imported without recurring, shown as Not recurring below.
       </ImportInfoCard>
 
       <ImportInfoCard title="Merged categories">
-        If you merged categories in the category matching step, a budget tracking them counts spending across the whole merged category, so its remaining amount will read differently than it does in Firefly III. This is expected behaviour.
+        If you merged categories in the category matching step, a budget tracking them counts spending across the whole
+        merged category, so its remaining amount will read differently than it does in Firefly III. This is expected
+        behaviour.
       </ImportInfoCard>
 
       {budgetCountingNotes.length > 0 && (
         <ImportInfoCard title="Spending counted differently">
-          {budgetCountingNotes.map((note) => <span key={note} className="mt-1 block first:mt-0">{note}</span>)}
+          {budgetCountingNotes.map((note) => (
+            <span key={note} className="mt-1 block first:mt-0">
+              {note}
+            </span>
+          ))}
         </ImportInfoCard>
       )}
     </ImportBudgetStep>

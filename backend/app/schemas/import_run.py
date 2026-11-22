@@ -8,7 +8,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validat
 
 from app.models.base import RecurrenceFreq
 from app.models.transaction import BANK_TRANSACTION_HASH_LENGTH
-from app.schemas.budget import MAX_BUDGET_INSTANCE_LENGTH, validate_recurrence_anchor_fields
+from app.schemas.budget import MAX_BASE_BUDGETS, MAX_BUDGET_CATEGORIES, MAX_BUDGET_INSTANCE_LENGTH, validate_recurrence_anchor_fields
 from app.schemas.category import MAX_CATEGORY_ICON_LENGTH, MAX_CATEGORY_NAME_LENGTH
 from app.schemas.limits import MAX_ENUM_TEXT_LENGTH
 from app.schemas.names import TrimmedName
@@ -52,11 +52,10 @@ MAX_IMPORT_MERCHANT_NAME_LENGTH = 256
 # monthly limits or two decades of weekly ones
 MAX_BUDGET_LIMIT_PERIODS = 1200
 
-# Budgets one request may carry, and categories one budget may track. These
-# bound validation and batched writes for one request while remaining far
-# above any real export
-MAX_JOURNAL_BUDGETS = 1000
-MAX_JOURNAL_BUDGET_CATEGORIES = 1000
+# Budgets one import may carry, and categories one budget may track. They are the most a person
+# keeps, so an import never stages more than the commit could write
+MAX_JOURNAL_BUDGETS = MAX_BASE_BUDGETS
+MAX_JOURNAL_BUDGET_CATEGORIES = MAX_BUDGET_CATEGORIES
 
 # Columns and characters per header a saved CSV layout may carry, far past any bank's export. The
 # import page leaves a file past either unremembered rather than send a layout this refuses, and
@@ -613,14 +612,19 @@ class ImportBudgetDraft(BaseModel):
 
 
 class ImportRunBudgetsRequest(BaseModel):
-    """Every budget a run creates, replacing what it held, with the category mappings they need
+    """One part of the budgets a run creates, with the category mappings they need
 
     A budget can track a category no staged row uses, so the mappings it needs are declared here
-    as well and merged into the run's like a batch's
+    as well and merged into the run's like a batch's. The budgets go in parts of a bounded size,
+    each replacing the run's budgets from its start index onward
     """
 
     categories: list[TransactionImportCategoryMapping] = Field(default=[], max_length=MAX_IMPORT_MAPPINGS)
     budgets: list[ImportBudgetDraft] = Field(default=[], max_length=MAX_JOURNAL_BUDGETS)
+
+    # Where this part starts among the run's budgets, so a part sent twice stages the same
+    # positions and the second copy is absorbed. No part starts past the most budgets a run takes
+    start_index: int = Field(default=0, ge=0, le=MAX_JOURNAL_BUDGETS)
 
 
 class ImportRunArchiveRequest(BaseModel):

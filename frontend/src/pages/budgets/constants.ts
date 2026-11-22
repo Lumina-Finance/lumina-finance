@@ -1,4 +1,3 @@
-
 import type { RecurrenceFreq } from '@/api/budgets'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 

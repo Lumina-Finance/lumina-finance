@@ -13,6 +13,7 @@ import {
   getBudgetChartCategories,
   getBudgetChartGuideMaxWidth,
   getBudgetDetailsChartData,
+  getBudgetDetailsPeriods,
   getBudgetPeriodHistory,
   getBudgetUtilizationByBudgetId,
   getLatestBudgetCategories,
@@ -259,6 +260,50 @@ describe('budget details helpers', () => {
         expect(periods.map((period) => period.id)).toEqual(starts)
       }),
     )
+  })
+
+  it('keeps the latest period of the budgets list while the history has not loaded', () => {
+    const latestPeriod = createBudget({ id: 'june', period_start: '2026-06-01', period_end: '2026-06-30' })
+
+    const periods = getBudgetDetailsPeriods(latestPeriod, undefined)
+
+    expect(periods).toEqual([latestPeriod])
+    expect(getBudgetDetailsPeriods(undefined, undefined)).toEqual([])
+  })
+
+  it('reads the earlier periods from the history, oldest first, and shows a period the history lacks', () => {
+    const history = [
+      createUtilization({
+        budget_id: 'may',
+        period_start: '2026-05-01',
+        period_end: '2026-05-31',
+        overall_limit: 90000,
+      }),
+      createUtilization({
+        budget_id: 'april',
+        period_start: '2026-04-01',
+        period_end: '2026-04-30',
+        overall_limit: 80000,
+      }),
+    ]
+    // A period backfilled after the history was read is in the list and not yet in the history
+    const backfilled = createBudget({ id: 'june', period_start: '2026-06-01', period_end: '2026-06-30' })
+
+    expect(getBudgetDetailsPeriods(backfilled, history)).toEqual([
+      { id: 'april', period_start: '2026-04-01', period_end: '2026-04-30', overall_limit: 80000 },
+      { id: 'may', period_start: '2026-05-01', period_end: '2026-05-31', overall_limit: 90000 },
+      backfilled,
+    ])
+  })
+
+  it('lists a period once when the history and the budgets list both hold it', () => {
+    const latestPeriod = createBudget({ id: 'june', overall_limit: 120000 })
+    const history = [createUtilization({ budget_id: 'june', overall_limit: 100000 })]
+
+    const periods = getBudgetDetailsPeriods(latestPeriod, history)
+
+    expect(periods).toHaveLength(1)
+    expect(periods[0].overall_limit).toBe(120000)
   })
 
   it('refuses a period whose start date is not a real day', () => {

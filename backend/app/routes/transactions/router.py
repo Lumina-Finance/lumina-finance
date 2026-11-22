@@ -480,11 +480,11 @@ async def stage_import_run_budgets(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Replace the budgets a provider run creates once its transactions are written
+    """Stage one part of the budgets a provider run creates once its transactions are written
 
     Args:
         run_id: Run the budgets belong to
-        data: Budget drafts and the category mappings they need
+        data: Start index, budget drafts of this part and the category mappings they need
         user: Authenticated user running the import
         db: Active database session
     """

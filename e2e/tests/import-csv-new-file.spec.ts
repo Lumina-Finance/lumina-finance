@@ -73,7 +73,9 @@ test('keeps a finished import as its record until another file is uploaded', asy
   const chooser = page.waitForEvent('filechooser')
   await uploadCard.click()
   await (await chooser).setFiles({ name: 'second.csv', mimeType: 'text/csv', buffer: Buffer.from(NEXT_EXPORT) })
-  await expect(page.getByText('second.csv', { exact: true })).toBeVisible()
+  // The setup panel collapses shortly after it accepts a file, so the staged name is checked as
+  // present rather than visible
+  await expect(page.getByText('second.csv', { exact: true })).toBeAttached()
   await expect(skippedTitle).toBeHidden()
   // In the steps, since the file's own preview sits in the setup panel, which has collapsed away
   await expect(page.getByRole('region', { name: 'Import steps' }).getByText(/12\.00/).first()).toBeVisible()

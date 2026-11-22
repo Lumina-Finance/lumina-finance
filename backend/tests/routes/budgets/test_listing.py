@@ -1,4 +1,3 @@
-
 from tests.routes.budgets._helpers import (
     _create_base_budget,
     _create_budget_instance,
@@ -15,17 +14,12 @@ async def test_list_budgets_returns_200(client):
     """User with instances gets them back ordered by period_end desc, then base name."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    base_resp = await _create_base_budget(client, headers)
-    base_budget_id = base_resp.json()["id"]
+    cat_id = await _create_category(client, headers)
+    march_base = (await _create_base_budget(client, headers, name="March Budget", category_ids=[cat_id])).json()["id"]
+    april_base = (await _create_base_budget(client, headers, name="April Budget", category_ids=[cat_id])).json()["id"]
 
-    await _create_budget_instance(
-        client, headers, base_budget_id,
-        period_start="2026-03-01",
-    )
-    await _create_budget_instance(
-        client, headers, base_budget_id,
-        period_start="2026-04-01",
-    )
+    await _create_budget_instance(client, headers, march_base, period_start="2026-03-01")
+    await _create_budget_instance(client, headers, april_base, period_start="2026-04-01")
 
     resp = await client.get("/budgets", headers=headers)
 
@@ -35,6 +29,27 @@ async def test_list_budgets_returns_200(client):
     # Order: period_end desc — April (2026-04-30) comes before March (2026-03-31)
     assert data[0]["period_end"] == "2026-04-30"
     assert data[1]["period_end"] == "2026-03-31"
+
+
+async def test_list_budgets_lists_only_the_latest_period_of_each_base(client):
+    """A base with several periods lists its latest alone, whatever order the periods were created in."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    cat_id = await _create_category(client, headers)
+    many_base = (await _create_base_budget(client, headers, name="Many periods", category_ids=[cat_id])).json()["id"]
+    one_base = (await _create_base_budget(client, headers, name="One period", category_ids=[cat_id])).json()["id"]
+
+    for period_start in ("2026-03-01", "2026-05-01", "2026-04-01"):
+        await _create_budget_instance(client, headers, many_base, period_start=period_start)
+    await _create_budget_instance(client, headers, one_base, period_start="2026-03-01")
+
+    resp = await client.get("/budgets", headers=headers)
+
+    assert resp.status_code == 200
+    assert sorted((row["base_budget"]["name"], row["period_start"]) for row in resp.json()) == [
+        ("Many periods", "2026-05-01"),
+        ("One period", "2026-03-01"),
+    ]
 
 
 async def test_list_budgets_empty(client):
@@ -83,10 +98,15 @@ async def test_list_budgets_includes_group_instances(client):
 
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
-    group_base = (await _create_base_budget(
-        client, headers, name="Family Budget",
-        group_id=group_id, category_ids=[group_cat_id],
-    )).json()["id"]
+    group_base = (
+        await _create_base_budget(
+            client,
+            headers,
+            name="Family Budget",
+            group_id=group_id,
+            category_ids=[group_cat_id],
+        )
+    ).json()["id"]
     await _create_budget_instance(client, headers, group_base)
 
     resp = await client.get("/budgets", headers=headers)
@@ -113,7 +133,10 @@ async def test_list_budgets_group_member_without_permission_excluded(client):
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
     await _create_budget_instance(client, headers, base_budget_id)
@@ -138,7 +161,10 @@ async def test_list_budgets_group_member_with_permission(client):
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
     await _create_budget_instance(client, headers, base_budget_id)
@@ -177,12 +203,22 @@ async def test_list_budgets_secondary_sort_by_base_name(client):
     headers = _get_auth_header(signup_resp)
 
     cat_id = await _create_category(client, headers)
-    zebra_base = (await _create_base_budget(
-        client, headers, name="Zebra Budget", category_ids=[cat_id],
-    )).json()["id"]
-    alpha_base = (await _create_base_budget(
-        client, headers, name="Alpha Budget", category_ids=[cat_id],
-    )).json()["id"]
+    zebra_base = (
+        await _create_base_budget(
+            client,
+            headers,
+            name="Zebra Budget",
+            category_ids=[cat_id],
+        )
+    ).json()["id"]
+    alpha_base = (
+        await _create_base_budget(
+            client,
+            headers,
+            name="Alpha Budget",
+            category_ids=[cat_id],
+        )
+    ).json()["id"]
 
     await _create_budget_instance(client, headers, zebra_base)
     await _create_budget_instance(client, headers, alpha_base)
@@ -204,7 +240,10 @@ async def test_list_budgets_no_duplicates_for_group_instance(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     await _create_budget_instance(client, headers, base_resp.json()["id"])
 
@@ -222,7 +261,9 @@ async def test_list_budgets_excludes_soft_deleted_categories(client):
     cat_keep = await _create_category(client, headers, name="Test Category A")
     cat_remove = await _create_category(client, headers, name="Test Category B")
     base_resp = await _create_base_budget(
-        client, headers, category_ids=[cat_keep, cat_remove],
+        client,
+        headers,
+        category_ids=[cat_keep, cat_remove],
     )
     base_budget_id = base_resp.json()["id"]
     await _create_budget_instance(client, headers, base_budget_id)
@@ -249,7 +290,10 @@ async def test_list_budgets_non_member_outsider_sees_nothing(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     await _create_budget_instance(client, headers, base_resp.json()["id"])
 
@@ -279,7 +323,10 @@ async def test_list_budgets_promoted_admin_sees_group_instances(client):
 
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     await _create_budget_instance(client, headers, base_resp.json()["id"])
 

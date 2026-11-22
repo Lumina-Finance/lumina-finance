@@ -9,7 +9,7 @@ export type {
   RecurrenceFreq,
   UpdateBaseBudgetPayload,
   UpdateBudgetPayload,
-} from '@/api/budgets/types';
+} from '@/api/budgets/types'
 
 export {
   createBaseBudget,
@@ -17,20 +17,20 @@ export {
   deleteBaseBudget,
   fetchBaseBudgetUtilizations,
   fetchBaseBudgets,
-  fetchBudgets,
+  fetchLatestBudgetPeriods,
   fetchLatestBudgetUtilizations,
   updateBaseBudget,
   updateBudget,
-} from '@/api/budgets/requests';
+} from '@/api/budgets/requests'
 
 export {
   useBaseBudgetUtilizations,
   useBaseBudgets,
-  useBudgets,
   useCreateBaseBudget,
   useCreateBudgetInstance,
   useDeleteBaseBudget,
+  useLatestBudgetPeriods,
   useLatestBudgetUtilizations,
   useUpdateBaseBudget,
   useUpdateBudget,
-} from '@/api/budgets/hooks';
+} from '@/api/budgets/hooks'

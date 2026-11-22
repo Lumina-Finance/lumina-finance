@@ -100,8 +100,29 @@ describe('runJournalImport', () => {
     const [[, open], [, stage], [, budgets], [, archive]] = authenticatedFetchMock.mock.calls
     expect(JSON.parse(open.body)).toEqual({ expected_transaction_count: 2, source: 'firefly' })
     expect(JSON.parse(stage.body)).toEqual({ ...PAYLOAD, start_row_index: 0 })
-    expect(JSON.parse(budgets.body)).toEqual(BUDGETS)
+    expect(JSON.parse(budgets.body)).toEqual({ ...BUDGETS, start_index: 0 })
     expect(JSON.parse(archive.body)).toEqual({ account_sources: ['account-1'] })
+  })
+
+  it('stages the budgets of a large import in parts, in order, each part saying where it starts', async () => {
+    authenticatedFetchMock.mockResolvedValue(undefined)
+    authenticatedFetchMock.mockResolvedValueOnce({ id: RUN_ID })
+    const limits = Array.from({ length: 1200 }, () => ({ start: '2026-04-01', end: '2026-04-30', amount: '300' }))
+    const budgets: ImportRunBudgets = {
+      categories: PAYLOAD.categories,
+      budgets: Array.from({ length: 30 }, (_, index) => ({ ...BUDGETS.budgets[0], name: `Food ${index}`, limits })),
+    }
+
+    await runJournalImport({ source: 'firefly', payload: PAYLOAD, budgets, archiveAccountSources: [] })
+
+    const parts = authenticatedFetchMock.mock.calls
+      .filter(([path, init]) => path === `${RUN_PATH}/budgets` && init?.method === 'PUT')
+      .map(([, init]) => JSON.parse(init.body))
+    expect(parts.length).toBeGreaterThan(1)
+    expect(parts.map((part) => part.start_index)).toEqual(
+      parts.map((_, index) => parts.slice(0, index).reduce((count, part) => count + part.budgets.length, 0)),
+    )
+    expect(parts.flatMap((part) => part.budgets)).toEqual(budgets.budgets)
   })
 
   it('drops the run when the budgets are refused, so nothing is left staged', async () => {

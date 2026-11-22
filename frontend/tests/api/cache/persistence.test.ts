@@ -312,12 +312,12 @@ describe('restoring the saved copy', () => {
     expect(otherLoad.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
   })
 
-  it("removes a copy saved before bank holds carried their provider and the bank's note and merchant", async () => {
+  it('removes a copy saved before budget lists carried one row per budget, even one holding bank holds', async () => {
     const stored = await savedCopyOf((client) =>
       client.setQueryData(['bank-sync', 'holds'], [{ id: 'saved-before-the-hold-card' }]),
     )
-    // The shape that was current before. This copy then reads as saved by it
-    stored[QUERY_CACHE_STORAGE_KEY] = JSON.stringify({ ...JSON.parse(stored[QUERY_CACHE_STORAGE_KEY]), shape: '8' })
+    // The shape that was current before, '9'. This copy then reads as saved by it
+    stored[QUERY_CACHE_STORAGE_KEY] = JSON.stringify({ ...JSON.parse(stored[QUERY_CACHE_STORAGE_KEY]), shape: '9' })
 
     const reloaded = loadPage(stored)
     await reloaded.restore()
@@ -797,7 +797,13 @@ describe('a restore that fails', () => {
   /** An entry for the first user and key number, sealing this text as the cache it holds */
   async function entryHolding(text: string) {
     const key = await importSavedCopyKey(savedCopySession().saved_copy_key!)
-    const entry = { shape: '9', userId: USER_A, keyNumber: 0, savedAt: Date.now(), ...(await sealSavedCopy(key, text)) }
+    const entry = {
+      shape: '10',
+      userId: USER_A,
+      keyNumber: 0,
+      savedAt: Date.now(),
+      ...(await sealSavedCopy(key, text)),
+    }
     sealing = []
     return JSON.stringify(entry)
   }
@@ -945,7 +951,7 @@ describe('what the saved copy keeps of the last check', () => {
         }),
       )
       const entry = {
-        shape: '9',
+        shape: '10',
         userId: USER_A,
         keyNumber: 0,
         savedAt: Date.now(),

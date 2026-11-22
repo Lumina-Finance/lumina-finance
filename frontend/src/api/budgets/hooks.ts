@@ -1,139 +1,140 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { invalidateBudgetActivity, updateCachedBaseBudget } from '@/api/cache/updates/budgets';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { invalidateBudgetActivity, updateCachedBaseBudget } from '@/api/cache/updates/budgets'
 import {
   createBaseBudget,
   createBudgetInstance,
   deleteBaseBudget,
   fetchBaseBudgetUtilizations,
   fetchBaseBudgets,
-  fetchBudgets,
+  fetchLatestBudgetPeriods,
   fetchLatestBudgetUtilizations,
   updateBaseBudget,
   updateBudget,
-} from '@/api/budgets/requests';
-import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback';
-import { budgetKeys } from '@/api/cache/queryKeys';
-import { getFxAwareStaleTime } from '@/api/shared/fxCache';
-import { useAuth } from '@/hooks/useAuth';
+} from '@/api/budgets/requests'
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback'
+import { budgetKeys } from '@/api/cache/queryKeys'
+import { getFxAwareStaleTime } from '@/api/shared/fxCache'
+import { useAuth } from '@/hooks/useAuth'
 
-const BUDGET_FX_STALE_TIME_MS = 5 * 60 * 1000;
+const BUDGET_FX_STALE_TIME_MS = 5 * 60 * 1000
 
 /**
  * Reads base budget definitions
  */
 export function useBaseBudgets() {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
   return useQuery({
     queryKey: budgetKeys.baseBudgets(),
     queryFn: ({ signal }) => fetchBaseBudgets(signal),
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000,
-  });
+  })
 }
 
 /**
- * Reads budget periods
+ * Reads the latest period of each base budget
  */
-export function useBudgets() {
-  const { accessToken } = useAuth();
+export function useLatestBudgetPeriods() {
+  const { accessToken } = useAuth()
   return useQuery({
-    queryKey: budgetKeys.periods(),
-    queryFn: ({ signal }) => fetchBudgets(signal),
+    queryKey: budgetKeys.latestPeriods(),
+    queryFn: ({ signal }) => fetchLatestBudgetPeriods(signal),
     enabled: !!accessToken,
     staleTime: 5 * 60 * 1000,
-  });
+  })
 }
 
 /**
  * Reads latest utilization for each active base budget
  */
 export function useLatestBudgetUtilizations() {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
   return useQuery({
     queryKey: budgetKeys.latestUtilizations(),
     queryFn: ({ signal }) => fetchLatestBudgetUtilizations(signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(BUDGET_FX_STALE_TIME_MS),
-  });
+  })
 }
 
 /**
- * Reads utilization for every stored period under a base budget in one batched request
+ * Reads utilization for every stored period under a base budget in one batched request. Only the
+ * latest periods carry their categories, so an older period holds its total alone
  */
 export function useBaseBudgetUtilizations(baseBudgetId: string) {
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuth()
   return useQuery({
     queryKey: budgetKeys.baseBudgetUtilizations(baseBudgetId),
     queryFn: ({ signal }) => fetchBaseBudgetUtilizations(baseBudgetId, signal),
     enabled: !!accessToken,
     staleTime: getFxAwareStaleTime(BUDGET_FX_STALE_TIME_MS),
-  });
+  })
 }
 
 /**
  * Creates base budgets and refreshes budget rollups
  */
 export function useCreateBaseBudget() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: createBaseBudget,
     onSuccess: () => {
-      invalidateBudgetActivity(queryClient);
+      invalidateBudgetActivity(queryClient)
     },
-  });
+  })
 }
 
 /**
  * Creates budget periods and refreshes budget rollups
  */
 export function useCreateBudgetInstance() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: createBudgetInstance,
     onSuccess: () => {
-      invalidateBudgetActivity(queryClient);
+      invalidateBudgetActivity(queryClient)
     },
-  });
+  })
 }
 
 /**
  * Deletes base budgets and refreshes budget rollups after feedback has displayed
  */
 export function useDeleteBaseBudget({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (baseBudgetId: string) =>
       runWithMinimumPendingTime(minimumPendingMs, () => deleteBaseBudget(baseBudgetId)),
     onSuccess: () => {
-      invalidateBudgetActivity(queryClient);
+      invalidateBudgetActivity(queryClient)
     },
-  });
+  })
 }
 
 /**
  * Updates base budgets and refreshes budget rollups
  */
 export function useUpdateBaseBudget() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: updateBaseBudget,
     onSuccess: (baseBudget) => {
       // Reflect the saved budget right away so an archive toggle moves its card before the refetch resolves
-      updateCachedBaseBudget(queryClient, baseBudget);
-      invalidateBudgetActivity(queryClient);
+      updateCachedBaseBudget(queryClient, baseBudget)
+      invalidateBudgetActivity(queryClient)
     },
-  });
+  })
 }
 
 /**
  * Updates budget periods and refreshes budget rollups
  */
 export function useUpdateBudget() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: updateBudget,
     onSuccess: () => {
-      invalidateBudgetActivity(queryClient);
+      invalidateBudgetActivity(queryClient)
     },
-  });
+  })
 }

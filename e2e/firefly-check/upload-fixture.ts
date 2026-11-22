@@ -3,7 +3,7 @@
  * id replaced by the name it stood for, since the ids belong to the user this run signed up
  */
 import type { LuminaSnapshot } from '../support/import-check/compare.ts'
-import type { CapturedUpload } from '../support/import-check/uploads.ts'
+import { readBudgetsUpload, type CapturedUpload } from '../support/import-check/uploads.ts'
 import type { FireflyManifest, FireflyRunInfo, ManifestRow } from './manifest.ts'
 
 interface CategoryMapping {
@@ -23,11 +23,6 @@ interface StageBody {
   categories: CategoryMapping[]
   rows: unknown[]
   start_row_index: number
-}
-
-interface BudgetsBody {
-  categories: CategoryMapping[]
-  budgets: unknown[]
 }
 
 interface ArchiveBody {
@@ -63,10 +58,8 @@ export function buildUploadFixture(
       return { accounts, categories: nameCategories(categories), rows, start_row_index }
     })
 
-  // The screen sends the budgets once, and not at all when none is imported
-  const budgetUploads = uploads.filter((upload) => upload.method === 'PUT' && upload.path.endsWith('/budgets'))
-  if (budgetUploads.length > 1) throw new Error(`The screen sent the budgets ${budgetUploads.length} times`)
-  const budgetsBody = budgetUploads[0]?.body as BudgetsBody | undefined
+  // The screen sends the budgets in parts, and not at all when none is imported. The fixture holds them as one
+  const budgetsBody = readBudgetsUpload<CategoryMapping, unknown>(uploads)
   const budgets = budgetsBody ? { categories: nameCategories(budgetsBody.categories), budgets: budgetsBody.budgets } : null
 
   // The accounts to archive are sent once, and not at all when the import archives none

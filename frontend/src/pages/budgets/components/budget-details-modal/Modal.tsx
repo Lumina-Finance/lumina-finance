@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { useBaseBudgetUtilizations, useDeleteBaseBudget, type BaseBudget, type Budget, type BudgetUtilization } from '@/api/budgets'
+import {
+  useBaseBudgetUtilizations,
+  useDeleteBaseBudget,
+  type BaseBudget,
+  type Budget,
+  type BudgetUtilization,
+} from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import BudgetDetailsSidebar from '@/pages/budgets/components/budget-details-modal/Sidebar'
@@ -14,10 +20,10 @@ import { getHistoricalBudgetUtilizationFxStatusMessage } from '@/pages/budgets/u
 import {
   getBudgetChartCategories,
   getBudgetDetailsChartData,
+  getBudgetDetailsPeriods,
   getBudgetPeriodHistory,
   getBudgetUtilizationByBudgetId,
   getLatestBudgetCategories,
-  getSortedBudgetPeriods,
 } from '@/pages/budgets/utils/budgetDetails'
 import { combineFxStatuses } from '@/utils/fxStatus'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
@@ -29,7 +35,7 @@ import { ACTION_LOADING_MIN_MS, LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 export default function BudgetDetailsModal({
   open,
   baseBudget,
-  periods,
+  latestPeriod,
   categories,
   currencies,
   categoryById,
@@ -42,7 +48,9 @@ export default function BudgetDetailsModal({
 }: {
   open: boolean
   baseBudget: BaseBudget
-  periods: Budget[]
+
+  /** The budget's latest period from the budgets list, read by the sidebar and the editor */
+  latestPeriod: Budget | undefined
   categories: Category[]
   currencies: Currency[]
   categoryById: Map<string, string>
@@ -65,9 +73,14 @@ export default function BudgetDetailsModal({
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
   )
-  const sortedPeriods = useMemo(() => getSortedBudgetPeriods(periods), [periods])
-  const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
   const utilizationQuery = useBaseBudgetUtilizations(baseBudget.id)
+
+  // The card's latest period serves the sidebar and the editor from the first frame, so neither waits for the
+  // history. The history only adds the earlier periods
+  const sortedPeriods = useMemo(
+    () => getBudgetDetailsPeriods(latestPeriod, utilizationQuery.data),
+    [latestPeriod, utilizationQuery.data],
+  )
   const utilizationByBudgetId = useMemo(
     () => getBudgetUtilizationByBudgetId(initialLatestUtilization, utilizationQuery.data ?? []),
     [initialLatestUtilization, utilizationQuery.data],
@@ -195,7 +208,9 @@ export default function BudgetDetailsModal({
             <header className="flex shrink-0 items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Historical utilization</h3>
+                  <h3 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>
+                    Historical utilization
+                  </h3>
                   <BudgetFxStatusBadge
                     fxStatus={utilizationHistoryFxStatus}
                     label="Historical utilization FX status"
@@ -206,7 +221,12 @@ export default function BudgetDetailsModal({
                   Percentage used for each budget period.
                 </p>
               </div>
-              <button type="button" className="app-icon-button hidden min-[1050px]:inline-flex" aria-label="Close budget details" onClick={onClose}>
+              <button
+                type="button"
+                className="app-icon-button hidden min-[1050px]:inline-flex"
+                aria-label="Close budget details"
+                onClick={onClose}
+              >
                 <X size={20} aria-hidden />
               </button>
             </header>
@@ -227,9 +247,8 @@ export default function BudgetDetailsModal({
               loading={utilizationHistoryLoading}
               error={utilizationHistoryError}
             />
-
           </section>
-          </div>
+        </div>
       </ModalShell>
 
       <BudgetEditModal

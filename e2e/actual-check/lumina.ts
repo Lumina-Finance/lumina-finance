@@ -2,7 +2,7 @@
  * Reads which of Lumina's records stand for which Actual account, category and budget, from the
  * requests of the import run and what the server answered them
  */
-import type { CapturedUpload } from '../support/import-check/uploads.ts'
+import { readBudgetsUpload, type CapturedUpload } from '../support/import-check/uploads.ts'
 import type { ImportMappings } from './compare.ts'
 
 interface CommitResponse {
@@ -25,11 +25,9 @@ export function readImportMappings(uploads: CapturedUpload[]): ImportMappings {
   if (commits.length !== 1) throw new Error(`The import run answered ${commits.length} commits`)
   const commit = commits[0].response as CommitResponse
 
-  const budgetUploads = uploads.filter((upload) => upload.method === 'PUT' && upload.path.endsWith('/budgets'))
-  if (budgetUploads.length > 1) throw new Error(`The screen sent the budgets ${budgetUploads.length} times`)
   const budgetIdByName = new Map(commit.budgets.map((budget) => [budget.name, budget.base_budget_id]))
   const budgets = new Map<string, string>()
-  for (const budget of (budgetUploads[0]?.body as BudgetsBody | undefined)?.budgets ?? []) {
+  for (const budget of readBudgetsUpload<{ source: string }, BudgetsBody['budgets'][number]>(uploads)?.budgets ?? []) {
     if (budget.category_sources.length !== 1) throw new Error(`The budget ${budget.name} tracks ${budget.category_sources.length} category sources`)
     const baseBudgetId = budgetIdByName.get(budget.name)
     if (baseBudgetId) budgets.set(budget.category_sources[0], baseBudgetId)
