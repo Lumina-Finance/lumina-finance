@@ -92,7 +92,7 @@ def start_server(*options: str, command: tuple[str, ...] = ()) -> Cluster:
         command: What the container runs in place of the image's own command
 
     Returns:
-        The running server, which the caller removes
+        The running server. The caller removes its container
     """
     container_id = docker(
         "run", "-d", "--rm", "--tmpfs", "/var/lib/postgresql/data", "-p", "127.0.0.1::5432",
@@ -176,15 +176,20 @@ async def query(engine: AsyncEngine, statement: str):
         await engine.dispose()
 
 
-def run_module(module: str, *arguments: str, environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
-    """Run a backend module in a process of its own with exactly the environment given
+def run_python(*arguments: str, environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """Run the backend's interpreter in a process of its own with exactly the environment given
 
     A process keeps the imports of what it runs out of the test run, and holds only the settings it is given
     """
     # The arguments are fixed by the tests, and the interpreter is the one running them
     return subprocess.run(  # noqa: S603
-        [sys.executable, "-m", module, *arguments], cwd=BACKEND_DIR, env=environment, check=False, capture_output=True, text=True
+        [sys.executable, *arguments], cwd=BACKEND_DIR, env=environment, check=False, capture_output=True, text=True
     )
+
+
+def run_module(module: str, *arguments: str, environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """Run a backend module in a process of its own with exactly the environment given"""
+    return run_python("-m", module, *arguments, environment=environment)
 
 
 async def run_job(job: str, environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
