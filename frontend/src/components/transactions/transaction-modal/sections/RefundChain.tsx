@@ -203,7 +203,8 @@ export function RefundChainRow({
       {/* The row grows and collapses inside a box that clips, so the focus ring is drawn inside the button's edge */}
       {unlink && (
         <HintButton
-          className="app-icon-button shrink-0 focus-visible:[outline-offset:calc(var(--app-focus-offset)*-1)]"
+          // On the unsaved row's amber the usual ring falls under 3:1 in the dark theme, so it takes the box's edge colour
+          className={`app-icon-button shrink-0 focus-visible:[outline-offset:calc(var(--app-focus-offset)*-1)] ${notSaved ? 'focus-visible:[outline-color:var(--app-warning-dot)]' : ''}`}
           hint="Unlink"
           aria-label={`Unlink ${unlink.otherName}`}
           disabled={unlink.disabled}
