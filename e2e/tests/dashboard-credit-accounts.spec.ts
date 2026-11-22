@@ -51,7 +51,11 @@ test('leaves a card out of the credit widget by keyboard, keeps the choice on a 
   await expect(dialog.getByRole('checkbox', { name: 'Card A' })).toHaveAttribute('aria-checked', 'true')
   await expect(cardB).toHaveAttribute('aria-checked', 'true')
 
+  // The dialogue puts focus in its search a frame after it opens, so Card B is focused only once that has happened,
+  // or the search takes focus back and the Space is typed into it
+  await expect(dialog.getByPlaceholder('Search accounts')).toBeFocused()
   await cardB.focus()
+  await expect(cardB).toBeFocused()
   await page.keyboard.press('Space')
   await expect(cardB).toHaveAttribute('aria-checked', 'false')
   await dialog.getByRole('button', { name: 'Save' }).click()
