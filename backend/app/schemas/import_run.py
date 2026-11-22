@@ -8,7 +8,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validat
 
 from app.models.base import RecurrenceFreq
 from app.models.transaction import BANK_TRANSACTION_HASH_LENGTH
-from app.schemas.budget import MAX_BUDGET_INSTANCE_LENGTH, validate_recurrence_anchor_fields
+from app.schemas.budget import MAX_BASE_BUDGETS, MAX_BUDGET_CATEGORIES, MAX_BUDGET_INSTANCE_LENGTH, validate_recurrence_anchor_fields
 from app.schemas.category import MAX_CATEGORY_ICON_LENGTH, MAX_CATEGORY_NAME_LENGTH
 from app.schemas.limits import MAX_ENUM_TEXT_LENGTH
 from app.schemas.names import TrimmedName
@@ -52,11 +52,10 @@ MAX_IMPORT_MERCHANT_NAME_LENGTH = 256
 # monthly limits or two decades of weekly ones
 MAX_BUDGET_LIMIT_PERIODS = 1200
 
-# Budgets one request may carry, and categories one budget may track. These
-# bound validation and batched writes for one request while remaining far
-# above any real export
-MAX_JOURNAL_BUDGETS = 1000
-MAX_JOURNAL_BUDGET_CATEGORIES = 1000
+# Budgets one import may carry, and categories one budget may track. They are the most a person
+# keeps, so an import never stages more than the commit could write
+MAX_JOURNAL_BUDGETS = MAX_BASE_BUDGETS
+MAX_JOURNAL_BUDGET_CATEGORIES = MAX_BUDGET_CATEGORIES
 
 # Columns and characters per header a saved CSV layout may carry, far past any bank's export. The
 # import page leaves a file past either unremembered rather than send a layout this refuses, and

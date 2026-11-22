@@ -18,6 +18,7 @@ from app.schemas.import_run import (
     JournalBudgetLimit,
     JournalBudgetRecurrence,
 )
+from app.services.budgets.limits import ensure_room_for_base_budgets
 from app.services.budgets.periods import compute_period_end, validate_period_start
 from app.services.budgets.tracked_categories import get_allowed_tracked_category_ids
 from app.services.cache_state import mark_cache_changed_for_scope
@@ -88,11 +89,14 @@ async def write_journal_budgets(
         The created budgets with the periods materialized for each
 
     Raises:
-        HTTPException: Raised with 422 when a currency, category, limit
-            amount, limit period, or cadence is invalid, naming the budget
+        HTTPException: Raised with 422 when the budgets would take the person past the most they
+            keep, or when a currency, category, limit amount, limit period, or cadence is invalid,
+            naming the budget
     """
     if not budgets:
         return []
+
+    await ensure_room_for_base_budgets(db, user.id, len(budgets))
 
     currency_codes = {budget.currency for budget in budgets}
     currency_rows = await db.execute(select(Currency).where(Currency.id.in_(currency_codes)))

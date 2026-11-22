@@ -14,6 +14,7 @@ from app.models.user import User
 from app.routes.base_budgets.instance_helpers import add_initial_budget_instances
 from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.schemas.budget import BaseBudgetResponse, CreateBaseBudgetRequest
+from app.services.budgets.limits import ensure_category_count_within_limit, ensure_room_for_base_budgets
 from app.services.budgets.periods import validate_period_start
 from app.services.budgets.tracked_categories import get_valid_tracked_category_ids
 from app.services.cache_state import mark_cache_changed_for_scope
@@ -37,12 +38,16 @@ async def create_base_budget_and_get_response(
         Created base budget response
 
     Raises:
-        HTTPException: Currency, ownership, categories, or period cadence are invalid
+        HTTPException: Currency, ownership, categories, or period cadence are invalid, or the
+            person already keeps the most budgets or the budget tracks more categories than allowed
     """
     await _validate_base_budget_currency_exists(db, data.currency)
     owner_id, group_id = await _get_base_budget_scope(db, user, data.group_id)
     valid_tracked_category_ids = await get_valid_tracked_category_ids(db, data.category_ids, user.id, group_id)
     _validate_initial_period_alignment(data)
+    ensure_category_count_within_limit(len(valid_tracked_category_ids))
+    if group_id is None:
+        await ensure_room_for_base_budgets(db, user.id, 1)
 
     base_budget = BaseBudget(
         owner_id=owner_id,

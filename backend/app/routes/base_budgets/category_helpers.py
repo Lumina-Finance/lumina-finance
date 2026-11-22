@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import BudgetTrackedCategory
+from app.services.budgets.limits import ensure_category_count_within_limit
 from app.services.budgets.tracked_categories import get_valid_tracked_category_ids
 
 
@@ -30,7 +31,8 @@ async def update_tracked_category_links(
         changed_at: Date to store when links are added or removed
 
     Raises:
-        HTTPException: A category is missing or outside the base budget scope
+        HTTPException: A category is missing or outside the base budget scope, or the change leaves
+            more categories than a budget may track
     """
     valid_category_ids = set(await get_valid_tracked_category_ids(db, category_ids, user_id, group_id))
 
@@ -42,6 +44,10 @@ async def update_tracked_category_links(
         ),
     )
     active_category_ids = set(current_result.scalars().all())
+
+    # A budget already past the limit saves while its categories stay as they are, such as on a rename
+    if valid_category_ids != active_category_ids:
+        ensure_category_count_within_limit(len(valid_category_ids))
 
     # Preserve historical rows by marking removed links instead of deleting them
     removed_category_ids = active_category_ids - valid_category_ids
