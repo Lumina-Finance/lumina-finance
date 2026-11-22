@@ -234,7 +234,10 @@ test('reads a CSV, an OFX, a QIF and a Firefly III file with no policy violation
     const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
     await expect(upload).toBeEnabled()
     await upload.setInputFiles({ name: 'bank.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) })
-    await expect(page.getByText('bank.csv', { exact: true })).toBeVisible()
+
+    // A file read takes its account from its name. The file's own name is no sign, since the setup panel showing it
+    // folds away once the file is in
+    await expect(page.getByRole('checkbox', { name: 'Select bank', exact: true })).toBeVisible()
   })
 
   await test.step('OFX', async () => {
@@ -250,7 +253,7 @@ test('reads a CSV, an OFX, a QIF and a Firefly III file with no policy violation
     const upload = page.locator('input[type="file"][accept=".qif"]')
     await expect(upload).toBeEnabled()
     await upload.setInputFiles({ name: 'household.qif', mimeType: 'application/octet-stream', buffer: Buffer.from(QIF) })
-    await expect(page.getByText('household.qif', { exact: true })).toBeVisible()
+    await expect(page.getByRole('checkbox', { name: 'Select household', exact: true })).toBeVisible()
   })
 
   await test.step('Firefly III', async () => {
