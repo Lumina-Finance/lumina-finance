@@ -157,8 +157,10 @@ class BudgetUtilizationResponse(BaseModel):
     """Aggregated spending for a budget, grouped by tracked category
 
     `spent` values are positive when the net is an outflow. Currently-active
-    tracked categories are always included even with zero spend so the
-    frontend can render all of them
+    tracked categories are included even with zero spend so the frontend can
+    render all of them. A base budget's history keeps categories on its latest
+    periods only, and an older period lists none while its total_spent still
+    counts every category
     """
 
     budget_id: uuid.UUID

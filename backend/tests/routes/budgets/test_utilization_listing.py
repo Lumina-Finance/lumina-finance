@@ -158,6 +158,43 @@ async def test_get_base_budget_utilizations_returns_every_period_ordered_by_peri
     assert [entry["total_spent"] for entry in entries] == [1000, 2000, 3000]
 
 
+async def test_base_budget_history_keeps_categories_on_the_latest_12_periods_only(client):
+    """A period older than the latest 12 keeps its true total with no categories."""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+
+    account_id = (await _create_account(client, headers)).json()["id"]
+    groceries = await _create_category(client, headers)
+
+    base_id, _ = await _create_base_with_instance(
+        client,
+        headers,
+        category_ids=[groceries],
+        instance_overrides={"period_start": "2025-01-01"},
+    )
+    # 14 months from 2025-01 to 2026-02, so the first two sit outside the latest 12
+    for month in range(2, 15):
+        year, month_of_year = divmod(month - 1, 12)
+        period_start = f"{2025 + year}-{month_of_year + 1:02d}-01"
+        await _create_budget_instance(client, headers, base_id, period_start=period_start)
+
+    await _create_transaction(client, headers, account_id, groceries, dt="2025-01-15", amount=-1000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2025-02-15", amount=-2000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2025-03-15", amount=-3000)
+    await _create_transaction(client, headers, account_id, groceries, dt="2026-02-15", amount=-4000)
+
+    resp = await _get_base_budget_utilizations(client, headers, base_id)
+    assert resp.status_code == 200
+    entries = resp.json()
+
+    assert len(entries) == 14
+    assert [entry["total_spent"] for entry in entries[:3]] == [1000, 2000, 3000]
+    assert entries[-1]["total_spent"] == 4000
+    assert [entry["categories"] for entry in entries[:2]] == [[], []]
+    assert all(len(entry["categories"]) == 1 for entry in entries[2:])
+    assert entries[2]["categories"][0] == {"category_id": groceries, "spent": 3000}
+
+
 async def test_created_recurring_budget_counts_existing_historical_transactions(client, monkeypatch):
     """Atomic budget creation backfills periods that can use existing transaction history."""
     base_budget_routes = importlib.import_module("app.routes.base_budgets.router")
