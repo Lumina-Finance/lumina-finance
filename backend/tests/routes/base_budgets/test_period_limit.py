@@ -13,8 +13,10 @@ from app.utils import date_window
 from tests.conftest import TestSession
 from tests.routes.base_budgets._helpers import _create_base_budget, _create_budget_instance, _create_category, _create_group
 from tests.routes.support import _create_user, _get_auth_header
+from tests.routes.support.lock_helpers import _cancel_unfinished, _held_request, _pid, _wait_until_waiting_on
 
 ROUTER = importlib.import_module("app.routes.base_budgets.router")
+instance_helpers = importlib.import_module("app.routes.base_budgets.instance_helpers")
 
 # 4 May 2026, a Monday, so the series below are counted to May 2026 and a weekly budget can start on a Monday
 FROZEN_MOMENT = datetime(2026, 5, 4, 16, 0, tzinfo=UTC)
@@ -131,16 +133,44 @@ async def test_new_period_on_a_budget_past_the_limit_brings_it_down_to_the_limit
     assert (len(starts), starts[0], starts[-1]) == (1200, date(1926, 7, 1), date(2026, 6, 1))
 
 
-async def test_new_periods_added_at_once_on_a_full_budget_keep_it_at_the_limit(client):
-    """Two new periods arriving together each remove an oldest period, so the budget still keeps 1,200"""
+async def test_new_periods_added_at_once_on_a_full_budget_keep_it_at_the_limit(client, monkeypatch):
+    """Two new periods arriving together each remove an oldest period, so the budget still keeps 1,200
+
+    The first is held once it has removed its oldest period and before it commits, and the second is
+    let in only once it queues behind the first on the database. Counting before the first commits
+    would see 1,200 and remove the period the first already removed, leaving 1,201
+    """
     headers = _get_auth_header(await _create_user(client))
     category_id = await _create_category(client, headers)
     base_id = (await _create_recurring(client, headers, category_id, period_start="1926-06-01")).json()["id"]
 
-    responses = await asyncio.gather(
-        _create_budget_instance(client, headers, base_id, period_start="2026-06-01"),
-        _create_budget_instance(client, headers, base_id, period_start="2026-07-01"),
-    )
+    held, release, pids = asyncio.Event(), asyncio.Event(), []
+    original_trim = instance_helpers.remove_oldest_periods_for_new_one
+
+    async def hold_after_the_trim(db, base_budget):
+        await original_trim(db, base_budget)
+        if _held_request.get():
+            pids.append(await _pid(db))
+            held.set()
+            await release.wait()
+
+    monkeypatch.setattr(instance_helpers, "remove_oldest_periods_for_new_one", hold_after_the_trim)
+
+    async def first():
+        _held_request.set(True)
+        return await _create_budget_instance(client, headers, base_id, period_start="2026-06-01")
+
+    requests = [asyncio.create_task(first())]
+    try:
+        await asyncio.wait_for(held.wait(), 10)
+        requests.append(asyncio.create_task(_create_budget_instance(client, headers, base_id, period_start="2026-07-01")))
+        await _wait_until_waiting_on(pids[0], requests[1])
+    finally:
+        release.set()
+    try:
+        responses = await asyncio.wait_for(asyncio.gather(*requests), 10)
+    finally:
+        await _cancel_unfinished(requests)
 
     assert [resp.status_code for resp in responses] == [201, 201]
     starts = await _period_starts(base_id)
