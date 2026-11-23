@@ -6,8 +6,8 @@ from decimal import Decimal
 
 import pytest
 
+from app.services.csv_export import format_minor_units, neutralize_spreadsheet_formula
 from app.services.transactions import export as export_service
-from app.services.transactions.export import format_minor_units, neutralize_spreadsheet_formula
 from tests.routes.support.clock_helpers import PROFILE_LATE_EVENING, PROFILE_TODAY
 from tests.routes.transactions._helpers import (
     _create_account,

@@ -20,11 +20,12 @@ import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import { saveBlobAsFile } from '@/utils/downloadFile'
 import { countNoun } from '@/utils/bankSync'
 import { getSaveFailureMessage } from '@/utils/createFailure'
+import { getDownloadFailureMessage } from '@/utils/downloadFailure'
 import {
   getExportBlockReason,
-  getExportFailureMessage,
   getExportFilename,
   getExportScope,
+  TRANSACTIONS_EXPORT_REASONS_BY_STATUS,
 } from '@/components/transactions/utils/exportFile'
 import { ExportAllConfirm } from '@/components/transactions/export/ExportAllConfirm'
 import { getActiveFilterCount } from '@/components/transactions/utils/filterOptions'
@@ -644,7 +645,11 @@ export default function TransactionListSection({
         : { filters: { ...filters, q: activeSearch || undefined } },
       {
         onSuccess: (file) => saveBlobAsFile(file, getExportFilename(today)),
-        onError: (exportError) => showToast({ status: 'error', text: getExportFailureMessage(exportError) }),
+        onError: (exportError) =>
+          showToast({
+            status: 'error',
+            text: getDownloadFailureMessage(exportError, TRANSACTIONS_EXPORT_REASONS_BY_STATUS),
+          }),
       },
     )
   }

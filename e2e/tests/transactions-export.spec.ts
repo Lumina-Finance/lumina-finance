@@ -800,3 +800,25 @@ test('presses the export button in exactly as the Import button beside it is', a
   expect(exportLook.hover).toEqual(importLook.hover)
   expect(exportLook.pressed.transform).not.toBe(exportLook.hover.transform)
 })
+
+// The export names what its own 404 means, so a caller that stops passing its reasons to the shared
+// wording shows the generic refusal instead
+test('names a missing transaction when the export is refused with a 404', async ({ page, request }) => {
+  const user = await seedTwoTransactions(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/transactions')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(2)
+  await search(page, 'Coffee')
+  await expect(page.getByTestId(/^transaction-row-/)).toHaveCount(1)
+
+  await page.route('**/transactions/export*', (route) =>
+    route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }),
+  )
+  await page.getByRole('button', EXPORT_FILTERED).click()
+
+  await expect(
+    page.getByText("Nothing was downloaded: the transactions couldn't be found. Please refresh the list and try again.", {
+      exact: true,
+    }),
+  ).toBeVisible()
+})

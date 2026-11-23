@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +24,8 @@ from app.schemas.user import (
     UserProfile,
 )
 from app.services.cache_state import get_shared_cache_changed_at, get_visible_cache_status, mark_user_cache_changed, select_user_group_ids
+from app.services.csv_export import download_response
+from app.services.data_export.archive import ZIP_MEDIA_TYPE, start_data_export
 from app.services.fx.rates_status import get_rates_digest, holds_other_currencies
 from app.services.tax_advantaged_categories import get_category_owner_timezones
 from app.utils.dates import resolve_timezone
@@ -77,6 +80,26 @@ async def get_rates_status(
     """Return a digest of the recent exchange rates behind the user's converted figures"""
     other_currencies = await holds_other_currencies(db, user.base_currency)
     return RatesStatus(digest=await get_rates_digest(user.id, holds_other_currencies=other_currencies))
+
+
+@router.get("/export", response_class=StreamingResponse)
+async def export_data(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Stream a ZIP of CSV files holding everything the user owns, as of one moment
+
+    Reads only, so it marks no change and commits nothing
+
+    Args:
+        user: Authenticated user exporting their data
+        db: Active database session
+
+    Returns:
+        A ZIP download with one CSV file for each kind of data
+    """
+    export = await start_data_export(db, user)
+    return download_response(export.chunks, export.filename, ZIP_MEDIA_TYPE)
 
 
 async def _get_calculation_date_boundary(db: AsyncSession, user: User) -> tuple[date, str, datetime]:

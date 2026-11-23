@@ -30,10 +30,13 @@ const LOADING_PLACEHOLDERS = new Set([
 
 // Buttons that hold a spinner with no label swapping for it, or that already fade their label into one, ease
 // their width, drop the motion under reduced motion and keep their own accessible name. TopBand's retry is
-// the second kind, and the import dropzone is the first, a panel of status text with a spinner among it
+// the second kind, and the import dropzone is the first, a panel of status text with a spinner among it.
+// Export all data is the first kind too: its spinner takes the place of its icon at the icon's size, and its
+// label stays
 const HAND_DRAWN_SWAPS = new Set([
   'pages/transactions/components/TopBand.tsx',
   'pages/imports/components/FileUpload.tsx',
+  'pages/settings/components/ExportAllDataButton.tsx',
 ])
 
 function listSourceFiles(folder: string): string[] {

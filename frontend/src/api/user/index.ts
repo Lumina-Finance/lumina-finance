@@ -17,6 +17,7 @@ export {
   endOtherSessions,
   setPassword,
   fetchCacheStatus,
+  fetchDataExport,
   fetchProfile,
   fetchRatesStatus,
   fetchRunway,
@@ -30,6 +31,7 @@ export {
 
 export {
   useChangePassword,
+  useDataExport,
   useRequestEmailChange,
   useRunway,
   useRunwayAccounts,

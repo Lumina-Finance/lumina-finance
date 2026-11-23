@@ -799,14 +799,21 @@
     border-color: var(--app-accent-nav-focus-border);
   }
 
+  /* A busy item, such as Export all data while it downloads, rests in its plain look under the pointer,
+     with its spinner as the only sign of work */
+  .app-nav-link:disabled {
+    cursor: default;
+  }
+
   @media (hover: hover) {
-    .app-nav-link:hover {
+    .app-nav-link:not(:disabled):hover {
       color: var(--app-accent-nav-text);
       background: var(--app-accent-soft);
       border-color: var(--app-accent-border);
     }
 
-    .app-nav-link-active:hover {
+    /* Guarded like the rule above, so it outranks that rule and the selected item's border still strengthens */
+    .app-nav-link-active:not(:disabled):hover {
       border-color: var(--app-accent-nav-focus-border);
     }
   }

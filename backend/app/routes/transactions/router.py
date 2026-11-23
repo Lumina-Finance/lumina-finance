@@ -42,6 +42,7 @@ from app.schemas.transaction import (
     TransactionsOverview,
     UpdateTransactionRequest,
 )
+from app.services.csv_export import CSV_MEDIA_TYPE, download_response
 from app.services.importers import (
     commit_import_run,
     commit_journal_run,
@@ -62,7 +63,7 @@ from app.services.transactions.bulk_update import bulk_update_transactions
 from app.services.transactions.creation import create_transaction_and_get_response
 from app.services.transactions.deletion import bulk_delete_transactions, delete_transaction_for_user
 from app.services.transactions.detail import get_transaction_response_for_user
-from app.services.transactions.export import TransactionCsvExport, export_selected_transactions_csv, export_transactions_csv
+from app.services.transactions.export import export_selected_transactions_csv, export_transactions_csv
 from app.services.transactions.link_candidates import CandidateFilters, list_refund_link_candidates
 from app.services.transactions.links import link_existing_refund, unlink_refund
 from app.services.transactions.listing import list_transaction_responses
@@ -297,7 +298,7 @@ async def export_transactions(
         to_date=to_date,
         search_text=search_text,
     )
-    return _csv_download(export)
+    return download_response(export.chunks, export.filename, CSV_MEDIA_TYPE)
 
 
 @router.post("/export", response_class=StreamingResponse)
@@ -322,19 +323,8 @@ async def export_selected_transactions(
     Raises:
         HTTPException: Raised with 404 when any chosen transaction is not found in the user's accounts
     """
-    return _csv_download(await export_selected_transactions_csv(db, user, data.transaction_ids))
-
-
-def _csv_download(export: TransactionCsvExport) -> StreamingResponse:
-    """Wrap a started export as an attachment that is never cached"""
-    return StreamingResponse(
-        export.chunks,
-        media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": f'attachment; filename="{export.filename}"',
-            "Cache-Control": "no-store",
-        },
-    )
+    export = await export_selected_transactions_csv(db, user, data.transaction_ids)
+    return download_response(export.chunks, export.filename, CSV_MEDIA_TYPE)
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)

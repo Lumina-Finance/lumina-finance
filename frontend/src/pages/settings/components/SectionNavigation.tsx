@@ -1,6 +1,7 @@
 import type { RefObject } from 'react'
 import { ChevronDown, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import ExportAllDataButton from '@/pages/settings/components/ExportAllDataButton'
 import type { SettingsSection, SettingsSectionId } from '@/pages/settings/settingsNavigation'
 
 type SettingsSectionButtonProps = {
@@ -20,6 +21,8 @@ type SettingsMobileSectionMenuProps = {
   onMenuToggle: () => void
   onSectionSelect: (id: SettingsSectionId) => void
   onImportSelect: () => void
+  exporting: boolean
+  onExportSelect: () => void
 }
 
 type SettingsDesktopSectionSidebarProps = {
@@ -27,6 +30,8 @@ type SettingsDesktopSectionSidebarProps = {
   activeSection: SettingsSectionId
   onSectionSelect: (id: SettingsSectionId) => void
   onImportSelect: () => void
+  exporting: boolean
+  onExportSelect: () => void
 }
 
 /**
@@ -62,6 +67,8 @@ export function SettingsMobileSectionMenu({
   onMenuToggle,
   onSectionSelect,
   onImportSelect,
+  exporting,
+  onExportSelect,
 }: SettingsMobileSectionMenuProps) {
   const ActiveSettingsIcon = activeSettingsSection.icon
 
@@ -129,6 +136,7 @@ export function SettingsMobileSectionMenu({
                     <Upload size={17} strokeWidth={1.75} className="shrink-0" aria-hidden />
                     Import
                   </button>
+                  <ExportAllDataButton exporting={exporting} onExport={onExportSelect} />
                 </nav>
               </motion.div>
             )}
@@ -147,6 +155,8 @@ export function SettingsDesktopSectionSidebar({
   activeSection,
   onSectionSelect,
   onImportSelect,
+  exporting,
+  onExportSelect,
 }: SettingsDesktopSectionSidebarProps) {
   return (
     <aside className="hidden w-[260px] self-stretch min-[1200px]:grid min-[1200px]:min-h-[calc(100vh-3rem)] min-[1200px]:grid-rows-[auto_minmax(0,1fr)_auto]">
@@ -160,11 +170,12 @@ export function SettingsDesktopSectionSidebar({
           />
         ))}
       </nav>
-      <div className="sticky bottom-6 row-start-3">
+      <div className="sticky bottom-6 row-start-3 space-y-0.5">
         <button type="button" onClick={onImportSelect} className="app-nav-link">
           <Upload size={17} strokeWidth={1.75} className="shrink-0" aria-hidden />
           Import
         </button>
+        <ExportAllDataButton exporting={exporting} onExport={onExportSelect} />
       </div>
     </aside>
   )

@@ -4,8 +4,10 @@ import {
   updateRunwayAccountCaches,
   updateRunwaySettingsCaches,
 } from '@/api/cache/updates/user'
+import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback'
 import {
   changePassword,
+  fetchDataExport,
   fetchRunway,
   fetchRunwayAccounts,
   fetchRunwaySettings,
@@ -39,6 +41,15 @@ export function useUpdateProfile() {
 export function useChangePassword() {
   return useMutation({
     mutationFn: changePassword,
+  })
+}
+
+/**
+ * Downloads everything the current user owns, leaving every cache alone since the export only reads
+ */
+export function useDataExport({ minimumPendingMs = 0 }: { minimumPendingMs?: number } = {}) {
+  return useMutation({
+    mutationFn: () => runWithMinimumPendingTime(minimumPendingMs, () => fetchDataExport()),
   })
 }
 
