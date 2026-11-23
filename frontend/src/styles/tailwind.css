@@ -3587,6 +3587,7 @@
      such as the forced re-enrolment page, it stays in the flow */
   .app-modal-body {
     padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+    scroll-padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
   }
 
   .app-modal-phone-eyebrow {
@@ -3595,6 +3596,10 @@
 
   .app-modal-body:has(.app-modal-footer) {
     padding-bottom: 0;
+
+    /* The footer is drawn over the end of the body, so a control that focus scrolls to the body's edge would
+       sit under it. The footer sets its measured height here, and the room above it is the body's top padding */
+    scroll-padding-bottom: calc(var(--app-modal-footer-height, 0px) + 1.5rem);
   }
 
   .app-modal-body .app-modal-footer {

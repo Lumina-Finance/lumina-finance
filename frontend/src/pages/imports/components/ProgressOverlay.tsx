@@ -241,7 +241,7 @@ export function ImportProgressOverlay({
         <motion.div
           ref={panelRef}
           key="import-progress-overlay"
-          className="fixed inset-0 flex overflow-y-auto overscroll-contain px-5 py-8"
+          className="fixed inset-0 flex overflow-y-auto overscroll-contain px-5 py-8 scroll-py-8"
           style={{ background: OVERLAY_BACKGROUND, color: OVERLAY_TEXT, zIndex: OVERLAY_Z_INDEX }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, pointerEvents: 'auto' }}

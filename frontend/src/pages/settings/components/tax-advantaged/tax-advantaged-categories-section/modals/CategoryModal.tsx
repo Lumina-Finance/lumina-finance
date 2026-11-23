@@ -320,7 +320,7 @@ export default function TaxAdvantagedCategoryModal({
             </div>
 
             <div
-              className={`min-h-0 flex-1 p-5 min-[750px]:p-6 ${activeTab === 'accounts' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+              className={`min-h-0 flex-1 p-5 scroll-p-5 min-[750px]:p-6 min-[750px]:scroll-p-6 ${activeTab === 'accounts' ? 'overflow-hidden' : 'overflow-y-auto'}`}
               data-dropdown-bounds
             >
               {activeTab === 'limits' ? (

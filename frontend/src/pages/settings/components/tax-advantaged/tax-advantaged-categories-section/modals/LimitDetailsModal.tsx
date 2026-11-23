@@ -102,7 +102,7 @@ export default function TaxAdvantagedLimitDetailsModal({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-5 scroll-p-5">
         {showAddTaxYear ? (
           <div className="space-y-4">
             <div>

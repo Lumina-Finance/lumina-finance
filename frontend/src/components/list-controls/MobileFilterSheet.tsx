@@ -152,7 +152,7 @@ export function MobileFilterSheet({
             </button>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 py-4 [scrollbar-gutter:stable]">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 py-4 scroll-py-4 [scrollbar-gutter:stable]">
             {children(headingId)}
           </div>
 

@@ -92,7 +92,7 @@ export default function TaxAdvantagedCategoryDetailsModal({
           has to keep scrolling until that rule stops applying. Letting it overflow visible any earlier
           puts content past the bottom of a fixed-height panel with no way to reach it */}
       <div
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 min-[1050px]:overflow-visible"
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 scroll-p-5 min-[1050px]:overflow-visible"
         data-dropdown-bounds
       >
         <div className="space-y-4">
