@@ -7,15 +7,19 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
+import { textOf } from '@tests/components/transactions/bank-review/fixtures'
 
 const REASON = 'Records in other currencies are read-only. They can be archived or deleted'
 
 describe('ReadOnlyReasonPill', () => {
   it('holds the whole reason in its text', () => {
     const markup = renderToStaticMarkup(<ReadOnlyReasonPill id="row-read-only" reason={REASON} />)
-    const pill = markup.match(/<span id="row-read-only"[^>]*>(<span class="min-w-0 truncate">.*?<\/span>)/)
+    // The pill's own text, read up to the closed tooltip it carries
+    const pill = markup
+      .slice(markup.indexOf('<span id="row-read-only"'))
+      .split('<div data-testid="disabled-reason-tooltip"')[0]
 
-    expect(pill?.[1]).toBe(`<span class="min-w-0 truncate">${REASON}</span>`)
+    expect(textOf(pill)).toBe(REASON)
   })
 
   it('carries a tooltip with the reason, closed until a hover or a tap opens it', () => {
