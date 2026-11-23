@@ -54,4 +54,5 @@ it('tells settings which action to finish after a reauth, one flag per action', 
   expect(getReauthResumeState({ kind: 'change-email', email: 'new@example.com' })).toEqual({
     resumeChangeEmail: 'new@example.com',
   })
+  expect(getReauthResumeState({ kind: 'delete-profile' })).toEqual({ resumeDeleteProfile: true })
 })

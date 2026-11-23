@@ -16,6 +16,7 @@ export type {
 
 export {
   changePassword,
+  deleteProfile,
   endOtherSessions,
   setPassword,
   fetchCacheStatus,

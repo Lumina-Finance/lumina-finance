@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation } from 'react-router'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { KeyRound } from 'lucide-react'
@@ -27,6 +27,7 @@ import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton
 import { getBrowserTimeZone } from '@/utils/date'
 import { focusWhenShown } from '@/utils/focusWhenShown'
 import { isNativeSignIn, rememberNativeChallenge } from '@/utils/nativeHandoff'
+import { clearProfileDeletedNotice, wasProfileJustDeleted } from '@/utils/profileDeletedNotice'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 const DETECTED_TZ = getBrowserTimeZone()
@@ -45,6 +46,10 @@ const AuthPage = () => {
   // A provider sign-in that collided with an existing account hands its email over here, and one
   // refused because registration is closed says so
   const handoff = location.state as { prefillEmail?: string; registrationClosed?: boolean } | null
+
+  // A profile deleted a moment ago signs out to here. The page then shows the deletion message once
+  const [profileDeleted] = useState(wasProfileJustDeleted)
+  useEffect(() => clearProfileDeletedNotice(), [])
   const prefillEmail = handoff?.prefillEmail
   const isLogin = mode === 'login'
   const isSignup = mode === 'signup'
@@ -173,6 +178,16 @@ const AuthPage = () => {
             style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
           >
             Recovering access. Sign in, then enter a recovery code to reset your two-factor setup.
+          </div>
+        )}
+
+        {profileDeleted && isLogin && (
+          <div
+            role="status"
+            className="mt-4 rounded-lg border px-3 py-2 text-sm"
+            style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
+          >
+            Your profile and data were deleted.
           </div>
         )}
 

@@ -1,0 +1,82 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router'
+import { deleteProfile } from '@/api/user'
+import type { StepUpCredentials } from '@/components/two-factor/StepUpModal'
+import { useAuth } from '@/hooks/useAuth'
+import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth'
+import { getEndOtherSessionsBlockedReason } from '@/pages/settings/utils/endOtherSessions'
+import { noteProfileDeleted } from '@/utils/profileDeletedNotice'
+
+/**
+ * Drives Delete profile: the dialogue the user types "delete" in, then the identity check, then the sign-out
+ *
+ * An account with a password confirms in the step-up. A passwordless account re-confirms with a linked
+ * provider instead and returns here, where the deletion finishes. Once the server answers, the app signs
+ * out locally and lands on the sign-in screen. Signing out also drops this browser's saved copy
+ */
+export function useDeleteProfile(hasPassword: boolean) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { logout } = useAuth()
+  const reauth = useProviderReauth()
+  const [dialogueOpen, setDialogueOpen] = useState(false)
+  const [stepUpOpen, setStepUpOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Signing out takes the app to the sign-in screen. That screen reads the flag and shows the deletion message
+  const finish = useCallback(async () => {
+    noteProfileDeleted()
+    await logout()
+  }, [logout])
+
+  // A passwordless reauth returns here to finish the deletion, then clears the state so a reload does
+  // not run it again
+  const resumeRef = useRef(false)
+  useEffect(() => {
+    if (resumeRef.current) return
+    const navState = location.state as { resumeDeleteProfile?: boolean } | null
+    if (!navState?.resumeDeleteProfile) return
+    resumeRef.current = true
+    navigate(location.pathname, { replace: true, state: null })
+
+    deleteProfile()
+      .then(finish)
+      .catch((resumeError: Error) => setError(resumeError.message || 'Oops, something went wrong. Please try again.'))
+  }, [location.state, location.pathname, navigate, finish])
+
+  const open = () => {
+    setError(null)
+    setDialogueOpen(true)
+  }
+
+  /** The user typed "delete", so the identity check comes next */
+  const confirmTyped = () => {
+    setDialogueOpen(false)
+    if (hasPassword) {
+      setStepUpOpen(true)
+    } else {
+      reauth.start({ kind: 'delete-profile' })
+    }
+  }
+
+  const verify = async (credentials: StepUpCredentials) => {
+    await deleteProfile(credentials)
+    setStepUpOpen(false)
+    await finish()
+  }
+
+  return {
+    dialogueOpen,
+    open,
+    cancel: () => setDialogueOpen(false),
+    confirmTyped,
+    stepUpOpen,
+    closeStepUp: () => setStepUpOpen(false),
+    verify,
+    reauth,
+    leaving: reauth.busySlug !== null,
+    // Confirming takes what signing out of other devices takes, so it is held off for the same accounts
+    blockedReason: getEndOtherSessionsBlockedReason(hasPassword, reauth.linkedProviders.length),
+    error,
+  }
+}

@@ -4,8 +4,8 @@ import { FieldError } from '@/components/forms/FieldError'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
+import { isDeletionConfirmed } from '@/pages/settings/utils/deleteProfile'
 
-const CONFIRM_WORD = 'delete'
 const CONFIRM_WORD_MISSING = 'Type delete to confirm'
 
 type DeleteProfileDialogueProps = {
@@ -37,7 +37,7 @@ export function DeleteProfileDialogue({
   const errorId = useId()
   const [typed, setTyped] = useState('')
   const [pressed, setPressed] = useState(false)
-  const confirmed = typed.trim().toLowerCase() === CONFIRM_WORD
+  const confirmed = isDeletionConfirmed(typed)
   const error = pressed && !confirmed ? CONFIRM_WORD_MISSING : null
 
   function close() {

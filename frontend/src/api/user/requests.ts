@@ -101,6 +101,19 @@ export function endOtherSessions(stepUp?: StepUpPayload) {
 }
 
 /**
+ * Deletes the profile and everything it holds, and signs it out everywhere
+ *
+ * An account with a password passes its step-up, and a passwordless one omits it, relying on the
+ * reauth proof cookie. The data goes once the server has answered, so the app signs out straight after
+ */
+export function deleteProfile(stepUp?: StepUpPayload) {
+  return authenticatedFetch<void>('/auth/profile/delete', {
+    method: 'POST',
+    body: JSON.stringify(stepUp ?? null),
+  })
+}
+
+/**
  * Asks for a confirmation email to a new address for the account
  *
  * The answer is the same whether or not another account uses the address, and the account's address
