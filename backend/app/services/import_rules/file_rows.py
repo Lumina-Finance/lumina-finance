@@ -18,8 +18,6 @@ from app.models.merchant import Merchant
 from app.models.tag import Tag
 from app.services.import_rules.changes import CHANGED_DETAIL
 from app.services.import_rules.matching import ImportRuleMatcher, MatchCandidate, Supplied, SuppliedTag
-from app.services.importers.shared.merchants import load_usable_import_merchants
-from app.services.importers.shared.tags import get_import_tag_scope_filter
 
 NO_KEYS: frozenset[str] = frozenset()
 
@@ -131,13 +129,21 @@ async def load_fill_targets(db: AsyncSession, user_id: uuid.UUID, fills: Sequenc
     merchant_ids = {fill.merchant.value for fill in fills if fill.merchant is not None}
     category_ids = {fill.category.value for fill in fills if fill.category is not None}
     tag_ids = {tag.value for fill in fills for tag in fill.tags}
-    merchants = await load_usable_import_merchants(db, merchant_ids, user_id)
+    # The scopes an import files rows under, written here rather than imported from the importers,
+    # which import this module in turn: the user's own personal records, and for merchants and
+    # categories the ones that ship with the app
+    merchants: dict[uuid.UUID, Merchant] = {}
+    if merchant_ids:
+        usable_merchant = Merchant.is_system.is_(True) | ((Merchant.owner_id == user_id) & Merchant.group_id.is_(None))
+        merchants = {
+            merchant.id: merchant for merchant in await db.scalars(select(Merchant).where(Merchant.id.in_(merchant_ids), usable_merchant))
+        }
     categories: dict[uuid.UUID, Category] = {}
     if category_ids:
         usable = Category.is_system.is_(True) | ((Category.owner_id == user_id) & Category.group_id.is_(None))
         categories = {category.id: category for category in await db.scalars(select(Category).where(Category.id.in_(category_ids), usable))}
     tags = (
-        {tag.id: tag for tag in await db.scalars(select(Tag).where(Tag.id.in_(tag_ids), get_import_tag_scope_filter(user_id)))}
+        {tag.id: tag for tag in await db.scalars(select(Tag).where(Tag.id.in_(tag_ids), Tag.owner_id == user_id, Tag.group_id.is_(None)))}
         if tag_ids
         else {}
     )
