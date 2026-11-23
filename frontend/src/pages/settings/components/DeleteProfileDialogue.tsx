@@ -11,7 +11,7 @@ const EXPORT_RUNNING = 'Please wait for the export to finish'
 
 type DeleteProfileDialogueProps = {
   open: boolean
-  /** Shows the sentence about bank sync credentials. Only a user with a bank connection needs it */
+  /** Shows the sentence about the bank sync provider's charges. Only a user with a bank connection needs it */
   hasBankConnections: boolean
   exporting: boolean
   onExport: () => void
@@ -82,8 +82,7 @@ export function DeleteProfileDialogue({
         {hasBankConnections && (
           <p>
             Your subscriptions and related charges with the bank sync provider will not be cancelled automatically.
-            Please reach out to them to manage your subscriptions. We'll remove the bank sync credentials we store for
-            you.
+            Please reach out to them to manage your subscriptions.
           </p>
         )}
         <p>

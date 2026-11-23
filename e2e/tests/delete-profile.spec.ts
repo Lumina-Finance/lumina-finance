@@ -118,7 +118,7 @@ test('holds the deletion until the export the dialogue started has finished', as
   await expect(stepUp).toBeVisible()
 })
 
-test('names the bank sync credentials for a user with a connection where new banks cannot be linked', async ({ page, request }) => {
+test('warns about the bank sync provider charges for a user with a connection where new banks cannot be linked', async ({ page, request }) => {
   const user = await signUpUser(request)
   // No provider is offered, so Settings has no bank section of its own to load the connections
   await page.route(`${API_BASE_URL}/bank-sync/providers`, (route) => route.fulfill({ json: { may_link: true, sync_running: true, providers: [] } }))

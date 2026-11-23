@@ -95,7 +95,7 @@ export default function SettingsPage() {
   const showBankConnections = sections.some((section) => section.id === 'bank-connections')
   const { exportAllData, isExporting } = useExportAllData()
   const deleteProfile = useDeleteProfile(hasPassword)
-  // Delete profile's dialogue names the bank sync credentials for anyone who still has a connection,
+  // Delete profile's dialogue warns about the bank sync provider's charges for anyone who still has a connection,
   // even where new banks can't be linked, so it asks for the connections whenever it opens
   const { data: bankConnections } = useBankConnections({ enabled: showBankConnections || deleteProfile.dialogueOpen })
 
