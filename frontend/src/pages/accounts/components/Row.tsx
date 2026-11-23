@@ -194,8 +194,10 @@ export default function AccountRow({
             </div>
           </div>
           <div
-            className={`${isBare ? 'col-start-1' : 'col-start-2'} row-start-2 flex min-w-0 items-center gap-2 min-[750px]:mt-0.5`}
+            className={`${isBare ? 'col-start-1' : 'col-start-2'} row-start-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 min-[750px]:mt-0.5 min-[750px]:flex-nowrap`}
           >
+            {/* On a phone the reason pill moves under the type or bank once both don't fit, rather than
+                squeezing that line to a sliver. Wider screens keep them on one line and cut the pill short */}
             {isArchived && (
               <EyeOff size={13} className="shrink-0" style={{ color: 'var(--app-text-muted)' }} aria-hidden />
             )}
@@ -221,7 +223,7 @@ export default function AccountRow({
             </p>
             {/* Positioned and later than the name's stretched link, so a tap on the pill shows its whole reason */}
             {readOnlyReason && (
-              <span className="relative inline-flex min-w-0 shrink">
+              <span className="relative inline-flex min-w-0 max-w-full shrink">
                 <ReadOnlyReasonPill id={`${descriptionId}-read-only`} reason={readOnlyReason} />
               </span>
             )}
