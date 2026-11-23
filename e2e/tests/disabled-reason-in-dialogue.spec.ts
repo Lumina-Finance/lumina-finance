@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { logInViaApi, openPage, waitForDeletePanelOpen } from '../support/app'
 
 // Runs on desktop only: each test sets the sizes it checks itself. A disabled button's reason, shown by
 // keyboard focus or by the pointer, stays inside its dialogue, however near the dialogue's bottom the button is
@@ -23,15 +23,7 @@ async function openDeleteStep(page: Page, accountId: string) {
   const trash = dialogue.getByRole('button', { name: 'Delete account', exact: true })
   await trash.focus()
   await trash.press('Enter')
-  const continueButton = dialogue.getByRole('button', { name: 'Continue', exact: true })
-  await expect(continueButton).toBeVisible()
-  let previous = ''
-  await expect.poll(async () => {
-    const now = JSON.stringify([await dialogue.boundingBox(), await continueButton.boundingBox()])
-    const still = now === previous
-    previous = now
-    return still
-  }).toBe(true)
+  await waitForDeletePanelOpen(dialogue)
   return dialogue
 }
 
