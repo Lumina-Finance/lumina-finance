@@ -82,7 +82,7 @@ test.describe('import dates in profile timezone America/Toronto', () => {
       }
     })
     const response = await commitImport(page)
-    expect(response.status()).toBe(201)
+    expect(response.status()).toBe(200)
     expect((await response.json() as { transactions_created: number }).transactions_created).toBe(5)
     expect(submitted.map((row) => row.dt)).toEqual(dates)
     expect(submitted.map((row) => row.amount)).toEqual(AMOUNTS)
@@ -137,7 +137,7 @@ test('imports dates written with a time of day on the day written', async ({ pag
 
   await expect(page.getByRole('combobox', { name: 'Date format', exact: true })).toHaveText(/^Year first/)
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
 
   const stored = await request.get(`${API_BASE_URL}/transactions?account_id=${account.id}`, { headers })
   const transactions = await stored.json() as { dt: string }[]

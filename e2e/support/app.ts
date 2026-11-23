@@ -359,22 +359,35 @@ export async function loadEveryTransaction(page: Page): Promise<void> {
 const IMPORT_COMMIT_PATH = /\/transactions\/import\/runs\/[^/]+(\/journal)?\/commit$/
 
 /**
- * Click Commit import and wait, under the test's own limit, for the server to answer the save.
+ * Starts waiting for the answer that settles a save: the summary of one that is done, or the
+ * refusal of one that was refused. The 202 answers that say the save is still going don't settle it
+ *
+ * @param page - Page showing a staged import
+ * @param isThisSave - Narrows the wait to the save's own address, and any import's by default
+ * @returns The answer that settles the save, whatever its status
+ */
+export function waitForImportSave(page: Page, isThisSave: (url: string) => boolean = () => true): Promise<Response> {
+  return page.waitForResponse((response) => IMPORT_COMMIT_PATH.test(new URL(response.url()).pathname)
+    && isThisSave(response.url()) && response.status() !== 202, { timeout: 0 })
+}
+
+/**
+ * Click Commit import and wait, under the test's own limit, for the save to settle.
  *
  * An import sends its requests one after another, and on a busy host they can outlast an assertion's
- * wait, so a check of the overlay timed from the click races the server. Once the save has answered,
- * the overlay has only its own fixed pauses left before it shows the outcome
+ * wait, so a check of the overlay timed from the click races the server. The server answers the save
+ * at once and the page then asks how it is going, so this waits for the answer that carries the
+ * outcome. Once that has come, the overlay has only its own fixed pauses left before it shows the outcome
  *
  * @param page - Page showing a staged import
  * @param options.via - How the button is pressed: a pointer click, Enter after focusing it, which leaves the
  * pointer where it is, or a bare click event with no pointer press, key or focus before it, as an assistive technology sends
- * @returns The save's response, whatever its status
+ * @returns The answer that settles the save, whatever its status
  */
 export async function commitImport(page: Page, { via = 'click' }: { via?: 'click' | 'keyboard' | 'event' } = {}): Promise<Response> {
   const commit = page.getByRole('button', { name: 'Commit import', exact: true })
   await expect(commit).toBeEnabled()
-  const committed = page.waitForResponse((response) => response.request().method() === 'POST'
-    && IMPORT_COMMIT_PATH.test(new URL(response.url()).pathname), { timeout: 0 })
+  const committed = waitForImportSave(page)
   if (via === 'keyboard') await commit.press('Enter')
   else if (via === 'event') await commit.dispatchEvent('click')
   else await commit.click()

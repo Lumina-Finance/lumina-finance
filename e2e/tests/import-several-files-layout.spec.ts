@@ -99,7 +99,7 @@ for (const size of [SIZES[0], SIZES[1], SIZES[3]]) {
 
 test('names files of one name by their position in the last import and its undo dialog', async ({ page }) => {
   await stageFiles(page, SIZES[0])
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
 
   await openPage(page, '/settings/imports')
   const label = 'sep-2026.qfx, oct-2026.qfx, statement.qfx (file 3), statement.qfx (file 4), statement.qfx (file 5)'

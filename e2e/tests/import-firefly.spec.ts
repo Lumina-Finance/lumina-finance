@@ -45,7 +45,7 @@ test('imports a Firefly III export with only the budgets left ticked', async ({ 
   // The run is named for the export's transactions file, which is how the last import shows it
   const opened = page.waitForRequest((sent) => sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url()))
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   expect((await opened).postDataJSON()).toMatchObject({ file_name: 'transactions.csv' })
 
   const result = await response.json() as { budgets: { name: string }[] }
@@ -75,7 +75,7 @@ test('a committed Firefly III import asks no account question while the account 
 
   isHolding = true
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
 
   // The finished button is the fence: the question, if it was coming, comes with the finished state
   await expect(page.getByRole('button', { name: 'Imported', exact: true })).toBeDisabled()
@@ -97,7 +97,7 @@ test('previews a Firefly III row under the merchant the user already has, whatev
   await expect(preview).not.toContainText('Employer Inc')
 
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   const transactions = await request.get(`${API_BASE_URL}/transactions`, { headers: asUser(user) })
   const filedUnder = (await transactions.json() as { merchant_name: string }[]).map((transaction) => transaction.merchant_name)
   expect(filedUnder).toContain('EMPLOYER INC')

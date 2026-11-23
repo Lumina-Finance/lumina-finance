@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 
 import { asUser, countLedgerTransactions, createCategory, signUpUser, type TestUser } from '../support/api'
-import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
+import { chooseFromDropdown, commitImport, logInViaApi, openPage, waitForImportSave } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
 // Runs on desktop only: what the import writes is the same at every size
@@ -41,7 +41,7 @@ async function commitExport(page: Page) {
   // The run is named for the picked export, which is how the last import shows it
   const opened = page.waitForRequest((sent) => sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url()))
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   expect((await opened).postDataJSON()).toMatchObject({ file_name: 'export.zip' })
   return response
 }
@@ -298,6 +298,10 @@ test('saves a kept upload again after its first save failed', async ({ page, req
   const commitUrl = /\/transactions\/import\/runs\/[^/]+\/journal\/commit$/
   let commitAttempts = 0
   await page.route(commitUrl, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue()
+      return
+    }
     commitAttempts += 1
     if (commitAttempts === 1) {
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Service unavailable' }) })
@@ -310,10 +314,10 @@ test('saves a kept upload again after its first save failed', async ({ page, req
 
   const retry = page.getByRole('button', { name: 'Try again', exact: true })
   await expect(retry).toBeVisible()
-  const saved = page.waitForResponse((response) => response.request().method() === 'POST' && commitUrl.test(response.url()))
+  const saved = waitForImportSave(page, (url) => commitUrl.test(url))
   await retry.click()
   const response = await saved
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   expect(commitAttempts).toBe(2)
 
   const result = await response.json() as { transactions_created: number }
@@ -335,7 +339,7 @@ test('imports nothing twice after a save that landed but whose answer was lost',
       return
     }
     const landed = await route.fetch()
-    expect(landed.status()).toBe(201)
+    expect(landed.status()).toBe(202)
     await route.abort('connectionfailed')
   })
 
@@ -348,6 +352,8 @@ test('imports nothing twice after a save that landed but whose answer was lost',
   await expect(overlay.getByText('The import was interrupted. Try again to finish saving your import. Nothing will be added twice as long as you stay on the import page.', { exact: true })).toBeVisible()
   await expect(overlay.getByRole('strong')).toHaveText('stay on the import page')
   await expect(overlay.getByText('Leaving the import page? Check your transactions before importing again.', { exact: true })).toBeVisible()
+  // The save carries on in the background after the answer is lost
+  await expect.poll(() => countLedgerTransactions(request, user)).toBeGreaterThan(0)
   const ledgerAfterFirstSave = await countLedgerTransactions(request, user)
   expect(ledgerAfterFirstSave).toBeGreaterThan(0)
 

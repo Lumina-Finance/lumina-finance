@@ -58,7 +58,7 @@ test('waits for the person to choose how dates are written, then imports the exa
   const opened = page.waitForRequest((sent) => sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url()))
   const response = await commitImport(page)
 
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   expect((await opened).postDataJSON()).toMatchObject({ file_name: 'household.qif', source: 'qif' })
   expect(await countLedgerTransactions(request, user)).toBe(2)
 })
@@ -107,7 +107,7 @@ test('blocks the commit while amounts such as 1,234 fit more than one reading, u
   await chooseFromDropdown(page.locator('body'), 'Amount format', '1,234.56')
 
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
 })
 
 test('forgets the chosen date format when the file is removed, so the next file asks again', async ({

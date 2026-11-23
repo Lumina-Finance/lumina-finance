@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { asUser, countLedgerTransactions, createAccount, signUpUser, type TestUser } from '../support/api'
+import { asUser, countLedgerTransactions, createAccount, saveStagedRun, signUpUser, type TestUser } from '../support/api'
 import { chooseFromDropdown, commitImport, logInViaApi, openPage } from '../support/app'
 import { buildBankMessageSet, buildCardMessageSet, buildFile, CAFE, PAYROLL, statementFile } from '../support/ofx'
 import { API_BASE_URL } from '../support/target'
@@ -37,7 +37,7 @@ test('imports an OFX statement into the account from its page, which then opens 
   await expect(page.getByRole('combobox', { name: /^Existing account/ })).toHaveCount(0)
 
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
 
   // Every transaction went to the account the page was opened for
   expect(await countLedgerTransactions(request, user)).toBe(2)
@@ -71,8 +71,7 @@ async function importOfxRowOverApi(request: APIRequestContext, user: TestUser, a
     },
   })
   expect(staged.status()).toBe(204)
-  const committed = await request.post(`${API_BASE_URL}/transactions/import/runs/${runId}/commit`, { headers })
-  expect(committed.status()).toBe(201)
+  await saveStagedRun(request, headers, runId)
 }
 
 // The query cache is kept in local storage, so a list saved on an earlier visit to the account's page
@@ -175,7 +174,7 @@ test('opens an account\'s import page on the source just imported, not the one i
   await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
   await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE])]))
   isHolding = true
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
   await page.getByRole('button', { name: 'Done', exact: true }).click()
 
   const importButton = page.getByRole('button', { name: 'Import transactions into this account', exact: true })
@@ -209,7 +208,7 @@ test('imports the statements of several files into the account from its page', a
 
   await expect(page.getByText('This transaction is already in 2024-01.qfx.', { exact: true })).toBeVisible()
   await expect(page.getByRole('combobox', { name: /^Existing account/ })).toHaveCount(0)
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
 
   expect(await countLedgerTransactions(request, user)).toBe(4)
   const accounts = await request.get(`${API_BASE_URL}/accounts`, { headers: asUser(user) })
@@ -227,13 +226,13 @@ test('imports a statement overlapping an earlier one into the account, adding on
   await openPage(page, `/settings/imports?account=${checking.id}`)
   await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
   await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL])]))
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
 
   const hardware = { posted: '20240201120000', amount: '-20.00', fitId: 'B1', name: 'Hardware' }
   await openPage(page, `/settings/imports?account=${checking.id}`)
   await expect(page.getByRole('combobox', { name: 'Data source' })).toHaveText('OFX/QFX')
   await uploadStatement(page, buildFile([buildBankMessageSet('CAD', [CAFE, PAYROLL, hardware])]))
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
 
   await expect(page.getByRole('dialog').getByText(
     '1 transaction imported · 0 accounts created · 0 categories created · 2 skipped',

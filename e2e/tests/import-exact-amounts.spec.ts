@@ -58,7 +58,7 @@ for (const example of CASES) {
       }
     })
     const response = await commitImport(page)
-    expect(response.status()).toBe(201)
+    expect(response.status()).toBe(200)
     expect((await response.json() as { transactions_created: number }).transactions_created).toBe(4)
     expect(submitted.map((row) => row.amount)).toEqual(amounts)
     expect(submitted.map((row) => row.dt)).toEqual(['2024-03-15', '2024-03-16', '2024-03-17', '2024-03-18'])

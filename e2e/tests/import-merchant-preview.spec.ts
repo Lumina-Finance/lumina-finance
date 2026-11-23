@@ -53,7 +53,7 @@ test('previews each row under the merchant it will be filed under, the file\'s s
   await expect(preview).not.toContainText('amazon')
 
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
 
   // The result is what the preview showed, and no second Amazon was made
   expect(await readMerchantNames(request, user)).toEqual({
@@ -76,7 +76,7 @@ test('previews a merchant the user corrected in the merchant step under the name
   await expect(preview).not.toContainText('amazon')
 
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   expect(await readMerchantNames(request, user)).toEqual({
     names: ['Amazon', 'Amazon Prime', 'Brand New Shop'],
     filedUnder: ['Amazon Prime', 'Amazon Prime', 'Brand New Shop'],
