@@ -10,6 +10,11 @@ type FxStatusBadgeProps = {
   placement?: 'top' | 'bottom'
   // Overrides the tone the status gives, for a gap that is no failure
   tone?: IconTooltipFxTone
+
+  // For a badge inside a row that does something else on a press, as the icon tooltip describes them
+  widensHitArea?: boolean
+  picksSideOnPress?: boolean
+  clearsStickyBars?: boolean
 }
 
 const FX_STATUS_FALLBACK_MESSAGE = 'FX conversion did not complete. Values may be incomplete'
@@ -23,6 +28,9 @@ export function FxStatusBadge({
   getMessage = getFxStatusMessage,
   placement = 'top',
   tone,
+  widensHitArea,
+  picksSideOnPress,
+  clearsStickyBars,
 }: FxStatusBadgeProps) {
   if (!fxStatus) return null
 
@@ -35,7 +43,15 @@ export function FxStatusBadge({
   const fxTone = isOnlyWithheld ? 'gray' : (tone ?? getFxStatusTone(fxStatus))
 
   return (
-    <IconTooltip label={label} icon="fx" fxTone={fxTone} placement={placement}>
+    <IconTooltip
+      label={label}
+      icon="fx"
+      fxTone={fxTone}
+      placement={placement}
+      widensHitArea={widensHitArea}
+      picksSideOnPress={picksSideOnPress}
+      clearsStickyBars={clearsStickyBars}
+    >
       <span className="block">{message}</span>
       {withheldReason && !isOnlyWithheld && <span className="mt-2 block">{withheldReason}</span>}
       {fxStatus.missing_pairs.length > 0 && (
