@@ -102,6 +102,8 @@ interface TransactionRowProps {
   readOnlyReason?: string
   // The amount could not be converted into the currency the list totals in, so the day's total leaves it out
   fxNote?: TransactionFxNote
+  // The sentence saying converting this amount is refused. The note shows it instead of its own
+  fxWithheldReason?: string | null
   transaction: Transaction
   // Skips the height collapse on removal so a deletion just fades when the viewer prefers reduced motion
   prefersReducedMotion?: boolean | null
@@ -321,8 +323,9 @@ const FX_NOTES: Record<TransactionFxNote, { text: string; color: string }> = {
  * Says under an amount that it has no exchange rate, and whether that is a failure or only a rate
  * that is not published yet
  */
-function FxNote({ id, note }: { id?: string; note: TransactionFxNote }) {
-  const { text, color } = FX_NOTES[note]
+function FxNote({ id, note, reason }: { id?: string; note: TransactionFxNote; reason?: string | null }) {
+  // A refused conversion is no failure of the rate, so its reason takes the muted colour
+  const { text, color } = reason ? { text: reason, color: FX_NOTES.rateNotPublished.color } : FX_NOTES[note]
   return (
     <span id={id} className="block text-right text-xs font-normal leading-4" style={{ color }}>
       {text}
@@ -375,6 +378,7 @@ export function TransactionRowView({
   category,
   readOnlyReason,
   fxNote,
+  fxWithheldReason,
   transaction,
   amountPresentation,
   prefersReducedMotion,
@@ -759,7 +763,7 @@ export function TransactionRowView({
               style={{ color: transactionAmountColor }}
             >
               {formattedAmount}
-              {fxNote && <FxNote note={fxNote} />}
+              {fxNote && <FxNote note={fxNote} reason={fxWithheldReason} />}
             </span>
           </>
         )}
@@ -804,7 +808,7 @@ export function TransactionRowView({
           {/* In the category line's own row beside it, so the marker never moves the lines in the left column */}
           {fxNote && (
             <span className="col-start-3 row-start-2 ml-2 justify-self-end">
-              <FxNote id={phoneFxNoteId} note={fxNote} />
+              <FxNote id={phoneFxNoteId} note={fxNote} reason={fxWithheldReason} />
             </span>
           )}
 
