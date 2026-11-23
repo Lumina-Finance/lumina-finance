@@ -30,20 +30,18 @@ export function useReviewSelection(listAccountIds: string[] | undefined, limit: 
     [pages, isInScope, accountById],
   )
   // An item in an account the server keeps read-only can't be added, so a bulk edit can't take it
-  const readOnlyReasonFor = useCallback(
-    (itemId: string) => {
-      const item = newItems.find((candidate) => candidate.id === itemId)
-      return (item && accountById.get(item.account_id)?.read_only_reason) || undefined
-    },
-    [newItems, accountById],
-  )
+  const readOnlyReasons = useMemo(() => {
+    const reasons = new Map<string, string>()
+    for (const item of newItems) {
+      const reason = accountById.get(item.account_id)?.read_only_reason
+      if (reason) reasons.set(item.id, reason)
+    }
+    return reasons
+  }, [newItems, accountById])
+  const readOnlyReasonFor = useCallback((itemId: string) => readOnlyReasons.get(itemId), [readOnlyReasons])
   const rows = useMemo(
-    () =>
-      newItems.map((item) => ({
-        id: item.id,
-        isReadOnly: Boolean(accountById.get(item.account_id)?.read_only_reason),
-      })),
-    [newItems, accountById],
+    () => newItems.map((item) => ({ id: item.id, isReadOnly: readOnlyReasons.has(item.id) })),
+    [newItems, readOnlyReasons],
   )
   const requestKey = JSON.stringify(accountIds ?? 'all')
   const selection = useBulkSelection(rows, requestKey, !isFetching, limit)
