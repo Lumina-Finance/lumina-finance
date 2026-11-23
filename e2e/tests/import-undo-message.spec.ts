@@ -58,8 +58,9 @@ test('keeps the Import undone message the same gap above the footer while the pa
   // rather than one caught partway through the page's own frame work. Only frames where the
   // footer reaches into the message's corner count, since only then is the message lifted
   await page.evaluate(() => {
-    const store = window as unknown as { gaps: number[] }
+    const store = window as unknown as { gaps: number[], footerTops: number[] }
     store.gaps = []
+    store.footerTops = []
     const probe = document.createElement('div')
     probe.style.cssText = 'position: fixed; top: 0; left: 0; width: 1px; height: 1px; pointer-events: none'
     document.body.append(probe)
@@ -69,7 +70,13 @@ test('keeps the Import undone message the same gap above the footer while the pa
       if (!message || !footer || Number(getComputedStyle(message).opacity) <= 0.9) return
       const cornerBottom = innerHeight - parseFloat(getComputedStyle(message).bottom)
       const footerTop = footer.getBoundingClientRect().top
-      if (footerTop < cornerBottom + 12) store.gaps.push(footerTop - message.getBoundingClientRect().bottom)
+      // The entrance slide is the card's `transform` and the lift is its separate `translate`, so taking
+      // the slide's offset from the box read in this same frame leaves where the lift put the message
+      const slide = new DOMMatrix(getComputedStyle(message).transform).m42
+      if (footerTop < cornerBottom + 12) {
+        store.gaps.push(footerTop - (message.getBoundingClientRect().bottom - slide))
+        store.footerTops.push(footerTop)
+      }
     }).observe(probe)
     const flip = () => {
       probe.style.width = probe.style.width === '1px' ? '2px' : '1px'
@@ -99,10 +106,13 @@ test('keeps the Import undone message the same gap above the footer while the pa
     return positions.size
   })
   const gaps = await readGaps()
+  const footerTops = await page.evaluate(() => (window as unknown as { footerTops: number[] }).footerTops)
 
   // Without the steps actually moving, the frames read above would all be of a still footer
   expect(scrolledTo).toBeGreaterThan(5)
-  expect(gaps.length).toBeGreaterThan(20)
+  // Counted by where the footer was drawn rather than by frames, since a slow runner draws fewer frames
+  // of the same scroll and a still footer would read the same place in every frame it draws
+  expect(new Set(footerTops.map((top) => top.toFixed(1))).size).toBeGreaterThan(5)
   // The footer moves under the message as the importer reopens and as the steps scroll, and the
   // message must be drawn at the footer's new place in the same frame, never a frame behind it
   expect(Math.max(...gaps.map((gap) => Math.abs(gap - 12)))).toBeLessThan(0.5)
