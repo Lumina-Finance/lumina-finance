@@ -13,6 +13,7 @@ import {
   getRefundRoom,
   getRefundStatus,
   getRefusedRooms,
+  getSelectableAccounts,
   isRefundable,
   orderRefundsByDate,
 } from '@/components/transactions/transaction-modal/utils/refund'
@@ -170,6 +171,33 @@ describe('getRefundAccounts', () => {
     ]
     expect(getRefundAccounts(accounts, 'CAD').map(({ id }) => id)).toEqual(['cad'])
     expect(getRefundAccounts(accounts, 'EUR')).toEqual([])
+  })
+})
+
+// The Account dropdown of the create form, of a bank item's review and of a refund
+describe('getSelectableAccounts', () => {
+  const READ_ONLY = 'Records in USD are read-only. They can be archived or deleted'
+  const accounts = [
+    createAccount({ id: 'chequing' }),
+    createAccount({ id: 'old', is_archived: true }),
+    createAccount({ id: 'us-card', currency: 'USD', read_only_reason: READ_ONLY }),
+    createAccount({ id: 'us-chequing', currency: 'USD' }),
+  ]
+
+  it('leaves out archived and read-only accounts', () => {
+    expect(getSelectableAccounts(accounts).map(({ id }) => id)).toEqual(['chequing', 'us-chequing'])
+  })
+
+  it("keeps a bank item's own account, read-only or not, so its review names it", () => {
+    expect(getSelectableAccounts(accounts, 'us-card').map(({ id }) => id)).toEqual([
+      'chequing',
+      'us-card',
+      'us-chequing',
+    ])
+  })
+
+  it("keeps a refund to the writable accounts in its expense's currency", () => {
+    expect(getSelectableAccounts(accounts, undefined, 'USD').map(({ id }) => id)).toEqual(['us-chequing'])
   })
 })
 
