@@ -23,7 +23,7 @@ test('deletes the profile once the user types delete and confirms with the passw
 
   // Pressing Delete profile before typing the word only says what is missing
   await dialog.getByRole('button', { name: 'Delete profile', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toHaveText('Type delete to confirm')
+  await expect(dialog.getByRole('alert')).toHaveText('Please type delete to confirm')
 
   await dialog.getByRole('textbox').fill('delete')
   await dialog.getByRole('button', { name: 'Delete profile', exact: true }).click()

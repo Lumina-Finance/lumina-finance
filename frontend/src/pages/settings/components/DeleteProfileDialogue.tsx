@@ -6,7 +6,7 @@ import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
 import { isDeletionConfirmed } from '@/pages/settings/utils/deleteProfile'
 
-const CONFIRM_WORD_MISSING = 'Type delete to confirm'
+const CONFIRM_WORD_MISSING = 'Please type delete to confirm'
 
 type DeleteProfileDialogueProps = {
   open: boolean
@@ -75,7 +75,7 @@ export function DeleteProfileDialogue({
       }
     >
       <div id={descriptionId} className="space-y-4 text-sm leading-6" style={{ color: 'var(--app-text)' }}>
-        <WarningCallout>This will delete your data immediately and is irreversible.</WarningCallout>
+        <WarningCallout>This will permanently delete all your data and is irrevocable.</WarningCallout>
         {hasBankConnections && (
           <p>
             We'll remove the bank sync credentials we store for you. Anything set up with your bank sync provider,

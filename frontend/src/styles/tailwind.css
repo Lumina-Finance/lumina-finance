@@ -420,6 +420,7 @@
      shared classes that draw one, and the border utility unless it is transparent */
   :is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(
       .app-secondary-button,
+      .app-danger-button-quiet,
       .app-glass-button,
       .app-glass-icon-button,
       .app-range-glass-head,

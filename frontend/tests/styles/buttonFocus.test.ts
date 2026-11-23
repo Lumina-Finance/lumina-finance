@@ -471,7 +471,7 @@ describe('button keyboard focus', () => {
   // Every other button, filled buttons included, keeps the base ring on top of its hover look
   describe('ring', () => {
     const optOut = rulesListing(
-      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .app-nav-link, .app-nav-user-logout, .app-desktop-nav-toggle, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
+      ':is(a, button, [role="button"], [role="tab"], [role="radio"], [role="menuitem"]):is(.app-secondary-button, .app-danger-button-quiet, .app-glass-button, .app-glass-icon-button, .app-range-glass-head, .app-card, .app-nav-link, .app-nav-user-logout, .app-desktop-nav-toggle, .border:not(.border-transparent)):not(svg *):not([aria-disabled="true"]):focus-visible',
     )
 
     it('is dropped only from buttons that draw a border of their own', () => {
@@ -497,9 +497,18 @@ describe('button keyboard focus', () => {
         for (const rule of focusRules) {
           expect(rule.nodes.some((node) => node.type === 'decl' && /^outline/.test(node.prop))).toBe(false)
         }
-        expect(selectorsOf(optOut[0])[0]).not.toContain(name)
+        // Matched as a whole class, since the quiet danger button's class starts with the filled one's
+        expect(selectorsOf(optOut[0])[0]).not.toMatch(new RegExp(`${name.replaceAll('.', '\\.')}(?![\\w-])`))
       })
     }
+
+    // The quiet danger button rests with a red border on a plain fill, so it is outlined and drops the
+    // ring that the filled danger button keeps
+    it('drops the ring from the quiet danger button only', () => {
+      const selector = selectorsOf(optOut[0])[0]
+      expect(selector).toContain('.app-danger-button-quiet')
+      expect(selector).not.toMatch(/\.app-danger-button[,)]/)
+    })
 
     it('lists the bordered shared classes the ring is dropped from, each with a border at rest', () => {
       for (const name of BORDER_CHANGING) {
