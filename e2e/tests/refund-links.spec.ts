@@ -455,15 +455,16 @@ test('keeps the picker header in place while its rows scroll', async ({ page, re
 
   const search = picker.getByPlaceholder('Merchant or note…')
 
-  // The rows ease in, so measuring waits until two reads in a row agree
-  let lastTop = -1
+  // The picker and its rows ease in, so measuring waits until no animation runs and three reads in a row agree. Two
+  // reads could agree while a busy run held a frame back mid-ease
+  const reads: number[] = []
   await expect
     .poll(async () => {
-      const top = (await search.boundingBox())!.y
-      const settled = top === lastTop
-      lastTop = top
-      return settled
-    }, { intervals: [200] })
+      const moving = await page.evaluate(() => document.getAnimations().some((animation) => animation.playState === 'running' && animation.effect?.getComputedTiming().endTime !== Infinity))
+      reads.push(moving ? -1 : (await search.boundingBox())!.y)
+      const last = reads.slice(-3)
+      return last.length === 3 && last.every((top) => top >= 0 && top === last[0])
+    }, { intervals: [250] })
     .toBe(true)
   // The last row starts below the dialog's visible body, and scrolling it into view leaves the header where it was
   const searchBefore = await search.boundingBox()
