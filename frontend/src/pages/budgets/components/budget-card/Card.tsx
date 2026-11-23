@@ -1,5 +1,7 @@
+import { useId } from 'react'
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
+import { useReadOnlyReasonOnFocus } from '@/hooks/useReadOnlyReasonOnFocus'
 import { FADED_ROW_COLOURS } from '@/contexts/FadedRowsContext'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import BudgetCategoryRow from '@/pages/budgets/components/budget-card/CategoryRow'
@@ -40,6 +42,10 @@ export default function BudgetCard({
     : 0
   const attention = attentionState(latestPeriod, utilization)
   const upcomingPeriods = nextBudgetPeriods(baseBudget, latestPeriod)
+  // The card is the control, so its pill takes no tab stop and the card shows the reason on keyboard focus.
+  // Enter or Space then opens the budget from the card alone
+  const readOnlyPillId = useId()
+  const readOnlyFocus = useReadOnlyReasonOnFocus(baseBudget.read_only_reason, readOnlyPillId)
 
   return (
     <article
@@ -55,6 +61,7 @@ export default function BudgetCard({
       }}
       role="button"
       tabIndex={0}
+      {...(baseBudget.read_only_reason ? readOnlyFocus.focusProps : null)}
       onClick={onOpen}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -76,7 +83,7 @@ export default function BudgetCard({
           </p>
           {baseBudget.read_only_reason && (
             <span className="mt-2 flex min-w-0">
-              <ReadOnlyReasonPill reason={baseBudget.read_only_reason} />
+              <ReadOnlyReasonPill id={readOnlyPillId} reason={baseBudget.read_only_reason} />
             </span>
           )}
         </div>
@@ -161,6 +168,7 @@ export default function BudgetCard({
           </div>
         </div>
       </div>
+      {readOnlyFocus.tooltip}
     </article>
   )
 }

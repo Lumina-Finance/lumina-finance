@@ -5,6 +5,7 @@ import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
+import { useReadOnlyReasonOnFocus } from '@/hooks/useReadOnlyReasonOnFocus'
 import { FADED_ROW_COLOURS } from '@/contexts/FadedRowsContext'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useFittedForm } from '@/pages/accounts/hooks/useFittedForm'
@@ -123,6 +124,8 @@ export default function AccountRow({
   ]
     .filter(Boolean)
     .join(' ')
+  // The pill takes no tab stop of its own, so the link shows its reason beside the row on keyboard focus
+  const readOnlyFocus = useReadOnlyReasonOnFocus(readOnlyReason, `${descriptionId}-read-only`)
 
   // The link sits on the name and stretches over the whole row, rather than wrapping it, because the
   // row holds a control of its own, the FX badge, and a link cannot contain one. The badge is raised
@@ -133,6 +136,7 @@ export default function AccountRow({
   return (
     <div
       data-testid={`account-row-${account.id}`}
+      data-account-row=""
       className={`group/row app-focus-inset relative flex min-w-0 items-stretch rounded-xl hover:bg-[var(--app-accent-soft)] has-[a:focus-visible]:bg-transparent! has-[a:focus-visible]:[outline:var(--app-focus-outline)] ${
         isArchived
           ? 'my-1 border border-dashed opacity-75 transition-[color,background-color,opacity] hover:opacity-100'
@@ -181,6 +185,8 @@ export default function AccountRow({
                 <Link
                   to={`/accounts/${account.id}`}
                   aria-describedby={describedBy}
+                  data-reason-beside="[data-account-row]"
+                  {...(readOnlyReason ? readOnlyFocus.focusProps : null)}
                   className="after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
                 >
                   {account.name}
@@ -281,6 +287,7 @@ export default function AccountRow({
           )}
         </div>
       </div>
+      {readOnlyFocus.tooltip}
     </div>
   )
 }

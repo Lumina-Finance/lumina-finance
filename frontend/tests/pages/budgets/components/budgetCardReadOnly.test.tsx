@@ -52,6 +52,9 @@ describe('a read-only budget’s card', () => {
     expect(card?.[1]).toContain('--app-text:var(--app-text-muted)')
     expect(markup).toContain('data-testid="read-only-reason-pill"')
     expect(markup).toContain(REASON)
+    // The card is the control and the one stop, so Enter or Space opens the budget from the card alone
+    expect(markup.match(/tabindex="0"/g)).toHaveLength(1)
+    expect(markup).toMatch(/<article data-testid="budget-card-budget-1"[^>]*tabindex="0"/)
   })
 
   it('shows neither while the budget can change', () => {

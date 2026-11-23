@@ -108,6 +108,9 @@ describe('account row', () => {
     expect(row?.[1]).toContain('--app-text:var(--app-text-muted)')
     expect(markup).toContain('data-testid="read-only-reason-pill"')
     expect(describedTexts(markup, 1024)).toEqual(['Checking', reason, '50000', 'FX unavailable'])
+    // The link is the row's one stop. The pill takes none, and the link shows the reason on focus instead
+    expect(markup).not.toMatch(/data-testid="read-only-reason-pill"[^>]*tabindex/)
+    expect(markup).toMatch(/<a\b[^>]*data-reason-beside="\[data-account-row\]"/)
   })
 
   it('shows no pill and draws the row as usual while the account can change', () => {

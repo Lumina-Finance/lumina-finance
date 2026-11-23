@@ -160,7 +160,7 @@ export default function TaxAdvantagedCategoryModal({
                 </h3>
                 {plan.read_only_reason && (
                   <span className="mt-1 flex min-w-0">
-                    <ReadOnlyReasonPill reason={plan.read_only_reason} />
+                    <ReadOnlyReasonPill reason={plan.read_only_reason} focusable />
                   </span>
                 )}
               </div>

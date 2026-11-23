@@ -19,6 +19,7 @@ import {
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
+import { useReadOnlyReasonOnFocus } from '@/hooks/useReadOnlyReasonOnFocus'
 import { NOT_CONVERTED_NOTE } from '@/utils/fxStatus'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
@@ -515,6 +516,9 @@ export function TransactionRowView({
   // Only the phone layout draws the note apart from the amount. The wide layout's amount holds it
   const phoneFxNoteId = `${descriptionId}-fx-narrow`
   const readOnlyId = (layout: RowLayout) => `${descriptionId}-read-only-${layout}`
+  // The pill takes no tab stop of its own, so the title shows its reason beside the row on keyboard focus,
+  // unless a reason holding the row off already shows there
+  const readOnlyFocus = useReadOnlyReasonOnFocus(isHeldOff ? null : readOnlyReason, readOnlyId('wide'))
   // The phone layout has room for the icons alone, each described by its own id
   const phoneIconIds: NoteAndTagIconIds = {
     refund: `${descriptionId}-refund-narrow`,
@@ -557,6 +561,7 @@ export function TransactionRowView({
       // controls doing the same thing
       tabIndex={selection ? -1 : undefined}
       {...titleReasonProps}
+      {...(readOnlyReason && !isHeldOff ? readOnlyFocus.focusProps : null)}
       aria-describedby={[...describingIds(layout), dateHeadingId, titleReasonProps['aria-describedby']]
         .filter(Boolean)
         .join(' ')}
@@ -878,6 +883,7 @@ export function TransactionRowView({
           )}
         </span>
       </div>
+      {readOnlyFocus.tooltip}
     </motion.div>
   )
 }

@@ -141,7 +141,7 @@ export default function BudgetDetailsSidebar({
           </p>
           {baseBudget.read_only_reason && (
             <span className="mt-2 flex min-w-0">
-              <ReadOnlyReasonPill reason={baseBudget.read_only_reason} />
+              <ReadOnlyReasonPill reason={baseBudget.read_only_reason} focusable />
             </span>
           )}
         </div>

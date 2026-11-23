@@ -361,7 +361,7 @@ export default function EditAccountIdentityModal({
               {/* A read-only account keeps its details as they are. Archiving and deleting stay open below */}
               {account.read_only_reason && (
                 <span className="flex min-w-0">
-                  <ReadOnlyReasonPill reason={account.read_only_reason} />
+                  <ReadOnlyReasonPill reason={account.read_only_reason} focusable />
                 </span>
               )}
               <fieldset disabled={Boolean(account.read_only_reason)} className="contents">

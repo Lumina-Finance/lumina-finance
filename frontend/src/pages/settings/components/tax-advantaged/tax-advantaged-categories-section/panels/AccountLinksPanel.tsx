@@ -106,7 +106,7 @@ export default function TaxAdvantagedAccountLinksPanel({
                   </span>
                   {!plan.read_only_reason && account.read_only_reason && (
                     <span className="mt-1 flex min-w-0">
-                      <ReadOnlyReasonPill id={accountReasonId} reason={account.read_only_reason} />
+                      <ReadOnlyReasonPill id={accountReasonId} reason={account.read_only_reason} focusable />
                     </span>
                   )}
                 </span>

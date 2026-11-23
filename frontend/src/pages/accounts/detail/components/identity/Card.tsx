@@ -86,7 +86,7 @@ export default function AccountIdentityCard({
       </p>
       {account.read_only_reason && (
         <span className="mt-2 flex min-w-0">
-          <ReadOnlyReasonPill reason={account.read_only_reason} />
+          <ReadOnlyReasonPill reason={account.read_only_reason} focusable />
         </span>
       )}
 

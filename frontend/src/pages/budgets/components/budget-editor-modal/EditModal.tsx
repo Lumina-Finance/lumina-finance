@@ -334,7 +334,7 @@ export default function BudgetEditModal({
       ) : (
         readOnlyReason && (
           <span className="mb-5 flex min-w-0">
-            <ReadOnlyReasonPill reason={readOnlyReason} />
+            <ReadOnlyReasonPill reason={readOnlyReason} focusable />
           </span>
         )
       )}
