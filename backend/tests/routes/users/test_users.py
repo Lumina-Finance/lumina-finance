@@ -151,6 +151,23 @@ async def test_patch_unknown_base_currency_is_not_asked_about(client):
     assert asked == []
 
 
+async def test_get_me_says_the_checks_sentence_when_it_refuses_other_currencies(client):
+    """The profile carries the check's sentence for refused other currencies, and null with no check or when allowed"""
+    headers = _get_auth_header(await _create_user(client))
+
+    without_check = (await client.get("/me", headers=headers)).json()["foreign_currencies_refusal"]
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+    refused = await client.get("/me", headers=headers)
+    patched = await client.patch("/me", json={"first_name": "Updated"}, headers=headers)
+    install_check()
+    allowed = (await client.get("/me", headers=headers)).json()["foreign_currencies_refusal"]
+
+    assert without_check is None
+    assert refused.json()["foreign_currencies_refusal"] == ALLOWANCE_REASON
+    assert patched.json()["foreign_currencies_refusal"] == ALLOWANCE_REASON
+    assert allowed is None
+
+
 async def test_patch_updates_multiple_fields(client):
     """PATCH /me updates multiple fields at once."""
     signup_resp = await _create_user(client)

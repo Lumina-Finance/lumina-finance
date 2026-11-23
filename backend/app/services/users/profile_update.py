@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.user import UpdateProfileRequest, UserProfile
 from app.services.allowance.require import require_feature
 from app.services.cache_state import mark_user_cache_changed
+from app.services.users.profile import build_user_profile
 
 # Fields a request may leave out but never set to null
 NON_NULLABLE_FIELDS = {"first_name", "tz", "base_currency", "date_format"}
@@ -30,7 +31,7 @@ async def update_user_profile(db: AsyncSession, user: User, data: UpdateProfileR
     """
     updates = data.model_dump(exclude_unset=True)
     if not updates:
-        return UserProfile.model_validate(user)
+        return await build_user_profile(user)
 
     null_fields = [field for field in NON_NULLABLE_FIELDS if field in updates and updates[field] is None]
     if null_fields:
@@ -54,4 +55,4 @@ async def update_user_profile(db: AsyncSession, user: User, data: UpdateProfileR
 
     await mark_user_cache_changed(db, user.id)
     await db.commit()
-    return UserProfile.model_validate(user)
+    return await build_user_profile(user)

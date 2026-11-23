@@ -23,12 +23,14 @@ from app.schemas.user import (
     UpdateProfileRequest,
     UserProfile,
 )
+from app.services.allowance.currency import find_foreign_currencies_token
 from app.services.allowance.require import list_granted_features
 from app.services.cache_state import get_shared_cache_changed_at, get_visible_cache_status, select_user_group_ids
 from app.services.csv_export import download_response
 from app.services.data_export.archive import ZIP_MEDIA_TYPE, start_data_export
 from app.services.fx.rates_status import get_rates_digest, holds_other_currencies
 from app.services.tax_advantaged_categories import get_category_owner_timezones
+from app.services.users.profile import build_user_profile
 from app.services.users.profile_update import update_user_profile
 from app.utils.dates import resolve_timezone
 
@@ -40,8 +42,7 @@ async def get_me(
     user: Annotated[User, Depends(get_current_user)],
 ):
     """Return the authenticated user's full profile"""
-    profile = UserProfile.model_validate(user)
-    return profile
+    return await build_user_profile(user)
 
 
 @router.get("/cache-status", response_model=CacheStatus)
@@ -56,6 +57,7 @@ async def get_cache_status(
         changed_at=status.changed_at,
         current_date=current_date,
         calculation_date_token=date_token,
+        foreign_currencies_token=await find_foreign_currencies_token(user.id),
         next_calculation_boundary_at=next_boundary,
         personal=CacheScopeStatus(
             changed_at=status.personal.changed_at,

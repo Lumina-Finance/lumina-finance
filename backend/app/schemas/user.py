@@ -33,6 +33,10 @@ class UserProfile(ProfilePreferences):
     base_currency: str
     created_at: datetime
 
+    # The sentence the installed allowance check gave when it refuses records in a currency other
+    # than the main one, or None. Filled by build_user_profile, since the user row holds no such column
+    foreign_currencies_refusal: str | None = None
+
 
 class CacheScopeStatus(BaseModel):
     """Latest app-data cache timestamp for one scope."""
@@ -47,6 +51,10 @@ class CacheStatus(BaseModel):
     changed_at: datetime | None
     current_date: date
     calculation_date_token: str
+
+    # A short digest of the sentence the installed allowance check gave when it refuses records in a
+    # currency other than the main one, or None, so the browser refetches when the answer changes
+    foreign_currencies_token: str | None
     next_calculation_boundary_at: datetime
     personal: CacheScopeStatus
     groups: dict[uuid.UUID, CacheScopeStatus] = Field(default_factory=dict)

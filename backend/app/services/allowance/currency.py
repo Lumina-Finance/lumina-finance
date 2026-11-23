@@ -1,9 +1,13 @@
 """Asking the installed allowance check before a user adds a record in a currency other than their main one"""
 
+import hashlib
 import uuid
 
-from app.allowance_hook import AllowanceKind, Refusal
+from app.allowance_hook import AllowanceKind
 from app.services.allowance.require import find_feature_refusal, is_asked_about, require_feature
+
+# Hex digits of the digest the browser compares, so a clash between two different sentences is vanishingly unlikely
+TOKEN_LENGTH = 16
 
 
 async def require_currency(user_id: uuid.UUID, base_currency: str, currency: str, *, group_id: uuid.UUID | None = None) -> None:
@@ -25,10 +29,23 @@ async def require_currency(user_id: uuid.UUID, base_currency: str, currency: str
     await require_feature(user_id, AllowanceKind.FOREIGN_CURRENCIES)
 
 
-async def find_foreign_currencies_refusal(user_id: uuid.UUID) -> Refusal | None:
-    """Ask whether a user may hold records in another currency, and return the refusal or None when they may
+async def find_foreign_currencies_reason(user_id: uuid.UUID) -> str | None:
+    """Return the sentence the installed check gives when it refuses records in another currency, or None when it allows them
 
     Args:
         user_id: The user holding the records
     """
-    return await find_feature_refusal(user_id, AllowanceKind.FOREIGN_CURRENCIES)
+    refusal = await find_feature_refusal(user_id, AllowanceKind.FOREIGN_CURRENCIES)
+    return refusal.reason if refusal is not None else None
+
+
+async def find_foreign_currencies_token(user_id: uuid.UUID) -> str | None:
+    """Return a short digest of the refusal's sentence, or None when the check allows records in another currency
+
+    Args:
+        user_id: The user holding the records
+    """
+    reason = await find_foreign_currencies_reason(user_id)
+    if reason is None:
+        return None
+    return hashlib.sha256(reason.encode()).hexdigest()[:TOKEN_LENGTH]
