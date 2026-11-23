@@ -23,9 +23,6 @@ from app.services.allowance.currency import require_writable_record
 from app.services.bank_sync.manual_entries import refuse_archiving_a_linked_account
 from app.services.cache_state import mark_cache_changed_for_scope
 
-# Stands for a field the account doesn't store as it is sent. Such a field always counts as a change
-_NOT_STORED = object()
-
 
 async def update_account_for_user(
     db: AsyncSession,
@@ -57,7 +54,7 @@ async def update_account_for_user(
 
     # Archiving and unarchiving stay open on a read-only account, so it can always be put away. The edit
     # form sends every field with each save, so only a field it changes counts
-    changed = {field for field, value in updates.items() if getattr(account, field, _NOT_STORED) != value}
+    changed = {field for field, value in updates.items() if getattr(account, field) != value}
     if changed - {"is_archived"}:
         await require_writable_record(db, user, account)
     await validate_update_account_request(db, account, updates)

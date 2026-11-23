@@ -49,8 +49,9 @@ async def require_writable_account(db: AsyncSession, user: User, account: Accoun
     """Ensure a transaction can be added to an account or changed in it
 
     An archived account takes no new history, and neither does one whose currency the installed
-    check keeps read-only. Deleting a transaction asks only about archiving, so a read-only
-    account's history can always be cleared
+    check keeps read-only. Deleting a transaction asks only about archiving, so the server accepts a
+    delete on a read-only account. The transaction list holds a read-only account's rows back from
+    selection, so the screen offers no delete there
 
     Args:
         db: Active database session
