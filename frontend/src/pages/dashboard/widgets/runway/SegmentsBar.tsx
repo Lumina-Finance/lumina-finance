@@ -82,7 +82,7 @@ export function RunwaySegmentsBar({ segments, caption, displayCurrency, tooltipO
               ))
             ) : (
               <div
-                className="flex flex-1 items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
+                className="flex flex-1 items-center justify-center px-3 text-center text-sm italic max-[1000px]:text-[0.7875rem]"
                 style={{
                   background: 'var(--app-border)',
                   color: 'var(--app-text-subtle)',
