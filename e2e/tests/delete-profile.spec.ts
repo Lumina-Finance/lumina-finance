@@ -130,7 +130,7 @@ test('names the bank sync credentials for a user with a connection where new ban
 
   await page.locator('#delete-profile').getByRole('button', { name: 'Delete profile', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Delete your profile and all your data?' })
-  await expect(dialog.getByText("We'll remove the bank sync credentials we store for you.", { exact: false })).toBeVisible()
+  await expect(dialog.getByText('Your subscriptions and related charges with the bank sync provider will not be cancelled automatically.', { exact: false })).toBeVisible()
 })
 
 test('shows the deletion under way when it returns from the provider sign-in', async ({ page, request }) => {

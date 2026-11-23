@@ -81,8 +81,9 @@ export function DeleteProfileDialogue({
         <WarningCallout>This will permanently delete all your data and is irrevocable.</WarningCallout>
         {hasBankConnections && (
           <p>
-            We'll remove the bank sync credentials we store for you. Please cancel any charges or subscriptions with
-            your bank sync provider directly.
+            Your subscriptions and related charges with the bank sync provider will not be cancelled automatically.
+            Please reach out to them to manage your subscriptions. We'll remove the bank sync credentials we store for
+            you.
           </p>
         )}
         <p>
