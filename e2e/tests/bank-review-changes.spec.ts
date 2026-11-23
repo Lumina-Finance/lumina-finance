@@ -256,7 +256,10 @@ test('reads a correction in its comparison, failing a decision, lining up its ac
     // A decision that gets no answer says to try again
     failure = 'no answer'
     await dialog.getByRole('button', { name: 'Keep current value' }).click()
-    await expect(reason).toHaveText('Something went wrong. Please try again.')
+    // The refusal fades out while this message fades in, so both are alerts for a moment, and the old one
+    // has to be gone before the dialogue shows only this one
+    await expect(reason.filter({ hasText: 'Something went wrong. Please try again.' })).toHaveText('Something went wrong. Please try again.')
+    await expect(reason).toHaveCount(1)
 
     await dialog.getByRole('button', { name: 'Close' }).click()
     await expect(dialog).toBeHidden()
