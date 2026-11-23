@@ -26,7 +26,7 @@ import {
   OFX_REPEATED_IN_FILE_REASON,
 } from '@/pages/imports/ofx/constants'
 import type { OfxFile, OfxSkippedRow, OfxStatement, OfxTransaction } from '@/pages/imports/ofx/types'
-import type { ImportAccountCreateDetails } from '@/pages/imports/types'
+import type { ImportAccountCreateDetails, ImportRuleRow } from '@/pages/imports/types'
 import {
   buildImportAccountMapping,
   findUnnamedSourceCategory,
@@ -74,6 +74,9 @@ export interface OfxImportBuild {
 
   /** The statements a row is written for, which are the accounts the import creates when answered so */
   writtenSources: Set<string>
+
+  /** The rows the save would send, as the import rules are asked about them. Empty until the payload is built */
+  ruleRows: ImportRuleRow[]
 }
 
 /** The statements the account step lists: those holding at least one transaction */
@@ -119,6 +122,7 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
   const accounts: TransactionImportPayload['accounts'] = []
   const rows: TransactionImportPayload['rows'] = []
   const skippedRows: OfxSkippedRow[] = []
+  const ruleRows: ImportRuleRow[] = []
   const writtenSources = new Set<string>()
   const currencyMismatches: string[] = []
 
@@ -215,6 +219,21 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
         bank_account: transaction.bankTransactionId === null ? null : transaction.bankAccountKey,
         bank_transaction: transaction.bankTransactionId,
       })
+
+      // Asked about the very row sent. A statement bound for a new account has no id to name yet, and
+      // money in a statement is never a transfer, since nothing in it says where the money went
+      ruleRows.push({
+        id: getOfxSkippedRowId(statement, transaction),
+        request: {
+          description: transaction.payee,
+          note: transaction.memo,
+          amount: transaction.amount!,
+          currency,
+          account_id: built?.account?.id ?? null,
+          is_transfer: false,
+          tag_names: [],
+        },
+      })
     }
 
     if (hasRows && built) {
@@ -227,7 +246,7 @@ export function buildOfxImportPayload(file: OfxFile, answers: OfxImportAnswers):
   if (errors.length === 0 && rows.length === 0) addError(getImportNoRowsError('file'))
 
   const payload = errors.length === 0 ? { accounts, categories, merchants: [], tags: [], rows } : null
-  return { errors, currencyMismatches, payload, skippedRows, writtenSources }
+  return { errors, currencyMismatches, payload, skippedRows, writtenSources, ruleRows: payload ? ruleRows : [] }
 }
 
 /**

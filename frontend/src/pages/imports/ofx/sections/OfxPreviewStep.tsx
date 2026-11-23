@@ -1,3 +1,4 @@
+import { ImportRulesCheck, ImportRulesNotice } from '@/pages/imports/components'
 import { OfxReveal } from '@/pages/imports/ofx/components/OfxReveal'
 import { OfxSkippedRowsTable } from '@/pages/imports/ofx/components/OfxSkippedRowsTable'
 import { getOfxPreviewEmptyDescription } from '@/pages/imports/ofx/constants'
@@ -15,6 +16,9 @@ type OfxPreviewStepProps = Pick<
   | 'newAccountCount'
   | 'importBuild'
   | 'heldCheckNotice'
+  | 'ruleCheckState'
+  | 'ruleCheckNotice'
+  | 'ruleCounts'
   | 'importError'
   | 'importErrorLang'
   | 'importResult'
@@ -37,6 +41,9 @@ export function OfxPreviewStep({
   newAccountCount,
   importBuild,
   heldCheckNotice,
+  ruleCheckState,
+  ruleCheckNotice,
+  ruleCounts,
   importError,
   importErrorLang,
   importResult,
@@ -54,7 +61,8 @@ export function OfxPreviewStep({
       previewGroups={previewGroups}
       emptyDescription={getOfxPreviewEmptyDescription(format.files.statementNoun)}
       buildError={importBuild.errors[0] ?? null}
-      check={heldCheckNotice}
+      blocked={ruleCheckState ? <ImportRulesCheck check={ruleCheckState} /> : undefined}
+      check={heldCheckNotice ?? ruleCheckNotice}
       importError={importError}
       importErrorLang={importErrorLang}
       imported={Boolean(importResult)}
@@ -64,6 +72,11 @@ export function OfxPreviewStep({
       <OfxReveal show={skipped.totalCount > 0}>
         <OfxSkippedRowsTable title={skipped.title} rows={skipped.rows} areFilesNamed={stagedFiles.length > 1} />
       </OfxReveal>
+      {!ruleCheckState && ruleCounts.length > 0 && (
+        <div className="mb-4">
+          <ImportRulesNotice rules={ruleCounts} />
+        </div>
+      )}
     </ImportPreviewLayout>
   )
 }

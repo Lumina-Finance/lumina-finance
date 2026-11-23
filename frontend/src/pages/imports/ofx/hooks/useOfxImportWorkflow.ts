@@ -17,6 +17,7 @@ import {
 import {
   useFiledPreviewMerchants,
   useImportAccountCreateState,
+  useImportRulesCheck,
   useImportRun,
   useProviderAccountAnswers,
   useProviderFileIntake,
@@ -39,6 +40,7 @@ import { combineOfxFiles, stageOfxFiles } from '@/pages/imports/ofx/utils/staged
 import type { ImportAccountCreateDetails } from '@/pages/imports/types'
 import {
   countCreatedImportSources,
+  countRuleRowsSent,
   formatImportSummary,
   getImportUploadBlockReason,
   getSupportedCurrencyCodes,
@@ -67,6 +69,7 @@ const EMPTY_BUILD: OfxImportBuild = {
   payload: null,
   skippedRows: [],
   writtenSources: new Set(),
+  ruleRows: [],
 }
 
 /**
@@ -315,6 +318,22 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
 
   const skippedRowIds = useMemo(() => new Set(importBuild.skippedRows.map((row) => row.id)), [importBuild.skippedRows])
 
+  // The rules are asked only once the held rows are known, since the rows asked about are the ones the
+  // save sends and an already held row is not sent. A failed or running held check leaves them waiting
+  const isHeldAnswerSettled = !isHeldCheckAsked || heldCheckState === null
+  const {
+    ruleMatches,
+    ruleCheckState,
+    ruleCheckNotice,
+    ruleCounts: askedRuleCounts,
+  } = useImportRulesCheck(importBuild.payload && isHeldAnswerSettled ? importBuild.ruleRows : null, isHeldCheckPaused)
+
+  // Counted from the rows the save sends, so a row the import leaves out is in no rule's count
+  const ruleCounts = useMemo(
+    () => countRuleRowsSent(askedRuleCounts, importBuild.ruleRows, ruleMatches),
+    [askedRuleCounts, importBuild.ruleRows, ruleMatches],
+  )
+
   const sampleRows = useMemo(
     () =>
       ofxFile && !readingError
@@ -328,11 +347,13 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
               categories,
               currencies,
               skippedRowIds,
+              ruleMatches,
             },
             IMPORT_SAMPLE_PREVIEW_LIMIT,
           )
         : [],
     [
+      ruleMatches,
       accountById,
       categories,
       currencies,
@@ -367,7 +388,7 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
   const canCommitImport = run.canCommit({
     hasPayload: importBuild.payload !== null,
     isProcessingFile,
-    blockReason: heldCheckNotice?.message ?? null,
+    blockReason: heldCheckNotice?.message ?? ruleCheckNotice?.message ?? null,
   })
   const uploadBlockReason = getImportUploadBlockReason(currencies, currenciesError)
 
@@ -483,6 +504,9 @@ export function useOfxImportWorkflow(fixedAccount: AccountsOverview | null = nul
     newAccountCount,
     importBuild,
     heldCheckNotice,
+    ruleCheckState,
+    ruleCheckNotice,
+    ruleCounts,
     canCommitImport,
     accountsLoading,
     currenciesLoading,
