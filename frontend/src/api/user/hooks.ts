@@ -11,6 +11,7 @@ import {
   fetchFeatureGrants,
   fetchRunway,
   fetchRunwayAccounts,
+  fetchUserProfile,
   fetchRunwaySettings,
   requestEmailChange,
   updateProfile,
@@ -49,6 +50,33 @@ export function featureGrantsQueryOptions(enabled: boolean) {
 export function useFeatureGrants(enabled: boolean) {
   const { accessToken } = useAuth()
   return useQuery(featureGrantsQueryOptions(enabled && !!accessToken))
+}
+
+/**
+ * The read of the current user's profile, kept apart from the signed-in user so a renewed session
+ * leaves it as it is. The change check covers it, so a different currencies token reads it again
+ *
+ * @param enabled - Whether to ask at all
+ */
+export function profileQueryOptions(enabled: boolean) {
+  return queryOptions({
+    queryKey: userKeys.profile(),
+    queryFn: ({ signal }) => fetchUserProfile(signal),
+    enabled,
+  })
+}
+
+/**
+ * Reads the sentence the server gives when it refuses records in a currency other than the user's
+ * main one
+ *
+ * @returns The sentence, or null while other currencies are allowed or the profile has not loaded,
+ * with the query's pending and error state for a caller that tells those apart
+ */
+export function useForeignCurrenciesRefusal() {
+  const { accessToken } = useAuth()
+  const { data, isPending, isError } = useQuery(profileQueryOptions(!!accessToken))
+  return { refusal: data?.foreign_currencies_refusal ?? null, isPending, isError }
 }
 
 /**

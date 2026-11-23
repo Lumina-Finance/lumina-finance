@@ -43,6 +43,7 @@ const appDataTargets: InvalidationTarget[] = [
   { queryKey: importSourceKeys.all },
   { queryKey: heldBankTransactionKeys.all },
   { queryKey: insightsKeys.savedRanges() },
+  { queryKey: userKeys.profile(), exact: true },
 ]
 
 const fxTargets: InvalidationTarget[] = [

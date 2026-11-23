@@ -218,6 +218,7 @@ function isSavedCheck(value: unknown): value is SavedCheck {
     (fields.personalChangedAt === null || typeof fields.personalChangedAt === 'string') &&
     (fields.sharedChangedAt === null || typeof fields.sharedChangedAt === 'string') &&
     typeof fields.calculationDateToken === 'string' &&
+    (fields.foreignCurrenciesToken === null || typeof fields.foreignCurrenciesToken === 'string') &&
     typeof fields.serverVersion === 'string' &&
     (ratesDigest === null || typeof ratesDigest === 'string')
   )

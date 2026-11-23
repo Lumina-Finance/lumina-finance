@@ -858,6 +858,7 @@ describe('what the saved copy keeps of the last check', () => {
       personalChangedAt: '2026-05-01T10:00:00.000Z',
       sharedChangedAt: null,
       calculationDateToken: 'secret-date-token',
+      foreignCurrenciesToken: 'secret-currency-token',
       serverVersion: '1.2.3',
     },
     observedAt: 1_700_000_000_000,
@@ -872,6 +873,7 @@ describe('what the saved copy keeps of the last check', () => {
 
     const storedText = saving.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)!
     expect(storedText).not.toContain('secret-date-token')
+    expect(storedText).not.toContain('secret-currency-token')
     expect(storedText).not.toContain('secret-rates-digest')
     expect(readStoredEntry(saving)).toMatchObject({ observedAt: RECORD.observedAt })
     expect(readEntryObservedAt(storedText)).toBe(RECORD.observedAt)
@@ -882,6 +884,20 @@ describe('what the saved copy keeps of the last check', () => {
 
     expect(getCheckRecord()).toEqual(RECORD)
     expect(reloaded.client.getQueryData(['accounts'])).toEqual([{ id: 'first-user-account' }])
+  })
+
+  it('gives back a record whose answer about other currencies is null, as it is while they are allowed', async () => {
+    const record = { ...RECORD, answer: { ...RECORD.answer, foreignCurrenciesToken: null } }
+    const saving = loadPage({ [SESSION_KEY]: USER_A })
+    saving.client.setQueryData(['accounts'], [{ id: 'first-user-account' }])
+    setCheckRecord(record)
+    await runTimedSave()
+
+    setCheckRecord(null, { notify: false })
+    const reloaded = loadPage(Object.fromEntries(saving.localStorage.items))
+    await reloaded.restore()
+
+    expect(getCheckRecord()).toEqual(record)
   })
 
   it('writes the entry again when the record changes with no query changed, which tells the other tabs', async () => {
@@ -934,6 +950,13 @@ describe('what the saved copy keeps of the last check', () => {
       'a check with a field of the wrong kind',
       (check: Record<string, unknown>) => ({
         check: { ...check, answer: { ...(check.answer as object), serverVersion: 3 } },
+        observedAt: RECORD.observedAt,
+      }),
+    ],
+    [
+      'a check with no answer about other currencies',
+      (check: Record<string, unknown>) => ({
+        check: { ...check, answer: { ...(check.answer as object), foreignCurrenciesToken: undefined } },
         observedAt: RECORD.observedAt,
       }),
     ],
