@@ -1,8 +1,8 @@
 """The count behind the most periods one budget keeps, on each side of 1,200
 
 Pure, no database. The route tests check each refusal reaches the person, so the boundary for each
-cadence is pinned here. The one-week and one-month dates match the frontend's validation tests, counted
-to the same today
+cadence is pinned here. The one-week and one-month dates match the frontend's validation tests,
+counted to the same today
 """
 
 from datetime import date
