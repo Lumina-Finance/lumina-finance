@@ -621,7 +621,14 @@ export default function CreateTransactionModal({
                     ? buildRefundNote(refundOf?.merchant_name ?? null)
                     : `${KIND_LABELS[form.kind]} transaction`
             }
-            headerStatus={readOnly ? 'Archived account' : undefined}
+            // An account the server keeps read-only isn't archived, so the header says read-only instead
+            headerStatus={
+              readOnly
+                ? selectedAccount?.read_only_reason && !selectedAccount.is_archived
+                  ? 'Read-only account'
+                  : 'Archived account'
+                : undefined
+            }
             headerAction={
               canOfferRefund ? (
                 <RefundButton
