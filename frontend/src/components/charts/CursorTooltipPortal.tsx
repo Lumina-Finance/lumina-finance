@@ -17,6 +17,13 @@ type CursorTooltipPortalProps = {
 
   /** A test id for the tooltip's outer wrapper, which carries the fade */
   testId?: string
+
+  /**
+   * Whether a tooltip placed again while it fades out still glides to the new place, as between two chart
+   * items. A tooltip for one control passes false, so shown again elsewhere it fades in there rather than
+   * travelling, possibly across the control it explains
+   */
+  glidesThroughHide?: boolean
 }
 
 const FADE_TRANSITION = 'opacity var(--app-ease-duration) var(--app-ease-curve)'
@@ -27,7 +34,7 @@ const GLIDE_TRANSITION = `${FADE_TRANSITION}, transform var(--app-ease-duration)
 const FRAMES_BEFORE_GLIDE = 2
 
 const CursorTooltipPortal = forwardRef<HTMLDivElement, CursorTooltipPortalProps>(function CursorTooltipPortal(
-  { children, className = '', onTransitionEnd, style, testId },
+  { children, className = '', onTransitionEnd, style, testId, glidesThroughHide = true },
   ref,
 ) {
   // Only opacity animates while the tooltip appears. Its position starts from the default of 0px, or from
@@ -43,7 +50,10 @@ const CursorTooltipPortal = forwardRef<HTMLDivElement, CursorTooltipPortalProps>
   }
 
   useEffect(() => {
-    if (!isShown) return undefined
+    if (!isShown) {
+      if (!glidesThroughHide) setIsGliding(false)
+      return undefined
+    }
 
     let framesLeft = FRAMES_BEFORE_GLIDE
     let frame = 0
@@ -54,7 +64,7 @@ const CursorTooltipPortal = forwardRef<HTMLDivElement, CursorTooltipPortalProps>
     }
     frame = requestAnimationFrame(waitForFrame)
     return () => cancelAnimationFrame(frame)
-  }, [isShown])
+  }, [glidesThroughHide, isShown])
 
   const tooltip = (
     <div

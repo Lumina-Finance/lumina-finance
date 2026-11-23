@@ -51,6 +51,9 @@ function getReasonKey(reason: string) {
  * reason then hangs from the control's edge under the pointer as well, instead of following the cursor
  * above it
  *
+ * A click, Enter or keyboard focus that follows a hover leaves a reason already showing where it is, so it
+ * never slides across the control
+ *
  * Pass `shownById` when the page already prints the reason in an element with that id. The control is
  * then described by that element, and no hidden copy is added for a screen reader to read twice.
  *
@@ -270,7 +273,11 @@ function useControlTooltip(
     const byKeyboard = event.detail === 0
     if (canHover && !byKeyboard) return
 
-    reveal(event.currentTarget, getReasonAnchor(event.currentTarget.getBoundingClientRect()), true)
+    // A reason already showing, from a hover or from focus, stays where it is. Placed again from the
+    // control's edge it would glide across the control to get there. A touch has no hover to keep, since
+    // the reason it shows first is only the echo of the tap, so the tap places it beside the control
+    if (!(canHover && tooltipVisible))
+      reveal(event.currentTarget, getReasonAnchor(event.currentTarget.getBoundingClientRect()), true)
     setIsPinned(true)
   }
 
@@ -300,6 +307,12 @@ function useControlTooltip(
         onFocus: (event) => {
           const control = event.currentTarget
           if (!control.matches(':focus-visible')) return
+          // A reason already showing from a hover stays where it is, rather than gliding across the
+          // control to hang from its edge
+          if (tooltipVisible) {
+            controlRef.current = control
+            return
+          }
           revealBeside(placeBesideOf(control), control)
         },
         onBlur: dismiss,
@@ -319,6 +332,7 @@ function useControlTooltip(
         ref={tooltipRef}
         testId={advisory ? 'control-hint-tooltip' : 'disabled-reason-tooltip'}
         className="w-max"
+        glidesThroughHide={false}
         onTransitionEnd={handleTooltipTransitionEnd}
         style={{
           ...(prefersReducedMotion ? REDUCED_MOTION_STYLE : null),
