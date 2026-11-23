@@ -64,6 +64,7 @@ UNMARKED_WRITE_ROUTES: dict[str, str] = {
     "POST /tags/name-matches": "Reports which names already have a tag and stores nothing.",
     "POST /merchants/name-matches": "Reports which names already have a merchant and stores nothing.",
     "POST /transactions/import/held-bank-transactions": "Reports which bank transactions an account holds and stores nothing.",
+    "POST /import-rules/matches": "Reports what the rules would give file rows and stores nothing.",
 }
 
 type Markers = tuple[datetime | None, ...]

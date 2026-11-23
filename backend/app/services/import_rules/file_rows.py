@@ -9,7 +9,17 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.category import Category
+from app.models.merchant import Merchant
+from app.models.tag import Tag
+from app.services.import_rules.changes import CHANGED_DETAIL
 from app.services.import_rules.matching import ImportRuleMatcher, MatchCandidate, Supplied, SuppliedTag
+from app.services.importers.shared.merchants import load_usable_import_merchants
+from app.services.importers.shared.tags import get_import_tag_scope_filter
 
 NO_KEYS: frozenset[str] = frozenset()
 
@@ -53,6 +63,15 @@ class FileRowFill:
         return {value.rule.id for value in supplied if value is not None}
 
 
+@dataclass(frozen=True)
+class FillTargets:
+    """The merchants, categories and tags the rules give, by id"""
+
+    merchants: dict[uuid.UUID, Merchant]
+    categories: dict[uuid.UUID, Category]
+    tags: dict[uuid.UUID, Tag]
+
+
 def fill_rows(matcher: ImportRuleMatcher, rows: Sequence[FileRow]) -> list[FileRowFill]:
     """Ask the rules about each row
 
@@ -92,3 +111,36 @@ def count_rows_per_rule(fills: Sequence[FileRowFill]) -> Counter[uuid.UUID]:
     for fill in fills:
         counts.update(fill.rule_ids)
     return counts
+
+
+async def load_fill_targets(db: AsyncSession, user_id: uuid.UUID, fills: Sequence[FileRowFill]) -> FillTargets:
+    """Read the merchants, categories and tags the answers name, one statement for each kind
+
+    Args:
+        db: Active database session
+        user_id: The person the rules belong to
+        fills: Answers for the rows
+
+    Returns:
+        The records by id
+
+    Raises:
+        HTTPException: Raised with 409 when a rule names a record that is gone, which is a rule
+            changed at that moment
+    """
+    merchant_ids = {fill.merchant.value for fill in fills if fill.merchant is not None}
+    category_ids = {fill.category.value for fill in fills if fill.category is not None}
+    tag_ids = {tag.value for fill in fills for tag in fill.tags}
+    merchants = await load_usable_import_merchants(db, merchant_ids, user_id)
+    categories: dict[uuid.UUID, Category] = {}
+    if category_ids:
+        usable = Category.is_system.is_(True) | ((Category.owner_id == user_id) & Category.group_id.is_(None))
+        categories = {category.id: category for category in await db.scalars(select(Category).where(Category.id.in_(category_ids), usable))}
+    tags = (
+        {tag.id: tag for tag in await db.scalars(select(Tag).where(Tag.id.in_(tag_ids), get_import_tag_scope_filter(user_id)))}
+        if tag_ids
+        else {}
+    )
+    if not (merchant_ids <= merchants.keys() and category_ids <= categories.keys() and tag_ids <= tags.keys()):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=CHANGED_DETAIL)
+    return FillTargets(merchants=merchants, categories=categories, tags=tags)

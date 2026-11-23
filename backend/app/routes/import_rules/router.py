@@ -13,6 +13,8 @@ from app.schemas.import_rule import (
     CreateImportRuleRequest,
     ImportRuleBudgetResponse,
     ImportRuleResponse,
+    MatchImportRulesRequest,
+    MatchImportRulesResponse,
     MoveImportRuleRequest,
     UpdateImportRuleRequest,
 )
@@ -20,6 +22,7 @@ from app.services.import_rules.budget import get_import_rule_budget
 from app.services.import_rules.creation import create_import_rule
 from app.services.import_rules.deletion import delete_import_rule
 from app.services.import_rules.listing import list_import_rules
+from app.services.import_rules.matches import match_import_rows
 from app.services.import_rules.positions import move_import_rule
 from app.services.import_rules.updates import update_import_rule
 from app.utils.pagination import LIST_PAGE_SIZE, LIST_SEARCH_MAX_LENGTH, MAX_LIST_OFFSET
@@ -66,6 +69,26 @@ async def read_budget(
         The limit and the conditions in use
     """
     return await get_import_rule_budget(db, user.id)
+
+
+@router.post("/matches", response_model=MatchImportRulesResponse)
+async def match_rows(
+    data: MatchImportRulesRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return what the rules would give file rows, without saving anything
+
+    Args:
+        data: The rows as the import page holds them
+        user: Authenticated user
+        db: Active database session
+
+    Returns:
+        What the rules give each row in the order sent, how many rows each rule gave a value, and
+        the version of the rules read
+    """
+    return await match_import_rows(db, user, data)
 
 
 @router.post("", response_model=ImportRuleResponse, status_code=status.HTTP_201_CREATED)

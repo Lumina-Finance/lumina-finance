@@ -8,7 +8,13 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_val
 from pydantic.json_schema import SkipJsonSchema
 
 from app.models.import_rule import MAX_IMPORT_RULE_NAME_LENGTH
-from app.schemas.import_run import MAX_IMPORT_TAGS_PER_ROW
+from app.schemas.import_run import (
+    MAX_IMPORT_BATCH_ROWS,
+    MAX_IMPORT_MERCHANT_NAME_LENGTH,
+    MAX_IMPORT_NOTES_LENGTH,
+    MAX_IMPORT_TAGS_PER_ROW,
+    ImportTagName,
+)
 from app.schemas.limits import Counter
 from app.schemas.names import TrimmedName
 from app.utils.money import MAX_MINOR_UNITS
@@ -21,6 +27,9 @@ MAX_IMPORT_RULE_CONDITIONS = 100
 
 # Characters a text condition's value may carry, enough for a long bank description
 MAX_IMPORT_RULE_TEXT_LENGTH = 200
+
+# Characters of an amount on a file row, as many as the save's own row takes
+MAX_MATCH_ROW_AMOUNT_LENGTH = 64
 
 # Characters of an amount as typed. The service reads it in its currency's own precision and refuses
 # one it can't hold, so this only bounds what is read
@@ -260,6 +269,88 @@ ImportRuleItemResponse = Annotated[
     Annotated[ImportRuleConditionResponse, Tag("condition")] | Annotated[ImportRuleGroupResponse, Tag("group")],
     Discriminator(_item_kind),
 ]
+
+
+class MatchImportRuleRow(BaseModel):
+    """One file row as the import page holds it, for the rules to be asked what they give it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # The merchant column of a file, or the payee of an OFX or QIF one
+    description: str | None = Field(None, max_length=MAX_IMPORT_MERCHANT_NAME_LENGTH)
+
+    # The notes column of a file, or the memo of an OFX or QIF one
+    note: str | None = Field(None, max_length=MAX_IMPORT_NOTES_LENGTH)
+
+    # The cell's own digits, read in the row's currency as the save reads them. Text that can't be
+    # read matches no Amount or Direction condition rather than failing the request, since the save
+    # refuses such a row before any rule runs
+    amount: str = Field(min_length=1, max_length=MAX_MATCH_ROW_AMOUNT_LENGTH)
+    currency: str = Field(pattern=r"^[A-Z]{3}$", max_length=3)
+
+    # None for an account the import is still to create
+    account_id: uuid.UUID | None = None
+    is_transfer: bool
+
+    # The tags the file gives the row, so a tag a rule adds that the file gives too counts for no rule
+    tag_names: list[ImportTagName] = Field(default=[], max_length=MAX_IMPORT_TAGS_PER_ROW)
+
+
+class MatchImportRulesRequest(BaseModel):
+    """File rows to ask the rules about, at most one batch of an import."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rows: list[MatchImportRuleRow] = Field(min_length=1, max_length=MAX_IMPORT_BATCH_ROWS)
+
+
+class ImportRuleReference(BaseModel):
+    """The rule a value came from."""
+
+    id: uuid.UUID
+    name: str
+
+
+class ImportRuleGivenValue(BaseModel):
+    """A merchant, category or tag the rules give a row, with the rule that gave it."""
+
+    id: uuid.UUID
+    name: str
+    rule: ImportRuleReference
+
+
+class ImportRuleRowMatch(BaseModel):
+    """What the rules give one row, empty for a row they leave alone."""
+
+    merchant: ImportRuleGivenValue | None
+    category: ImportRuleGivenValue | None
+
+    # Only the tags the file does not already give the row
+    tags: list[ImportRuleGivenValue]
+
+    # How many tags the row ends with, the file's and the rules', so a row past what one transaction
+    # carries is named as the save refuses it
+    tag_count: int
+
+
+class ImportRuleRowCount(BaseModel):
+    """How many rows a rule gave a value the row ends with."""
+
+    rule: ImportRuleReference
+    row_count: int
+
+
+class MatchImportRulesResponse(BaseModel):
+    """What the rules give each row in the order sent, and each rule's count."""
+
+    rows: list[ImportRuleRowMatch]
+
+    # Only the rules that gave something, first checked first
+    rules: list[ImportRuleRowCount]
+
+    # Changes whenever the rules the answer came from changed, so batches of one file that came from
+    # different rules are told apart
+    rules_version: str
 
 
 class ImportRuleResponse(BaseModel):
