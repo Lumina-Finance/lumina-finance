@@ -25,10 +25,15 @@ export function FxStatusBadge({
   tone,
 }: FxStatusBadgeProps) {
   if (!fxStatus) return null
-  const message = getMessage(fxStatus) ?? FX_STATUS_FALLBACK_MESSAGE
+
+  // Amounts left out because converting them is refused say why, in the neutral tone of a total that
+  // used no conversion, whatever message or tone the caller would give
+  const { withheld_reason: withheldReason } = fxStatus
+  const message = withheldReason || (getMessage(fxStatus) ?? FX_STATUS_FALLBACK_MESSAGE)
+  const fxTone = withheldReason ? 'gray' : (tone ?? getFxStatusTone(fxStatus))
 
   return (
-    <IconTooltip label={label} icon="fx" fxTone={tone ?? getFxStatusTone(fxStatus)} placement={placement}>
+    <IconTooltip label={label} icon="fx" fxTone={fxTone} placement={placement}>
       <span className="block">{message}</span>
       {fxStatus.missing_pairs.length > 0 && (
         <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>

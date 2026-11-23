@@ -15,6 +15,14 @@ export function formatMissingFxPairs(missingPairs: FxRateIssue[]) {
  * Combines multiple widget FX states into one status while deduplicating missing pairs
  */
 export function combineFxStatuses(statuses: Array<FxStatus | undefined | null>): FxStatus {
+  const combined = combineActiveFxStatuses(statuses)
+
+  // A part that left amounts out keeps its reason, whatever state the other parts are in
+  const withheldReason = statuses.find((status) => status?.withheld_reason)?.withheld_reason
+  return withheldReason ? { ...combined, withheld_reason: withheldReason } : combined
+}
+
+function combineActiveFxStatuses(statuses: Array<FxStatus | undefined | null>): FxStatus {
   const activeStatuses = statuses.filter((status): status is FxStatus => status != null && status.state !== 'none')
 
   if (activeStatuses.length === 0) return { state: 'none', missing_pairs: [] }
