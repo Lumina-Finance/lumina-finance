@@ -435,6 +435,7 @@ export async function applyImportDates(page: Page): Promise<void> {
  */
 export async function typeDate(page: Page, label: string, iso: string): Promise<Locator> {
   const field = page.getByRole('group', { name: label, exact: true })
+  await waitForInitialFocus(page, field)
   const [year, month, day] = iso.split('-')
   await field.getByRole('textbox', { name: 'Year', exact: true }).fill(year)
   await field.getByRole('textbox', { name: 'Month', exact: true }).fill(month)
@@ -729,6 +730,23 @@ const MAX_SETTLE_FRAMES = 300
  */
 export async function nextFrame(page: Page): Promise<void> {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)))
+}
+
+/**
+ * Waits until a dialogue's one-shot request for its opening focus has run, so it cannot move focus into
+ * another field while the test types
+ *
+ * The dialogue asks for that focus once, on the frame after it mounts, and focusing selects a date segment's
+ * digits, so it can land between a fill focusing a box and inserting the text. The request was made before the
+ * field showed, so one frame after the field shows it has run, or it found no field and never moves focus.
+ * Outside a dialogue this is a frame's wait and no more
+ *
+ * @param page - Page showing the field
+ * @param field - A field, or a group of them, that the test is about to type into
+ */
+export async function waitForInitialFocus(page: Page, field: Locator): Promise<void> {
+  await expect(field).toBeVisible()
+  await nextFrame(page)
 }
 
 /**
