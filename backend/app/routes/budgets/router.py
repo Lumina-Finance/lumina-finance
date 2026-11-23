@@ -61,7 +61,7 @@ async def get_budget(
     Raises:
         HTTPException: User does not have read access
     """
-    budget = await get_budget_response_for_user(db, budget_id, user.id)
+    budget = await get_budget_response_for_user(db, budget_id, user)
     return budget
 
 
@@ -81,7 +81,7 @@ async def delete_budget(
     Raises:
         HTTPException: User does not have admin access
     """
-    await delete_budget_for_user(db, budget_id, user.id)
+    await delete_budget_for_user(db, budget_id, user)
 
 
 @router.patch("/{budget_id}", response_model=BudgetResponse)
@@ -108,7 +108,7 @@ async def update_budget(
     Raises:
         HTTPException: User does not have admin access or update fields are invalid
     """
-    budget = await update_budget_for_user(db, budget_id, user.id, data)
+    budget = await update_budget_for_user(db, budget_id, user, data)
     return budget
 
 
@@ -128,4 +128,4 @@ async def get_budgets(
     Returns:
         One budget instance per base budget visible through ownership, group admin membership, or explicit permission
     """
-    return await get_visible_budget_responses(db, user.id)
+    return await get_visible_budget_responses(db, user)

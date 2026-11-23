@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.category import Category
+from app.models.user import User
 from app.schemas.budget import BaseBudgetResponse, BudgetResponse
+from app.services.allowance.currency import attach_read_only_reasons
 
 
 async def load_tracked_categories(
@@ -92,6 +94,7 @@ def build_budget_response(
 
 async def get_budget_response(
     db: AsyncSession,
+    user: User,
     budget: Budget,
     base_budget: BaseBudget,
 ) -> BudgetResponse:
@@ -99,12 +102,14 @@ async def get_budget_response(
 
     Args:
         db: Active database session
+        user: Authenticated user receiving the response
         budget: Budget instance row
         base_budget: Parent base budget row
 
     Returns:
         Budget instance response with tracked category IDs from the parent base budget
     """
+    await attach_read_only_reasons(db, user, [base_budget])
     # Fetch active tracked categories for this base budget before building the embedded response
     tracked_categories_by_base_budget = await load_tracked_categories(db, [base_budget.id])
     return build_budget_response(budget, base_budget, tracked_categories_by_base_budget.get(base_budget.id, []))

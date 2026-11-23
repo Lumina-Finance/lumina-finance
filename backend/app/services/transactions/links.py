@@ -18,7 +18,7 @@ from app.permissions import check_transaction_access
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
-    validate_transaction_account_is_not_archived,
+    require_writable_account,
 )
 from app.services.transactions.bulk_access import lock_transactions
 
@@ -112,7 +112,7 @@ async def validate_refund_original(
     # Locked so an edit or delete of the expense cannot slip past the link being made
     original = await check_transaction_access(db, original_id, user.id, PermissionLevel.READ, lock_for_update=True)
     original_account = await get_parent_account_for_transaction(db, original)
-    validate_transaction_account_is_not_archived(original_account)
+    await require_writable_account(db, user, original_account)
     if original_account.group_id is not None or refund_account.group_id is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -249,7 +249,7 @@ async def link_existing_refund(
     """
     refund = await check_transaction_access(db, refund_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
     refund_account = await get_parent_account_for_transaction(db, refund)
-    validate_transaction_account_is_not_archived(refund_account)
+    await require_writable_account(db, user, refund_account)
     if refund_id == original_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="A transaction can't refund itself")
     if (await db.execute(select(TransactionLink.id).where(TransactionLink.refund_transaction_id == refund_id))).first() is not None:
@@ -278,7 +278,7 @@ async def unlink_refund(db: AsyncSession, user: User, refund_id: uuid.UUID) -> N
     """
     refund = await check_transaction_access(db, refund_id, user.id, PermissionLevel.WRITE, lock_for_update=True)
     refund_account = await get_parent_account_for_transaction(db, refund)
-    validate_transaction_account_is_not_archived(refund_account)
+    await require_writable_account(db, user, refund_account)
 
     link = (
         await db.execute(

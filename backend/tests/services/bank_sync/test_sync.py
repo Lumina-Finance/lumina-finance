@@ -316,7 +316,7 @@ async def _listing(connection: BankConnection) -> tuple[bool, list[str]]:
     """Return whether the connection shows a listing pending, and the bank accounts it lists, as its owner sees them"""
     async with TestSession() as session:
         stored = await session.get(BankConnection, connection.id)
-        [response] = await build_connection_responses(session, connection.owner_id, [stored])
+        [response] = await build_connection_responses(session, await session.get(User, connection.owner_id), [stored])
     return response.discovery_pending, [account.external_id for account in response.accounts]
 
 

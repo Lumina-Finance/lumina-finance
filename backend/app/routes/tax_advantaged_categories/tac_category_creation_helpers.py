@@ -12,7 +12,7 @@ from app.routes.tax_advantaged_categories.tac_category_helpers import (
     validate_tax_advantaged_category_tax_treatment,
 )
 from app.schemas.tax_advantaged_category import CreateTaxAdvantagedCategoryRequest
-from app.services.allowance.currency import require_currency
+from app.services.allowance.currency import attach_read_only_reasons, require_currency
 from app.services.allowance.require import require_allowance
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.tax_advantaged_categories import attach_tax_advantaged_category_metrics, get_category_owner_timezones
@@ -56,4 +56,5 @@ async def create_tax_advantaged_category_with_metrics(
     await db.commit()
     await db.refresh(tax_advantaged_category)
     await attach_tax_advantaged_category_metrics(db, [tax_advantaged_category], owner_timezones)
+    await attach_read_only_reasons(db, user, [tax_advantaged_category])
     return tax_advantaged_category

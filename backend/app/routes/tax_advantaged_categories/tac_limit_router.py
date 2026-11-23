@@ -68,7 +68,7 @@ async def create_tax_advantaged_category_limit(
     Raises:
         HTTPException: Tax-advantaged category is inaccessible or the year already has a limit row
     """
-    limit_row = await create_tac_limit_for_owned_tax_advantaged_category(db, tax_advantaged_category_id, user.id, data)
+    limit_row = await create_tac_limit_for_owned_tax_advantaged_category(db, tax_advantaged_category_id, user, data)
     return limit_row
 
 
@@ -95,7 +95,7 @@ async def update_tax_advantaged_category_limit(
     Raises:
         HTTPException: Tax-advantaged category or limit row is inaccessible, missing, or invalid
     """
-    limit_row = await update_tac_limit_for_owned_tax_advantaged_category(db, tax_advantaged_category_id, year, user.id, data)
+    limit_row = await update_tac_limit_for_owned_tax_advantaged_category(db, tax_advantaged_category_id, year, user, data)
     return limit_row
 
 
@@ -117,4 +117,4 @@ async def delete_tax_advantaged_category_limit(
     Raises:
         HTTPException: Tax-advantaged category or limit row is inaccessible or missing
     """
-    await delete_tac_limit_for_owned_tax_advantaged_category(db, tax_advantaged_category_id, year, user.id)
+    await delete_tac_limit_for_owned_tax_advantaged_category(db, tax_advantaged_category_id, year, user)

@@ -24,7 +24,7 @@ from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.accounts import (
     get_parent_account_for_transaction,
-    validate_transaction_account_is_not_archived,
+    require_writable_account,
 )
 from app.services.transactions.bank_transaction_ids import find_held_bank_transactions
 from app.services.transactions.links import refuse_broken_links
@@ -115,7 +115,7 @@ async def apply_transaction_update(
     """
     # Load the persisted parent account for archive validation and cache scope updates
     current_account = await get_parent_account_for_transaction(db, txn)
-    validate_transaction_account_is_not_archived(current_account)
+    await require_writable_account(db, user, current_account)
 
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
@@ -136,7 +136,7 @@ async def apply_transaction_update(
             PermissionLevel.WRITE,
             lock_against_delete=True,
         )
-        validate_transaction_account_is_not_archived(new_account)
+        await require_writable_account(db, user, new_account)
         account_group_id = new_account.group_id
         # Naming the account it is already in moves nothing, so a stored currency mismatch is not asked about
         if new_account.id != txn.account_id:

@@ -67,6 +67,9 @@ class TaxAdvantagedCategoryResponse(BaseModel):
     lifetime_withdrawals: int
     created_at: datetime
 
+    # The installed check's sentence while the category's currency keeps it read-only, or None
+    read_only_reason: str | None
+
     model_config = {"from_attributes": True}
 
 

@@ -92,7 +92,7 @@ async def create_base_budget_and_get_response(
     await db.commit()
     await db.refresh(base_budget)
 
-    response = await get_base_budget_response(db, base_budget)
+    response = await get_base_budget_response(db, user, base_budget)
     return response
 
 

@@ -4,8 +4,10 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.user import User
 from app.routes.tax_advantaged_categories.tac_category_helpers import get_owned_tax_advantaged_category_or_404
 from app.routes.tax_advantaged_categories.tac_limit_helpers import get_tac_limit_or_404
+from app.services.allowance.currency import require_writable_record
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
@@ -13,21 +15,25 @@ async def delete_tac_limit_for_owned_tax_advantaged_category(
     db: AsyncSession,
     tax_advantaged_category_id: uuid.UUID,
     year: int,
-    owner_id: uuid.UUID,
+    user: User,
 ) -> None:
     """Delete a yearly TAC limit after checking category ownership
+
+    A yearly limit is part of its category, so a read-only category keeps every limit. The category
+    itself can still be deleted
 
     Args:
         db: Active database session
         tax_advantaged_category_id: Tax-advantaged category identifier that owns the limit row
         year: Year to delete
-        owner_id: Authenticated owner identifier
+        user: Authenticated owner
 
     Raises:
-        HTTPException: Tax-advantaged category or limit row is inaccessible or missing
+        HTTPException: Tax-advantaged category or limit row is inaccessible, missing or read-only
     """
-    tax_advantaged_category = await get_owned_tax_advantaged_category_or_404(db, tax_advantaged_category_id, owner_id)
+    tax_advantaged_category = await get_owned_tax_advantaged_category_or_404(db, tax_advantaged_category_id, user.id)
     limit_row = await get_tac_limit_or_404(db, tax_advantaged_category_id, year)
+    await require_writable_record(db, user, tax_advantaged_category)
 
     # Mark the tax-advantaged category scope stale before deleting the yearly limit
     await mark_cache_changed_for_scope(db, user_id=tax_advantaged_category.category_owner_user_id, group_id=tax_advantaged_category.group_id)

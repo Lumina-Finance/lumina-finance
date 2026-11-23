@@ -9,11 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import PermissionLevel
 from app.models.budget import BaseBudget, Budget
+from app.models.user import User
 from app.permissions import check_base_budget_access
-from app.routes.base_budgets.response_helpers import get_budget_instance_response
 from app.schemas.budget import BudgetResponse, CreateBudgetRequest
+from app.services.allowance.currency import require_writable_record
 from app.services.budgets.limits import lock_base_budget_periods, remove_oldest_periods_for_new_one
 from app.services.budgets.periods import compute_period_end, iter_period_starts_through, validate_period_start
+from app.services.budgets.response_helpers import get_budget_response
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
@@ -84,26 +86,35 @@ def add_initial_budget_instances(
 
 async def create_budget_instance_and_get_response(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    user: User,
     base_budget_id: uuid.UUID,
     data: CreateBudgetRequest,
+    today: date,
 ) -> BudgetResponse:
     """Create a budget instance and return its API response
 
+    A read-only budget still starts its next periods on schedule, each one after the latest
+    period, already begun and keeping the latest period's limit. Any other period changes the
+    budget, so the read-only budget refuses it
+
     Args:
         db: Active database session
-        user_id: Authenticated user identifier
+        user: Authenticated user creating the budget instance
         base_budget_id: Base budget identifier receiving the budget instance
         data: Budget instance creation request body
+        today: Current date in the user's timezone
 
     Returns:
         Created budget instance response
 
     Raises:
-        HTTPException: User lacks admin access, period start is invalid, or period overlaps
+        HTTPException: User lacks admin access, the budget's currency keeps it read-only, period
+            start is invalid, or period overlaps
     """
-    base_budget = await check_base_budget_access(db, base_budget_id, user_id, PermissionLevel.ADMIN)
+    base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.ADMIN)
     _raise_if_base_budget_archived(base_budget)
+    if not await _is_scheduled_period(db, base_budget, data, today):
+        await require_writable_record(db, user, base_budget)
     _validate_budget_instance_period_start(base_budget, data)
     period_end = compute_period_end(
         data.period_start,
@@ -130,8 +141,23 @@ async def create_budget_instance_and_get_response(
     await db.commit()
     await db.refresh(budget)
 
-    response = await get_budget_instance_response(db, budget, base_budget)
+    response = await get_budget_response(db, user, budget, base_budget)
     return response
+
+
+async def _is_scheduled_period(db: AsyncSession, base_budget: BaseBudget, data: CreateBudgetRequest, today: date) -> bool:
+    """Return whether a new period is one the budget's schedule starts: after its latest period, already begun and keeping that period's limit
+
+    Args:
+        db: Active database session
+        base_budget: Base budget receiving the period
+        data: Budget instance creation request body
+        today: Current date in the user's timezone
+    """
+    latest = await db.scalar(
+        select(Budget).where(Budget.base_budget_id == base_budget.id).order_by(Budget.period_start.desc(), Budget.created_at.desc()).limit(1)
+    )
+    return latest is not None and latest.period_end < data.period_start <= today and data.overall_limit == latest.overall_limit
 
 
 def _validate_budget_instance_period_start(base_budget: BaseBudget, data: CreateBudgetRequest) -> None:

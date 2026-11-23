@@ -53,6 +53,7 @@ from app.schemas.bank_sync import (
     UnlinkResponse,
 )
 from app.services.accounts.access import get_own_personal_account
+from app.services.allowance.currency import require_writable_record
 from app.services.bank_sync.availability import (
     LINK_NOT_OWN_DETAIL,
     LIVE_LINK,
@@ -191,6 +192,7 @@ async def link_bank_account(
     """
     await require_bank_linking(user.id)
     account = await _get_account_to_link(db, user, account_id, lock=True)
+    await require_writable_record(db, user, account)
     connection, adapter = await _get_working_connection(db, user.id, request.connection_id, lock=True)
 
     # Shared, so a discovery that would stop listing it waits until the link exists and moves it too

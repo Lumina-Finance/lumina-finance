@@ -55,6 +55,7 @@ async def test_get_budget_returns_200(client):
         "is_archived",
         "created_at",
         "category_ids",
+        "read_only_reason",
     }
     # Instance fields
     assert data["id"] == instance_id

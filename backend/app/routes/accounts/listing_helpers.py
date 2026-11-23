@@ -12,6 +12,7 @@ from app.models.group import GroupMember
 from app.models.user import User
 from app.permissions.accounts import attach_account_write_capabilities
 from app.routes.accounts.balance_field_helpers import attach_account_balance_fields
+from app.services.allowance.currency import attach_read_only_reasons
 
 
 async def get_account_overviews_for_user(
@@ -31,6 +32,7 @@ async def get_account_overviews_for_user(
     """
     accounts = await get_accounts_visible_to_user(db, user.id)
     await attach_account_write_capabilities(db, accounts, user.id)
+    await attach_read_only_reasons(db, user, accounts)
 
     # Attach balance fields after access filtering so each account has overview totals
     await attach_account_balance_fields(db, accounts, user, as_of_date)

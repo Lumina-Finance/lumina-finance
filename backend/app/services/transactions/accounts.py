@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.transaction import Transaction
+from app.models.user import User
+from app.services.allowance.currency import require_writable_record
 
 
 async def get_parent_account_for_transaction(db: AsyncSession, txn: Transaction) -> Account:
@@ -41,3 +43,22 @@ def validate_transaction_account_is_not_archived(account: Account) -> None:
     """
     if account.is_archived:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
+
+
+async def require_writable_account(db: AsyncSession, user: User, account: Account) -> None:
+    """Ensure a transaction can be added to an account or changed in it
+
+    An archived account takes no new history, and neither does one whose currency the installed
+    check keeps read-only. Deleting a transaction asks only about archiving, so a read-only
+    account's history can always be cleared
+
+    Args:
+        db: Active database session
+        user: The user making the change
+        account: Account being used by a transaction write
+
+    Raises:
+        HTTPException: 422 when the account is archived, 403 with the check's sentence when it is read-only
+    """
+    validate_transaction_account_is_not_archived(account)
+    await require_writable_record(db, user, account)

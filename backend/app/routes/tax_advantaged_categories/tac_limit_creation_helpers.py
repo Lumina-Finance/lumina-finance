@@ -6,9 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.allowance_hook import AllowanceKind
 from app.models.account import TaxAdvantagedCategoryLimit
+from app.models.user import User
 from app.routes.tax_advantaged_categories.tac_category_helpers import get_owned_tax_advantaged_category_or_404
 from app.routes.tax_advantaged_categories.tac_limit_helpers import build_tac_limit, validate_tac_limit_year_available
 from app.schemas.tax_advantaged_category import CreateTaxAdvantagedCategoryLimitRequest
+from app.services.allowance.currency import require_writable_record
 from app.services.allowance.require import require_allowance
 from app.services.cache_state import mark_cache_changed_for_scope
 
@@ -16,7 +18,7 @@ from app.services.cache_state import mark_cache_changed_for_scope
 async def create_tac_limit_for_owned_tax_advantaged_category(
     db: AsyncSession,
     tax_advantaged_category_id: uuid.UUID,
-    owner_id: uuid.UUID,
+    user: User,
     data: CreateTaxAdvantagedCategoryLimitRequest,
 ) -> TaxAdvantagedCategoryLimit:
     """Create a yearly TAC limit after checking category ownership
@@ -24,18 +26,19 @@ async def create_tac_limit_for_owned_tax_advantaged_category(
     Args:
         db: Active database session
         tax_advantaged_category_id: Tax-advantaged category identifier that owns the limit row
-        owner_id: Authenticated owner identifier
+        user: Authenticated owner
         data: Yearly limit creation payload
 
     Returns:
         Created yearly TAC limit
 
     Raises:
-        HTTPException: Tax-advantaged category is inaccessible or the year already has a limit row
+        HTTPException: Tax-advantaged category is inaccessible or read-only, or the year already has a limit row
     """
-    tax_advantaged_category = await get_owned_tax_advantaged_category_or_404(db, tax_advantaged_category_id, owner_id)
+    tax_advantaged_category = await get_owned_tax_advantaged_category_or_404(db, tax_advantaged_category_id, user.id)
+    await require_writable_record(db, user, tax_advantaged_category)
     await validate_tac_limit_year_available(db, tax_advantaged_category_id, data.year)
-    await require_allowance(db, owner_id, AllowanceKind.TAX_ADVANTAGED_CATEGORY_LIMIT, group_id=tax_advantaged_category.group_id)
+    await require_allowance(db, user.id, AllowanceKind.TAX_ADVANTAGED_CATEGORY_LIMIT, group_id=tax_advantaged_category.group_id)
 
     limit_row = build_tac_limit(tax_advantaged_category_id, data)
     db.add(limit_row)

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.schemas.bank_sync import AccountBankStatusResponse
 from app.services.accounts.balance_adjustments import add_balance_adjustment
+from app.services.allowance.currency import require_writable_record
 from app.services.bank_sync.account_link import commit_with_account_bank_status
 from app.services.bank_sync.availability import read_provider_labels
 from app.services.bank_sync.balance_comparison import compare_bank_balance, describe_balance_match, match_adjustment_date
@@ -50,6 +51,7 @@ async def record_balance_match(db: AsyncSession, user: User, account_id: uuid.UU
         HTTPException 422: The profile's timezone no longer resolves
     """
     account, link = await lock_live_link(db, user, account_id)
+    await require_writable_record(db, user, account)
 
     # Held shared, as the check on the days a bank supplies holds the account for any other write to
     # a linked account's transactions, and after the links, as that check takes it under a review

@@ -42,7 +42,7 @@ async def list_tax_advantaged_categories(
     Raises:
         HTTPException: Owner row cannot be read, or its stored timezone is not a zone the app recognizes
     """
-    tax_advantaged_categories = await get_tax_advantaged_categories_with_metrics_for_owner(db, user.id)
+    tax_advantaged_categories = await get_tax_advantaged_categories_with_metrics_for_owner(db, user)
     return tax_advantaged_categories
 
 
@@ -90,7 +90,7 @@ async def get_tax_advantaged_category(
         HTTPException: Tax-advantaged category does not exist, belongs to another user, the owner row
             cannot be read, or its stored timezone is not a zone the app recognizes
     """
-    tax_advantaged_category = await get_tax_advantaged_category_with_metrics_for_owner(db, tax_advantaged_category_id, user.id)
+    tax_advantaged_category = await get_tax_advantaged_category_with_metrics_for_owner(db, tax_advantaged_category_id, user)
     return tax_advantaged_category
 
 
@@ -116,7 +116,7 @@ async def update_tax_advantaged_category(
         HTTPException: Tax-advantaged category is inaccessible, a supplied field is invalid, the owner
             row cannot be read, or its stored timezone is not a zone the app recognizes
     """
-    tax_advantaged_category = await update_tax_advantaged_category_with_metrics(db, tax_advantaged_category_id, user.id, data)
+    tax_advantaged_category = await update_tax_advantaged_category_with_metrics(db, tax_advantaged_category_id, user, data)
     return tax_advantaged_category
 
 
