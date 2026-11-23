@@ -133,3 +133,21 @@ async def test_rates_status_holds_steady_for_a_user_whose_other_currencies_are_r
     assert first.status_code == 200
     assert len(first.json()["digest"]) == 64
     assert second.json() == first.json()
+
+
+async def test_rates_status_stays_unknown_for_a_group_member_whose_group_amounts_still_convert(client, published_valkey):
+    """A group's US account still converts for a refused member, and no pair is recorded yet, so the digest stays unknown"""
+    headers = _get_auth_header(await _create_user(client))
+    async with TestSession() as session:
+        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
+        await session.commit()
+    assert (await _create_account(client, headers, name="USD Cash", currency="USD")).status_code == 201
+    group = await client.post("/groups", json={"name": "Household"}, headers=headers)
+    joint = await _create_account(client, headers, name="USD Joint", currency="USD", group_id=group.json()["id"])
+    assert joint.status_code == 201
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    response = await client.get("/me/rates-status", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json() == {"digest": None}

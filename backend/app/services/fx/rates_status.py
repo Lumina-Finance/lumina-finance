@@ -54,6 +54,34 @@ async def holds_other_currencies(db: AsyncSession, base_currency: str) -> bool:
     return False
 
 
+async def holds_group_other_currencies(db: AsyncSession, base_currency: str) -> bool:
+    """Return whether any group-owned row the user can see holds a currency other than their own
+
+    A group-owned amount converts even while amounts the user owns alone are left out, so a user
+    holding one still has figures that depend on rates
+
+    Args:
+        db: Session scoped to the user by row-level security
+        base_currency: The user's own currency
+
+    Returns:
+        True as soon as one such row is found
+    """
+    window_start, _today = _get_unsettled_window(datetime.now(UTC).date())
+    queries = (
+        select(Account.id).where(Account.group_id.is_not(None), Account.currency != base_currency),
+        select(TaxAdvantagedCategory.id).where(TaxAdvantagedCategory.group_id.is_not(None), TaxAdvantagedCategory.currency != base_currency),
+        select(BaseBudget.id).where(BaseBudget.group_id.is_not(None), BaseBudget.currency != base_currency),
+        select(Transaction.id)
+        .join(Account, Account.id == Transaction.account_id)
+        .where(Account.group_id.is_not(None), Transaction.currency != base_currency, Transaction.dt >= window_start),
+    )
+    for query in queries:
+        if await db.scalar(select(query.exists())):
+            return True
+    return False
+
+
 # Longest one request waits for the rates, however many pairs there are. The browser asks after it
 # has opened, so a slow provider costs a late refresh and never a held screen
 RATES_STATUS_BUDGET_SECONDS = 4.0
@@ -121,8 +149,9 @@ async def get_rates_digest(
         user_id: User whose converted pairs to read
         holds_other_currencies: Whether any row the user sees holds a currency other than their
             own, so their figures need conversions
-        withholds_conversion: Whether the server leaves amounts in other currencies out of
-            their totals, so no rate was looked up for them and no pair recorded
+        withholds_conversion: Whether every amount in another currency the user sees is theirs
+            alone and left out of their totals, so no rate was looked up for them and no pair
+            recorded. False when a group-owned one remains, since that still converts
         provider: Source of rates the cache lacks, the usual provider when omitted
 
     Returns:
