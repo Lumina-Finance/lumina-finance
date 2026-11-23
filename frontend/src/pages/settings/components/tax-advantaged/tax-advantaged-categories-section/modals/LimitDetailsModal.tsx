@@ -115,7 +115,7 @@ export default function TaxAdvantagedLimitDetailsModal({
                 spacingClassName="mb-1"
               />
               <div
-                className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors hover:border-[var(--app-border)] app-field-focus"
+                className="group flex h-9 w-full items-center gap-1.5 rounded-md border border-transparent px-2 transition-field hover:border-[var(--app-border)] app-field-focus"
                 style={getCompactFieldFrameStyle(!!problems.year)}
               >
                 <input

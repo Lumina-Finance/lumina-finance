@@ -1225,6 +1225,174 @@ test('shows the keyboard focus ring at once with reduced motion', async ({ page,
   expect(await readRingFades(page, rowButton, box)).toEqual({ atOnce: 1, fadeIn: null, fadeOut: null })
 })
 
+/**
+ * Moves focus onto `target` and off it again by keyboard, the way a Tab does, and reads how the focus
+ * look of the bordered field `frame` fades: its border colour and its inner line, each halfway through
+ * and with the length of its transition. Both happen in one step in the page, so the transitions are
+ * read the instant they start. Null where nothing fades, because the look switches at once
+ */
+async function readFieldFades(page: Page, target: Locator, frame: Locator) {
+  await page.keyboard.press('Shift')
+  const targetHandle = await target.elementHandle()
+  return frame.evaluate((box, focusable) => {
+    const settle = () => box.getAnimations().forEach((animation) => animation.finish())
+    const midway = () => {
+      const read = (matches: (property: string) => boolean) => {
+        const fade = box.getAnimations().find((animation): animation is CSSTransition => animation instanceof CSSTransition && matches(animation.transitionProperty))
+        if (!fade) return null
+        const duration = Number(fade.effect!.getComputedTiming().duration)
+        fade.pause()
+        fade.currentTime = duration / 2
+        return { duration, drawn: fade.effect!.getComputedTiming().progress }
+      }
+      return { border: read((property) => property.startsWith('border-') && property.endsWith('-color')), line: read((property) => property === 'box-shadow') }
+    }
+
+    ;(focusable as HTMLElement).blur()
+    settle()
+    ;(focusable as HTMLElement).focus()
+    const atOnce = getComputedStyle(box).boxShadow
+    const fadeIn = midway()
+    settle()
+    ;(focusable as HTMLElement).blur()
+    const fadeOut = midway()
+    settle()
+    return { atOnce, fadeIn, fadeOut }
+  }, targetHandle!)
+}
+
+// A text field and the segmented date field show keyboard focus as a border in the focus colour with an
+// inner line beside it. Both fade in together over 150ms and out together over the shared 300ms, and the
+// ease-out has them about 0.96 drawn halfway. The inner line used to be no part of the field's transition,
+// so it appeared and went in one frame while the border faded. The pointer's look keeps the shared 300ms
+test('fades a field\'s border and inner line together on focus in and out', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await seedOneTransaction(page, request)
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+  const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
+  await amount.fill('12.50')
+  const dateField = dialog.getByRole('group', { name: 'Date', exact: true })
+
+  const expectFades = async (name: string, target: Locator, frame: Locator) => {
+    const fades = await readFieldFades(page, target, frame)
+    for (const [way, fade] of [['in', fades.fadeIn], ['out', fades.fadeOut]] as const) {
+      for (const part of ['border', 'line'] as const) {
+        expect(fade[part], `${name} ${part} fades ${way}`).not.toBeNull()
+        expect(fade[part]!.duration, `${name} ${part} fade ${way} length`).toBe(way === 'in' ? 150 : 300)
+        expect(fade[part]!.drawn, `${name} ${part} fade ${way} midway`).toBeCloseTo(0.96, 2)
+      }
+    }
+  }
+  const readHoverDurations = (frame: Locator) => frame.evaluate((box) => {
+    const style = getComputedStyle(box)
+    const durations = style.transitionDuration.split(', ')
+    return Object.fromEntries(style.transitionProperty.split(', ').map((property, index) => [property, durations[index % durations.length]]))
+  })
+
+  await test.step('a text field', async () => {
+    await expectFades('Amount', amount, amount)
+    await amount.hover()
+    expect((await readHoverDurations(amount))['border-color'], 'Amount hover colour').toBe('0.3s')
+    await page.mouse.move(0, 0)
+  })
+  await test.step('the date field', async () => {
+    const year = dateField.getByRole('textbox', { name: 'Year', exact: true })
+    await expectFades('Date', year, dateField)
+    await dateField.hover({ position: { x: 4, y: 4 } })
+    expect((await readHoverDurations(dateField))['border-color'], 'Date hover colour').toBe('0.3s')
+  })
+})
+
+// A field in error fades its red border and inner line the same way
+test('fades the border and inner line of a field in error together', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings#tags')
+  await page.locator('#tags').getByRole('button', { name: 'Create tag', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Create tag' })
+  const field = dialog.getByRole('textbox', { name: 'Tag name', exact: true })
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(field).toHaveAttribute('aria-invalid', 'true')
+
+  const fades = await readFieldFades(page, field, field)
+  for (const [way, fade] of [['in', fades.fadeIn], ['out', fades.fadeOut]] as const) {
+    for (const part of ['border', 'line'] as const) {
+      expect(fade[part], `error ${part} fades ${way}`).not.toBeNull()
+      expect(fade[part]!.duration, `error ${part} fade ${way} length`).toBe(way === 'in' ? 150 : 300)
+    }
+  }
+})
+
+// A date field with its calendar open draws the same lit look without a focused segment, so it fades in over
+// the focus length too
+test('fades a date field\'s lit look in over the focus length while its calendar is open', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await seedOneTransaction(page, request)
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+  const dateField = dialog.getByRole('group', { name: 'Date', exact: true })
+  await dialog.getByRole('button', { name: 'Open calendar', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Choose date', exact: true })).toBeVisible()
+  const durations = await dateField.evaluate((box) => {
+    const style = getComputedStyle(box)
+    const lengths = style.transitionDuration.split(', ')
+    const at = (property: string) => lengths[style.transitionProperty.split(', ').indexOf(property) % lengths.length]
+    return { border: at('border-color'), line: at('box-shadow') }
+  })
+  expect(durations, 'date field with its calendar open').toEqual({ border: '0.15s', line: '0.15s' })
+})
+
+// A transaction's select checkbox draws the same border and inner line on keyboard focus, so it fades them
+// together, in over 150ms and out over 300ms. Its checked fill keeps the shared 300ms
+test('fades a checkbox\'s border and inner line together on focus in and out', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const { box: row } = await seedOneTransaction(page, request)
+  await page.getByRole('button', { name: 'Select transactions', exact: true }).click()
+  const checkbox = row.getByRole('checkbox')
+  await page.mouse.move(0, 0)
+
+  const fades = await readFieldFades(page, checkbox, checkbox)
+  for (const [way, fade] of [['in', fades.fadeIn], ['out', fades.fadeOut]] as const) {
+    for (const part of ['border', 'line'] as const) {
+      expect(fade[part], `checkbox ${part} fades ${way}`).not.toBeNull()
+      expect(fade[part]!.duration, `checkbox ${part} fade ${way} length`).toBe(way === 'in' ? 150 : 300)
+    }
+  }
+  const fill = await checkbox.evaluate((box) => {
+    const style = getComputedStyle(box)
+    const durations = style.transitionDuration.split(', ')
+    return durations[style.transitionProperty.split(', ').indexOf('background-color') % durations.length]
+  })
+  expect(fill, 'checkbox fill').toBe('0.3s')
+
+  // A click focuses it with the pointer and draws no focus look, so checking it eases border and fill alike
+  await checkbox.click()
+  await expect(checkbox).toBeFocused()
+  const clicked = await checkbox.evaluate((box) => {
+    const style = getComputedStyle(box)
+    const durations = style.transitionDuration.split(', ')
+    const at = (property: string) => durations[style.transitionProperty.split(', ').indexOf(property) % durations.length]
+    return { border: at('border-color'), fill: at('background-color') }
+  })
+  expect(clicked, 'checkbox after a click').toEqual({ border: '0.3s', fill: '0.3s' })
+})
+
+// With reduced motion the border and the inner line appear and go at once
+test('draws a field\'s whole focus look at once with reduced motion', async ({ page, request }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await seedOneTransaction(page, request)
+  const dialog = await openModal(page, ['Add transaction'], 'Add transaction')
+  const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
+  await amount.fill('12.50')
+  const dateField = dialog.getByRole('group', { name: 'Date', exact: true })
+
+  for (const [target, frame] of [[amount, amount], [dateField.getByRole('textbox', { name: 'Year', exact: true }), dateField]] as const) {
+    const fades = await readFieldFades(page, target, frame)
+    expect(fades.atOnce).toMatch(/ 1px inset$/)
+    expect({ in: fades.fadeIn, out: fades.fadeOut }).toEqual({ in: { border: null, line: null }, out: { border: null, line: null } })
+  }
+})
+
 // Forced colours would draw the clear outline a control holds at rest, so none is held there
 test('holds no outline at rest in forced colours', async ({ page, request }) => {
   await page.emulateMedia({ forcedColors: 'active' })

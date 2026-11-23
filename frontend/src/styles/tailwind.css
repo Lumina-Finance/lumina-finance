@@ -24,6 +24,38 @@
     var(--app-ease-duration), var(--app-ease-duration), var(--app-focus-fade-duration);
 }
 
+/* The transition of a bordered field. Keyboard focus turns its border the focus colour and draws the inner
+   line beside it, and the two fade together in both directions, so the line never appears in one frame
+   while the border is still on its way. A transition takes its length from the look it ends in, so the
+   focused look fades in over --app-focus-fade-duration. The resting look fades over the shared duration,
+   whether a blur or the pointer leaving reached it, as the pointer's look does coming in. A date field's
+   lit looks, an open calendar and a highlighted step, count as focus. Reduced motion draws every part at
+   once */
+@utility transition-field {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-timing-function: var(--app-ease-curve);
+  transition-duration: var(--app-ease-duration);
+
+  &:focus-visible,
+  &:has(:focus-visible),
+  &:has([aria-expanded="true"]),
+  &[data-step-highlight="lit"] {
+    transition-duration:
+      var(--app-ease-duration), var(--app-ease-duration), var(--app-focus-fade-duration),
+      var(--app-focus-fade-duration), var(--app-ease-duration);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    &:focus-visible,
+    &:has(:focus-visible),
+    &:has([aria-expanded="true"]),
+    &[data-step-highlight="lit"] {
+      transition-duration: 0s;
+    }
+  }
+}
+
 /* Every hover: utility on a button also applies while the button is keyboard focused, so a button
    reached by keyboard looks as it does hovered. A button with a border of its own shows only that, and
    one without keeps the ring too (see the base rules below). The pointer part is Tailwind's own hover
@@ -831,7 +863,7 @@
   }
 
   .app-input {
-    @apply h-10 min-w-0 w-full rounded-lg border px-4 py-0 outline-none transition-colors;
+    @apply h-10 min-w-0 w-full rounded-lg border px-4 py-0 outline-none transition-field;
     font-size: 0.9375rem;
     background: var(--app-input-bg);
     border-color: var(--app-input-border);
@@ -914,7 +946,7 @@
   /* The segmented date control mirrors app-input as a flex row so the year, month, and day inputs sit
      inside one field frame, with focus-within standing in for the input focus ring */
   .app-date-field {
-    @apply flex h-10 min-w-0 w-full items-center rounded-lg border px-4 py-0 transition-colors;
+    @apply flex h-10 min-w-0 w-full items-center rounded-lg border px-4 py-0 transition-field;
     font-size: 0.9375rem;
     background: var(--app-input-bg);
     border-color: var(--app-input-border);
@@ -926,27 +958,13 @@
   }
 
   /* The calendar opens outside the field and takes focus, so the button that opened it keeps the
-     field looking focused until it closes */
+     field looking focused until it closes. A change made from another field lights the date with this
+     same look while focus stays where it is, and the field's own transition fades it in and out like focus */
   .app-date-field:focus-within,
   .app-date-field:has([aria-expanded="true"]),
   .app-date-field[data-step-highlight="lit"] {
     border-color: var(--app-focus-ring);
     box-shadow: var(--app-focus-border);
-  }
-
-  /* A change made from another field lights the date with this same look while focus stays where it is. The
-     light eases in and out over the focus fade on the app's curve, border and inner line together, and is
-     gone from the field the moment its state clears, so a field at rest keeps its own transition */
-  .app-date-field[data-step-highlight] {
-    transition-property: border-color, box-shadow;
-    transition-duration: var(--app-focus-fade-duration);
-    transition-timing-function: var(--app-ease-curve);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .app-date-field[data-step-highlight] {
-      transition: none;
-    }
   }
 
   .app-date-field.app-input-error {
@@ -2211,7 +2229,7 @@
      every other input, at rest, under the pointer and while focused, so searching reads as the same
      kind of control as typing anywhere else */
   .app-glass-input {
-    @apply min-w-0 border px-4 py-0 outline-none transition-colors;
+    @apply min-w-0 border px-4 py-0 outline-none transition-field;
     border-radius: 20px;
     font-size: 0.9375rem;
     color: var(--app-text);
