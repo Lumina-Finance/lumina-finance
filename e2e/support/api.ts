@@ -623,3 +623,35 @@ export async function seedNamedRows(
     expect(created.status()).toBe(201)
   }
 }
+
+/** What a ledger transaction says of the merchant, category and tags it was filed under */
+export type LedgerTransaction = {
+  merchant_name: string | null
+  category_id: string
+  tags: { name: string }[]
+}
+
+/**
+ * Reads every transaction in a user's ledger, a page at a time, as the list answers
+ *
+ * @param request - Playwright request context
+ * @param user - Ledger owner
+ * @returns The transactions in the list's order
+ * @throws When a page of the list does not answer 200
+ */
+export async function listLedgerTransactions(request: APIRequestContext, user: TestUser): Promise<LedgerTransaction[]> {
+  const transactions: LedgerTransaction[] = []
+  for (let offset = 0; ; offset += 50) {
+    const response = await request.get(`${API_BASE_URL}/transactions`, {
+      headers: asUser(user),
+      params: { limit: 50, offset },
+    })
+    if (response.status() !== 200) {
+      throw new Error(`listing transactions answered ${response.status()}: ${await response.text()}`)
+    }
+
+    const page = (await response.json()) as LedgerTransaction[]
+    transactions.push(...page)
+    if (page.length < 50) return transactions
+  }
+}
