@@ -257,7 +257,7 @@ export default function TransactionModalLinkedRefundsSection({
     last: boolean,
   ) => (
     <RevealRow key={key} testId="linked-row" className="-mx-2" spacingClassName="px-2">
-      <RefundChainGap />
+      <RefundChainGap place="above" />
       <RefundChainRow
         icon={iconOf(current)}
         merchantName={refund.merchant_name ?? NO_MERCHANT}
@@ -272,7 +272,7 @@ export default function TransactionModalLinkedRefundsSection({
         linkId={key}
         testId="linked-transaction"
       />
-      <RefundChainGap drawn={!last} />
+      <RefundChainGap place="below" drawn={!last} />
     </RevealRow>
   )
 
@@ -284,7 +284,7 @@ export default function TransactionModalLinkedRefundsSection({
         dt: savedRefunds[index]?.dt,
         row: (last: boolean) => (
           <RevealRow key={refundId} testId="linked-row" className="-mx-2" spacingClassName="px-2">
-            <RefundChainGap />
+            <RefundChainGap place="above" />
             <SavedRefundRow
               refundId={refundId}
               icon={iconOf(current)}
@@ -293,7 +293,7 @@ export default function TransactionModalLinkedRefundsSection({
               lineBelow={!last}
               testId="linked-transaction"
             />
-            <RefundChainGap drawn={!last} />
+            <RefundChainGap place="below" drawn={!last} />
           </RevealRow>
         ),
       })),
@@ -375,7 +375,7 @@ export default function TransactionModalLinkedRefundsSection({
                     <RefundChainLead />
                     {chainIds.map((id, index) => (
                       <div key={id}>
-                        <RefundChainGap />
+                        <RefundChainGap place="above" />
                         {id === current.id ? (
                           <RefundChainRow
                             icon={iconOf(original)}
@@ -408,7 +408,7 @@ export default function TransactionModalLinkedRefundsSection({
                             testId="refund-chain-sibling"
                           />
                         )}
-                        <RefundChainGap drawn={index < chainIds.length - 1} />
+                        <RefundChainGap place="below" drawn={index < chainIds.length - 1} />
                       </div>
                     ))}
                     {!siblingsLoadFailed && (

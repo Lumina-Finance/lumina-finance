@@ -31,11 +31,12 @@ const DASHES = {
   backgroundSize: '1px 6px',
 }
 
-// The dashed line that joins the rows, centred under the round icons
-function ChainLine({ className = '' }: { className?: string }) {
+// The dashed line that joins the rows, centred under the round icons. A stretch that ends on a whole gap leads the
+// stretch after it into a dash, so the dashes stay in step where two meet
+function ChainLine({ className = '', endsOnGap = false }: { className?: string; endsOnGap?: boolean }) {
   return (
     <span className={`flex w-9 shrink-0 justify-center self-stretch ${className}`} aria-hidden>
-      <span className="w-px" style={DASHES} />
+      <span className="w-px" style={endsOnGap ? { ...DASHES, backgroundPosition: 'bottom' } : DASHES} />
     </span>
   )
 }
@@ -51,26 +52,27 @@ function ChainSegment({ drawn, below = false }: { drawn: boolean; below?: boolea
 }
 
 /**
- * Half the dashed line between two refunds, drawn above and below each one. An unsaved refund's dashed border spreads
- * over both halves, so the border stays inside the refund's own row. That row clips as it grows and collapses. Under
- * the last refund the half keeps its room with no line, so the line ends at that refund's icon
+ * Part of the dashed line between two refunds, drawn inside each refund's own row. That row clips as it grows and
+ * collapses. The part takes 8px above the refund and 4px below it, so two refunds sit 12px apart. An unsaved refund's dashed border
+ * reaches 4px into each, and its "Unsaved" label, centred on the border's top edge, takes the rest of the room above.
+ * Under the last refund the part keeps its room with no line, so the line ends at that refund's icon
  */
-export function RefundChainGap({ drawn = true }: { drawn?: boolean }) {
+export function RefundChainGap({ place, drawn = true }: { place: 'above' | 'below'; drawn?: boolean }) {
   return (
-    <div className="flex h-1.5">
-      <ChainLine className={drawn ? '' : 'invisible'} />
+    <div className={`flex ${place === 'above' ? 'h-2' : 'h-1'}`}>
+      <ChainLine className={drawn ? '' : 'invisible'} endsOnGap={place === 'below'} />
     </div>
   )
 }
 
 /**
- * The dashed line under the expense. With the first refund's own half gap, it puts the refunds twice as far from the
+ * The dashed line under the expense. With the room above the first refund, it puts the refunds twice as far from the
  * expense as from each other, so the expense reads apart from them
  */
 export function RefundChainLead() {
   return (
-    <div className="flex h-4.5">
-      <ChainLine />
+    <div className="flex h-4">
+      <ChainLine endsOnGap />
     </div>
   )
 }
@@ -136,17 +138,31 @@ export function RefundChainRow({
 }: RefundChainRowProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   return (
-    // A link Save has yet to make sits in a dashed border in the warning colour, with no fill. The border reaches past the row by 8px on each side and 4px
-    // above and below, into the room between rows, and its padding takes that back. So the row keeps its place and
-    // height, and nothing moves when Save takes the border away. Two unsaved refunds in a row keep 4px of the 12px
-    // between them, so their borders never touch
+    // A link Save has yet to make sits in a dashed border in the warning colour, with no fill, and "Unsaved" sits on
+    // the border's top edge near its left corner. The border reaches past the row by 8px on each side and 4px above
+    // and below, into the room between rows, and its padding takes that back. So the row keeps its place and height,
+    // and nothing moves when Save takes the border away. Two unsaved refunds in a row keep 4px of the 12px between
+    // them, so their borders never touch
     <div
-      className={`flex items-center gap-3 ${notSaved ? '-mx-2 -my-1 rounded-lg border border-dashed px-[7px] py-[3px]' : ''}`}
+      className={`flex items-center gap-3 ${notSaved ? 'relative -mx-2 -my-1 rounded-lg border border-dashed px-[7px] py-[3px]' : ''}`}
       style={notSaved ? { borderColor: 'var(--app-warning-dot)' } : undefined}
       data-testid={testId}
       data-link-id={linkId}
       data-not-saved={notSaved ? 'true' : undefined}
     >
+      {/* The label's fill matches the window behind the box, so it breaks the dashes where it sits. Its line box is
+          shorter than its letters, so the fill hides only the border, never the row above. A screen reader hears
+          "not saved yet" after the name instead */}
+      {notSaved && (
+        <span
+          className="absolute left-2.5 top-[-0.5px] -translate-y-1/2 px-1 text-[10px] font-semibold uppercase leading-[6px] tracking-wider"
+          style={{ background: 'var(--app-bg)', color: 'var(--app-warning-text)' }}
+          aria-hidden
+          data-testid="unsaved-label"
+        >
+          Unsaved
+        </span>
+      )}
       {/* The icon stays centred on the row's text, with the line filling the room a wrapped row leaves around it */}
       <span className="flex w-9 shrink-0 flex-col items-center self-stretch">
         <ChainSegment drawn={lineAbove} />
@@ -230,7 +246,7 @@ export function RefundChainFooter({ room, currency, keepsUnlinkRoom }: RefundCha
   const { formatCurrency } = useMoneyFormatters()
   return (
     <div
-      className="mt-1.5 flex items-center gap-3 border-t pt-2.5 text-sm leading-5"
+      className="mt-2 flex items-center gap-3 border-t pt-2.5 text-sm leading-5"
       style={{ borderColor: 'var(--app-border)' }}
     >
       <span className="flex-1" style={{ color: 'var(--app-text-muted)' }}>
