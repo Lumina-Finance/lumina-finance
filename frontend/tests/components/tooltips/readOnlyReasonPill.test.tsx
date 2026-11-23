@@ -1,7 +1,7 @@
 /**
  * Guards the pill a read-only record shows its reason in. The pill stays one line, cutting a long reason
  * short, so the whole sentence has to reach the reader another way: the pill's own text holds all of it
- * for a screen reader, and the tooltip it carries shows all of it on hover or tap
+ * for a screen reader, and the tooltip it carries shows all of it on hover, tap or keyboard focus
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -21,7 +21,7 @@ describe('ReadOnlyReasonPill', () => {
   it('sits above a row’s press layer, so the hover and tap reach it', () => {
     const markup = renderToStaticMarkup(<ReadOnlyReasonPill id="row-read-only" reason={REASON} />)
 
-    expect(markup).toMatch(/<span id="row-read-only" data-testid="read-only-reason-pill" class="relative /)
+    expect(markup).toMatch(/<span id="row-read-only" data-testid="read-only-reason-pill" tabindex="0" class="relative /)
   })
 
   it('carries a tooltip with the reason, closed until a hover or a tap opens it', () => {
@@ -37,6 +37,13 @@ describe('ReadOnlyReasonPill', () => {
 
     expect(markup).not.toContain('hidden=""')
     expect(markup).not.toContain('aria-disabled')
+  })
+
+  it('takes keyboard focus, so the keyboard reaches the whole reason as a hover does', () => {
+    const markup = renderToStaticMarkup(<ReadOnlyReasonPill id="row-read-only" reason={REASON} />)
+
+    expect(markup).toMatch(/<span id="row-read-only" data-testid="read-only-reason-pill" tabindex="0" /)
+    expect(markup).toContain('focus-visible:outline-2')
   })
 
   it('gives itself an id when the caller names none', () => {
