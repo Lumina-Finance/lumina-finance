@@ -32,14 +32,29 @@ async def test_get_budget_returns_200(client):
     data = resp.json()
     # Lock the response key sets so a regression that adds or drops fields is loud
     assert set(data.keys()) == {
-        "id", "base_budget_id", "period_start", "period_end",
-        "overall_limit", "created_at", "base_budget",
+        "id",
+        "base_budget_id",
+        "period_start",
+        "period_end",
+        "overall_limit",
+        "created_at",
+        "base_budget",
     }
     assert set(data["base_budget"].keys()) == {
-        "id", "owner_id", "group_id", "name", "currency",
-        "recurrence_freq", "instance_length", "recurrence_weekday",
-        "recurrence_dom", "recurrence_month", "recurs", "is_archived",
-        "created_at", "category_ids",
+        "id",
+        "owner_id",
+        "group_id",
+        "name",
+        "currency",
+        "recurrence_freq",
+        "instance_length",
+        "recurrence_weekday",
+        "recurrence_dom",
+        "recurrence_month",
+        "recurs",
+        "is_archived",
+        "created_at",
+        "category_ids",
     }
     # Instance fields
     assert data["id"] == instance_id
@@ -103,7 +118,10 @@ async def test_get_group_budget_as_admin(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
     instance_id = instance_resp.json()["id"]
@@ -133,7 +151,10 @@ async def test_get_group_budget_as_non_admin_without_permission_returns_404(clie
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
     instance_id = instance_resp.json()["id"]
@@ -153,7 +174,10 @@ async def test_get_group_budget_as_non_member_returns_404(client):
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
     instance_id = instance_resp.json()["id"]
@@ -178,7 +202,10 @@ async def test_get_group_budget_with_read_permission(client):
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
     instance_resp = await _create_budget_instance(client, headers, base_budget_id)
@@ -208,7 +235,9 @@ async def test_get_budget_excludes_soft_deleted_categories(client):
     cat_keep = await _create_category(client, headers, name="Test Category A")
     cat_remove = await _create_category(client, headers, name="Test Category B")
     base_resp = await _create_base_budget(
-        client, headers, category_ids=[cat_keep, cat_remove],
+        client,
+        headers,
+        category_ids=[cat_keep, cat_remove],
     )
     base_budget_id = base_resp.json()["id"]
     instance_resp = await _create_budget_instance(client, headers, base_budget_id)
@@ -246,7 +275,10 @@ async def test_get_group_budget_promoted_admin_sees_instance(client):
 
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
     instance_id = instance_resp.json()["id"]
@@ -271,7 +303,10 @@ async def test_get_group_budget_with_write_permission(client):
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
     instance_resp = await _create_budget_instance(client, headers, base_budget_id)
@@ -303,7 +338,10 @@ async def test_get_group_budget_with_admin_permission(client):
     )
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     base_budget_id = base_resp.json()["id"]
     instance_resp = await _create_budget_instance(client, headers, base_budget_id)
@@ -330,18 +368,26 @@ async def test_get_group_budget_as_admin_of_different_group_returns_404(client):
     # Other user creates their own group (so they're an admin of group B)
     other_group_id = await _create_group(client, other_headers)
     other_group_cat_id = await _create_category(
-        client, other_headers, name="Other Group Cat", group_id=other_group_id,
+        client,
+        other_headers,
+        name="Other Group Cat",
+        group_id=other_group_id,
     )
     await _create_base_budget(
-        client, other_headers,
-        group_id=other_group_id, category_ids=[other_group_cat_id],
+        client,
+        other_headers,
+        group_id=other_group_id,
+        category_ids=[other_group_cat_id],
     )
 
     # Original user creates group A and an instance the cross-admin shouldn't see
     group_id = await _create_group(client, headers)
     group_cat_id = await _create_category(client, headers, name="Shared", group_id=group_id)
     base_resp = await _create_base_budget(
-        client, headers, group_id=group_id, category_ids=[group_cat_id],
+        client,
+        headers,
+        group_id=group_id,
+        category_ids=[group_cat_id],
     )
     instance_resp = await _create_budget_instance(client, headers, base_resp.json()["id"])
     instance_id = instance_resp.json()["id"]
