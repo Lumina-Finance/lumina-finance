@@ -37,6 +37,11 @@ test('deletes the profile once the user types delete and confirms with the passw
   await expect(page).toHaveURL(/\/login$/)
   await expect(page.getByRole('status').filter({ hasText: 'Your profile and data were deleted.' })).toBeVisible()
 
+  // The message shows once, so reloading the sign-in screen drops it
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Log in', exact: true })).toBeVisible()
+  await expect(page.getByText('Your profile and data were deleted.')).toHaveCount(0)
+
   const signIn = await request.post(`${API_BASE_URL}/auth/login`, { data: { email: user.email, password: user.password } })
   expect(signIn.status()).toBe(401)
 })

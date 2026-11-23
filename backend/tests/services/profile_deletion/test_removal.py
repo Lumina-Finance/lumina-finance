@@ -198,3 +198,11 @@ async def test_every_table_naming_a_user_is_deleted_from_before_the_tables_it_na
             target = foreign_key.column.table.name
             if target != name and target in order:
                 assert order.index(target) > position, f"{name} must come before {target}"
+
+
+def test_every_foreign_key_to_users_deletes_with_its_user():
+    """A row the batches miss can never keep a user row in place, so a deletion can't stop half done"""
+    keys = [key for table in Base.metadata.sorted_tables for key in table.foreign_keys if key.column.table.name == "users"]
+
+    assert keys
+    assert [key.parent for key in keys if key.ondelete != "CASCADE"] == []

@@ -67,10 +67,17 @@ async def test_upgrade_deletes_a_users_rows_with_the_user_and_adds_the_mark(data
                 text("SELECT is_nullable FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'deletion_requested_at'")
             )
             listing = await conn.scalar(text("SELECT to_regprocedure('public.list_profiles_to_delete()') IS NOT NULL"))
+            refusing = list(
+                await conn.scalars(
+                    text("SELECT conname FROM pg_constraint WHERE contype = 'f' AND confrelid = 'users'::regclass AND confdeltype <> 'c'")
+                )
+            )
     finally:
         await engine.dispose()
     assert column == "YES"
     assert listing
+    # Every key naming a user deletes with it, not only the two tables the seed fills
+    assert refusing == []
 
 
 async def test_downgrade_refuses_to_delete_a_user_with_rows_again_and_upgrades_back(database):
