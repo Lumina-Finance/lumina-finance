@@ -23,7 +23,7 @@ from app.schemas.user import (
     UpdateProfileRequest,
     UserProfile,
 )
-from app.services.allowance.currency import find_foreign_currencies_token
+from app.services.allowance.currency import find_foreign_currencies_reason, find_foreign_currencies_token
 from app.services.allowance.require import list_granted_features
 from app.services.cache_state import get_shared_cache_changed_at, get_visible_cache_status, select_user_group_ids
 from app.services.csv_export import download_response
@@ -91,7 +91,10 @@ async def get_rates_status(
 ):
     """Return a digest of the recent exchange rates behind the user's converted figures"""
     other_currencies = await holds_other_currencies(db, user.base_currency)
-    return RatesStatus(digest=await get_rates_digest(user.id, holds_other_currencies=other_currencies))
+    withholds_conversion = other_currencies and await find_foreign_currencies_reason(user.id) is not None
+    return RatesStatus(
+        digest=await get_rates_digest(user.id, holds_other_currencies=other_currencies, withholds_conversion=withholds_conversion)
+    )
 
 
 @router.get("/export", response_class=StreamingResponse)

@@ -140,6 +140,18 @@ async def test_the_digest_is_unknown_with_no_recorded_pair_for_a_user_holding_ot
     assert provider.calls == []
 
 
+async def test_the_digest_holds_steady_for_a_user_whose_conversions_are_all_withheld(published_valkey, user_id):
+    """A user holding other currencies whose conversions are withheld records no pair, and gets the fixed digest with no provider call"""
+    provider = FakeProvider(_published("1.3"))
+
+    first = await get_rates_digest(user_id, holds_other_currencies=True, withholds_conversion=True, provider=provider)
+    second = await get_rates_digest(user_id, holds_other_currencies=True, withholds_conversion=True, provider=provider)
+
+    assert first is not None
+    assert second == first
+    assert provider.calls == []
+
+
 async def test_the_digest_is_unknown_when_the_recorded_pairs_cannot_be_read(published_valkey, user_id, monkeypatch):
     """A store that fails while reading the pairs gives an unknown digest, never the empty one"""
     await _convert(("USD", "CAD"))

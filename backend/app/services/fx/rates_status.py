@@ -108,13 +108,21 @@ def _digest(pair_rates: list[tuple[PairWindow, dict[date, Decimal]]]) -> str:
     return hashlib.sha256("\n".join(lines).encode()).hexdigest()
 
 
-async def get_rates_digest(user_id: UUID, *, holds_other_currencies: bool, provider: FxRateProvider | None = None) -> str | None:
+async def get_rates_digest(
+    user_id: UUID,
+    *,
+    holds_other_currencies: bool,
+    withholds_conversion: bool = False,
+    provider: FxRateProvider | None = None,
+) -> str | None:
     """Return a digest of the unsettled rates for the pairs the server has converted for a user
 
     Args:
         user_id: User whose converted pairs to read
         holds_other_currencies: Whether any row the user sees holds a currency other than their
             own, so their figures need conversions
+        withholds_conversion: Whether the server leaves amounts in other currencies out of
+            their totals, so no rate was looked up for them and no pair recorded
         provider: Source of rates the cache lacks, the usual provider when omitted
 
     Returns:
@@ -122,13 +130,15 @@ async def get_rates_digest(user_id: UUID, *, holds_other_currencies: bool, provi
         longer than the budget. The browser treats an unknown digest as changed. A user with no
         recorded pair who holds only their own currency gets the fixed digest of an empty set,
         equal between visits. One who holds others gets None, since their pairs may have expired
-        or failed to record while their saved figures still depend on rates
+        or failed to record while their saved figures still depend on rates. One whose
+        conversions are all withheld gets that same fixed digest, since their figures depend
+        on no rate
     """
     pairs = await get_used_pairs(user_id)
     if pairs is None:
         return None
     if not pairs:
-        return None if holds_other_currencies else _digest([])
+        return None if holds_other_currencies and not withholds_conversion else _digest([])
 
     provider = provider or CachedFxRateProvider(FrankfurterProvider())
     start, end = _get_unsettled_window(datetime.now(UTC).date())
