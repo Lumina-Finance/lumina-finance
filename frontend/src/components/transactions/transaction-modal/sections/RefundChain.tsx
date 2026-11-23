@@ -53,8 +53,9 @@ function ChainSegment({ drawn, below = false }: { drawn: boolean; below?: boolea
 
 /**
  * Part of the dashed line between two refunds, drawn inside each refund's own row. That row clips as it grows and
- * collapses. The part takes 8px above the refund and 4px below it, so two refunds sit 12px apart. An unsaved refund's dashed border
- * reaches 4px into each, and its "Unsaved" label, centred on the border's top edge, takes the rest of the room above.
+ * collapses. The part takes 8px above the refund and 4px below it, so two refunds sit 12px apart. An unsaved
+ * refund's dashed border reaches 4px into each, and its "Unsaved" label, centred on the border's top edge above the
+ * name, takes the rest of the room above.
  * Under the last refund the part keeps its room with no line, so the line ends at that refund's icon
  */
 export function RefundChainGap({ place, drawn = true }: { place: 'above' | 'below'; drawn?: boolean }) {
