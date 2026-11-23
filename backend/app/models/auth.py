@@ -30,7 +30,7 @@ class AuthIdentity(Base):
     __table_args__ = (UniqueConstraint("user_id", "auth_provider", name="uq_auth_identity_user_provider"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     auth_provider: Mapped[AuthProvider] = mapped_column(nullable=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -41,7 +41,7 @@ class PasswordCredential(Base):
 
     __tablename__ = "password_credentials"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     password_algo: Mapped[str] = mapped_column(VARCHAR(32), nullable=False)  # e.g., "argon2id"
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
@@ -76,7 +76,7 @@ class TotpCredential(Base):
     # Holds only staged authenticators, so the scheduled cleanup finds the expired ones without reading confirmed ones
     __table_args__ = (Index("ix_totp_credentials_staged_created_at", "created_at", postgresql_where=text("confirmed_at IS NULL")),)
 
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     secret_encrypted: Mapped[str] = mapped_column(EncryptedText, nullable=False)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Non-null once a code is verified
 

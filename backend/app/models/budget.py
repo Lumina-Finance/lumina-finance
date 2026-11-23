@@ -60,7 +60,7 @@ class BaseBudget(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
 
     # Indexed so the read rule and the budget helpers find a user's budgets without reading everyone's
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
     currency: Mapped[str] = mapped_column(VARCHAR(3), ForeignKey("currencies.id"), nullable=False)
@@ -158,7 +158,7 @@ class BudgetPermission(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
     # Indexed so the budget helpers find a user's grants without reading everyone's
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     base_budget_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("base_budgets.id", ondelete="CASCADE"),
         nullable=False,

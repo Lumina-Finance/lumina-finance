@@ -17,6 +17,7 @@ from app.routes.auth.native import router as native_router
 from app.routes.auth.oidc import router as oidc_router
 from app.routes.auth.passkeys import router as passkeys_router
 from app.routes.auth.password_reset_helpers import answer_completed_reset
+from app.routes.auth.profile_deletion import router as profile_deletion_router
 from app.routes.auth.refresh_helpers import refresh_auth_tokens
 from app.routes.auth.token_helpers import (
     authorize_sensitive_action,
@@ -96,6 +97,9 @@ router.include_router(native_router)
 
 # Changing the account's email shares the /auth prefix through its own router
 router.include_router(email_change_router)
+
+# Deleting the profile shares the /auth prefix through its own router, beside the other actions that step up
+router.include_router(profile_deletion_router)
 
 
 @router.post("/signup", status_code=status.HTTP_204_NO_CONTENT)

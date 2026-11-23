@@ -11,7 +11,7 @@ from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, Pool
 
-from app import allowance_hook, email_change_hook, request_hook
+from app import allowance_hook, email_change_hook, profile_deletion_hook, request_hook
 from app.abuse_log import abuse_log
 from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
 from app.config.env import require
@@ -21,6 +21,7 @@ from app.db.rls import apply_rls
 from app.email_change_hook import EmailChange, observe_email_changes
 from app.models import import_all_models
 from app.models.base import Base
+from app.profile_deletion_hook import ProfileDeletion, observe_profile_deletions
 from app.request_hook import RequestRecord, observe_requests
 from app.services import service_name
 from app.services.bank_sync.availability import installed_providers
@@ -258,6 +259,18 @@ def email_changes(monkeypatch) -> list[EmailChange]:
     changes: list[EmailChange] = []
     observe_email_changes(changes.append)
     return changes
+
+
+@pytest.fixture
+def profile_deletions(monkeypatch) -> list[ProfileDeletion]:
+    """The profile deletions announced during the test, as the observers receive them
+
+    The observers the app registers stay in place, and the one added here is removed afterwards
+    """
+    monkeypatch.setattr(profile_deletion_hook, "_observers", list(profile_deletion_hook._observers))
+    deletions: list[ProfileDeletion] = []
+    observe_profile_deletions(deletions.append)
+    return deletions
 
 
 @pytest.fixture

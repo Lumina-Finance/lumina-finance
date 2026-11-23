@@ -1,7 +1,8 @@
 """One cleanup for the records that expire or are left behind, except those bank sync prunes as it writes
 
 Each kind is one entry in EXPIRED_RECORD_KINDS. The app prunes them all on a schedule while it serves,
-unless code outside the app turns that timer off, and prune_expired_records runs one pass without it
+unless code outside the app turns that timer off, and prune_expired_records runs one pass without it.
+Each pass also finishes deleting any profile still marked for deletion, such as one a restart cut short
 
 Bank sync prunes its request records where it writes them: recording a request to a provider deletes
 that connection's earlier records once the request budget no longer counts them
@@ -29,6 +30,7 @@ from app.services.auth.webauthn import delete_expired_webauthn_challenges
 from app.services.bank_sync.authorization import delete_expired_bank_authorizations
 from app.services.bank_sync.jobs import delete_finished_bank_sync_jobs
 from app.services.importers.shared.run_staging import delete_expired_import_runs
+from app.services.profile_deletion import delete_marked_profiles
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +82,14 @@ async def prune_expired_records(session_factory: async_sessionmaker[AsyncSession
         except Exception:
             # Best-effort: a failed kind waits for the next run rather than stopping this one
             logger.warning("Expired %s could not be pruned", kind.name, exc_info=True)
+
+    # A profile deletion a restart cut short. Each runs in many transactions of its own, so it opens its
+    # sessions from the factory rather than taking one, and logs any profile it can't finish yet
+    try:
+        await delete_marked_profiles(session_factory)
+    except Exception:
+        # Best-effort: the profiles stay marked, so nothing can sign in to them, and wait for the next run
+        logger.warning("Profiles marked for deletion could not be listed", exc_info=True)
 
 
 async def _prune_expired_records_on_schedule() -> None:

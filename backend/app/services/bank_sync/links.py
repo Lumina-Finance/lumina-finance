@@ -372,21 +372,50 @@ async def disconnect_connection(db: AsyncSession, user: User, connection_id: uui
         HTTPException 404: The connection doesn't exist or is another user's
     """
     connection = await get_own_connection(db, user.id, connection_id, lock={})
-    await db.execute(select(BankSyncJob.id).where(BankSyncJob.connection_id == connection.id).order_by(BankSyncJob.id).with_for_update())
-    linked = await db.scalars(
-        select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, LIVE_LINK).order_by(BankAccountLink.id).with_for_update()
-    )
-    ended = linked.all()
-    await _end_links(db, ended, now=datetime.now(UTC))
-    provider, credential = connection.provider, connection.credential_encrypted
-    await db.delete(connection)
+    ended, credential = await _disconnect_locked(db, connection)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
     response = UnlinkResponse(unlinked_account_ids=[link.account_id for link in ended])
 
     # After the response is built, since a failure here rolls back and expires what the response read
-    await release_stored_credential(provider, credential)
+    await release_stored_credential(*credential)
     return response
+
+
+async def disconnect_every_connection(db: AsyncSession, user_id: uuid.UUID) -> list[tuple[str, str]]:
+    """Unlink and delete every connection a user has, without committing, for a profile being deleted
+
+    Each connection is locked and ended as Disconnect ends one, in id order, so two passes take them in
+    the same order
+
+    Args:
+        db: Active database session, acting as the user
+        user_id: The user whose connections go
+
+    Returns:
+        Each deleted connection's provider and stored credential, to release once the caller commits
+    """
+    connections = await db.scalars(
+        select(BankConnection).where(BankConnection.owner_id == user_id).order_by(BankConnection.id).with_for_update()
+    )
+    credentials = []
+    for connection in connections.all():
+        _, credential = await _disconnect_locked(db, connection)
+        credentials.append(credential)
+    return credentials
+
+
+async def _disconnect_locked(db: AsyncSession, connection: BankConnection) -> tuple[list[BankAccountLink], tuple[str, str]]:
+    """End every live link of a locked connection and delete it, returning the links ended and its provider and credential"""
+    await db.execute(select(BankSyncJob.id).where(BankSyncJob.connection_id == connection.id).order_by(BankSyncJob.id).with_for_update())
+    linked = await db.scalars(
+        select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, LIVE_LINK).order_by(BankAccountLink.id).with_for_update()
+    )
+    ended = list(linked.all())
+    await _end_links(db, ended, now=datetime.now(UTC))
+    credential = (connection.provider, connection.credential_encrypted)
+    await db.delete(connection)
+    return ended, credential
 
 
 async def _end_links(db: AsyncSession, ended: Sequence[BankAccountLink], *, now: datetime) -> None:
