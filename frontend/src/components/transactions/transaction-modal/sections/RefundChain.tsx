@@ -136,13 +136,13 @@ export function RefundChainRow({
 }: RefundChainRowProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   return (
-    // A link Save has yet to make sits in a dashed border. The border reaches past the row by 8px on each side and 4px
+    // A link Save has yet to make sits in a dashed border in the warning colour, with no fill. The border reaches past the row by 8px on each side and 4px
     // above and below, into the room between rows, and its padding takes that back. So the row keeps its place and
     // height, and nothing moves when Save takes the border away. Two unsaved refunds in a row keep 4px of the 12px
     // between them, so their borders never touch
     <div
       className={`flex items-center gap-3 ${notSaved ? '-mx-2 -my-1 rounded-lg border border-dashed px-[7px] py-[3px]' : ''}`}
-      style={notSaved ? { borderColor: 'var(--app-text-subtle)' } : undefined}
+      style={notSaved ? { borderColor: 'var(--app-warning-dot)' } : undefined}
       data-testid={testId}
       data-link-id={linkId}
       data-not-saved={notSaved ? 'true' : undefined}
