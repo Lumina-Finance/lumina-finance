@@ -13,6 +13,7 @@ import InstitutionModal from '@/components/reference-modals/InstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
 import { MODAL_BODY_CLASS_NAME } from '@/components/modal/inset'
 import { ModalShell } from '@/components/modal/Shell'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 import { formatCurrencySymbol } from '@/utils/formatCurrency'
 import { ACTION_LOADING_MIN_MS, LOADING_ANIMATION_MIN_MS, waitForMilliseconds } from '@/utils/timing'
@@ -357,31 +358,39 @@ export default function EditAccountIdentityModal({
             data-dropdown-bounds
           >
             <div className="space-y-5">
-              <AccountIdentitySection
-                form={form}
-                fieldErrors={refusal.errors}
-                accountInstitution={account.institution}
-                setField={setField}
-                onCreateInstitution={institutionModal.openForCreate}
-                onCorrectInstitution={institutionModal.openForCorrection}
-              />
-
-              {hasEditableAccountContext && (
-                <AccountDetailsSection
+              {/* A read-only account keeps its details as they are. Archiving and deleting stay open below */}
+              {account.read_only_reason && (
+                <span className="flex min-w-0">
+                  <ReadOnlyReasonPill reason={account.read_only_reason} />
+                </span>
+              )}
+              <fieldset disabled={Boolean(account.read_only_reason)} className="contents">
+                <AccountIdentitySection
                   form={form}
                   fieldErrors={refusal.errors}
-                  canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
-                  isRevolving={isRevolving}
-                  isCreditLimitLocked={isCreditLimitLocked}
-                  currencyState={currencyState}
-                  selectedCurrencySymbol={selectedCurrencySymbol}
-                  creditLimitExponent={knownCreditLimitExponent ?? DEFAULT_MINOR_UNIT_EXPONENT}
-                  taxAdvantagedCategoryOptions={taxAdvantagedCategoryOptions}
-                  taxAdvantagedCategoriesError={taxAdvantagedCategoriesError}
-                  taxAdvantagedCategoriesFailed={taxAdvantagedCategoriesFailed}
+                  accountInstitution={account.institution}
                   setField={setField}
+                  onCreateInstitution={institutionModal.openForCreate}
+                  onCorrectInstitution={institutionModal.openForCorrection}
                 />
-              )}
+
+                {hasEditableAccountContext && (
+                  <AccountDetailsSection
+                    form={form}
+                    fieldErrors={refusal.errors}
+                    canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
+                    isRevolving={isRevolving}
+                    isCreditLimitLocked={isCreditLimitLocked}
+                    currencyState={currencyState}
+                    selectedCurrencySymbol={selectedCurrencySymbol}
+                    creditLimitExponent={knownCreditLimitExponent ?? DEFAULT_MINOR_UNIT_EXPONENT}
+                    taxAdvantagedCategoryOptions={taxAdvantagedCategoryOptions}
+                    taxAdvantagedCategoriesError={taxAdvantagedCategoriesError}
+                    taxAdvantagedCategoriesFailed={taxAdvantagedCategoriesFailed}
+                    setField={setField}
+                  />
+                )}
+              </fieldset>
 
               {showsBankLinkSection && (
                 <div ref={bankLinkSectionRef}>

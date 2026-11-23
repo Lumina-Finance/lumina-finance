@@ -45,6 +45,9 @@ export interface AccountsOverview {
   credit_limit: number | null
   can_write: boolean
   is_archived: boolean
+
+  /** The installed check's sentence while the account's currency keeps it read-only, or null. Left out, the account can change */
+  read_only_reason?: string | null
 }
 
 /**

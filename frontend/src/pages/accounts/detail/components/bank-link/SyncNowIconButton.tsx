@@ -9,6 +9,9 @@ type SyncNowIconButtonProps = {
   link: BankLink
   connection: BankConnection | undefined
   providers: BankProvidersResponse | undefined
+
+  /** Why the account's currency keeps it read-only. The sync waits while a reason is given */
+  readOnlyReason?: string | null
 }
 
 /**
@@ -21,8 +24,8 @@ type SyncNowIconButtonProps = {
  * Hovering brightens the arrows and turns them half a circle, which brings them back to the same shape,
  * and leaving turns them back. A held-back icon stays still, and reduced motion keeps only the colour
  */
-export function SyncNowIconButton({ link, connection, providers }: SyncNowIconButtonProps) {
-  const { status, block, busy, syncNow } = useSyncNow(link, connection, providers)
+export function SyncNowIconButton({ link, connection, providers, readOnlyReason = null }: SyncNowIconButtonProps) {
+  const { status, block, busy, syncNow } = useSyncNow(link, connection, providers, readOnlyReason)
   const hint = HINTS[status as keyof typeof HINTS] ?? HINTS.idle
 
   return (

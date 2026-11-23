@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import { FormError } from '@/components/forms/FormError'
 import { ModalShell } from '@/components/modal/Shell'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
 import { Check, Trash2, X } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
@@ -156,6 +158,11 @@ export default function TaxAdvantagedCategoryModal({
                 >
                   {plan.name}
                 </h3>
+                {plan.read_only_reason && (
+                  <span className="mt-1 flex min-w-0">
+                    <ReadOnlyReasonPill reason={plan.read_only_reason} />
+                  </span>
+                )}
               </div>
               <button
                 type="button"
@@ -212,14 +219,15 @@ export default function TaxAdvantagedCategoryModal({
               className="grid grid-cols-2 gap-2 border-t pt-3 min-[750px]:flex min-[750px]:items-center min-[750px]:justify-between min-[750px]:pt-4 min-[1050px]:mt-auto"
               style={{ borderColor: 'var(--app-border)' }}
             >
-              <button
-                type="button"
+              {/* A read-only category keeps Edit held back with its reason. Delete stays */}
+              <DisabledReasonButton
                 className="app-secondary-button w-full justify-center min-[750px]:w-[72px]"
                 disabled={planSaveStatus !== 'idle'}
+                disabledReason={plan.read_only_reason}
                 onClick={openCategoryDetailsModal}
               >
                 Edit
-              </button>
+              </DisabledReasonButton>
               <button
                 ref={planDeleteButtonRef}
                 type="button"
@@ -377,7 +385,7 @@ export default function TaxAdvantagedCategoryModal({
       />
 
       <TaxAdvantagedLimitDetailsModal
-        blockedReason={limitBlockedReason}
+        blockedReason={plan.read_only_reason ?? limitBlockedReason}
         creatingLimit={creatingLimit}
         currencies={currencies}
         limitError={limitError}

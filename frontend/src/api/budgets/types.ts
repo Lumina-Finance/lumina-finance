@@ -19,6 +19,10 @@ export interface BaseBudget {
   // True while the budget is hidden and the backend has paused generating new periods
   is_archived: boolean
   category_ids: string[]
+
+  // The installed check's sentence while the budget's currency keeps it read-only, or null. Left out,
+  // the budget can change
+  read_only_reason?: string | null
 }
 
 export interface Budget {

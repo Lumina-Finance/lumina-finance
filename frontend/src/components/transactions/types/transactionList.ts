@@ -27,6 +27,9 @@ export interface TransactionListAccount {
   can_write: boolean
   is_archived?: boolean
 
+  // Why the account's currency keeps its transactions read-only, when it does
+  read_only_reason?: string | null
+
   // Read by bulk delete, which leaves group accounts out. Required, so a list account built without it
   // cannot pass for a personal one
   group_id: string | null
@@ -46,6 +49,7 @@ export function toTransactionListAccount(account: AccountsOverview): Transaction
     institution: account.institution,
     can_write: account.can_write,
     is_archived: account.is_archived,
+    read_only_reason: account.read_only_reason,
     group_id: account.group_id,
   }
 }

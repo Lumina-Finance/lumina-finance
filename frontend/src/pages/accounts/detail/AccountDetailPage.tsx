@@ -129,7 +129,7 @@ export default function AccountDetailPage() {
   const skeletonFadeSeconds = prefersReducedMotion ? 0 : ACCOUNT_SKELETON_FADE_MS / 1000
 
   const openCreateTransaction = () => {
-    if (visibleAccount?.is_archived) return
+    if (visibleAccount?.is_archived || visibleAccount?.read_only_reason) return
 
     requireCurrencies(() => {
       setEditingTransaction(null)
@@ -283,7 +283,7 @@ export default function AccountDetailPage() {
             transaction={editingTransaction ?? undefined}
             defaultAccountId={visibleAccount.id}
             defaultCurrency={visibleAccount.currency}
-            readOnly={Boolean(editingTransaction && visibleAccount.is_archived)}
+            readOnly={Boolean(editingTransaction && (visibleAccount.is_archived || visibleAccount.read_only_reason))}
           />
 
           <EditAccountIdentityModal

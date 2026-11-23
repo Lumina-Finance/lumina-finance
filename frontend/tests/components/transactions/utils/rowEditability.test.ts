@@ -100,6 +100,17 @@ describe('getTransactionReadOnlyReason', () => {
     expect(getTransactionReadOnlyReason(transaction(), accountMap, categoryMap, fixed)).toBe('Read-only access')
   })
 
+  it("gives the sentence an account in another currency is read-only for, while the account is open and the user's", () => {
+    const sentence = 'This server allows no more of these'
+    const foreign = { ...openAccount, id: 'travel', read_only_reason: sentence }
+    const accounts = new Map([...accountMap, [foreign.id, foreign]])
+
+    expect(getTransactionReadOnlyReason(transaction({ account_id: foreign.id }), accounts, categoryMap)).toBe(sentence)
+    expect(
+      getTransactionReadOnlyReason(transaction(), accountMap, categoryMap, { ...foreign, is_archived: true }),
+    ).toBe('Archived · Read-only')
+  })
+
   it('gives the archived reason over the category reason when a row trips both', () => {
     expect(
       getTransactionReadOnlyReason(transaction({ category_id: 'cat_gone' }), accountMap, categoryMap, archivedAccount),

@@ -3,6 +3,7 @@ import type React from 'react'
 import { useUpdateBaseBudget, useUpdateBudget, type BaseBudget, type Budget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
 import BudgetEditorModalArchiveSection from '@/pages/budgets/components/budget-editor-modal/sections/ArchiveSection'
 import BudgetEditorModalCadenceSection from '@/pages/budgets/components/budget-editor-modal/sections/CadenceSection'
 import BudgetEditorModalCategorySection from '@/pages/budgets/components/budget-editor-modal/sections/CategorySection'
@@ -144,8 +145,10 @@ export default function BudgetEditModal({
   const archiveChanged = isArchived !== baseBudget.is_archived
 
   // The backend rejects any non-unarchive change to an archived budget, so every other field is locked
-  // against the persisted archived state rather than the staged toggle until the unarchive is saved
-  const fieldsLocked = baseBudget.is_archived
+  // against the persisted archived state rather than the staged toggle until the unarchive is saved. A
+  // read-only budget keeps every field but the archive switch locked too
+  const readOnlyReason = baseBudget.read_only_reason
+  const fieldsLocked = baseBudget.is_archived || Boolean(readOnlyReason)
   const recurringUnavailableReason = getRepeatLimitReason(baseBudget, latestPeriod, today)
 
   // A locked limit is blank, disabled and left out of the save, so requiring a readable one would refuse
@@ -306,7 +309,7 @@ export default function BudgetEditModal({
       title="Edit budget"
       titleId="budget-edit-title"
       eyebrow={form.recurs ? 'Recurring budget' : 'One-off budget'}
-      headerStatus={fieldsLocked ? 'Archived budget' : undefined}
+      headerStatus={baseBudget.is_archived ? 'Archived budget' : undefined}
       sideLabel="Edit"
       formError={formError}
       warning="Changes apply from now forward. Past periods stay unchanged. To back propagate changes, create a new budget instead."
@@ -324,10 +327,16 @@ export default function BudgetEditModal({
         />
       }
     >
-      {fieldsLocked && (
+      {baseBudget.is_archived ? (
         <p className="mb-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
           Unarchive this budget to edit its details.
         </p>
+      ) : (
+        readOnlyReason && (
+          <span className="mb-5 flex min-w-0">
+            <ReadOnlyReasonPill reason={readOnlyReason} />
+          </span>
+        )
       )}
 
       <div className="grid min-h-0 items-stretch gap-7 min-[1050px]:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">

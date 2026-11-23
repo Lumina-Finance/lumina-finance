@@ -20,6 +20,10 @@ export interface TaxAdvantagedCategory {
   lifetime_contributions: number
   lifetime_withdrawals: number
   created_at: string
+
+  // The installed check's sentence while the category's currency keeps it read-only, or null. Left out,
+  // the category can change
+  read_only_reason?: string | null
 }
 
 export interface TaxAdvantagedCategoryLimit {

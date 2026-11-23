@@ -6,6 +6,7 @@ import { FormError } from '@/components/forms/FormError'
 import MarqueeText from '@/components/display/MarqueeText'
 import { PendingLabel } from '@/components/loading/PendingLabel'
 import ScrollableListMoreButton from '@/components/list-controls/MoreButton'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
 import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
 import BudgetAttentionIcon from '@/pages/budgets/components/shared/AttentionIcon'
 import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge'
@@ -138,6 +139,11 @@ export default function BudgetDetailsSidebar({
           <p className="mt-2 min-w-0 truncate text-sm" style={{ color: 'var(--app-text-subtle-on-accent)' }}>
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
           </p>
+          {baseBudget.read_only_reason && (
+            <span className="mt-2 flex min-w-0">
+              <ReadOnlyReasonPill reason={baseBudget.read_only_reason} />
+            </span>
+          )}
         </div>
         <button
           type="button"

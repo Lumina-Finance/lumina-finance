@@ -15,12 +15,14 @@ import { callWhenPassed } from '@/utils/timing'
  * Sync now for a live link, shared by every control that offers it: what it shows, why it is held
  * back, and the press. A spent request budget lets it go once a request frees up, whether or not the
  * connection has been read again since, and its reason is worded again each minute until then, so when
- * more requests are available stays current. A press the server refuses says why in a toast
+ * more requests are available stays current. A press the server refuses says why in a toast. An
+ * account whose currency keeps it read-only holds the sync back with that reason
  */
 export function useSyncNow(
   link: BankLink,
   connection: BankConnection | undefined,
   providers: BankProvidersResponse | undefined,
+  readOnlyReason: string | null = null,
 ) {
   const sync = useSyncBankAccount()
   const feedback = useActionFeedback()
@@ -40,5 +42,6 @@ export function useSyncNow(
       })
   }
 
-  return { status, block, busy: status !== 'idle', syncNow }
+  // A read-only account takes nothing from its bank, so its reason holds the sync back before any other
+  return { status, block: readOnlyReason ?? block, busy: status !== 'idle', syncNow }
 }

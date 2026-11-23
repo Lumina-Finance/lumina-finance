@@ -1,4 +1,6 @@
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
+import { FADED_ROW_COLOURS } from '@/contexts/FadedRowsContext'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import BudgetCategoryRow from '@/pages/budgets/components/budget-card/CategoryRow'
 import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
@@ -49,6 +51,7 @@ export default function BudgetCard({
       }`}
       style={{
         borderTop: `5px solid ${isArchived ? 'var(--app-text-muted)' : attention.indicatorColor}`,
+        ...(baseBudget.read_only_reason ? FADED_ROW_COLOURS : null),
       }}
       role="button"
       tabIndex={0}
@@ -71,6 +74,11 @@ export default function BudgetCard({
           <p className="mt-1 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
           </p>
+          {baseBudget.read_only_reason && (
+            <span className="mt-2 flex min-w-0">
+              <ReadOnlyReasonPill reason={baseBudget.read_only_reason} />
+            </span>
+          )}
         </div>
         {isArchived ? (
           <ArchivedPill />

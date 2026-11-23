@@ -279,11 +279,12 @@ export default function TaxAdvantagedLimitDetailsModal({
           </div>
         ) : selectedLimit ? (
           <div className="space-y-2">
-            <button
+            <DisabledReasonButton
               type="button"
               className={`app-danger-button w-full justify-center min-[750px]:hidden ${selectedLimitDeleting ? 'app-primary-button-loading' : ''}`}
               onClick={() => onDeleteLimit(selectedLimit)}
               disabled={selectedSavingLimit || selectedLimitDeleting}
+              disabledReason={plan.read_only_reason}
             >
               <PendingLabel pending={selectedLimitDeleting} name="Deleting" className="gap-2">
                 {selectedLimitDeleteConfirming ? (
@@ -295,7 +296,7 @@ export default function TaxAdvantagedLimitDetailsModal({
                   </>
                 )}
               </PendingLabel>
-            </button>
+            </DisabledReasonButton>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"

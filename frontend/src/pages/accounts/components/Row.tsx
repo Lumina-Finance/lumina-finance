@@ -4,6 +4,8 @@ import { EyeOff } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
+import { FADED_ROW_COLOURS } from '@/contexts/FadedRowsContext'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { useFittedForm } from '@/pages/accounts/hooks/useFittedForm'
 import { getAvailableCreditForms } from '@/pages/accounts/utils/availableCreditForms'
@@ -55,12 +57,16 @@ export default function AccountRow({
   meta?: string
 }) {
   const { formatCurrency, currencies } = useMoneyFormatters()
-  const barColor = isArchived
+  const readOnlyReason = account.read_only_reason
+
+  // A read-only account is greyed out as an archived one is, so neither looks like one the user can change
+  const isMuted = isArchived || Boolean(readOnlyReason)
+  const barColor = isMuted
     ? 'var(--app-text-muted)'
     : accent === 'positive'
       ? 'var(--app-positive)'
       : 'var(--app-negative)'
-  const balanceColor = isArchived
+  const balanceColor = isMuted
     ? 'var(--app-text-muted)'
     : accent === 'positive'
       ? getSignedAmountColor(account.current_balance)
@@ -110,6 +116,7 @@ export default function AccountRow({
   const describedBy = [
     linkedPlan && `${descriptionId}-plan`,
     `${descriptionId}-metadata`,
+    readOnlyReason && `${descriptionId}-read-only`,
     `${descriptionId}-balance`,
     showConvertedBalance && `${descriptionId}-converted`,
     availableCreditText && `${descriptionId}-credit`,
@@ -131,7 +138,10 @@ export default function AccountRow({
           ? 'my-1 border border-dashed opacity-75 transition-[color,background-color,opacity] hover:opacity-100'
           : 'transition-control'
       }`}
-      style={isArchived ? { borderColor: 'var(--app-border)' } : undefined}
+      style={{
+        ...(isArchived ? { borderColor: 'var(--app-border)' } : null),
+        ...(readOnlyReason ? FADED_ROW_COLOURS : null),
+      }}
     >
       {!isBare && <div className="my-3 ml-0.5 w-0.5 rounded-full" style={{ background: barColor, opacity: 0.3 }} />}
       {/* On a phone the row is a grid of lines: the name beside the balance, then the type or bank
@@ -209,6 +219,12 @@ export default function AccountRow({
                 </span>
               )}
             </p>
+            {/* Positioned and later than the name's stretched link, so a tap on the pill shows its whole reason */}
+            {readOnlyReason && (
+              <span className="relative inline-flex min-w-0 shrink">
+                <ReadOnlyReasonPill id={`${descriptionId}-read-only`} reason={readOnlyReason} />
+              </span>
+            )}
           </div>
         </div>
         <div className="contents text-right min-[750px]:block min-[750px]:shrink-0">

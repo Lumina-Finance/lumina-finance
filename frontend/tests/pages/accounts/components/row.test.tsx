@@ -90,6 +90,43 @@ describe('account row', () => {
     expect(describedTexts(markup, 1024)).toEqual(['TFSA', 'Credit card', '-20000', 'FX unavailable', '80000 avail.'])
   })
 
+  it('greys out an account in another currency the check keeps read-only, with its reason in a pill the link names', () => {
+    const reason = 'This server allows no more of these'
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <AccountRow
+          account={createForeignAccount({ read_only_reason: reason })}
+          accent="positive"
+          showCreditLimit={false}
+          taxAdvantagedCategoryById={new Map()}
+          displayCurrency="CAD"
+        />
+      </MemoryRouter>,
+    )
+    const row = markup.match(/<div data-testid="account-row-account-1"[^>]*style="([^"]*)"/)
+
+    expect(row?.[1]).toContain('--app-text:var(--app-text-muted)')
+    expect(markup).toContain('data-testid="read-only-reason-pill"')
+    expect(describedTexts(markup, 1024)).toEqual(['Checking', reason, '50000', 'FX unavailable'])
+  })
+
+  it('shows no pill and draws the row as usual while the account can change', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <AccountRow
+          account={ACCOUNT}
+          accent="positive"
+          showCreditLimit={false}
+          taxAdvantagedCategoryById={new Map()}
+          displayCurrency="CAD"
+        />
+      </MemoryRouter>,
+    )
+
+    expect(markup).not.toContain('read-only-reason-pill')
+    expect(markup).not.toContain('--app-text:var(--app-text-muted)')
+  })
+
   it('reads the credit available in the place each width draws it', () => {
     const markup = renderToStaticMarkup(
       <MemoryRouter>

@@ -218,7 +218,9 @@ export default function TransactionListSection({
     () => (isUpcomingExpanded ? [...upcomingTransactions, ...pastTransactions] : pastTransactions),
     [isUpcomingExpanded, upcomingTransactions, pastTransactions],
   )
-  const createDisabledReason = fixedAccount?.is_archived ? 'Archived accounts are read-only' : createBlockReason
+  const createDisabledReason = fixedAccount?.is_archived
+    ? 'Archived accounts are read-only'
+    : (fixedAccount?.read_only_reason ?? createBlockReason)
   const createDisabled = Boolean(createDisabledReason)
 
   // A row's Needs review marker asks the review block to go to the row's waiting item

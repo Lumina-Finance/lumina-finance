@@ -84,7 +84,7 @@ export default function TaxAdvantagedLimitsPanel({
         <DisabledReasonButton
           className="app-secondary-button w-full shrink-0 justify-center min-[750px]:w-auto"
           onClick={onStartNewLimitForm}
-          disabledReason={showAddTaxYear ? 'A new year is already being added' : undefined}
+          disabledReason={plan.read_only_reason ?? (showAddTaxYear ? 'A new year is already being added' : undefined)}
         >
           <Plus size={15} aria-hidden />
           Add year
@@ -217,16 +217,17 @@ export default function TaxAdvantagedLimitsPanel({
                           onClick={(event) => event.stopPropagation()}
                           onKeyDown={(event) => event.stopPropagation()}
                         >
-                          <button
+                          <DisabledReasonButton
                             ref={confirmingDelete ? limitDeleteButtonRef : undefined}
                             type="button"
-                            className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs font-medium transition-control hover:bg-[var(--app-negative-soft)] ${
+                            className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-xs font-medium transition-control hover:bg-[var(--app-negative-soft)] aria-disabled:cursor-not-allowed ${
                               confirmingDelete || deletingLimit
                                 ? 'text-[var(--app-negative)]'
                                 : LIMIT_FAINT_CONTROL_CLASS
                             }`}
                             onClick={() => onDeleteLimit(limit)}
                             disabled={pendingDeleteLimitYear !== null}
+                            disabledReason={plan.read_only_reason}
                             aria-label={
                               confirmingDelete ? `Confirm deleting ${limit.year} limits` : `Delete ${limit.year} limits`
                             }
@@ -240,7 +241,7 @@ export default function TaxAdvantagedLimitsPanel({
                                 <Trash2 size={14} aria-hidden />
                               )}
                             </Crossfade>
-                          </button>
+                          </DisabledReasonButton>
                         </div>
                       </td>
                     </tr>

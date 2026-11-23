@@ -1,4 +1,6 @@
 import { useTaxAdvantagedCategoryLimits, type TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
+import { FADED_ROW_COLOURS } from '@/contexts/FadedRowsContext'
 import {
   formatLimitYears,
   formatTaxTreatment,
@@ -81,10 +83,17 @@ function TaxAdvantagedCategoryRow({
       ? { background: 'var(--app-positive-soft)', color: 'var(--app-positive)' }
       : { background: 'var(--app-negative-soft)', color: 'var(--app-negative)' }
 
+  // A read-only category is greyed out with its reason, as a read-only account is
+  const readOnlyPill = plan.read_only_reason && (
+    <span className="mt-1 flex min-w-0">
+      <ReadOnlyReasonPill reason={plan.read_only_reason} />
+    </span>
+  )
+
   return (
     <tr
       className={`app-card-row-focus-visible block cursor-pointer rounded-xl border p-3 transition-control hover:bg-[var(--app-accent-soft)] min-[750px]:table-row min-[750px]:rounded-none min-[750px]:border-x-0 min-[750px]:border-t-0 min-[750px]:p-0 ${isLast ? 'min-[750px]:border-b-0' : 'min-[750px]:border-b'}`}
-      style={{ borderColor: 'var(--app-border)' }}
+      style={{ borderColor: 'var(--app-border)', ...(plan.read_only_reason ? FADED_ROW_COLOURS : null) }}
       tabIndex={0}
       onClick={() => onSelect(plan.id)}
       onKeyDown={(event) => {
@@ -101,6 +110,7 @@ function TaxAdvantagedCategoryRow({
             <span className="mt-0.5 block truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
               {formatTaxTreatment(plan.tax_treatment)} · {plan.currency}
             </span>
+            {readOnlyPill}
           </span>
           <span className="mt-1 shrink-0 rounded-full px-2.5 py-1 text-xs font-medium" style={statusStyle}>
             {statusLabel}
@@ -111,6 +121,7 @@ function TaxAdvantagedCategoryRow({
           <span className="mt-0.5 block truncate text-sm" style={{ color: 'var(--app-text-muted)' }}>
             {formatTaxTreatment(plan.tax_treatment)} · {plan.currency}
           </span>
+          {readOnlyPill}
         </div>
         <div className="mt-3 grid grid-cols-2 gap-3 min-[750px]:hidden">
           <span className="min-w-0">
