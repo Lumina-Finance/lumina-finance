@@ -244,7 +244,7 @@ describe('button keyboard focus', () => {
       GUARDED_SELECTED_OPTIONS.includes(name) ? `${name}:not(:disabled):hover` : `${name}:hover`,
     ),
     '.app-nav-link:not(:disabled):hover',
-    '.app-nav-link-active:hover',
+    '.app-nav-link-active:not(:disabled):hover',
     '.app-calendar-day[data-selected]:hover',
     '.app-range-glass:has(> .app-range-glass-head:hover)',
   ]
@@ -311,7 +311,7 @@ describe('button keyboard focus', () => {
   it("strengthens only the selected menu item's border on keyboard focus and under the pointer", () => {
     const [selected] = rulesListing('.app-nav-link-active')
     const [focus] = rulesListing('.app-nav-link-active:focus-visible')
-    const [hover] = rulesListing('.app-nav-link-active:hover')
+    const [hover] = rulesListing('.app-nav-link-active:not(:disabled):hover')
     for (const rule of [focus, hover]) {
       expect(declarationsOf(rule)).toEqual(['border-color: var(--app-accent-nav-focus-border)'])
       expect(declared(rule, 'border-color')).not.toBe(declared(selected, 'border-color'))

@@ -812,7 +812,8 @@
       border-color: var(--app-accent-border);
     }
 
-    .app-nav-link-active:hover {
+    /* Guarded like the rule above, so it outranks that rule and the selected item's border still strengthens */
+    .app-nav-link-active:not(:disabled):hover {
       border-color: var(--app-accent-nav-focus-border);
     }
   }
