@@ -27,6 +27,7 @@ import {
   buildReviewItemForm,
 } from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/components/transactions/transaction-modal/utils/options'
+import { getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
 import {
   getTransactionProblems,
   isSymmetricTransferForm,
@@ -142,7 +143,7 @@ export default function CreateTransactionModal({
     // An archived account takes no new transactions, and neither does one the server keeps read-only. A bank
     // item's own account stays, so its review names it while Add to ledger waits
     const writable = accounts.filter(
-      (account) => account.id === reviewItem?.account_id || (!account.is_archived && !account.read_only_reason),
+      (account) => account.id === reviewItem?.account_id || !getAccountWriteBlockReason(account),
     )
     return refundOf ? getRefundAccounts(writable, refundOf.currency) : writable
   }, [accounts, refundOf, reviewItem?.account_id])
@@ -204,8 +205,7 @@ export default function CreateTransactionModal({
     () => accounts.find((account) => account.id === form.counterparty_account_id),
     [accounts, form.counterparty_account_id],
   )
-  const readOnly =
-    editing && (readOnlyProp || Boolean(selectedAccount?.is_archived || selectedAccount?.read_only_reason))
+  const readOnly = editing && (readOnlyProp || getAccountWriteBlockReason(selectedAccount) !== undefined)
 
   // A restored bank value is already saved, so the transaction as the restore answered it is the one a
   // save compares the form with, and its bank source says which fields are still edited. The form
