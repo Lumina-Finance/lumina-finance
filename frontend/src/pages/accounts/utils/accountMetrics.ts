@@ -3,7 +3,7 @@ import type { CreditWidgetResponse, SavingsRateWidgetResponse } from '@/api/dash
 import type { RunwayResult } from '@/api/user'
 import type { Currency } from '@/api/currency'
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
-import { getRunwayCaption } from '@/pages/dashboard/utils/getRunwayCaption'
+import { getRunwayCaption } from '@/utils/runwayCaption'
 import { getRoundedPercent } from '@/utils/rounding'
 import { getSavingsRate } from '@/utils/savingsRate'
 import { getSavingsRateTier } from '@/utils/savingsRateTier'

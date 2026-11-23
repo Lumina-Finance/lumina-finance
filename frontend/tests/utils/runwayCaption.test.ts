@@ -3,8 +3,22 @@
  * the backend gave for it
  */
 import { describe, expect, it } from 'vitest'
-import { getRunwayCaption } from '@/pages/dashboard/utils/getRunwayCaption'
-import { currencies, runway } from './fixtures'
+import type { Currency } from '@/api/currency'
+import type { RunwayResult } from '@/api/user'
+import { getRunwayCaption } from '@/utils/runwayCaption'
+
+const currencies: Currency[] = [{ id: 'USD', name: 'US Dollar', symbol: 'US$', minor_unit_exponent: 2 }]
+
+const runway: RunwayResult = {
+  months: 4,
+  reason: null,
+  avg_monthly_expense: 50000,
+  months_covered: 3,
+  liquid_balance: 400000,
+  account_balances: [],
+  thresholds: { riskyBelowMonths: 1, healthyAtMonths: 3 },
+  fx_status: { state: 'none', missing_pairs: [] },
+}
 
 describe('runway caption', () => {
   it('builds runway captions', () => {
