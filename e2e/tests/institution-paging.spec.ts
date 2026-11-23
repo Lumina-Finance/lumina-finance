@@ -9,17 +9,23 @@ import { API_BASE_URL } from '../support/target'
 
 const FILLER_COUNT = 55
 
+// One person may have at most this many institutions waiting to be approved, so the fillers are
+// spread over several people
+const PENDING_LIMIT = 20
+
 test('the institution picker pages at fifty, searches by name and names a selection beyond the first page', async ({ page, request }) => {
   const user = await signUpUser(request)
   const run = crypto.randomUUID().slice(0, 8)
 
   // Every user's institutions share one table, so the filler names sort ahead of the account's own
   // and push it past the first page whatever else other runs left in the table
+  let filler = user
   for (let index = 0; index < FILLER_COUNT; index++) {
-    await createInstitution(request, user, `AAA paged ${run} ${String(index).padStart(2, '0')}`)
+    if (index > 0 && index % PENDING_LIMIT === 0) filler = await signUpUser(request)
+    await createInstitution(request, filler, `AAA paged ${run} ${String(index).padStart(2, '0')}`)
   }
   const lastName = `ZZZ paged ${run} last`
-  const lastId = await createInstitution(request, user, lastName)
+  const lastId = await createInstitution(request, filler, lastName)
   const account = await createAccount(request, user, { name: 'Institution paging account' })
   const linked = await request.patch(`${API_BASE_URL}/accounts/${account.id}`, {
     headers: asUser(user), data: { institution_id: lastId },

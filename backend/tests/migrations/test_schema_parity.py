@@ -73,6 +73,7 @@ _QIF_CATEGORY_ID = "33333333-3333-4333-8333-333333333333"
 _QIF_TRANSACTION_ID = "44444444-4444-4444-8444-444444444444"
 _ALEMBIC_BANK_TRANSACTION_DB_NAME = f"{WORKER_DB_NAME}_alembic_bank_transaction"
 _ALEMBIC_BANK_HASH_DB_NAME = f"{WORKER_DB_NAME}_alembic_bank_hash"
+_ALEMBIC_INSTITUTION_SUBMISSION_DB_NAME = f"{WORKER_DB_NAME}_alembic_institution_submission"
 _BEFORE_BANK_HASH_REVISION = "f3a9c1d7b265"
 _BANK_HASH_REVISION = "7c2e9a4d1f58"
 _BANK_HASH_ACCOUNT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
@@ -786,6 +787,41 @@ async def test_alembic_bank_transaction_rules_match_model_metadata() -> None:
         assert built[_ALEMBIC_BANK_TRANSACTION_DB_NAME] == built[WORKER_DB_NAME]
     finally:
         await _drop_database(_ALEMBIC_BANK_TRANSACTION_DB_NAME)
+
+
+async def test_alembic_institution_submission_rules_match_model_metadata() -> None:
+    """Verify Alembic builds the institution submissions with the deletes and row-level security the models declare
+
+    The route tests build the schema from model metadata, so a migration that left out a cascade would pass
+    them while a deleted institution went on counting toward the limit of the person who added it. Who added
+    an institution is the adder's alone to read, so the migration must also turn on row-level security
+    """
+    rules_query = text(
+        "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+        "WHERE conrelid = 'public.institution_submissions'::regclass AND contype = 'f' "
+        "UNION ALL SELECT 'row security ' || relrowsecurity::text FROM pg_class "
+        "WHERE oid = 'public.institution_submissions'::regclass"
+    )
+    await _recreate_database(_ALEMBIC_INSTITUTION_SUBMISSION_DB_NAME)
+    try:
+        _run_alembic_upgrade(_ALEMBIC_INSTITUTION_SUBMISSION_DB_NAME)
+        built = {}
+        for database_name in (_ALEMBIC_INSTITUTION_SUBMISSION_DB_NAME, WORKER_DB_NAME):
+            engine = _create_engine_for_database(database_name)
+            try:
+                async with engine.connect() as conn:
+                    built[database_name] = sorted((await conn.execute(rules_query)).scalars())
+            finally:
+                await engine.dispose()
+
+        assert built[WORKER_DB_NAME] == [
+            "FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE CASCADE",
+            "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+            "row security true",
+        ]
+        assert built[_ALEMBIC_INSTITUTION_SUBMISSION_DB_NAME] == built[WORKER_DB_NAME]
+    finally:
+        await _drop_database(_ALEMBIC_INSTITUTION_SUBMISSION_DB_NAME)
 
 
 async def test_auth_session_overhaul_clears_legacy_auth_state() -> None:
