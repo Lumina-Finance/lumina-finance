@@ -1,4 +1,5 @@
 """Transaction overview cash-flow conversion"""
+
 import uuid
 from datetime import date
 
@@ -52,10 +53,7 @@ async def convert_overview_daily_cash_flow(
         )
 
         # Drop rows only when every non-zero side failed conversion
-        if (
-            (row_inflow == 0 or converted_inflow is None)
-            and (row_outflow == 0 or converted_outflow is None)
-        ):
+        if (row_inflow == 0 or converted_inflow is None) and (row_outflow == 0 or converted_outflow is None):
             continue
 
         # Keep partial rows when one side converts and the other side is zero or unavailable

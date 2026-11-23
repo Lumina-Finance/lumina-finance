@@ -165,9 +165,5 @@ async def _get_converted_category_totals(
         name, kind, current_total = totals.get(row.id, (row.name, row.kind, 0))
         totals[row.id] = (name, kind, current_total + converted_total)
 
-    category_totals = {
-        category_id: (name, kind, amount)
-        for category_id, (name, kind, amount) in totals.items()
-        if amount
-    }
+    category_totals = {category_id: (name, kind, amount) for category_id, (name, kind, amount) in totals.items() if amount}
     return category_totals

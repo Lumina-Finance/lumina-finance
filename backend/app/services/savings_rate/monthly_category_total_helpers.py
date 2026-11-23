@@ -170,11 +170,7 @@ async def _prefetch_savings_rate_window_rates(
         prefetch_start_date: Inclusive rate prefetch start date
         prefetch_end_date: Inclusive rate prefetch end date
     """
-    foreign_currencies = {
-        row.account_currency
-        for row in monthly_category_rows
-        if row.account_currency != base_currency
-    }
+    foreign_currencies = {row.account_currency for row in monthly_category_rows if row.account_currency != base_currency}
     for currency in sorted(foreign_currencies):
         await converter.prefetch_rates(
             base=currency,

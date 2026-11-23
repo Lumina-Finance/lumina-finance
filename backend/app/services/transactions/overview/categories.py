@@ -1,4 +1,5 @@
 """Transaction overview category conversion"""
+
 import uuid
 
 from app.models.account import Account

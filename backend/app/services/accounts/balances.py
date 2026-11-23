@@ -1,4 +1,5 @@
 """Account balance conversion service"""
+
 from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession

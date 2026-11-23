@@ -88,4 +88,3 @@ async def get_converted_net_worth_balance_total(
         if converted_balance is not None:
             total += converted_balance
     return total
-

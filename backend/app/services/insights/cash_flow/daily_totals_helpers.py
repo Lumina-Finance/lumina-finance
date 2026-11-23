@@ -67,10 +67,7 @@ async def get_cash_flow_daily_totals(
             Transaction.dt <= to_date,
             or_(
                 Category.kind.in_((CategoryKind.INCOME, CategoryKind.EXPENSE)),
-                (
-                    (Category.kind == CategoryKind.TRANSFER)
-                    & (Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME)
-                ),
+                ((Category.kind == CategoryKind.TRANSFER) & (Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME)),
             ),
         )
         .group_by(Transaction.dt, Transaction.account_id, Account.currency)

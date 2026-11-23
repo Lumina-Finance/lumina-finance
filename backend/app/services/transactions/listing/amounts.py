@@ -1,4 +1,5 @@
 """Transaction listing amount conversion"""
+
 import uuid
 
 from sqlalchemy import select
@@ -81,11 +82,7 @@ async def _get_listing_accounts_by_id(db: AsyncSession, account_ids: set[uuid.UU
         Mapping from account ID to account row
     """
     # Fetch transaction parent accounts so account-currency conversions use persisted account currency
-    account_rows = (
-        (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all()
-        if account_ids
-        else []
-    )
+    account_rows = (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all() if account_ids else []
     return {account.id: account for account in account_rows}
 
 
@@ -108,14 +105,8 @@ async def _get_transaction_listing_conversion_data(
     accounts_by_id = await _get_listing_accounts_by_id(db, {transaction.account_id for transaction in transactions})
 
     # Include original transaction currencies and account currencies because listing converts both directions
-    transaction_currencies = {
-        transaction.currency
-        for transaction in transactions
-    }
-    account_currencies = {
-        account.currency
-        for account in accounts_by_id.values()
-    }
+    transaction_currencies = {transaction.currency for transaction in transactions}
+    account_currencies = {account.currency for account in accounts_by_id.values()}
 
     # Add caller-provided currencies such as the user's base currency for response fields
     currencies = set(transaction_currencies)

@@ -85,8 +85,4 @@ async def get_period_at_a_glance_category_net_totals(
         name, kind, current_total = raw_totals.get(row.id, (row.name, row.kind, 0))
         raw_totals[row.id] = (name, kind, current_total + converted_total)
 
-    return {
-        category_id: (name, kind, amount)
-        for category_id, (name, kind, amount) in raw_totals.items()
-        if amount
-    }
+    return {category_id: (name, kind, amount) for category_id, (name, kind, amount) in raw_totals.items() if amount}
