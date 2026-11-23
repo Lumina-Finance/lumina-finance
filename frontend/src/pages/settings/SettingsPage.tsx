@@ -1,5 +1,8 @@
 import { useAccounts } from '@/api/accounts'
-import { useBankProviders } from '@/api/bank-sync'
+import { useState } from 'react'
+import { useBankConnections, useBankProviders } from '@/api/bank-sync'
+import DeleteProfileCard from '@/pages/settings/components/DeleteProfileCard'
+import { DeleteProfileDialogue } from '@/pages/settings/components/DeleteProfileDialogue'
 import { useOidcIdentities } from '@/api/oidc'
 import { FeatureCover } from '@/components/feature-cover/Cover'
 import { useFeatureCover } from '@/components/feature-cover/useFeatureCover'
@@ -91,6 +94,8 @@ export default function SettingsPage() {
   const sectionNavigation = useSettingsSectionNavigation(sections)
   const showBankConnections = sections.some((section) => section.id === 'bank-connections')
   const { exportAllData, isExporting } = useExportAllData()
+  const { data: bankConnections } = useBankConnections({ enabled: showBankConnections })
+  const [deleteProfileOpen, setDeleteProfileOpen] = useState(false)
 
   const profileActions = (
     <SettingsPaneActions
@@ -239,6 +244,16 @@ export default function SettingsPage() {
             accounts={accounts ?? []}
             userBaseCurrency={user?.base_currency}
             userTimezone={user?.tz}
+          />
+
+          <DeleteProfileCard onDelete={() => setDeleteProfileOpen(true)} />
+          <DeleteProfileDialogue
+            open={deleteProfileOpen}
+            hasBankConnections={(bankConnections?.length ?? 0) > 0}
+            exporting={isExporting}
+            onExport={exportAllData}
+            onConfirm={() => {}}
+            onCancel={() => setDeleteProfileOpen(false)}
           />
         </div>
       </div>

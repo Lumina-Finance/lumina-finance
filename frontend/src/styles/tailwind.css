@@ -2185,6 +2185,25 @@
     pointer-events: none;
   }
 
+  /* A quieter danger button for a panel in the warning tint: red text and a red border on the plain
+     card surface at rest, so it stands clear of the tint around it, taking the filled danger look
+     under the pointer and on keyboard focus */
+  .app-danger-button.app-danger-button-quiet {
+    color: var(--app-negative);
+    border-color: color-mix(in srgb, var(--app-negative) 45%, transparent);
+    background: var(--app-surface-soft);
+  }
+
+  .app-danger-button.app-danger-button-quiet:not([aria-disabled="true"]):focus-visible {
+    color: white;
+  }
+
+  @media (hover: hover) {
+    .app-danger-button.app-danger-button-quiet:not([aria-disabled="true"]):hover {
+      color: white;
+    }
+  }
+
   /* Liquid-glass variants of the toolbar controls, sharing the filter pill and insights range
      selector surface so the transactions toolbar reads as one glass family. The search field keeps
      the pill shape and border but not the see-through fill: it takes the same solid background as
