@@ -69,7 +69,10 @@ test('keeps the Import undone message the same gap above the footer while the pa
       if (!message || !footer || Number(getComputedStyle(message).opacity) <= 0.9) return
       const cornerBottom = innerHeight - parseFloat(getComputedStyle(message).bottom)
       const footerTop = footer.getBoundingClientRect().top
-      if (footerTop < cornerBottom + 12) store.gaps.push(footerTop - message.getBoundingClientRect().bottom)
+      // The entrance slide is the card's `transform` and the lift is its separate `translate`, so taking
+      // the slide's offset from the box read in this same frame leaves where the lift put the message
+      const slide = new DOMMatrix(getComputedStyle(message).transform).m42
+      if (footerTop < cornerBottom + 12) store.gaps.push(footerTop - (message.getBoundingClientRect().bottom - slide))
     }).observe(probe)
     const flip = () => {
       probe.style.width = probe.style.width === '1px' ? '2px' : '1px'
