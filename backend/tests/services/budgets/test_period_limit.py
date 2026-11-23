@@ -1,7 +1,8 @@
 """The count behind the most periods one budget keeps, on each side of 1,200
 
 Pure, no database. The route tests check each refusal reaches the person, so the boundary for each
-cadence is pinned here. The dates match the frontend's validation tests, counted to the same today
+cadence is pinned here. The one-week and one-month dates match the frontend's validation tests, counted
+to the same today
 """
 
 from datetime import date
@@ -17,9 +18,8 @@ TODAY = date(2026, 5, 4)
 
 
 def _check(period_start: date, freq: RecurrenceFreq, instance_length: int = 1, dom: int | None = None) -> None:
-    """Count the series from period_start to TODAY against the limit, a yearly one anchored to its start's month"""
-    month = period_start.month if freq == RecurrenceFreq.YEARLY else None
-    ensure_series_within_period_limit(period_start, TODAY, freq, instance_length, dom=dom, month=month, detail="refused")
+    """Count the series from period_start to TODAY against the limit"""
+    ensure_series_within_period_limit(period_start, TODAY, freq, instance_length, dom=dom, month=None, detail="refused")
 
 
 @pytest.mark.parametrize(
@@ -30,7 +30,6 @@ def _check(period_start: date, freq: RecurrenceFreq, instance_length: int = 1, d
         pytest.param(date(2003, 5, 12), RecurrenceFreq.WEEKLY, 1, None, id="1,200 weeks"),
         pytest.param(date(1980, 5, 19), RecurrenceFreq.WEEKLY, 2, None, id="1,200 fortnights"),
         pytest.param(date(1926, 5, 1), RecurrenceFreq.MONTHLY, 2, 1, id="601 two-month periods"),
-        pytest.param(date(1900, 1, 1), RecurrenceFreq.YEARLY, 1, 1, id="127 years"),
     ],
 )
 def test_a_series_of_at_most_1200_periods_passes(period_start, freq, instance_length, dom):

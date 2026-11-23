@@ -504,10 +504,13 @@ export interface CreateMonthlyBudgetOptions {
    */
   periodStart?: string
   currency?: string
+
+  /** False makes a one-off budget with the single period at periodStart. Defaults to recurring */
+  recurs?: boolean
 }
 
 /**
- * Create a recurring monthly budget funded from the previous month unless a start is supplied
+ * Create a monthly budget, recurring unless asked otherwise, funded from the previous month unless a start is supplied
  *
  * Monthly is the only cadence here because it is the only one a spec needs. The others take
  * different anchor fields, which the API checks rather than infers.
@@ -537,7 +540,7 @@ export async function createMonthlyBudget(
       name: options.name,
       currency: options.currency ?? TEST_CURRENCY,
       recurrence_freq: 'monthly',
-      recurs: true,
+      recurs: options.recurs ?? true,
       recurrence_dom: BUDGET_ANCHOR_DAY,
       category_ids: categoryIds,
       period_start: options.periodStart ?? budgetPeriodStart(),

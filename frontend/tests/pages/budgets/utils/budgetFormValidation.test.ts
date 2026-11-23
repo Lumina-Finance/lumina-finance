@@ -86,7 +86,7 @@ describe('create budget validation', () => {
   })
 
   it('refuses a recurring start whose periods to today pass 1,200, on the start field', () => {
-    // The same today and dates as the backend's route tests, so the two counts cannot drift apart
+    // The same today and dates as the backend's period limit service tests, so the two counts cannot drift apart
     const periodLimitToday = '2026-05-04'
     const startError = (overrides: Partial<BudgetFormState>) =>
       validateBudgetCreateForm(createForm(overrides), currencies, categories, periodLimitToday).periodStart
