@@ -95,7 +95,7 @@ async def test_cash_flow_returns_daily_buckets_and_excludes_non_cash_flow_rows(c
             ["2026-05-06", "2026-05-06", 0, 0],
             ["2026-05-07", "2026-05-07", 0, 0],
         ],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -183,7 +183,7 @@ async def test_cash_flow_converts_foreign_entries_by_transaction_date(client, mo
             ["2026-05-01", "2026-05-01", 17_000, 1_000],
             ["2026-05-02", "2026-05-02", 0, 10_000],
         ],
-        "fx_status": {"state": "complete", "missing_pairs": []},
+        "fx_status": {"state": "complete", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -235,6 +235,7 @@ async def test_cash_flow_reports_incomplete_fx_with_missing_pairs(client, monkey
         "fx_status": {
             "state": "incomplete",
             "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+            "withheld_reason": None,
         },
     }
 
@@ -276,7 +277,7 @@ async def test_cash_flow_uses_weekly_buckets_for_mid_length_ranges(client):
         ["2026-04-13", "2026-04-19", 0, 0],
         ["2026-04-20", "2026-04-20", 40_000, 0],
     ]
-    assert response.json()["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert response.json()["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_cash_flow_uses_weekly_buckets_through_183_day_ranges(client):
@@ -350,7 +351,7 @@ async def test_cash_flow_uses_monthly_buckets_for_long_ranges(client):
         ["2026-07-01", "2026-07-31", 0, 0],
         ["2026-08-01", "2026-08-01", 0, 0],
     ]
-    assert response.json()["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert response.json()["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_cash_flow_returns_empty_points_without_accounts(client):
@@ -367,7 +368,7 @@ async def test_cash_flow_returns_empty_points_without_accounts(client):
     assert response.status_code == 200
     assert response.json() == {
         "points": [],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -386,7 +387,7 @@ async def test_cash_flow_returns_empty_points_without_activity(client):
     assert response.status_code == 200
     assert response.json() == {
         "points": [],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 

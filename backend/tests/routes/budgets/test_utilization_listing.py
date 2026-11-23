@@ -56,7 +56,7 @@ async def test_list_latest_budget_utilizations_returns_latest_period_only(client
     assert data[0]["currency"] == "CAD"
     assert data[0]["total_spent"] == 5000
     assert data[0]["overall_limit"] == 100000
-    assert data[0]["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data[0]["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_list_latest_budget_utilizations_includes_archived_base(client):

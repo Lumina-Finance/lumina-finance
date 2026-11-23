@@ -78,7 +78,7 @@ async def test_dashboard_counts_archived_accounts_in_net_worth_but_not_credit(cl
     data = resp.json()
     assert data["current_net_worth"] == 500_000
     assert data["net_worth_history"][-1] == 500_000
-    assert data["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
     credit_resp = await client.get("/dashboard/credit", headers=headers)
 
@@ -86,7 +86,7 @@ async def test_dashboard_counts_archived_accounts_in_net_worth_but_not_credit(cl
     credit_data = credit_resp.json()
     assert credit_data["credit_limit_total"] == 200_000
     assert credit_data["credit_used"] == 30_000
-    assert credit_data["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert credit_data["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_dashboard_net_worth_converts_foreign_currency_accounts(client, monkeypatch):
@@ -127,7 +127,7 @@ async def test_dashboard_net_worth_converts_foreign_currency_accounts(client, mo
     data = resp.json()
     assert data["current_net_worth"] == 400_00
     assert data["net_worth_history"] == [0, 400_00]
-    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
     assert calls == [("USD", "CAD", date(2026, 3, 12), date(2026, 3, 20))]
 
 
@@ -182,6 +182,7 @@ async def test_dashboard_net_worth_reports_incomplete_fx_with_missing_pairs(clie
                 "quote": "CAD",
             },
         ],
+        "withheld_reason": None,
     }
 
 
@@ -221,6 +222,7 @@ async def test_dashboard_net_worth_reports_unavailable_fx(client, monkeypatch):
                 "quote": "CAD",
             },
         ],
+        "withheld_reason": None,
     }
 
 

@@ -74,7 +74,7 @@ async def test_transactions_overview_includes_archived_accounts_unscoped(client)
     data = resp.json()
     assert data["total_inflow"] == 100_000
     assert data["total_outflow"] == -34_000
-    assert data["net_flow_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["net_flow_fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_transactions_overview_net_flow_excludes_balance_adjustments(client):
@@ -169,7 +169,7 @@ async def test_transactions_overview_net_flow_converts_foreign_accounts(client, 
     data = resp.json()
     assert data["total_inflow"] == 16_000
     assert data["total_outflow"] == -8_500
-    assert data["net_flow_fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["net_flow_fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
     assert data["net_flow_fx_status"] == data["daily_cash_flow_fx_status"]
     assert data["total_inflow"] == sum(day["inflow"] for day in data["daily_cash_flow"])
     assert data["total_outflow"] == sum(day["outflow"] for day in data["daily_cash_flow"])
@@ -242,6 +242,7 @@ async def test_transactions_overview_net_flow_reports_incomplete_fx(client, monk
     assert data["net_flow_fx_status"] == {
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+        "withheld_reason": None,
     }
     assert data["net_flow_fx_status"] == data["daily_cash_flow_fx_status"]
     assert data["total_inflow"] == sum(day["inflow"] for day in data["daily_cash_flow"])
@@ -300,7 +301,7 @@ async def test_transactions_overview_daily_cash_flow_converts_foreign_accounts(c
         {"date": "2026-03-14", "end_date": "2026-03-14", "inflow": 16_000, "outflow": -1_000},
         {"date": "2026-03-15", "end_date": "2026-03-15", "inflow": 0, "outflow": -7_500},
     ]
-    assert data["daily_cash_flow_fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["daily_cash_flow_fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_transactions_overview_daily_cash_flow_reports_incomplete_fx(client, monkeypatch):
@@ -370,6 +371,7 @@ async def test_transactions_overview_daily_cash_flow_reports_incomplete_fx(clien
     assert data["daily_cash_flow_fx_status"] == {
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+        "withheld_reason": None,
     }
 
 
@@ -487,7 +489,7 @@ async def test_transactions_overview_top_categories_cover_expense_categories_onl
     assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
         (expense_category_id, -5_000),
     ]
-    assert data["top_categories_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["top_categories_fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_transactions_overview_top_categories_drop_a_category_refunded_to_zero(client):
@@ -607,11 +609,12 @@ async def test_transactions_overview_unconvertible_income_row_leaves_top_categor
     assert [(row["category_id"], row["total"]) for row in data["top_categories"]] == [
         (category_id, -5_000),
     ]
-    assert data["top_categories_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["top_categories_fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
     assert [row["amount"] for row in data["outliers"]] == [-5_000]
     assert data["outliers_fx_status"] == {
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+        "withheld_reason": None,
     }
 
 
@@ -658,9 +661,10 @@ async def test_transactions_overview_panels_report_fx_status_for_their_own_conve
     assert data["top_categories_fx_status"] == {
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+        "withheld_reason": None,
     }
     assert [row["amount"] for row in data["outliers"]] == [-5_000]
-    assert data["outliers_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["outliers_fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_transactions_overview_top_categories_convert_and_rank_foreign_accounts(client, monkeypatch):
@@ -702,7 +706,7 @@ async def test_transactions_overview_top_categories_convert_and_rank_foreign_acc
         (usd_category_id, -9_000),
         (cad_category_id, -8_500),
     ]
-    assert data["top_categories_fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["top_categories_fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_transactions_overview_top_categories_report_incomplete_fx(client, monkeypatch):
@@ -770,6 +774,7 @@ async def test_transactions_overview_top_categories_report_incomplete_fx(client,
     assert data["top_categories_fx_status"] == {
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+        "withheld_reason": None,
     }
 
 
@@ -802,7 +807,7 @@ async def test_transactions_overview_outliers_rank_by_each_transactions_own_outf
     assert resp.status_code == 200
     data = resp.json()
     assert [row["amount"] for row in data["outliers"]] == [-15_000, -10_000, -9_000]
-    assert data["outliers_fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["outliers_fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_transactions_overview_outliers_break_amount_ties_by_recency(client):
@@ -901,7 +906,7 @@ async def test_transactions_overview_outliers_break_converted_ties_by_recency(cl
 
     # Ordering on stored amounts would put the CAD row first, since -9,000 sorts below -6,000
     assert [row["id"] for row in data["outliers"]] == [usd_txn.json()["id"], cad_txn.json()["id"]]
-    assert data["outliers_fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["outliers_fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_transactions_overview_outliers_convert_and_rank_foreign_accounts(client, monkeypatch):
@@ -942,7 +947,7 @@ async def test_transactions_overview_outliers_convert_and_rank_foreign_accounts(
         (usd_txn.json()["id"], -6_000, "USD"),
         (cad_txn.json()["id"], -8_500, "CAD"),
     ]
-    assert data["outliers_fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["outliers_fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_transactions_overview_outliers_report_incomplete_fx(client, monkeypatch):
@@ -1010,6 +1015,7 @@ async def test_transactions_overview_outliers_report_incomplete_fx(client, monke
     assert data["outliers_fx_status"] == {
         "state": "incomplete",
         "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+        "withheld_reason": None,
     }
 
 

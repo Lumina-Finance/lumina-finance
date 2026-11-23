@@ -129,7 +129,7 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
         "expense_inflows": [],
         "income_source_count": 6,
         "expense_category_count": 7,
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -189,7 +189,7 @@ async def test_fund_flow_converts_foreign_entries_by_transaction_date(client, mo
         "expense_inflows": [],
         "income_source_count": 1,
         "expense_category_count": 1,
-        "fx_status": {"state": "complete", "missing_pairs": []},
+        "fx_status": {"state": "complete", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -240,6 +240,7 @@ async def test_fund_flow_reports_incomplete_fx_with_missing_pairs(client, monkey
         "fx_status": {
             "state": "incomplete",
             "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+            "withheld_reason": None,
         },
     }
 
@@ -285,7 +286,7 @@ async def test_fund_flow_reclassifies_categories_by_net_sign(client):
         "expense_inflows": [["Over-refunded", 20_000]],
         "income_source_count": 2,
         "expense_category_count": 2,
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -323,7 +324,7 @@ async def test_fund_flow_shows_negative_capital_gains_as_expense(client):
         "expense_inflows": [],
         "income_source_count": 1,
         "expense_category_count": 1,
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -346,7 +347,7 @@ async def test_fund_flow_returns_empty_payload_without_accounts(client):
         "expense_inflows": [],
         "income_source_count": 0,
         "expense_category_count": 0,
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -381,7 +382,7 @@ async def test_fund_flow_handles_single_sided_period(client):
         "expense_inflows": [],
         "income_source_count": 1,
         "expense_category_count": 0,
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 

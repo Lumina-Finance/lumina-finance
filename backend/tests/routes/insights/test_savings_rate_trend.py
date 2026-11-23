@@ -93,7 +93,7 @@ async def test_savings_rate_trend_returns_latest_available_monthly_totals(client
             ["2026-04-01", 0, 0],
             ["2026-05-01", 1_300_000, 1_000_000],
         ],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -147,7 +147,7 @@ async def test_savings_rate_trend_converts_foreign_entries_by_transaction_date(c
         "points": [
             ["2026-05-01", 13_500, 8_000],
         ],
-        "fx_status": {"state": "complete", "missing_pairs": []},
+        "fx_status": {"state": "complete", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -195,6 +195,7 @@ async def test_savings_rate_trend_reports_incomplete_fx_with_missing_pairs(clien
         "fx_status": {
             "state": "incomplete",
             "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+            "withheld_reason": None,
         },
     }
 
@@ -227,7 +228,7 @@ async def test_savings_rate_trend_caps_at_latest_twelve_months(client, monkeypat
     assert len(points) == 12
     assert points[0] == ["2025-06-01", 0, 0]
     assert points[-1] == ["2026-05-01", 600_000, 0]
-    assert resp.json()["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert resp.json()["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_savings_rate_trend_includes_current_month_without_activity(client, monkeypatch):
@@ -262,7 +263,7 @@ async def test_savings_rate_trend_includes_current_month_without_activity(client
             ["2026-04-01", 0, 0],
             ["2026-05-01", 0, 0],
         ],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -298,7 +299,7 @@ async def test_savings_rate_trend_uses_user_timezone_for_current_month(client, m
             ["2025-11-01", 400_000, 0],
             ["2025-12-01", 0, 125_000],
         ],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -339,7 +340,7 @@ async def test_savings_rate_trend_routes_flipped_categories_by_monthly_net(clien
         "points": [
             ["2026-05-01", 320_000, 140_000],
         ],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -369,7 +370,7 @@ async def test_savings_rate_trend_includes_archived_only_activity(client, monkey
     assert resp.status_code == 200
     assert resp.json() == {
         "points": [["2026-05-01", 600_000, 0]],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -387,7 +388,7 @@ async def test_savings_rate_trend_returns_empty_payload_without_activity(client,
     assert resp.status_code == 200
     assert resp.json() == {
         "points": [],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 

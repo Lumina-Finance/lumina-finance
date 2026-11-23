@@ -90,7 +90,7 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
         ["2026-05-02", "2026-05-02", [9_150_000, -50_000]],
         ["2026-05-03", "2026-05-03", [9_150_000, -80_000]],
     ]
-    assert data["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_net_worth_groups_tax_advantaged_assets_by_account_type(client):
@@ -140,7 +140,7 @@ async def test_net_worth_groups_tax_advantaged_assets_by_account_type(client):
         ],
         "baseline": [0, 0],
         "points": [["2026-05-01", "2026-05-01", [25_000, 175_000]]],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -214,7 +214,7 @@ async def test_net_worth_converts_foreign_balances_by_bucket_value_date(client, 
             ["2026-05-02", "2026-05-02", [140_000, -8_000]],
             ["2026-05-03", "2026-05-03", [150_000, -20_000]],
         ],
-        "fx_status": {"state": "complete", "missing_pairs": []},
+        "fx_status": {"state": "complete", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -257,6 +257,7 @@ async def test_net_worth_reports_incomplete_fx_with_missing_pairs(client, monkey
         "fx_status": {
             "state": "incomplete",
             "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+            "withheld_reason": None,
         },
     }
 
@@ -403,7 +404,12 @@ async def test_net_worth_omits_zero_only_groups(client):
     )
 
     assert resp.status_code == 200
-    assert resp.json() == {"groups": [], "baseline": [], "points": [], "fx_status": {"state": "none", "missing_pairs": []}}
+    assert resp.json() == {
+        "groups": [],
+        "baseline": [],
+        "points": [],
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
+    }
 
 
 async def test_net_worth_rejects_invalid_date_range(client):

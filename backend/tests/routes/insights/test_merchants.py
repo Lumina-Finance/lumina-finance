@@ -101,7 +101,7 @@ async def test_merchants_returns_distribution_and_ranking_payloads(client):
             [str(alpha_id), "Alpha Market", 80_000, 2, 40_000],
             [str(beta_id), "Beta Grocer", 50_000, 1, 0],
         ],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -347,7 +347,7 @@ async def test_merchants_category_filter_converts_foreign_rows(client, monkeypat
     assert resp.status_code == 200
     assert resp.json()["distribution"] == [[str(alpha_id), "Alpha Market", 15_000, 15_000]]
     assert resp.json()["ranking"] == [[str(alpha_id), "Alpha Market", 15_000, 1, 0]]
-    assert resp.json()["fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert resp.json()["fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_merchants_category_filter_does_not_net_a_refund_from_another_category(client):
@@ -439,7 +439,7 @@ async def test_merchants_converts_foreign_entries_by_transaction_date(client, mo
             [str(alpha_id), "Alpha Market", 13_000, 3, 5_000],
             [str(beta_id), "Beta Grocer", 5_000, 1, 0],
         ],
-        "fx_status": {"state": "complete", "missing_pairs": []},
+        "fx_status": {"state": "complete", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -495,6 +495,7 @@ async def test_merchants_reports_incomplete_fx_with_missing_pairs(client, monkey
         "fx_status": {
             "state": "incomplete",
             "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+            "withheld_reason": None,
         },
     }
 
@@ -538,7 +539,7 @@ async def test_merchants_compare_previous_calendar_month(client):
         "ranking": [
             [str(alpha_id), "Alpha Market", 100_000, 1, 40_000],
         ],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 

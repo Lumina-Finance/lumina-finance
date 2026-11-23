@@ -150,7 +150,7 @@ async def test_income_expense_breakdown_returns_limited_period_payload(client):
         "income_decreases": [
             [str(freelance_id), "Freelance", 100_000, 120_000, 1],
         ],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -216,7 +216,7 @@ async def test_income_expense_breakdown_converts_foreign_entries_by_transaction_
         "expense_decreases": [],
         "income_increases": [[str(salary_id), "Salary", 13_500, 6_000, 3]],
         "income_decreases": [],
-        "fx_status": {"state": "complete", "missing_pairs": []},
+        "fx_status": {"state": "complete", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -269,6 +269,7 @@ async def test_income_expense_breakdown_reports_incomplete_fx_with_missing_pairs
         "fx_status": {
             "state": "incomplete",
             "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+            "withheld_reason": None,
         },
     }
 
@@ -435,7 +436,7 @@ async def test_income_expense_breakdown_omits_zero_net_current_categories(client
         "expense_decreases": [],
         "income_increases": [],
         "income_decreases": [],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -460,7 +461,7 @@ async def test_income_expense_breakdown_returns_empty_payload_without_accounts(c
         "expense_decreases": [],
         "income_increases": [],
         "income_decreases": [],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
