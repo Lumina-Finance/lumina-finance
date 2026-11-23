@@ -4,6 +4,8 @@ Each account says why it is read-only. Nothing on it changes, while it can alway
 back from the archive or deleted
 """
 
+import pytest
+
 from tests.routes.read_only_records._helpers import _currency_asks, _open_account, _sign_up_holding_usd
 from tests.routes.support.account_helpers import _account_names, _record_starting_balance
 from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, refuse_other_currencies
@@ -95,6 +97,58 @@ async def test_archive_read_only_account_from_the_edit_form_goes_through(client)
 
     assert response.status_code == 200, response.text
     assert response.json()["is_archived"] is True
+
+
+async def _stored_edit_form(client, headers, kind: str) -> tuple[str, dict]:
+    """Open a US account holding real values in every field the edit form sends, and return its id and that form's body
+
+    An asset sits at a bank, carries notes and a tax-advantaged category. A credit card carries notes and a credit limit
+    """
+    institution = await client.post(
+        "/institutions", json={"name": "Chase", "country_code": "US", "website": "https://chase.example.com"}, headers=headers
+    )
+    assert institution.status_code == 201, institution.text
+    institution_id = institution.json()["id"]
+    if kind == "asset":
+        plan = await client.post(
+            "/tax-advantaged-categories", json={"name": "Roth IRA", "tax_treatment": "tax_free", "currency": "USD"}, headers=headers
+        )
+        assert plan.status_code == 201, plan.text
+        fields = {"institution_id": institution_id, "tax_advantaged_category_id": plan.json()["id"]}
+        account_id = await _open_account(client, headers, "Travel", **fields)
+    else:
+        fields = {"institution_id": institution_id, "credit_limit": 500_000}
+        account_id = await _open_account(client, headers, "Travel", account_kind="revolving", account_type="credit_card", **fields)
+    noted = await client.patch(f"/accounts/{account_id}", json={"notes": "For the road trip"}, headers=headers)
+    assert noted.status_code == 200, noted.text
+    return account_id, {"name": "Travel", "notes": "For the road trip", "is_archived": True, **fields}
+
+
+@pytest.mark.parametrize("kind", ["asset", "liability"])
+async def test_archive_read_only_account_with_stored_values_from_the_edit_form_goes_through(client, kind):
+    """Each field the form sends matches what is stored, so only the switch counts as a change"""
+    headers = await _sign_up_holding_usd(client)
+    account_id, form = await _stored_edit_form(client, headers, kind)
+    refuse_other_currencies()
+
+    response = await client.patch(f"/accounts/{account_id}", json=form, headers=headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["is_archived"] is True
+
+
+async def test_archive_with_a_changed_field_on_a_read_only_account_is_refused_and_changes_nothing(client):
+    """Archiving doesn't carry a rename through, so the account keeps its name and stays active"""
+    headers = await _sign_up_holding_usd(client)
+    account_id = await _open_account(client, headers, "Travel")
+    refuse_other_currencies()
+
+    response = await client.patch(f"/accounts/{account_id}", json={"name": "Holiday", "is_archived": True}, headers=headers)
+
+    assert response.status_code == 403, response.text
+    assert response.json()["detail"] == ALLOWANCE_REASON
+    stored = (await client.get(f"/accounts/{account_id}", headers=headers)).json()
+    assert (stored["name"], stored["is_archived"]) == ("Travel", False)
 
 
 async def test_delete_read_only_account_goes_through(client):

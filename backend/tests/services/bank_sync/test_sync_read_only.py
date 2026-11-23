@@ -13,9 +13,9 @@ from sqlalchemy import select
 
 from app.allowance_hook import AllowanceKind
 from app.models.bank_connection import BankAccountLink, BankConnection
-from app.models.bank_sync_job import BankSyncJobKind
+from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, ProviderErrorKind
 from app.models.bank_transaction import BankTransaction
-from app.services.bank_sync.providers.contract import FetchResult, ProviderRecord
+from app.services.bank_sync.providers.contract import FetchResult, ProviderError, ProviderRecord
 from app.services.bank_sync.schedule import DAILY_SYNC_INTERVAL
 from tests.conftest import TestSession
 from tests.routes.support.allowance_helpers import install_check, seed_usd_currency
@@ -68,8 +68,15 @@ async def _next_sync_at(connection: BankConnection) -> datetime | None:
 
 
 @pytest.fixture
-async def links(connection, fake_provider: FakeProviderAdapter) -> tuple[BankAccountLink, BankAccountLink]:
-    """A Canadian and a US account linked on the connection, each with a coffee waiting at the bank, and a scheduled sync queued"""
+async def links(connection, linked) -> tuple[BankAccountLink, BankAccountLink]:
+    """The linked accounts, with a scheduled sync queued"""
+    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
+    return linked
+
+
+@pytest.fixture
+async def linked(connection, fake_provider: FakeProviderAdapter) -> tuple[BankAccountLink, BankAccountLink]:
+    """A Canadian and a US account linked on the connection, each with a coffee waiting at the bank"""
     await seed_usd_currency()
     cad = await _commit_link(connection, "ACT-cad", "CAD")
     usd = await _commit_link(connection, "ACT-usd", "USD")
@@ -81,7 +88,6 @@ async def links(connection, fake_provider: FakeProviderAdapter) -> tuple[BankAcc
             )
         )
     ]
-    await _seed_job(connection, BankSyncJobKind.SCHEDULED)
     return cad, usd
 
 
@@ -105,6 +111,44 @@ async def test_job_brings_nothing_into_a_read_only_account_records_no_attempt_an
     assert sent_action_emails == []
     assert await _next_sync_at(connection) >= frozen_now + DAILY_SYNC_INTERVAL
     assert [request.kind for request in asked].count(AllowanceKind.FOREIGN_CURRENCIES) == 1
+
+
+async def test_sync_now_for_a_read_only_account_is_dropped_and_passes_nothing_on(connection, linked, fake_provider: FakeProviderAdapter):
+    """The user asked both accounts to sync now, the US one held back from an earlier job, and the job syncs the Canadian one alone
+
+    Kept among the links asked for, the US one would be handed on to a further job that could never sync it
+    """
+    cad, usd = linked
+    asked = await _seed_job(connection, BankSyncJobKind.MANUAL, deferred_link_ids=[usd.id], requested_link_ids=[cad.id, usd.id])
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    await _run_jobs_until_none_is_due()
+
+    assert [call.account_ids for call in fake_provider.fetches] == [("ACT-cad",)]
+    async with TestSession() as session:
+        later = (
+            await session.execute(select(BankSyncJob.requested_link_ids, BankSyncJob.deferred_link_ids).where(BankSyncJob.id != asked.id))
+        ).all()
+    assert later == [], "the job queued another for the read-only link"
+
+
+async def test_sync_now_handed_on_after_a_rate_limit_leaves_the_read_only_account_out(connection, linked, fake_provider: FakeProviderAdapter):
+    """The bank asks for fewer requests on the Canadian fetch, and the job queued after it takes the Canadian account alone"""
+    cad, usd = linked
+    asked = await _seed_job(connection, BankSyncJobKind.MANUAL, deferred_link_ids=[usd.id], requested_link_ids=[cad.id, usd.id])
+    fake_provider.outcomes = [
+        FetchResult(request_error=ProviderError(ProviderErrorKind.RATE_LIMITED, "Fake Bank Online asked for fewer requests"))
+    ]
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    await _run_jobs_until_none_is_due()
+
+    async with TestSession() as session:
+        later = (
+            await session.execute(select(BankSyncJob.requested_link_ids, BankSyncJob.deferred_link_ids).where(BankSyncJob.id != asked.id))
+        ).all()
+    assert [set(requested) for requested, _ in later] == [{cad.id}]
+    assert all(usd.id not in deferred for _, deferred in later), "the read-only link was handed on as held back"
 
 
 async def test_job_with_no_check_installed_syncs_an_account_in_another_currency(links, fake_provider: FakeProviderAdapter, frozen_now):
