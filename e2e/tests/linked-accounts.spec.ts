@@ -11,7 +11,7 @@ import {
   startOfDayInTestTimezone,
   todayInTestTimezone,
 } from '../support/api'
-import { chooseFromDropdown, logInViaApi, openModal, openPage, readSettledBox, typeDate } from '../support/app'
+import { chooseFromDropdown, logInViaApi, openModal, openPage, readSettledBox, typeDate, waitForInitialFocus } from '../support/app'
 import { addImportedItem, answerLinksWith, linkToSampleBankAccount } from '../support/bankSync'
 import { faintestText } from '../support/contrast'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
@@ -303,6 +303,7 @@ test('lets an edit keep a date the linked account’s bank supplies, and refuses
 
   // Changing only the notes dates nothing anew, so it saves where the transaction already sits
   await row.click()
+  await waitForInitialFocus(page, dialog)
   await dialog.getByLabel('Notes').fill('Receipt checked')
   const notesSaved = page.waitForResponse((response) =>
     response.url() === `${API_BASE_URL}/transactions/${id}` && response.request().method() === 'PATCH')
