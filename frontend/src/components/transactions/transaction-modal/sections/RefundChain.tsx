@@ -60,7 +60,9 @@ function ChainSegment({ drawn, below = false }: { drawn: boolean; below?: boolea
 export function RefundChainGap({ place, drawn = true }: { place: 'above' | 'below'; drawn?: boolean }) {
   return (
     <div className={`flex ${place === 'above' ? 'h-2' : 'h-1'}`}>
-      <ChainLine className={drawn ? '' : 'invisible'} endsOnGap={place === 'below'} />
+      {/* The 4px below starts on a dash where the icon's stretch ended on a gap, and the 8px above ends on a whole
+          gap, so the two make one 12px run of whole dashes and the icon's stretch after them starts on a dash */}
+      <ChainLine className={drawn ? '' : 'invisible'} endsOnGap={place === 'above'} />
     </div>
   )
 }
@@ -71,8 +73,10 @@ export function RefundChainGap({ place, drawn = true }: { place: 'above' | 'belo
  */
 export function RefundChainLead() {
   return (
+    // Starts on a dash where the expense's stretch ended on a gap. The first refund's 8px above it ends the run on a
+    // whole gap
     <div className="flex h-4">
-      <ChainLine endsOnGap />
+      <ChainLine />
     </div>
   )
 }
@@ -139,7 +143,7 @@ export function RefundChainRow({
   const { formatMovedCurrency } = useMoneyFormatters()
   return (
     // A link Save has yet to make sits in a dashed border in the warning colour, with no fill, and "Unsaved" sits on
-    // the border's top edge near its left corner. The border reaches past the row by 8px on each side and 4px above
+    // the border's top edge above the name. The border reaches past the row by 8px on each side and 4px above
     // and below, into the room between rows, and its padding takes that back. So the row keeps its place and height,
     // and nothing moves when Save takes the border away. Two unsaved refunds in a row keep 4px of the 12px between
     // them, so their borders never touch
@@ -151,11 +155,12 @@ export function RefundChainRow({
       data-not-saved={notSaved ? 'true' : undefined}
     >
       {/* The label's fill matches the window behind the box, so it breaks the dashes where it sits. Its line box is
-          shorter than its letters, so the fill hides only the border, never the row above. A screen reader hears
-          "not saved yet" after the name instead */}
+          shorter than its letters, so the fill hides only the border, never the row above. Its letters start where
+          the name does, 7px of padding, the 36px icon and the 12px gap in, so the label clears the dashed line that
+          runs down through the icons. A screen reader hears "not saved yet" after the name instead */}
       {notSaved && (
         <span
-          className="absolute left-2.5 top-[-0.5px] -translate-y-1/2 px-1 text-[10px] font-semibold uppercase leading-[6px] tracking-wider"
+          className="absolute left-[51px] top-[-0.5px] -translate-y-1/2 px-1 text-[0.625rem] font-semibold uppercase leading-1.5 tracking-wider"
           style={{ background: 'var(--app-bg)', color: 'var(--app-warning-text)' }}
           aria-hidden
           data-testid="unsaved-label"
