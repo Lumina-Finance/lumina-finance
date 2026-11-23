@@ -8,14 +8,9 @@ import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
  * An existing transaction keeps its currency, so only accounts holding that same currency can
  * carry it, while creating a transaction still offers every account and adopts its currency
  */
-export function buildAccountOptions(
-  selectableAccounts: AccountsOverview[],
-  editing: boolean,
-  currency: string,
-) {
-  const eligibleAccounts = editing && currency
-    ? selectableAccounts.filter((account) => account.currency === currency)
-    : selectableAccounts
+export function buildAccountOptions(selectableAccounts: AccountsOverview[], editing: boolean, currency: string) {
+  const eligibleAccounts =
+    editing && currency ? selectableAccounts.filter((account) => account.currency === currency) : selectableAccounts
   return eligibleAccounts.map((account) => ({ value: account.id, label: account.name }))
 }
 
