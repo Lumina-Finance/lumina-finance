@@ -104,6 +104,8 @@ EXPECTED_MEMBERS: dict[str, dict[str, str]] = {
         "BANK_CONNECTION": "bank_connection",
         "BANK_SYNC": "bank_sync",
         "INSIGHTS": "insights",
+        "FOREIGN_CURRENCIES": "foreign_currencies",
+        "MAIN_CURRENCY_CHANGE": "main_currency_change",
     },
 }
 

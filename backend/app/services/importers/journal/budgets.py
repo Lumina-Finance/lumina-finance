@@ -19,6 +19,7 @@ from app.schemas.import_run import (
     JournalBudgetLimit,
     JournalBudgetRecurrence,
 )
+from app.services.allowance.currency import require_currency
 from app.services.allowance.require import require_allowance
 from app.services.budgets.limits import ensure_room_for_base_budgets
 from app.services.budgets.periods import compute_period_end, validate_period_start
@@ -113,6 +114,10 @@ async def write_journal_budgets(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"The {budget.name} budget uses the currency {budget.currency}, which is not supported",
             )
+
+    # Asked once for each currency, after the file's own mistakes, so an unsupported code is told as such
+    for currency in sorted(currency_codes):
+        await require_currency(user.id, user.base_currency, currency)
 
     requested_category_ids = {category_id for budget in budgets for category_id in budget.category_ids}
 

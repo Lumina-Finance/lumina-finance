@@ -15,6 +15,7 @@ from app.models.user import User
 from app.routes.base_budgets.instance_helpers import add_initial_budget_instances
 from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.schemas.budget import BaseBudgetResponse, CreateBaseBudgetRequest
+from app.services.allowance.currency import require_currency
 from app.services.allowance.require import require_allowance
 from app.services.budgets.limits import (
     SETUP_PAST_PERIOD_LIMIT_MESSAGE,
@@ -66,6 +67,7 @@ async def create_base_budget_and_get_response(
     ensure_category_count_within_limit(len(valid_tracked_category_ids))
     if group_id is None:
         await ensure_room_for_base_budgets(db, user.id, 1)
+    await require_currency(user.id, user.base_currency, data.currency, group_id=group_id)
     await require_allowance(db, user.id, AllowanceKind.BUDGET, group_id=group_id)
 
     base_budget = BaseBudget(

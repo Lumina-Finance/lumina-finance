@@ -12,13 +12,13 @@ async def test_every_feature_is_granted_without_a_check(client):
     response = await client.get("/me/feature-grants", headers=headers)
 
     assert response.status_code == 200
-    assert response.json() == {"features": ["bank_sync", "insights"]}
+    assert response.json() == {"features": ["bank_sync", "insights", "foreign_currencies"]}
 
 
-async def test_no_feature_is_granted_when_the_check_refuses_both(client):
-    """Bank sync and insights both refused grant nothing"""
+async def test_no_feature_is_granted_when_the_check_refuses_every_one(client):
+    """Bank sync, insights and foreign currencies all refused grant nothing"""
     headers = _get_auth_header(await _create_user(client))
-    install_check(refused={AllowanceKind.INSIGHTS, AllowanceKind.BANK_SYNC})
+    install_check(refused={AllowanceKind.INSIGHTS, AllowanceKind.BANK_SYNC, AllowanceKind.FOREIGN_CURRENCIES})
 
     response = await client.get("/me/feature-grants", headers=headers)
 
@@ -26,7 +26,7 @@ async def test_no_feature_is_granted_when_the_check_refuses_both(client):
 
 
 async def test_lists_each_feature_the_check_allows_the_user(client):
-    """Insights refused while bank sync is allowed grants bank sync alone, asked as a feature for the signed-in user"""
+    """Insights refused while the others are allowed grants the others, each asked as a feature for the signed-in user"""
     headers = _get_auth_header(await _create_user(client))
     user_id = (await client.get("/me", headers=headers)).json()["id"]
     asked = install_check(refused={AllowanceKind.INSIGHTS})
@@ -34,21 +34,22 @@ async def test_lists_each_feature_the_check_allows_the_user(client):
     response = await client.get("/me/feature-grants", headers=headers)
 
     assert response.status_code == 200
-    assert response.json() == {"features": ["bank_sync"]}
+    assert response.json() == {"features": ["bank_sync", "foreign_currencies"]}
     assert {(str(request.user_id), request.kind, request.held, request.adding) for request in asked} == {
         (user_id, AllowanceKind.BANK_SYNC, None, 0),
         (user_id, AllowanceKind.INSIGHTS, None, 0),
+        (user_id, AllowanceKind.FOREIGN_CURRENCIES, None, 0),
     }
 
 
-async def test_a_record_kind_refused_keeps_every_feature_granted(client):
-    """A check refusing more accounts still grants every feature, since a record kind is never a feature"""
+async def test_a_record_or_change_kind_refused_keeps_every_feature_granted(client):
+    """A check refusing more accounts or a change of main currency still grants every feature, since neither is a feature"""
     headers = _get_auth_header(await _create_user(client))
-    install_check(refused={AllowanceKind.ACCOUNT})
+    install_check(refused={AllowanceKind.ACCOUNT, AllowanceKind.MAIN_CURRENCY_CHANGE})
 
     response = await client.get("/me/feature-grants", headers=headers)
 
-    assert response.json() == {"features": ["bank_sync", "insights"]}
+    assert response.json() == {"features": ["bank_sync", "insights", "foreign_currencies"]}
 
 
 async def test_without_sign_in_returns_401(client):

@@ -13,6 +13,7 @@ from app.routes.accounts.response_loading_helpers import get_account_for_respons
 from app.routes.accounts.tax_advantaged_category_link_helpers import validate_create_account_tax_advantaged_category_link
 from app.schemas.account import CreateAccountRequest
 from app.services.accounts.balance_adjustments import add_account_starting_balance_adjustment
+from app.services.allowance.currency import require_currency
 from app.services.allowance.require import require_allowance
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.utils.dates import ACCOUNT_OWNER_PROFILE, OWN_PROFILE, resolve_timezone
@@ -35,11 +36,12 @@ async def create_account_for_user(
 
     Raises:
         HTTPException: Account details, ownership, or linked tax-advantaged category are invalid, the allowance check refuses the
-            user another account, or the stored timezone does not resolve
+            user another account or an account in a currency other than their main one, or the stored timezone does not resolve
     """
     await validate_create_account_request(db, data)
     creation_scope = await resolve_account_creation_scope(db, user, data.group_id)
     await validate_create_account_tax_advantaged_category_link(db, data, creation_scope, user.id)
+    await require_currency(user.id, user.base_currency, data.currency, group_id=creation_scope.group_id)
     await require_allowance(db, user.id, AllowanceKind.ACCOUNT, group_id=creation_scope.group_id)
 
     # Resolved before anything is written, since the response date is read after the commit and a

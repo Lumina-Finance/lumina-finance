@@ -1,8 +1,8 @@
 """A supported point to check what a user may add or use
 
 Code built on the app installs one check with set_allowance_check. Before a user adds a record of a
-kind the check is asked about, or uses a feature it is asked about, the app asks the check. With no
-check installed, every user may do everything
+kind the check is asked about, uses a feature it is asked about, or makes a change it is asked about,
+the app asks the check. With no check installed, every user may do everything
 """
 
 import uuid
@@ -17,6 +17,9 @@ class AllowanceKind(StrEnum):
     A record kind is asked before one more record is added, and a feature kind before the feature is
     used. A budget is the set-up budget, never one of its periods, and every record kind counts only
     what the user owns alone, since a record owned through a group is never asked about
+
+    A change kind is asked before the change is saved, once it has been validated, and is neither a
+    record nor a feature
     """
 
     ACCOUNT = "account"
@@ -37,6 +40,14 @@ class AllowanceKind(StrEnum):
     # The insights figures and the saved ranges beside them
     INSIGHTS = "insights"
 
+    # Adding an account, budget or tax-advantaged category in a currency other than the user's main
+    # one. Asked as a feature
+    FOREIGN_CURRENCIES = "foreign_currencies"
+
+    # Changing the user's main currency, asked after the change is validated and before it is saved.
+    # A change kind, so it is asked with held None and adding 0
+    MAIN_CURRENCY_CHANGE = "main_currency_change"
+
 
 @dataclass(frozen=True)
 class AllowanceRequest:
@@ -45,9 +56,9 @@ class AllowanceRequest:
     Attributes:
         user_id: The user doing it
         kind: What they are about to add or use
-        held: How many records of the kind the user owns alone now, or None for a feature
+        held: How many records of the kind the user owns alone now, or None for a feature or a change
         adding: How many records the user is about to add at once, such as the merchants of an
-            import, or 0 for a feature
+            import, or 0 for a feature or a change
     """
 
     user_id: uuid.UUID

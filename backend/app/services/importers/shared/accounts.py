@@ -13,8 +13,13 @@ from app.models.user import User
 from app.permissions import check_account_access
 from app.permissions.accounts import AccountAccessLookup, load_account_access_lookup
 from app.schemas.import_run import TransactionImportAccountMapping
+from app.services.allowance.currency import require_currency
 from app.services.allowance.require import require_allowance
-from app.services.importers.shared.account_creation_helpers import create_import_account, load_import_account_references
+from app.services.importers.shared.account_creation_helpers import (
+    create_import_account,
+    load_import_account_references,
+    validate_import_account_currency,
+)
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
 
@@ -76,9 +81,13 @@ async def resolve_import_account_sources(
         {mapping.create.institution_id for mapping in mappings if mapping.create is not None and mapping.create.institution_id is not None},
     )
 
-    # Asked once for every account the import creates, before any is written, so a refusal saves nothing
+    # Asked once for every account the import creates, and once for each currency among them, before
+    # any is written, so a refusal saves nothing
     creating = sum(1 for mapping in mappings if mapping.create is not None and not mapping.outside)
     if creating:
+        for currency in sorted({mapping.create.currency.upper() for mapping in mappings if mapping.create is not None and not mapping.outside}):
+            await validate_import_account_currency(db, currency, existing_currencies=existing_currencies)
+            await require_currency(user.id, user.base_currency, currency)
         await require_allowance(db, user.id, AllowanceKind.ACCOUNT, adding=creating)
 
     # Build each declared account source once so import rows can use a stable lookup map
