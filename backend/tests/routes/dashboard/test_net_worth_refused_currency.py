@@ -37,7 +37,7 @@ _TODAY = date(2026, 3, 20)
             True,
             True,
             175_00,
-            {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON},
+            {"state": "complete", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON},
             id="refused-still-converts-the-group-account",
         ),
         pytest.param(
@@ -45,10 +45,12 @@ _TODAY = date(2026, 3, 20)
             False,
             True,
             175_00,
-            {"state": "complete", "missing_pairs": []},
+            {"state": "complete", "missing_pairs": [], "withheld_reason": None},
             id="refused-with-nothing-to-leave-out-gives-no-reason",
         ),
-        pytest.param(False, True, True, 475_00, {"state": "complete", "missing_pairs": []}, id="no-check-converts-both"),
+        pytest.param(
+            False, True, True, 475_00, {"state": "complete", "missing_pairs": [], "withheld_reason": None}, id="no-check-converts-both"
+        ),
     ],
 )
 async def test_dashboard_net_worth_leaves_out_accounts_in_another_currency_the_check_refuses_converting(
@@ -85,4 +87,5 @@ async def test_dashboard_net_worth_leaves_out_accounts_in_another_currency_the_c
 
     assert response.status_code == 200, response.text
     assert response.json()["current_net_worth"] == net_worth
+    assert response.json()["net_worth_history"] == [0, net_worth], "the series leaves out the same amounts as the total"
     assert response.json()["fx_status"] == fx_status

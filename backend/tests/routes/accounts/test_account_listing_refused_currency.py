@@ -4,7 +4,7 @@ One case of the table the dashboard net worth tests hold in full: each account c
 """
 
 import importlib
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -26,7 +26,7 @@ async def test_list_accounts_leaves_out_a_personal_account_in_another_currency_t
     async def fake_get_rates(self, base, quote, start_date, end_date):
         return {end_date: Decimal("1.5")}
 
-    monkeypatch.setattr(account_routes, "datetime", _FixedClock(datetime.now(UTC)))
+    monkeypatch.setattr(account_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
     monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
 
     headers = _get_auth_header(await _create_user(client))
@@ -40,7 +40,9 @@ async def test_list_accounts_leaves_out_a_personal_account_in_another_currency_t
     async with TestSession() as session:
         for account in created.values():
             await session.execute(
-                update(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == UUID(account["id"])).values(balance=200_00),
+                update(AccountBalanceSnapshot)
+                .where(AccountBalanceSnapshot.account_id == UUID(account["id"]))
+                .values(balance=200_00, dt=date(2026, 3, 20)),
             )
         await session.commit()
     install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
@@ -50,7 +52,7 @@ async def test_list_accounts_leaves_out_a_personal_account_in_another_currency_t
     assert response.status_code == 200, response.text
     rows = {row["name"]: row for row in response.json()}
     assert {name: (row["base_currency_current_balance"], row["current_balance_fx_status"]) for name, row in rows.items()} == {
-        "CAD Cash": (200_00, {"state": "none", "missing_pairs": []}),
+        "CAD Cash": (200_00, {"state": "none", "missing_pairs": [], "withheld_reason": None}),
         "USD Cash": (0, {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON}),
-        "USD Joint": (300_00, {"state": "complete", "missing_pairs": []}),
+        "USD Joint": (300_00, {"state": "complete", "missing_pairs": [], "withheld_reason": None}),
     }

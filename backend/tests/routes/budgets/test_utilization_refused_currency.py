@@ -27,7 +27,7 @@ from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_che
         pytest.param(
             False, 5000, {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON}, id="personal-budget-leaves-out-us-dollars"
         ),
-        pytest.param(True, 9500, {"state": "complete", "missing_pairs": []}, id="group-budget-converts"),
+        pytest.param(True, 9500, {"state": "complete", "missing_pairs": [], "withheld_reason": None}, id="group-budget-converts"),
     ],
 )
 async def test_budget_utilization_leaves_out_spending_in_another_currency_the_check_refuses_converting(

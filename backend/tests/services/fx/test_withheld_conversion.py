@@ -13,14 +13,14 @@ import pytest
 
 from app.allowance_hook import AllowanceKind
 from app.database import current_user_id_ctx
-from app.schemas.fx import FxStatus
+from app.schemas.fx import FxRateIssue, FxStatus
 from app.services.fx import FxConverter, build_user_fx_converter
 from tests.conftest import TestSession
 from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
 from tests.services.fx.fakes import FakeProvider
 
 _RATE_DATE = date(2026, 5, 30)
-_EXPONENTS = {"USD": 2, "CAD": 2}
+_EXPONENTS = {"USD": 2, "CAD": 2, "EUR": 2}
 
 
 def _provider() -> FakeProvider:
@@ -80,7 +80,20 @@ async def test_withheld_conversion_still_converts_an_amount_from_a_group_owned_r
     own = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=_RATE_DATE)
 
     assert own is None
-    assert converter.get_status() == FxStatus(state="none", withheld_reason=ALLOWANCE_REASON)
+    assert converter.get_status() == FxStatus(state="complete", withheld_reason=ALLOWANCE_REASON)
+
+
+async def test_withheld_conversion_keeps_the_pairs_a_group_owned_amount_could_not_convert_beside_the_reason():
+    """A personal US amount left out beside a group-owned euro amount with no rate reads as incomplete, naming the pair and the reason"""
+    converter = _withholding(_provider())
+
+    left_out = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=_RATE_DATE)
+    no_rate = await converter.convert_minor_units(10_00, base="EUR", quote="CAD", rate_date=_RATE_DATE, group_id=uuid.uuid4())
+
+    assert (left_out, no_rate) == (None, None)
+    assert converter.get_status() == FxStatus(
+        state="incomplete", missing_pairs=[FxRateIssue(base="EUR", quote="CAD")], withheld_reason=ALLOWANCE_REASON
+    )
 
 
 async def test_converter_with_no_check_converts_every_amount():

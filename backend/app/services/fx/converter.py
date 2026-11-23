@@ -218,20 +218,20 @@ class FxConverter:
         Returns:
             FX conversion status for all conversions attempted by this converter
         """
-        if self.has_withheld:
-            status = FxStatus(state="none", withheld_reason=self.withheld_reason)
-            return status
+        # The sentence rides along whichever state the conversions that did happen leave, so a total that
+        # left some amounts out and failed to convert others says both
+        reason = self.withheld_reason if self.has_withheld else None
         if not self.used_fx:
-            status = FxStatus(state="none")
+            status = FxStatus(state="none", withheld_reason=reason)
             return status
         if not self.missing_pairs:
-            status = FxStatus(state="complete")
+            status = FxStatus(state="complete", withheld_reason=reason)
             return status
-        if self.success_count == 0 and all(reason == "provider_unavailable" for reason in self.used_failure_reasons):
-            status = FxStatus(state="unavailable", missing_pairs=self.missing_pairs)
+        if self.success_count == 0 and all(reason_for == "provider_unavailable" for reason_for in self.used_failure_reasons):
+            status = FxStatus(state="unavailable", missing_pairs=self.missing_pairs, withheld_reason=reason)
             return status
 
-        status = FxStatus(state="incomplete", missing_pairs=self.missing_pairs)
+        status = FxStatus(state="incomplete", missing_pairs=self.missing_pairs, withheld_reason=reason)
         return status
 
     async def _get_rate(self, key: FxRateKey) -> Decimal:

@@ -15,7 +15,8 @@ from tests.routes.transactions._helpers import (
     _setup_user_with_deps,
 )
 
-_WITHHELD = {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON}
+# The group's US dollars converted, so the conversions that did happen are complete beside the reason
+_WITHHELD = {"state": "complete", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON}
 
 
 async def test_transactions_overview_leaves_out_accounts_in_another_currency_the_check_refuses_converting(client, monkeypatch):

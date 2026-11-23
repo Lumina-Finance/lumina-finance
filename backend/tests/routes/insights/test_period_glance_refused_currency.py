@@ -4,7 +4,8 @@ One case of the table the dashboard net worth tests hold in full: every figure l
 another currency and says why, and the check is asked once for the whole request
 """
 
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from app.allowance_hook import AllowanceKind
@@ -16,7 +17,8 @@ from tests.conftest import TestSession
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check, seed_usd_currency
 
-_WITHHELD = {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON}
+# The group's US dollars converted, so the conversions that did happen are complete beside the reason
+_WITHHELD = {"state": "complete", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON}
 
 
 def _transaction(user_id: UUID, account_id: UUID, category_id: UUID, dt: date, amount: int, currency: str) -> Transaction:
@@ -25,14 +27,14 @@ def _transaction(user_id: UUID, account_id: UUID, category_id: UUID, dt: date, a
 
 
 async def test_period_glance_leaves_out_the_account_in_another_currency_the_check_refuses_converting(client, monkeypatch):
-    """Income, expenses, top category and net worth movement count the Canadian account alone, each saying why, from one ask of the check"""
+    """Figures count the Canadian account and the group's US one at 1.5 and leave the personal US one out, each saying why, from one ask"""
     from app.services.fx import FrankfurterProvider
 
     rate_requests = []
 
     async def fake_get_rates(self, base, quote, start_date, end_date):
         rate_requests.append((base, quote))
-        return {}
+        return {start_date + timedelta(days=offset): Decimal("1.5") for offset in range((end_date - start_date).days + 1)}
 
     monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
 
@@ -42,6 +44,8 @@ async def test_period_glance_leaves_out_the_account_in_another_currency_the_chec
     await seed_usd_currency()
     cash_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
     usd_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    group = await client.post("/groups", json={"name": "Household"}, headers=headers)
+    joint_id = UUID((await _create_account(client, headers, name="USD Joint", currency="USD", group_id=group.json()["id"])).json()["id"])
     salary_id, food_id = uuid4(), uuid4()
     async with TestSession() as session:
         session.add_all(
@@ -52,6 +56,10 @@ async def test_period_glance_leaves_out_the_account_in_another_currency_the_chec
                 _transaction(user_id, cash_id, food_id, date(2026, 5, 3), -20_000, "CAD"),
                 _transaction(user_id, usd_id, salary_id, date(2026, 5, 2), 900_000, "USD"),
                 _transaction(user_id, usd_id, food_id, date(2026, 5, 3), -700_000, "USD"),
+                _transaction(user_id, joint_id, salary_id, date(2026, 5, 2), 10_000, "USD"),
+                _transaction(user_id, joint_id, food_id, date(2026, 5, 3), -4_000, "USD"),
+                AccountBalanceSnapshot(account_id=joint_id, dt=date(2026, 4, 30), balance=20_000),
+                AccountBalanceSnapshot(account_id=joint_id, dt=date(2026, 5, 7), balance=30_000),
                 AccountBalanceSnapshot(account_id=cash_id, dt=date(2026, 4, 30), balance=100_000),
                 AccountBalanceSnapshot(account_id=cash_id, dt=date(2026, 5, 7), balance=200_000),
                 AccountBalanceSnapshot(account_id=usd_id, dt=date(2026, 4, 30), balance=5_000_000),
@@ -65,10 +73,10 @@ async def test_period_glance_leaves_out_the_account_in_another_currency_the_chec
 
     assert response.status_code == 200, response.text
     data = response.json()
-    assert (data["income"], data["expenses"], data["net_worth_change"]) == (100_000, 20_000, 100_000)
-    assert (data["top_category_name"], data["top_category_amount"]) == ("Food", 20_000)
-    assert (data["biggest_change_name"], data["biggest_change_amount"]) == ("Food", 20_000)
+    assert (data["income"], data["expenses"], data["net_worth_change"]) == (115_000, 26_000, 115_000)
+    assert (data["top_category_name"], data["top_category_amount"]) == ("Food", 26_000)
+    assert (data["biggest_change_name"], data["biggest_change_amount"]) == ("Food", 26_000)
     for field in ("income_expense_fx_status", "net_worth_change_fx_status", "top_category_fx_status", "biggest_change_fx_status"):
         assert data[field] == _WITHHELD, field
-    assert rate_requests == []
+    assert set(rate_requests) == {("USD", "CAD")}, "only the group's amounts look up a rate"
     assert [request.kind for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [AllowanceKind.FOREIGN_CURRENCIES]
