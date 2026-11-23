@@ -40,11 +40,12 @@ function ChainLine({ className = '' }: { className?: string }) {
   )
 }
 
-// The stretch of dashed line above or below a row's icon, so the line stays whole however tall a wrapped row grows
-function ChainSegment({ drawn }: { drawn: boolean }) {
+// The stretch of dashed line above or below a row's icon, so the line stays whole however tall a wrapped row grows.
+// The stretch below ends on a whole gap, however tall, so the stretch after it starts its dash in step
+function ChainSegment({ drawn, below = false }: { drawn: boolean; below?: boolean }) {
   return (
     <span className="flex min-h-0 flex-1 justify-center" aria-hidden>
-      {drawn && <span className="w-px" style={DASHES} />}
+      {drawn && <span className="w-px" style={below ? { ...DASHES, backgroundPosition: 'bottom' } : DASHES} />}
     </span>
   )
 }
@@ -156,7 +157,7 @@ export function RefundChainRow({
         >
           {icon}
         </span>
-        <ChainSegment drawn={lineBelow} />
+        <ChainSegment drawn={lineBelow} below />
       </span>
       <div className="min-w-0 flex-1">
         {/* A long name wraps on a phone rather than cutting off, since the row has room to grow. A screen reader hears
