@@ -70,7 +70,8 @@ describe('credit account choice', () => {
 
   describe('when converting amounts in other currencies is refused', () => {
     const reason = 'This server allows no more of these'
-    const sentence = `Amounts in your own accounts in other currencies stay out of this total. ${reason}`
+    // The check's own sentence stays in the badge's tooltip, so the caption never carries it
+    const sentence = 'Amounts in your own accounts in other currencies stay out of this total.'
     const withheld = { state: 'none' as const, missing_pairs: [], withheld_reason: reason }
     const total = { credit_limit_total: 0, credit_used: 0, accounts: CARDS }
 

@@ -38,7 +38,7 @@ describe('runway caption', () => {
 
     expect(getRunwayCaption(noHistory, 'USD', currencies)).toBe('Need 1+ month of net expense data')
     expect(getRunwayCaption({ ...noHistory, fx_status: withheld, expenses_withheld: true }, 'USD', currencies)).toBe(
-      'Amounts in your own accounts in other currencies stay out of this total. This server allows no more of these',
+      'Amounts in your own accounts in other currencies stay out of this total.',
     )
   })
 

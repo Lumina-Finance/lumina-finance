@@ -70,8 +70,14 @@ export function getFxStatusTone(fxStatus: FxStatus | undefined) {
 }
 
 /**
- * Says an empty total has nothing in it because amounts in other currencies the user owns alone stay out of it, with the reason given
+ * Says an empty total has nothing in it because amounts in other currencies the user owns alone stay out of it.
+ * The check's own sentence is long, so it stays in the total's FX badge tooltip and out of the caption
  */
-export function formatWithheldAmounts(reason: string): string {
-  return `Amounts in your own accounts in other currencies stay out of this total. ${reason}`
+export function formatWithheldAmounts(): string {
+  return 'Amounts in your own accounts in other currencies stay out of this total.'
 }
+
+/**
+ * The short note under a transaction's amount when converting it is refused, with the sentence in the row's FX badge
+ */
+export const NOT_CONVERTED_NOTE = 'Not converted'

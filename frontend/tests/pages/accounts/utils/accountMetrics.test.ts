@@ -233,7 +233,7 @@ describe('account metric helpers', () => {
     }
 
     expect(getRunwayMetric(noHistory, false, 'USD', testCurrencies).caption).toBe(
-      'Amounts in your own accounts in other currencies stay out of this total. This server allows no more of these',
+      'Amounts in your own accounts in other currencies stay out of this total.',
     )
     expect(getRunwayMetric({ ...noHistory, expenses_withheld: false }, false, 'USD', testCurrencies).caption).toBe(
       'Need 1+ month of net expense data',

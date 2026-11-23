@@ -47,7 +47,7 @@ export function getCreditUsageDisplay(
             creditUsage.fxStatus.state === 'incomplete' || creditUsage.fxStatus.state === 'unavailable'
               ? 'FX unavailable'
               : null,
-            formatWithheldAmounts(creditUsage.fxStatus.withheld_reason),
+            formatWithheldAmounts(),
           ]
             .filter(Boolean)
             .join('. ')

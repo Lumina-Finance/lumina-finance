@@ -79,8 +79,7 @@ describe('account metric display helpers', () => {
       fxStatus: { state: 'none', missing_pairs: [], withheld_reason: 'This server allows no more of these' },
       isLimitWithheld: true,
     }
-    const sentence =
-      'Amounts in your own accounts in other currencies stay out of this total. This server allows no more of these'
+    const sentence = 'Amounts in your own accounts in other currencies stay out of this total.'
 
     expect(getCreditUsageDisplay(creditUsage, 'USD', testCurrencies)).toEqual({ value: 'N/A', caption: sentence })
 
