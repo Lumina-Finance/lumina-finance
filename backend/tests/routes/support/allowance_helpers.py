@@ -34,6 +34,11 @@ def install_check(
     return asked
 
 
+def refuse_other_currencies() -> list[AllowanceRequest]:
+    """Install a check refusing records in another currency, and return the requests it is asked"""
+    return install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+
 async def seed_usd_currency() -> None:
     """Insert the US dollar, the currency a user whose main currency is the default Canadian dollar holds as another currency"""
     async with TestSession() as session:

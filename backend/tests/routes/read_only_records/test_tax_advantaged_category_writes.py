@@ -6,8 +6,8 @@ always be deleted
 
 import pytest
 
-from tests.routes.read_only_records._helpers import _refuse_other_currencies, _sign_up_holding_usd
-from tests.routes.support.allowance_helpers import ALLOWANCE_REASON
+from tests.routes.read_only_records._helpers import _sign_up_holding_usd
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, refuse_other_currencies
 
 _LIMIT = {"year": 2026, "contribution_limit": 700_000}
 
@@ -35,7 +35,7 @@ async def test_list_says_why_only_a_personal_category_in_another_currency_is_rea
     await _new_category(client, headers)
     await _new_category(client, headers, "Joint 529", group_id=group_id)
     await _new_category(client, headers, "TFSA", currency="CAD")
-    _refuse_other_currencies()
+    refuse_other_currencies()
 
     listed = await client.get("/tax-advantaged-categories", headers=headers)
 
@@ -47,7 +47,7 @@ async def test_edit_read_only_category_is_refused_and_changes_nothing(client):
     """The name stays as it was"""
     headers = await _sign_up_holding_usd(client)
     category_id = await _new_category(client, headers)
-    _refuse_other_currencies()
+    refuse_other_currencies()
 
     response = await client.patch(f"/tax-advantaged-categories/{category_id}", json={"name": "Retirement"}, headers=headers)
 
@@ -70,7 +70,7 @@ async def test_yearly_limit_change_on_a_read_only_category_is_refused_and_keeps_
     category_id = await _new_category(client, headers)
     added = await client.post(f"/tax-advantaged-categories/{category_id}/limits", json=_LIMIT, headers=headers)
     assert added.status_code == 201, added.text
-    _refuse_other_currencies()
+    refuse_other_currencies()
 
     response = await client.request(method, f"/tax-advantaged-categories/{category_id}/{path}", json=body, headers=headers)
 
@@ -83,7 +83,7 @@ async def test_delete_read_only_category_goes_through(client):
     """The category is gone"""
     headers = await _sign_up_holding_usd(client)
     category_id = await _new_category(client, headers)
-    _refuse_other_currencies()
+    refuse_other_currencies()
 
     response = await client.delete(f"/tax-advantaged-categories/{category_id}", headers=headers)
 

@@ -13,8 +13,7 @@ from sqlalchemy import update
 from app.models.bank_connection import BankAccountLink, BankExternalAccount
 from app.services.bank_sync import account_link, range_import
 from tests.conftest import TestSession
-from tests.routes.read_only_records._helpers import _refuse_other_currencies
-from tests.routes.support.allowance_helpers import ALLOWANCE_REASON
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, refuse_other_currencies
 from tests.routes.support.bank_sync_helpers import _commit_link, _commit_listed_connection, _link, _new_account, _queued_jobs, _sign_up
 
 # Noon on October 5 in Toronto, the zone _sign_up stores
@@ -42,7 +41,7 @@ async def test_link_read_only_account_is_refused_and_links_nothing(client):
     headers, user_id = await _sign_up(client)
     account_id = await _new_account(client, headers, "Travel", currency="USD")
     connection = await _commit_listed_connection(user_id, discovered_at=_NOW)
-    _refuse_other_currencies()
+    refuse_other_currencies()
 
     response = await _link(client, headers, account_id, connection.id)
 
@@ -62,7 +61,7 @@ async def test_connection_offers_a_us_bank_account_no_read_only_account(client, 
         await session.execute(update(BankExternalAccount).values(currency="USD"))
         await session.commit()
     if refused:
-        _refuse_other_currencies()
+        refuse_other_currencies()
 
     listed = await client.get("/bank-sync/connections", headers=headers)
 
@@ -83,7 +82,7 @@ async def test_bank_link_write_on_a_read_only_account_is_refused_and_changes_not
     pin_clock(_NOW, range_import, account_link)
     headers, account_id, link = await _linked_travel(client)
     before = await _stored_link(link)
-    _refuse_other_currencies()
+    refuse_other_currencies()
 
     response = await client.post(f"/accounts/{account_id}/bank-link/{path}", json=body, headers=headers)
 
@@ -96,7 +95,7 @@ async def test_bank_link_write_on_a_read_only_account_is_refused_and_changes_not
 async def test_unlink_read_only_account_goes_through(client):
     """The link ends"""
     headers, account_id, link = await _linked_travel(client)
-    _refuse_other_currencies()
+    refuse_other_currencies()
 
     response = await client.delete(f"/accounts/{account_id}/bank-link", headers=headers)
 
