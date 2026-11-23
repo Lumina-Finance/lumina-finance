@@ -314,6 +314,9 @@ async def test_list_merchants_reads_only_the_users_own_transactions(client, monk
                 plans.append(result.scalar_one()[0]["Plan"])
                 return await execute(statement, *args, **kwargs)
 
+            # The planner may scan a table this small whole and read every user's rows whatever the
+            # query's shape. Holding it to index lookups measures the plan a full table gets
+            await execute(text("SET LOCAL enable_seqscan = off"))
             monkeypatch.setattr(session, "execute", explain_then_execute)
             await get_merchants_for_user(session, user_id, None, None, LIST_PAGE_SIZE, 0, _user_today())
     finally:
