@@ -24,11 +24,18 @@ export function RefundStatusBadge({ status }: { status: RefundStatus }) {
   )
 }
 
+// One stretch of the dashed line. The dashes come from a repeating gradient rather than a dashed border, since the
+// browser stretches a dashed border's dashes to fill its length, and the short stretches between rows then read solid
+const DASHES = {
+  backgroundImage: 'linear-gradient(var(--app-border-strong) 50%, transparent 50%)',
+  backgroundSize: '1px 6px',
+}
+
 // The dashed line that joins the rows, centred under the round icons
 function ChainLine({ className = '' }: { className?: string }) {
   return (
     <span className={`flex w-9 shrink-0 justify-center self-stretch ${className}`} aria-hidden>
-      <span className="border-l border-dashed" style={{ borderColor: 'var(--app-border-strong)' }} />
+      <span className="w-px" style={DASHES} />
     </span>
   )
 }
@@ -37,15 +44,15 @@ function ChainLine({ className = '' }: { className?: string }) {
 function ChainSegment({ drawn }: { drawn: boolean }) {
   return (
     <span className="flex min-h-0 flex-1 justify-center" aria-hidden>
-      {drawn && <span className="border-l border-dashed" style={{ borderColor: 'var(--app-border-strong)' }} />}
+      {drawn && <span className="w-px" style={DASHES} />}
     </span>
   )
 }
 
 /**
- * Half the dashed line between two refunds, drawn above and below each one inside the refund's own row, so the room
- * grows and collapses with the row. Under the last refund the half keeps its room with no line, so the line ends at
- * that refund's icon
+ * Half the dashed line between two refunds, drawn above and below each one. An unsaved refund's dashed border spreads
+ * over both halves, so the border stays inside the refund's own row. That row clips as it grows and collapses. Under
+ * the last refund the half keeps its room with no line, so the line ends at that refund's icon
  */
 export function RefundChainGap({ drawn = true }: { drawn?: boolean }) {
   return (
@@ -128,8 +135,13 @@ export function RefundChainRow({
 }: RefundChainRowProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
   return (
+    // A link Save has yet to make sits in a dashed border. The border reaches past the row by 8px on each side and 4px
+    // above and below, into the room between rows, and its padding takes that back. So the row keeps its place and
+    // height, and nothing moves when Save takes the border away. Two unsaved refunds in a row keep 4px of the 12px
+    // between them, so their borders never touch
     <div
-      className="flex items-center gap-3"
+      className={`flex items-center gap-3 ${notSaved ? '-mx-2 -my-1 rounded-lg border border-dashed px-[7px] py-[3px]' : ''}`}
+      style={notSaved ? { borderColor: 'var(--app-text-subtle)' } : undefined}
       data-testid={testId}
       data-link-id={linkId}
       data-not-saved={notSaved ? 'true' : undefined}
@@ -147,21 +159,11 @@ export function RefundChainRow({
         <ChainSegment drawn={lineBelow} />
       </span>
       <div className="min-w-0 flex-1">
-        {/* A long name wraps on a phone rather than cutting off, since the row has room to grow. A tag with no room
-            beside the name starts a line of its own, lined up with the name */}
-        <p
-          className="flex flex-wrap items-center gap-x-1.5 text-sm font-medium leading-5"
-          style={{ color: 'var(--app-text)' }}
-        >
-          <span className="min-w-0 break-words">{merchantName}</span>
-          {notSaved && (
-            <span
-              className="rounded-full px-1.5 text-xs font-medium leading-4"
-              style={{ background: 'var(--app-warning-text)', color: 'var(--app-bg)' }}
-            >
-              Unsaved
-            </span>
-          )}
+        {/* A long name wraps on a phone rather than cutting off, since the row has room to grow. A screen reader hears
+            that the link is unsaved in place of the drawn border */}
+        <p className="break-words text-sm font-medium leading-5" style={{ color: 'var(--app-text)' }}>
+          {merchantName}
+          {notSaved && <span className="sr-only">, not saved yet</span>}
         </p>
         {/* Wraps between whole phrases on a narrow screen rather than cutting the date off. Each phrase draws its
             dot in front, and the negative margin pushes the dot of a phrase starting a line out of the clipped box.

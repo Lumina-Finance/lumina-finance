@@ -46,9 +46,9 @@ test('refunds an expense from its modal and shows the link on both rows', async 
   await refund.getByTestId('transaction-submit').click()
   await expect(refund).toBeHidden()
 
-  // The expense's window tags the refund as unsaved, and nothing is created or linked until Save
+  // The expense's window marks the refund as unsaved, and nothing is created or linked until Save
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(1)
-  await expect(expense.getByTestId('linked-transaction')).toContainText('Unsaved')
+  await expect(expense.getByTestId('linked-transaction')).toContainText('not saved yet')
   await expect(page.getByTestId('transaction-refund-link').filter({ visible: true })).toHaveCount(0)
   await saveButton(expense).click()
   await expect(expense).toBeHidden()
@@ -256,12 +256,25 @@ test('shows an expense and its refunds as one chain with what is left to refund'
     await picker.getByRole('button', { name: 'Link', exact: true }).click()
     await expect(picker).toBeHidden()
     await expect(order.getByTestId('linked-transaction')).toContainText(['+$120.00', '+$320.00', '+$200.00'])
-    // Only the held link carries the Unsaved tag
+    // Only the held link sits in the dashed border, and a screen reader hears that it is not saved yet
     const held = order.locator('[data-not-saved]')
     await expect(held).toHaveCount(1)
     await expect(order.getByTestId('linked-transaction').first()).toHaveAttribute('data-not-saved', 'true')
-    await expect(held).toContainText('Unsaved')
-    await expect(order.getByText('Unsaved', { exact: true })).toHaveCount(1)
+    await expect(held).toContainText('not saved yet')
+    await expect(held).toHaveCSS('border-top-style', 'dashed')
+
+    // The border draws past the row's text on every side, and the row that grows it into place clips, so the whole
+    // border has to sit inside that row to show its edges once the row has finished growing in
+    await expect(async () => {
+      const [heldBox, heldRowBox] = await Promise.all([
+        held.boundingBox(),
+        order.getByTestId('linked-row').filter({ has: page.locator('[data-not-saved]') }).boundingBox(),
+      ])
+      expect(heldBox!.x).toBeGreaterThanOrEqual(heldRowBox!.x)
+      expect(heldBox!.y).toBeGreaterThanOrEqual(heldRowBox!.y)
+      expect(heldBox!.x + heldBox!.width).toBeLessThanOrEqual(heldRowBox!.x + heldRowBox!.width)
+      expect(heldBox!.y + heldBox!.height).toBeLessThanOrEqual(heldRowBox!.y + heldRowBox!.height)
+    }).toPass()
     await expect(order.getByTestId('refund-room')).toHaveText('$0.00')
     await order.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect(order).toBeHidden()
@@ -333,10 +346,10 @@ test('links an existing refund to an expense from the picker', async ({ page, re
   await picker.getByTestId('link-candidate').getByRole('button').click()
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
 
-  // The picker closes and the edit window stays, tagging the refund as unsaved, and the rows show no link
+  // The picker closes and the edit window stays, marking the refund as unsaved, and the rows show no link
   await expect(picker).toBeHidden()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(1)
-  await expect(expense.getByTestId('linked-transaction')).toContainText('Unsaved')
+  await expect(expense.getByTestId('linked-transaction')).toContainText('not saved yet')
   await expect(linkIcon(page, refundId)).toHaveCount(0)
 
   // Save makes the link, and both rows show it

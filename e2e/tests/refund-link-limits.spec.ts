@@ -153,7 +153,13 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await linkButton.click()
   await expect(picker).toBeHidden()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(2)
-  await expect(expense.getByTestId('linked-transaction')).toContainText(['Unsaved', 'Unsaved'])
+  await expect(expense.getByTestId('linked-transaction')).toContainText(['not saved yet', 'not saved yet'])
+  // Two unsaved refunds in a row keep room between their borders, read again until the rows have finished growing in
+  const held = expense.locator('[data-not-saved]')
+  await expect(async () => {
+    const [upper, lower] = [await held.nth(0).boundingBox(), await held.nth(1).boundingBox()]
+    expect(lower!.y - (upper!.y + upper!.height)).toBeGreaterThan(2)
+  }).toPass()
   await saveButton(expense).click()
   await expect(expense).toBeHidden()
   await page.reload()
