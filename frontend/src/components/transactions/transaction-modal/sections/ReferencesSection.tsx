@@ -8,7 +8,10 @@ import { HintButton } from '@/components/tooltips/HintButton'
 import { EASE } from '@/components/transactions/transaction-modal/constants'
 import { useTransactionModalIds } from '@/components/transactions/transaction-modal/ids'
 import CreditRepaymentNotice from '@/components/transactions/transaction-modal/controls/CreditRepaymentNotice'
+import ImportRulesLink from '@/components/transactions/transaction-modal/controls/ImportRulesLink'
+import RuleFillLine from '@/components/transactions/transaction-modal/controls/RuleFillLine'
 import TransferCashFlowNotice from '@/components/transactions/transaction-modal/controls/TransferCashFlowNotice'
+import type { RuleFillLines } from '@/components/transactions/transaction-modal/utils/ruleFill'
 import ShortcutHint from '@/components/transactions/transaction-modal/controls/ShortcutHint'
 import ShortcutHints from '@/components/transactions/transaction-modal/controls/ShortcutHints'
 import { getAriaFieldShortcut } from '@/components/transactions/transaction-modal/utils/shortcuts'
@@ -94,6 +97,12 @@ interface TransactionReferencesSectionProps {
   tagHideOptionsWhileLoading: boolean
   tagHasMore: boolean
   selectedTags: SelectedTransactionTag[]
+
+  /** The line beneath each field an import rule filled in or couldn't, only for a bank item under review */
+  ruleLines?: RuleFillLines
+
+  /** Whether the form is a bank item's. Only then is the way to Import rules in Settings offered */
+  offersImportRulesLink?: boolean
   readOnly: boolean
   onAccountChange: (value: string) => void
   onSymmetricTransferChange: (value: boolean) => void
@@ -195,6 +204,8 @@ export default function TransactionReferencesSection({
   tagHideOptionsWhileLoading,
   tagHasMore,
   selectedTags,
+  ruleLines,
+  offersImportRulesLink = false,
   readOnly,
   onAccountChange,
   onSymmetricTransferChange,
@@ -421,6 +432,7 @@ export default function TransactionReferencesSection({
           createNewLabel={readOnly ? undefined : (query) => (query ? `Create merchant "${query}"` : 'Create merchant')}
           disabled={readOnly}
         />
+        <RuleFillLine line={ruleLines?.merchant ?? null} />
       </div>
 
       <div>
@@ -466,6 +478,7 @@ export default function TransactionReferencesSection({
           createNewLabel={readOnly ? undefined : (query) => (query ? `Create category "${query}"` : 'Create category')}
           disabled={readOnly}
         />
+        <RuleFillLine line={ruleLines?.category ?? null} />
         <TransferCashFlowNotice show={isBalanceAdjustmentCategory} />
         <CreditRepaymentNotice show={creditRepaymentSteer.show} onUseCreditCardPayment={useCreditCardPayment} />
       </div>
@@ -557,7 +570,14 @@ export default function TransactionReferencesSection({
             </motion.div>
           )}
         </AnimatePresence>
+        <RuleFillLine line={ruleLines?.tags ?? null} />
       </div>
+
+      {offersImportRulesLink && (
+        <p className="text-xs">
+          <ImportRulesLink />
+        </p>
+      )}
     </CreateModalSectionFrame>
   )
 }

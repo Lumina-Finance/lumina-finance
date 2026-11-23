@@ -10,6 +10,7 @@ import {
 } from '@/components/transactions/transaction-modal/constants'
 import { amountToInputString } from '@/components/transactions/transaction-modal/utils/money'
 import { buildRefundNote } from '@/components/transactions/transaction-modal/utils/refund'
+import { applyRuleFill } from '@/components/transactions/transaction-modal/utils/ruleFill'
 import { formatRawAmount } from '@/components/transactions/utils/bankReview'
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import type { TransactionFormValues, TransactionModalKind } from '@/components/transactions/transaction-modal/types'
@@ -118,7 +119,8 @@ function buildFormFromTransaction(
  * Builds the form a new bank item opens with: its account, date and amount as the bank sent them,
  * Income for money in or Expense otherwise, and the bank's description as the notes, whole. A
  * description longer than the Notes field takes is left for the field's own limit to deal with, so
- * nothing is cut unseen. Merchant and category start empty, since nothing suggests them yet
+ * nothing is cut unseen. Merchant, category and tags start with what the user's import rules give
+ * the item, and empty where no rule gave one
  *
  * An amount sent with more decimal places than the currency holds, or one in a currency the table
  * doesn't carry, starts empty for the user to enter, its direction still following the bank's sign
@@ -126,7 +128,7 @@ function buildFormFromTransaction(
  * @param currency - The currency of the item's account, the one the amount is in
  */
 export function buildReviewItemForm(
-  item: Pick<BankReviewItem, 'account_id' | 'bank'>,
+  item: Pick<BankReviewItem, 'account_id' | 'bank' | 'rule_fill'>,
   currency: string,
   currencies: Currency[],
 ): TransactionFormValues {
@@ -135,14 +137,17 @@ export function buildReviewItemForm(
   const kind: TransactionModalKind = sign > 0 ? 'income' : 'expense'
   const exponent = findCurrencyExponent(currencies, currency)
 
-  return {
-    ...INITIAL_TRANSACTION_FORM,
-    kind,
-    direction: DEFAULT_DIRECTION_BY_KIND[kind],
-    account_id: item.account_id,
-    amount: amount === null || exponent === null ? '' : amountToInputString(amount, exponent),
-    currency,
-    date: item.bank.date,
-    notes: item.bank.description,
-  }
+  return applyRuleFill(
+    {
+      ...INITIAL_TRANSACTION_FORM,
+      kind,
+      direction: DEFAULT_DIRECTION_BY_KIND[kind],
+      account_id: item.account_id,
+      amount: amount === null || exponent === null ? '' : amountToInputString(amount, exponent),
+      currency,
+      date: item.bank.date,
+      notes: item.bank.description,
+    },
+    item.rule_fill,
+  )
 }

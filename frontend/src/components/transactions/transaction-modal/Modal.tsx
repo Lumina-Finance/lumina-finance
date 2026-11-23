@@ -28,6 +28,7 @@ import {
 } from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/components/transactions/transaction-modal/utils/options'
 import { describeReadOnlyAccount, getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
+import { getRuleFillLines } from '@/components/transactions/transaction-modal/utils/ruleFill'
 import {
   getTransactionProblems,
   isSymmetricTransferForm,
@@ -263,12 +264,20 @@ export default function CreateTransactionModal({
     closeModal: merchantModal.closeModal,
   })
 
+  // The lines beneath the fields a bank item's import rules filled in, each gone once its field changes
+  const ruleLines = useMemo(() => getRuleFillLines(reviewItem?.rule_fill ?? null, form), [reviewItem?.rule_fill, form])
+  const ruleFilledTags = useMemo(
+    () => reviewItem?.rule_fill?.tags.map((tag) => ({ id: tag.id, name: tag.name, group_id: null })),
+    [reviewItem?.rule_fill],
+  )
+
   const tagField = useTagField({
     open,
     groupId: selectedAccount?.group_id,
     form,
     setForm,
-    transactionTags: transaction?.tags,
+    // A tag a rule filled in may sit past the first page of tags, so it is named from the rule's fill
+    transactionTags: transaction?.tags ?? ruleFilledTags,
     closeModal: tagModal.closeModal,
   })
 
@@ -741,6 +750,8 @@ export default function CreateTransactionModal({
                 tagHideOptionsWhileLoading={tagField.showInitialLoading}
                 tagHasMore={tagField.hasMore}
                 selectedTags={tagField.selectedTags}
+                ruleLines={ruleLines}
+                offersImportRulesLink={Boolean(reviewItem)}
                 readOnly={readOnly}
                 onAccountChange={topAccountField.onChange}
                 onSymmetricTransferChange={accountField.handleSymmetricTransferChange}
