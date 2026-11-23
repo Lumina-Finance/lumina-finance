@@ -208,7 +208,9 @@ describe('a transaction with no exchange rate', () => {
     const markup = renderDay([converted, withheld])
 
     expect(unavailableCount(markup)).toBe(0)
+    // The sentence sits in the tooltip of each row layout's badge and of the day's, and the rows say only the short note
     expect(markup.split(reason).length - 1).toBe(3)
+    expect(markup.split('Not converted').length - 1).toBe(2)
     expect(badgeTone(markup, 'Oct 3, 2026')).toBe('gray')
     expect(markup).not.toContain(getDayTotalFxStatusMessage(false))
     expect(dayTotal(markup).text).toBe('−$10.00')

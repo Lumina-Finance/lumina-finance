@@ -17,6 +17,8 @@ import {
   TRANSACTION_ROW_SCROLL_MARGIN,
 } from '@/components/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
+import { NOT_CONVERTED_NOTE } from '@/utils/fxStatus'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
 import { getAmountSign, getColorOnAccentTint } from '@/utils/negativeAmount'
@@ -324,8 +326,24 @@ const FX_NOTES: Record<TransactionFxNote, { text: string; color: string }> = {
  * that is not published yet
  */
 function FxNote({ id, note, reason }: { id?: string; note: TransactionFxNote; reason?: string | null }) {
-  // A refused conversion is no failure of the rate, so its reason takes the muted colour
-  const { text, color } = reason ? { text: reason, color: FX_NOTES.rateNotPublished.color } : FX_NOTES[note]
+  // A refused conversion is no failure of the rate, so it takes the muted colour. The check's sentence is
+  // long, so it sits in the badge's tooltip and the row only says the amount was not converted
+  if (reason) {
+    return (
+      <span
+        id={id}
+        className="flex items-center justify-end gap-1.5 text-right text-xs font-normal leading-4"
+        style={{ color: FX_NOTES.rateNotPublished.color }}
+      >
+        {NOT_CONVERTED_NOTE}
+        <FxStatusBadge
+          label="FX status for this amount"
+          fxStatus={{ state: 'none', missing_pairs: [], withheld_reason: reason }}
+        />
+      </span>
+    )
+  }
+  const { text, color } = FX_NOTES[note]
   return (
     <span id={id} className="block text-right text-xs font-normal leading-4" style={{ color }}>
       {text}
