@@ -37,7 +37,7 @@ async def get_credit_widget(
     excluded_account_ids: set[uuid.UUID],
     base_currency: str,
     rate_date: date,
-) -> tuple[int, int, FxStatus]:
+) -> tuple[int, int, FxStatus, bool]:
     """Return credit limit and usage totals for the eligible accounts the user counts
 
     Args:
@@ -48,12 +48,13 @@ async def get_credit_widget(
         rate_date: Date used for FX conversion
 
     Returns:
-        Credit limit total, used credit total, and FX conversion status
+        Credit limit total, used credit total, FX conversion status, and whether a credit limit was left out
+        of the total because converting it is refused
     """
     credit_accounts = [account for account in get_credit_widget_accounts(accounts) if account.id not in excluded_account_ids]
     if not credit_accounts:
         fx_status = FxStatus()
-        return 0, 0, fx_status
+        return 0, 0, fx_status, False
 
     balances = await get_current_balances(db, [account.id for account in credit_accounts], rate_date)
     converter = build_user_fx_converter(
@@ -70,7 +71,9 @@ async def get_credit_widget(
 
     credit_limit_total = 0
     credit_used = 0
+    limit_withheld = False
     for account in credit_accounts:
+        withheld_before_limit = converter.withheld_count
         converted_limit = await converter.convert_minor_units(
             account.credit_limit or 0,
             base=account.currency,
@@ -78,6 +81,7 @@ async def get_credit_widget(
             rate_date=rate_date,
             group_id=account.group_id,
         )
+        limit_withheld = limit_withheld or converter.withheld_count > withheld_before_limit
         converted_used = await converter.convert_minor_units(
             max(-balances.get(account.id, 0), 0),
             base=account.currency,
@@ -90,4 +94,4 @@ async def get_credit_widget(
         if converted_used is not None:
             credit_used += converted_used
     fx_status = converter.get_status()
-    return credit_limit_total, credit_used, fx_status
+    return credit_limit_total, credit_used, fx_status, limit_withheld

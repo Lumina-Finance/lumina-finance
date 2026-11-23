@@ -28,7 +28,7 @@ def _owner_local_creation_day(account):
 
 
 async def test_runway_leaves_out_the_account_in_another_currency_the_check_refuses_converting(client, monkeypatch):
-    """A 1,000.00 Canadian, a 200.00 US and a 100.00 US group account, each with spending, count the personal US one out"""
+    """A 1,000.00 Canadian, a 200.00 US and a 100.00 US group account, each with spending, leave the personal US one out"""
     from app.routes.users import date_helpers as user_routes
     from app.services.fx import FrankfurterProvider
 
@@ -112,3 +112,67 @@ async def test_runway_leaves_out_the_account_in_another_currency_the_check_refus
     assert data["avg_monthly_expense"] == 18_250
     assert data["months"] == pytest.approx(115_000 / 18_250)
     assert data["fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON}
+
+
+@pytest.mark.parametrize(
+    ("us_expense", "expenses_withheld"),
+    [
+        pytest.param(True, True, id="a-us-expense-is-left-out-of-the-history"),
+        pytest.param(False, False, id="only-the-us-balance-is-left-out"),
+    ],
+)
+async def test_runway_says_whether_expenses_were_left_out_of_a_history_too_short_to_use(client, monkeypatch, us_expense, expenses_withheld):
+    """With no Canadian spending the runway has no history, and the response tells a US expense left out apart from a US balance alone"""
+    from app.routes.users import date_helpers as user_routes
+    from app.services.fx import FrankfurterProvider
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 4, 15, 16, 0, tzinfo=UTC)
+            return instant.astimezone(tz) if tz else instant
+
+    async def fake_get_rates(self, base, quote, start_date, end_date):
+        return {date(2026, 3, 13): Decimal("1.25"), date(2026, 4, 15): Decimal("1.5")}
+
+    monkeypatch.setattr(user_routes, "datetime", FixedDateTime)
+    monkeypatch.setattr(FrankfurterProvider, "get_rates", fake_get_rates)
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = signup_resp.json()["user"]["id"]
+    await seed_usd_currency()
+    cad_account = (await _create_account(client, headers, name="CAD Cash")).json()
+    usd_account = (await _create_account(client, headers, name="USD Cash", currency="USD")).json()
+    async with TestSession() as session:
+        category = Category(owner_id=user_id, name="Test Expense", kind=CategoryKind.EXPENSE)
+        session.add(category)
+        await session.flush()
+        session.add_all(
+            [
+                AccountBalanceSnapshot(account_id=UUID(cad_account["id"]), dt=date(2026, 4, 15), balance=100_000),
+                AccountBalanceSnapshot(account_id=UUID(usd_account["id"]), dt=date(2026, 4, 15), balance=20_000),
+            ]
+        )
+        if us_expense:
+            session.add(
+                Transaction(
+                    created_by_user_id=user_id,
+                    account_id=UUID(usd_account["id"]),
+                    category_id=category.id,
+                    dt=date(2026, 3, 13),
+                    amount=-10_000,
+                    currency="USD",
+                )
+            )
+        await session.commit()
+    await client.put("/me/runway-accounts", json={"account_ids": [cad_account["id"], usd_account["id"]]}, headers=headers)
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    response = await client.get("/me/runway", headers=headers)
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["reason"] == "insufficient_history"
+    assert data["expenses_withheld"] is expenses_withheld
+    assert data["fx_status"]["withheld_reason"] == ALLOWANCE_REASON

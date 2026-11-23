@@ -84,3 +84,46 @@ async def test_dashboard_widgets_leave_out_accounts_in_another_currency_the_chec
     data = response.json()
     assert figures(data) == expected
     assert data["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON}
+
+
+@pytest.mark.parametrize(
+    ("usd_limit", "limit_withheld"),
+    [
+        pytest.param(20_000, True, id="a-us-limit-is-left-out"),
+        pytest.param(0, False, id="only-us-credit-used-is-left-out"),
+    ],
+)
+async def test_dashboard_credit_says_whether_a_limit_was_left_out(client, monkeypatch, usd_limit, limit_withheld):
+    """A Canadian card with no limit beside a US card with 50.00 used says a limit was left out only when the US card has one"""
+    from app.routes import dashboard as dashboard_routes
+
+    monkeypatch.setattr(dashboard_routes, "datetime", _FixedClock(datetime(2026, 3, 20, 16, 0, tzinfo=UTC)))
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    cards = {}
+    for currency, limit, used in (("CAD", 0, 0), ("USD", usd_limit, 50_00)):
+        card = await _create_account(
+            client,
+            headers,
+            account_kind="revolving",
+            account_type="credit_card",
+            name=f"{currency} Card",
+            currency=currency,
+            credit_limit=limit,
+        )
+        cards[card.json()["id"]] = -used
+    async with TestSession() as session:
+        for account_id, balance in cards.items():
+            await session.execute(
+                update(AccountBalanceSnapshot).where(AccountBalanceSnapshot.account_id == UUID(account_id)).values(balance=balance, dt=_TODAY),
+            )
+        await session.commit()
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    response = await client.get("/dashboard/credit", headers=headers)
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert (data["credit_limit_total"], data["credit_used"]) == (0, 0)
+    assert data["limit_withheld"] is limit_withheld
+    assert data["fx_status"]["withheld_reason"] == ALLOWANCE_REASON

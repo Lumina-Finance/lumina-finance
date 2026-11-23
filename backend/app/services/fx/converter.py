@@ -68,6 +68,9 @@ class FxConverter:
         self.withheld_reason = withheld_reason
         self.find_withheld_reason = find_withheld_reason
         self.has_withheld = False
+
+        # How many amounts were left out so far, so a caller can tell whether a stretch of conversions left any out
+        self.withheld_count = 0
         self.rates: dict[FxRateKey, Decimal] = {}
         self.failed_rates: dict[FxRateKey, FxIssueReason] = {}
         self.recorded_failed_rates: set[FxRateKey] = set()
@@ -142,6 +145,7 @@ class FxConverter:
         await self._settle_withheld_reason()
         if self.withholds(group_id):
             self.has_withheld = True
+            self.withheld_count += 1
             return None
 
         self.used_fx = True
