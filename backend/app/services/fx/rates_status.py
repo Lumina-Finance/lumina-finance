@@ -32,12 +32,14 @@ logger = logging.getLogger(__name__)
 CONVERTED_CURRENCY_COLUMNS = (Account.currency, TaxAdvantagedCategory.currency, BaseBudget.currency, Transaction.currency)
 
 
-async def holds_other_currencies(db: AsyncSession, base_currency: str) -> bool:
+async def holds_other_currencies(db: AsyncSession, base_currency: str, *, group_owned_only: bool = False) -> bool:
     """Return whether any row the user can see holds a currency other than their own, counting only recent transactions
 
     Args:
         db: Session scoped to the user by row-level security
         base_currency: The user's own currency
+        group_owned_only: Count only rows a group owns, which convert even while amounts the user
+            owns alone are left out. A transaction counts through its account
 
     Returns:
         True as soon as one such row is found
@@ -49,34 +51,10 @@ async def holds_other_currencies(db: AsyncSession, base_currency: str) -> bool:
             # An older transaction converts at a settled rate the digest never covers, and the date bound
             # keeps the read on the account and date index instead of every transaction the user sees
             query = query.where(Transaction.dt >= window_start)
-        if await db.scalar(select(query.exists())):
-            return True
-    return False
-
-
-async def holds_group_other_currencies(db: AsyncSession, base_currency: str) -> bool:
-    """Return whether any group-owned row the user can see holds a currency other than their own
-
-    A group-owned amount converts even while amounts the user owns alone are left out, so a user
-    holding one still has figures that depend on rates
-
-    Args:
-        db: Session scoped to the user by row-level security
-        base_currency: The user's own currency
-
-    Returns:
-        True as soon as one such row is found
-    """
-    window_start, _today = _get_unsettled_window(datetime.now(UTC).date())
-    queries = (
-        select(Account.id).where(Account.group_id.is_not(None), Account.currency != base_currency),
-        select(TaxAdvantagedCategory.id).where(TaxAdvantagedCategory.group_id.is_not(None), TaxAdvantagedCategory.currency != base_currency),
-        select(BaseBudget.id).where(BaseBudget.group_id.is_not(None), BaseBudget.currency != base_currency),
-        select(Transaction.id)
-        .join(Account, Account.id == Transaction.account_id)
-        .where(Account.group_id.is_not(None), Transaction.currency != base_currency, Transaction.dt >= window_start),
-    )
-    for query in queries:
+            if group_owned_only:
+                query = query.join(Account, Account.id == Transaction.account_id).where(Account.group_id.is_not(None))
+        elif group_owned_only:
+            query = query.where(column.class_.group_id.is_not(None))
         if await db.scalar(select(query.exists())):
             return True
     return False

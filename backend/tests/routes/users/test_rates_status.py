@@ -8,9 +8,12 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+import pytest
+
 from app.allowance_hook import AllowanceKind
-from app.models.account import AccountBalanceSnapshot
-from app.models.base import Base
+from app.models.account import AccountBalanceSnapshot, TaxAdvantagedCategory
+from app.models.base import Base, RecurrenceFreq, TaxTreatment
+from app.models.budget import BaseBudget
 from app.models.currency import Currency
 from app.routes import dashboard as dashboard_routes
 from app.services.fx import FrankfurterProvider, used_pairs
@@ -135,16 +138,36 @@ async def test_rates_status_holds_steady_for_a_user_whose_other_currencies_are_r
     assert second.json() == first.json()
 
 
-async def test_rates_status_stays_unknown_for_a_group_member_whose_group_amounts_still_convert(client, published_valkey):
-    """A group's US account still converts for a refused member, and no pair is recorded yet, so the digest stays unknown"""
-    headers = _get_auth_header(await _create_user(client))
+@pytest.mark.parametrize("group_row", ["account", "tax_advantaged_category", "budget", "transaction"])
+async def test_rates_status_stays_unknown_for_a_group_member_whose_group_amounts_still_convert(client, published_valkey, group_row):
+    """A group's row in US dollars still converts for a refused member, and no pair is recorded yet, so the digest stays unknown"""
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    user_id = UUID(signup_resp.json()["user"]["id"])
     async with TestSession() as session:
         session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
         await session.commit()
     assert (await _create_account(client, headers, name="USD Cash", currency="USD")).status_code == 201
-    group = await client.post("/groups", json={"name": "Household"}, headers=headers)
-    joint = await _create_account(client, headers, name="USD Joint", currency="USD", group_id=group.json()["id"])
-    assert joint.status_code == 201
+    group_id = (await client.post("/groups", json={"name": "Household"}, headers=headers)).json()["id"]
+    if group_row == "account":
+        assert (await _create_account(client, headers, name="USD Joint", currency="USD", group_id=group_id)).status_code == 201
+    elif group_row == "transaction":
+        joint_id = (await _create_account(client, headers, name="CAD Joint", group_id=group_id)).json()["id"]
+        category_id = await _get_system_category_id(client, headers)
+        created = await _create_transaction(
+            client, headers, joint_id, category_id, amount=-1_000, currency="USD", fx_rate=1.4, dt=datetime.now(UTC).date().isoformat()
+        )
+        assert created.status_code == 201, created.text
+    async with TestSession() as session:
+        if group_row == "tax_advantaged_category":
+            session.add(
+                TaxAdvantagedCategory(
+                    category_owner_user_id=user_id, group_id=UUID(group_id), name="Joint", tax_treatment=TaxTreatment.TAX_FREE, currency="USD"
+                )
+            )
+        if group_row == "budget":
+            session.add(BaseBudget(group_id=UUID(group_id), name="Joint", currency="USD", recurrence_freq=RecurrenceFreq.MONTHLY))
+        await session.commit()
     install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
 
     response = await client.get("/me/rates-status", headers=headers)

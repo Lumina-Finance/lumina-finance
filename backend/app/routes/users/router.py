@@ -28,7 +28,7 @@ from app.services.allowance.require import list_granted_features
 from app.services.cache_state import get_shared_cache_changed_at, get_visible_cache_status, select_user_group_ids
 from app.services.csv_export import download_response
 from app.services.data_export.archive import ZIP_MEDIA_TYPE, start_data_export
-from app.services.fx.rates_status import get_rates_digest, holds_group_other_currencies, holds_other_currencies
+from app.services.fx.rates_status import get_rates_digest, holds_other_currencies
 from app.services.tax_advantaged_categories import get_category_owner_timezones
 from app.services.users.profile import build_user_profile
 from app.services.users.profile_update import update_user_profile
@@ -94,7 +94,7 @@ async def get_rates_status(
     withholds_conversion = (
         other_currencies
         and await find_foreign_currencies_reason(user.id) is not None
-        and not await holds_group_other_currencies(db, user.base_currency)
+        and not await holds_other_currencies(db, user.base_currency, group_owned_only=True)
     )
     return RatesStatus(
         digest=await get_rates_digest(user.id, holds_other_currencies=other_currencies, withholds_conversion=withholds_conversion)
