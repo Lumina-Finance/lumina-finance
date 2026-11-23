@@ -38,14 +38,18 @@ export function doesChosenCategoryRecordTransferTarget(category: Category | unde
  * @param accounts Every account the list knows about
  * @param selectedCurrencies Currencies of the selected transactions, deduplicated
  */
-export function getBulkMoveTargets<T extends { can_write?: boolean; is_archived?: boolean; currency?: string }>(
-  accounts: T[],
-  selectedCurrencies: string[],
-): T[] {
+export function getBulkMoveTargets<
+  T extends { can_write?: boolean; is_archived?: boolean; read_only_reason?: string | null; currency?: string },
+>(accounts: T[], selectedCurrencies: string[]): T[] {
   if (selectedCurrencies.length !== 1) return []
-  return accounts.filter(
-    (account) => account.can_write === true && !account.is_archived && account.currency === selectedCurrencies[0],
-  )
+  return accounts.filter((account) => takesWrites(account) && account.currency === selectedCurrencies[0])
+}
+
+/** Whether a row can be moved onto the account: one the user may write to, neither archived nor kept read-only by the server */
+function takesWrites(
+  account: { can_write?: boolean; is_archived?: boolean; read_only_reason?: string | null } | undefined,
+) {
+  return account?.can_write === true && !account.is_archived && !account.read_only_reason
 }
 
 /**
@@ -594,13 +598,13 @@ export function getBulkEditBlockers(
     if (!row.hasMerchant && !choice.merchantId) withoutMerchant.push(row.id)
 
     const sourceAccount = accountMap?.get(row.accountId)
-    if (accountMap && (sourceAccount?.can_write !== true || sourceAccount?.is_archived)) {
+    if (accountMap && !takesWrites(sourceAccount)) {
       unavailableOwnAccount.push(row.id)
     }
 
     if (!sendsAnEnd && choice.accountId && accountMap) {
       const destination = accountMap.get(choice.accountId)
-      if (destination?.can_write !== true || destination?.is_archived) {
+      if (!takesWrites(destination)) {
         if (!unavailableOwnAccount.includes(row.id)) unavailableOwnAccount.push(row.id)
       }
     }
@@ -628,7 +632,7 @@ export function getBulkEditBlockers(
 
     if (ownEnd?.scope === 'tracked' && accountMap) {
       const ownAccount = accountMap.get(ownEnd.accountId)
-      if (ownAccount?.can_write !== true || ownAccount?.is_archived) {
+      if (!takesWrites(ownAccount)) {
         if (!unavailableOwnAccount.includes(row.id)) unavailableOwnAccount.push(row.id)
       }
     }
