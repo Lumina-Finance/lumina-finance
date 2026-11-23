@@ -43,26 +43,17 @@ export default function ProfileSection({
   userInformationActions,
 }: ProfileSectionProps) {
   const { data: currencies } = useCurrencies()
-  const initials = user
-    ? `${user.first_name[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
-    : ''
-  const displayName = user
-    ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`
-    : ''
+  const initials = user ? `${user.first_name[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase() : ''
+  const displayName = user ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}` : ''
 
   // Fall back to the currency code until /currencies resolves, then render the
   // same code/name/symbol label format used by account creation
   const baseCurrency = currencies?.find((c) => c.id === user?.base_currency)
-  const baseCurrencyLabel = baseCurrency
-    ? formatCurrencyLabel(baseCurrency)
-    : user?.base_currency ?? ''
+  const baseCurrencyLabel = baseCurrency ? formatCurrencyLabel(baseCurrency) : (user?.base_currency ?? '')
 
   return (
     <section id="profile">
-      <SettingsSectionHeader
-        title="Profile"
-        description="Your name and localization defaults."
-      />
+      <SettingsSectionHeader title="Profile" description="Your name and localization defaults." />
 
       <div className="space-y-4">
         <SettingsCard>
@@ -126,7 +117,11 @@ export default function ProfileSection({
                   onChange={(v) => onFieldChange('date_format', v as DateFormatSetting)}
                 />
               </SettingsField>
-              <SettingsField label="Base currency" htmlFor="profile-base-currency" hint="Planned, currently not supported to change">
+              <SettingsField
+                label="Base currency"
+                htmlFor="profile-base-currency"
+                hint="Planned, currently not supported to change"
+              >
                 <input
                   id="profile-base-currency"
                   className="app-input"
