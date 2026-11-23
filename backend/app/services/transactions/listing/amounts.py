@@ -72,8 +72,8 @@ async def get_transaction_listing_converted_amounts(
 
         # A missing amount is a withheld one while the converter withholds for this account, since it looks
         # up no rate for the account's amounts and so no amount goes missing for want of one
-        if converter.withheld_reason is not None and converter.withholds(account.group_id) and None in (account_amount, base_amount):
-            withheld_reasons_by_transaction_id[transaction.id] = converter.withheld_reason
+        if converter.withholds(account.group_id) and None in (account_amount, base_amount):
+            withheld_reasons_by_transaction_id[transaction.id] = converter.withheld_reason or ""
 
     return account_amounts_by_transaction_id, base_amounts_by_transaction_id, withheld_reasons_by_transaction_id
 

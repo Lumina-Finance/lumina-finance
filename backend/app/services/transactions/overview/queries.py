@@ -145,10 +145,10 @@ async def get_overview_outlier_candidate_rows(db: AsyncSession, transaction_filt
     Every transaction of one account currency on one date converts at the same rate, unless
     a group owns its account and the user's own accounts are held back from converting, so a
     group of rows shares its ownership too. The largest converted outflows of that group are
-    its largest amounts. Keeping the
-    ``limit`` largest per group ranks the panel, apart from rows tying at its last place
-    that the amounts left out can outrank by identifier, and bounds what a request reads
-    by the days the range covers rather than by the transactions in it
+    its largest amounts. Keeping the ``limit`` largest per group ranks the panel, apart from
+    rows tying at its last place that the amounts left out can outrank by identifier, and
+    bounds what a request reads by the days the range covers rather than by the transactions
+    in it
 
     Args:
         db: Active database session
