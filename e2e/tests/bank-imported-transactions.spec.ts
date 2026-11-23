@@ -15,7 +15,7 @@ import {
 } from '../support/bankSync'
 import { colourContrast, fillContrast } from '../support/contrast'
 import { ICON_ALIGNMENT_TOLERANCE_PX, ICON_GAP_PX, measureIconBesideText } from '../support/iconBesideText'
-import { getTransactionRowButton } from '../support/selectors'
+import { getTransactionRowButton, readBoxes } from '../support/selectors'
 import { API_BASE_URL } from '../support/target'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 
@@ -448,12 +448,14 @@ async function expectIconPlacedBesideTitle(page: Page, request: APIRequestContex
     expect(bankSize.width).toBeCloseTo(size.width, 1)
     expect(bankSize.height).toBeCloseTo(size.height, 1)
   }
-  const [titleBox, markerBox] = await Promise.all([title, marker].map(async (part) => (await part.boundingBox())!))
+  // Both boxes are read at one instant, since the page above the row can still reflow after a resize and
+  // move the row between two separate reads
+  const [titleBox, markerBox] = await readBoxes(page, [title, marker])
   expect(markerBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height)
 
   // The icon keeps the phone's place up to 749px wide and moves back after the title at 750px
   await page.setViewportSize(LAST_PHONE_WIDTH)
-  const [lastPhoneTitle, lastPhoneMarker] = await Promise.all([title, marker].map(async (part) => (await part.boundingBox())!))
+  const [lastPhoneTitle, lastPhoneMarker] = await readBoxes(page, [title, marker])
   expect(lastPhoneMarker.y).toBeGreaterThanOrEqual(lastPhoneTitle.y + lastPhoneTitle.height)
   await page.setViewportSize(FIRST_WIDE_WIDTH)
   const firstWide = await measureIconBesideText(marker, title)
