@@ -11,7 +11,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
-from app.services.fx import FxConverter
+from app.services.fx import FxConverter, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 SavingsRateMonthlyCategoryTotalsByKey = dict[tuple[date, uuid.UUID], int]
@@ -56,6 +56,7 @@ async def get_converted_savings_rate_monthly_category_totals(
             Category.id.label("category_id"),
             Transaction.dt.label("date"),
             Account.currency.label("account_currency"),
+            Account.group_id,
             func.sum(Transaction.amount).label("total"),
         )
         .join(Category, Transaction.category_id == Category.id)
@@ -66,14 +67,12 @@ async def get_converted_savings_rate_monthly_category_totals(
             Transaction.dt >= start_month,
             Transaction.dt < window_end,
         )
-        .group_by(month_start_expr, Category.id, Transaction.dt, Account.currency),
+        .group_by(month_start_expr, Category.id, Transaction.dt, Account.currency, Account.group_id),
     )
     monthly_category_rows = result.all()
-    converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
+    converter = build_user_fx_converter(
+        db,
+        await get_currency_exponents(db, {base_currency, *(account.currency for account in accounts)}),
     )
     await _prefetch_savings_rate_rates(
         converter,
@@ -92,6 +91,7 @@ async def get_converted_savings_rate_monthly_category_totals(
             base=row.account_currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=row.group_id,
         )
         if converted_total is None:
             continue

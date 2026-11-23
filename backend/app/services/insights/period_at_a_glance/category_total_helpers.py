@@ -51,6 +51,7 @@ async def get_period_at_a_glance_category_net_totals(
             Transaction.account_id,
             Transaction.dt.label("date"),
             Account.currency.label("account_currency"),
+            Account.group_id,
             func.sum(Transaction.amount).label("total"),
         )
         .join(Category, Transaction.category_id == Category.id)
@@ -61,7 +62,15 @@ async def get_period_at_a_glance_category_net_totals(
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
-        .group_by(Category.id, Category.name, Category.kind, Transaction.account_id, Transaction.dt, Account.currency),
+        .group_by(
+            Category.id,
+            Category.name,
+            Category.kind,
+            Transaction.account_id,
+            Transaction.dt,
+            Account.currency,
+            Account.group_id,
+        ),
     )
     rows = result.all()
     await prefetch_period_at_a_glance_rates(
@@ -79,6 +88,7 @@ async def get_period_at_a_glance_category_net_totals(
             base=row.account_currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=row.group_id,
         )
         if converted_total is None:
             continue

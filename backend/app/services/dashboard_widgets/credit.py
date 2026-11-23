@@ -9,7 +9,7 @@ from app.models.account import Account
 from app.models.base import AccountKind
 from app.schemas.fx import FxStatus
 from app.services.accounts.snapshots import get_current_balances
-from app.services.fx import FxConverter
+from app.services.fx import build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
@@ -56,11 +56,9 @@ async def get_credit_widget(
         return 0, 0, fx_status
 
     balances = await get_current_balances(db, [account.id for account in credit_accounts], rate_date)
-    converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in credit_accounts)},
-        ),
+    converter = build_user_fx_converter(
+        db,
+        await get_currency_exponents(db, {base_currency, *(account.currency for account in credit_accounts)}),
     )
     for currency in sorted({account.currency for account in credit_accounts if account.currency != base_currency}):
         await converter.prefetch_rates(
@@ -78,12 +76,14 @@ async def get_credit_widget(
             base=account.currency,
             quote=base_currency,
             rate_date=rate_date,
+            group_id=account.group_id,
         )
         converted_used = await converter.convert_minor_units(
             max(-balances.get(account.id, 0), 0),
             base=account.currency,
             quote=base_currency,
             rate_date=rate_date,
+            group_id=account.group_id,
         )
         if converted_limit is not None:
             credit_limit_total += converted_limit

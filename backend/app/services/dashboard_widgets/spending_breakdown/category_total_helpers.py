@@ -16,7 +16,7 @@ from app.services.dashboard_widgets.spending_breakdown.response_helpers import (
     SpendingBreakdownCategoryTotal,
     SpendingBreakdownCategoryTotalsById,
 )
-from app.services.fx import FxConverter
+from app.services.fx import FxConverter, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
@@ -54,11 +54,9 @@ async def get_converted_spending_breakdown_category_totals(
     """
     account_ids = list(accounts_by_id)
     category_daily_totals = await query_spending_breakdown_category_daily_totals(db, account_ids, start, end)
-    converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts_by_id.values())},
-        ),
+    converter = build_user_fx_converter(
+        db,
+        await get_currency_exponents(db, {base_currency, *(account.currency for account in accounts_by_id.values())}),
     )
     await _prefetch_conversion_rates(
         converter,
@@ -135,6 +133,7 @@ async def _convert_category_totals(
             base=accounts_by_id[row.account_id].currency,
             quote=base_currency,
             rate_date=row.transaction_date,
+            group_id=accounts_by_id[row.account_id].group_id,
         )
         if converted_amount is None:
             continue

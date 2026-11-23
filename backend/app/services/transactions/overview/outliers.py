@@ -29,6 +29,7 @@ async def _convert_outlier_candidates(rows, converter: FxConverter, base_currenc
             base=row.currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=row.group_id,
         )
         if converted_amount is None or converted_amount >= 0:
             continue
@@ -41,7 +42,13 @@ async def _get_last_amount_at_outflow(row, outflow: int, converter: FxConverter,
     """Return the largest amount that converts to the same outflow as a row, found by halving the amounts between"""
 
     async def convert(amount: int) -> int | None:
-        return await converter.convert_minor_units(amount, base=row.currency, quote=base_currency, rate_date=row.date)
+        return await converter.convert_minor_units(
+            amount,
+            base=row.currency,
+            quote=base_currency,
+            rate_date=row.date,
+            group_id=row.group_id,
+        )
 
     amount = int(row.amount)
     if amount == -1 or await convert(amount + 1) != outflow:
@@ -97,7 +104,12 @@ async def _get_tied_group_rows(
         if row.position != OVERVIEW_OUTLIER_LIMIT or row.group_size <= OVERVIEW_OUTLIER_LIMIT or converted_amount != last_place_outflow:
             continue
 
-        group = [candidate for candidate, _ in converted_candidates if (candidate.currency, candidate.date) == (row.currency, row.date)]
+        is_group_owned = row.group_id is not None
+        group = [
+            candidate
+            for candidate, _ in converted_candidates
+            if (candidate.currency, candidate.date, candidate.group_id is not None) == (row.currency, row.date, is_group_owned)
+        ]
         tied_amounts = {
             int(candidate.amount) for candidate, outflow in converted_candidates if candidate in group and outflow == last_place_outflow
         }
@@ -110,6 +122,7 @@ async def _get_tied_group_rows(
             transaction_filters,
             currency=row.currency,
             group_date=row.date,
+            is_group_owned=is_group_owned,
             read_ids=[candidate.id for candidate in group],
             last_amount=last_amount,
             limit=OVERVIEW_OUTLIER_LIMIT,

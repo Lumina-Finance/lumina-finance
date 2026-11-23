@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.routes.users.date_helpers import get_current_user_date
 from app.schemas.transaction import TransactionsOverview
-from app.services.fx import FxConverter
+from app.services.fx import build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 from app.services.transactions.overview.cash_flow import (
     convert_overview_daily_cash_flow,
@@ -88,11 +88,9 @@ async def get_transactions_overview(
     outlier_candidate_rows = await get_overview_outlier_candidate_rows(db, transaction_filters, limit=OVERVIEW_OUTLIER_LIMIT)
     currency_conversion_rows = [*cash_flow_rows, *category_total_rows, *outlier_candidate_rows]
     accounts_by_id = await get_overview_accounts_by_id(db, currency_conversion_rows)
-    shared_converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {user.base_currency, *(account.currency for account in accounts_by_id.values())},
-        ),
+    shared_converter = build_user_fx_converter(
+        db,
+        await get_currency_exponents(db, {user.base_currency, *(account.currency for account in accounts_by_id.values())}),
     )
 
     # Prefetch rates once, then clone converter state so each panel reports its own FX status

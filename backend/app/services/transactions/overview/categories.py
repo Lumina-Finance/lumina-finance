@@ -30,12 +30,13 @@ async def convert_overview_top_categories(
 
     # Convert account-level category rows into base-currency totals grouped by category
     for row in category_total_rows:
-        currency = accounts_by_id[row.account_id].currency
+        account = accounts_by_id[row.account_id]
         converted_total = await converter.convert_minor_units(
             int(row.total or 0),
-            base=currency,
+            base=account.currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=account.group_id,
         )
         if converted_total is None:
             continue

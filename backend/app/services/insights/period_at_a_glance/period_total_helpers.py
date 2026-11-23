@@ -11,7 +11,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
-from app.services.fx import FxConverter
+from app.services.fx import build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 from app.services.insights.period_at_a_glance.conversion_helpers import prefetch_period_at_a_glance_rates
 
@@ -47,6 +47,7 @@ async def get_period_at_a_glance_income_expense_totals(
             Transaction.account_id,
             Transaction.dt.label("date"),
             Account.currency.label("account_currency"),
+            Account.group_id,
             func.sum(Transaction.amount).label("total"),
         )
         .join(Category, Transaction.category_id == Category.id)
@@ -57,14 +58,12 @@ async def get_period_at_a_glance_income_expense_totals(
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
-        .group_by(Category.id, Transaction.account_id, Transaction.dt, Account.currency),
+        .group_by(Category.id, Transaction.account_id, Transaction.dt, Account.currency, Account.group_id),
     )
     rows = result.all()
-    converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
+    converter = build_user_fx_converter(
+        db,
+        await get_currency_exponents(db, {base_currency, *(account.currency for account in accounts)}),
     )
     await prefetch_period_at_a_glance_rates(
         converter,
@@ -81,6 +80,7 @@ async def get_period_at_a_glance_income_expense_totals(
             base=row.account_currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=row.group_id,
         )
         if converted_total is None:
             continue

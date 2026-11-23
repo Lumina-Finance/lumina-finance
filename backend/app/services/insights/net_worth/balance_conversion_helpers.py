@@ -6,7 +6,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.services.fx import FxConverter
+from app.services.fx import FxConverter, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 from app.services.insights.net_worth.groups import NET_WORTH_GROUPS
 
@@ -25,7 +25,7 @@ async def build_net_worth_fx_converter(
         FX converter with minor-unit exponents loaded
     """
     currency_exponents = await get_currency_exponents(db, currencies)
-    converter = FxConverter(currency_exponents=currency_exponents)
+    converter = build_user_fx_converter(db, currency_exponents)
     return converter
 
 
@@ -96,6 +96,7 @@ async def get_grouped_net_worth_balance_values(
             base=account.currency,
             quote=base_currency,
             rate_date=rate_date,
+            group_id=account.group_id,
         )
         if converted_balance is None:
             continue

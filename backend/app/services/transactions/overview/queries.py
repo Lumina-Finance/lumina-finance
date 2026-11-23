@@ -127,6 +127,7 @@ def _outlier_candidate_query(transaction_filters):
             Transaction.id,
             Transaction.account_id,
             Account.currency,
+            Account.group_id,
             Transaction.amount,
             Transaction.dt.label("date"),
         )
@@ -141,8 +142,10 @@ def _outlier_candidate_query(transaction_filters):
 async def get_overview_outlier_candidate_rows(db: AsyncSession, transaction_filters, *, limit: int):
     """Return the candidate outlier transaction rows for an overview
 
-    Every transaction of one account currency on one date converts at the same rate, so
-    the largest converted outflows of that group are its largest amounts. Keeping the
+    Every transaction of one account currency on one date converts at the same rate, unless
+    a group owns its account and the user's own accounts are held back from converting, so a
+    group of rows shares its ownership too. The largest converted outflows of that group are
+    its largest amounts. Keeping the
     ``limit`` largest per group ranks the panel, apart from rows tying at its last place
     that the amounts left out can outrank by identifier, and bounds what a request reads
     by the days the range covers rather than by the transactions in it
@@ -156,7 +159,7 @@ async def get_overview_outlier_candidate_rows(db: AsyncSession, transaction_filt
         SQLAlchemy rows holding id, account, currency, amount and date, and each row's
         position and group size within its currency and date, largest outflow first
     """
-    group = (Account.currency, Transaction.dt)
+    group = (Account.currency, Transaction.dt, Account.group_id.is_(None))
 
     # Number each currency and date group's rows by amount, with the identifier breaking
     # ties the way the panel's ranking does
@@ -177,17 +180,19 @@ async def get_overview_outlier_tied_rows(
     *,
     currency: str,
     group_date: date,
+    is_group_owned: bool,
     read_ids: list[uuid.UUID],
     last_amount: int,
     limit: int,
 ):
-    """Return the left-out rows of one currency and date with the lowest identifiers, up to a largest amount
+    """Return the left-out rows of one currency, date and ownership with the lowest identifiers, up to a largest amount
 
     Args:
         db: Active database session
         transaction_filters: SQLAlchemy filters shared by overview queries
         currency: Account currency of the group
         group_date: Transaction date of the group
+        is_group_owned: Whether the group's accounts belong to a group rather than the user alone
         read_ids: Identifiers of the group's rows the candidate rows already hold
         last_amount: The largest amount to return, which is the last one converting to the outflow in question
         limit: How many rows the panel shows, which is the most that can take a place
@@ -199,7 +204,7 @@ async def get_overview_outlier_tied_rows(
     return (
         await db.execute(
             _outlier_candidate_query(transaction_filters)
-            .where(Account.currency == currency, Transaction.dt == group_date)
+            .where(Account.currency == currency, Transaction.dt == group_date, Account.group_id.is_not(None) == is_group_owned)
             .where(Transaction.id.not_in(read_ids), Transaction.amount <= last_amount)
             .order_by(Transaction.id.asc())
             .limit(limit),

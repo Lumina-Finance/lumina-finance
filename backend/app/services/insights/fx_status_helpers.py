@@ -13,18 +13,21 @@ def get_combined_fx_status(current_status: FxStatus, previous_status: FxStatus) 
     Returns:
         Combined FX status with duplicate missing pairs removed
     """
+    # A period that left amounts out keeps its reason whatever the other period's state
+    withheld_reason = current_status.withheld_reason or previous_status.withheld_reason
+
     if current_status.state == "none":
-        return previous_status
+        return previous_status.model_copy(update={"withheld_reason": withheld_reason})
     if previous_status.state == "none":
-        return current_status
+        return current_status.model_copy(update={"withheld_reason": withheld_reason})
 
     missing_pairs = _get_unique_missing_pairs((current_status, previous_status))
     if not missing_pairs:
-        fx_status = FxStatus(state="complete")
+        fx_status = FxStatus(state="complete", withheld_reason=withheld_reason)
         return fx_status
 
     state = "unavailable" if current_status.state == previous_status.state == "unavailable" else "incomplete"
-    fx_status = FxStatus(state=state, missing_pairs=missing_pairs)
+    fx_status = FxStatus(state=state, missing_pairs=missing_pairs, withheld_reason=withheld_reason)
     return fx_status
 
 

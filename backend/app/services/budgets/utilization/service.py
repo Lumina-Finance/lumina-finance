@@ -15,7 +15,7 @@ from app.services.budgets.utilization.query_helpers import (
     get_latest_budget_rows,
     get_tracked_category_ids_by_budget,
 )
-from app.services.fx import FxConverter
+from app.services.fx import FxConverter, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 # Periods at the end of a budget's history that keep their categories. The details chart shows this
@@ -51,7 +51,7 @@ async def get_budget_utilization_responses(
         *(row.account_currency for row in spend_rows),
     }
     currency_exponents = await get_currency_exponents(db, currencies)
-    converter = FxConverter(currency_exponents=currency_exponents)
+    converter = build_user_fx_converter(db, currency_exponents)
     await prefetch_budget_rates(converter, spend_rows)
 
     spend_rows_by_budget = get_spend_rows_by_budget(spend_rows)
@@ -149,6 +149,7 @@ async def _get_budget_utilization_response(
             base=row.account_currency,
             quote=base_budget.currency,
             rate_date=row.date,
+            group_id=base_budget.group_id,
         )
         if converted_amount is None:
             continue
