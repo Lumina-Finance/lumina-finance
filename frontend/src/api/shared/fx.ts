@@ -1,11 +1,11 @@
-export type FxState = 'none' | 'complete' | 'incomplete' | 'unavailable';
+export type FxState = 'none' | 'complete' | 'incomplete' | 'unavailable'
 
 export interface FxRateIssue {
-  base: string;
-  quote: string;
+  base: string
+  quote: string
 }
 
 export interface FxStatus {
-  state: FxState;
-  missing_pairs: FxRateIssue[];
+  state: FxState
+  missing_pairs: FxRateIssue[]
 }

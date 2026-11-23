@@ -28,12 +28,7 @@ export function FxStatusBadge({
   const message = getMessage(fxStatus) ?? FX_STATUS_FALLBACK_MESSAGE
 
   return (
-    <IconTooltip
-      label={label}
-      icon="fx"
-      fxTone={tone ?? getFxStatusTone(fxStatus)}
-      placement={placement}
-    >
+    <IconTooltip label={label} icon="fx" fxTone={tone ?? getFxStatusTone(fxStatus)} placement={placement}>
       <span className="block">{message}</span>
       {fxStatus.missing_pairs.length > 0 && (
         <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>

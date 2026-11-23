@@ -8,9 +8,7 @@ export function formatMissingFxPairs(missingPairs: FxRateIssue[]) {
   const distinctPairs = Array.from(new Set(missingPairs.map((pair) => `${pair.base}/${pair.quote}`)))
   const visiblePairs = distinctPairs.slice(0, 3)
   const remainingCount = distinctPairs.length - visiblePairs.length
-  return remainingCount > 0
-    ? formatList([...visiblePairs, `${remainingCount} more`])
-    : formatList(visiblePairs)
+  return remainingCount > 0 ? formatList([...visiblePairs, `${remainingCount} more`]) : formatList(visiblePairs)
 }
 
 /**
@@ -22,12 +20,14 @@ export function combineFxStatuses(statuses: Array<FxStatus | undefined | null>):
   if (activeStatuses.length === 0) return { state: 'none', missing_pairs: [] }
 
   const missingPairKeys = new Set<string>()
-  const missingPairs = activeStatuses.flatMap((status) => status.missing_pairs).filter((pair) => {
-    const key = `${pair.base}/${pair.quote}`
-    if (missingPairKeys.has(key)) return false
-    missingPairKeys.add(key)
-    return true
-  })
+  const missingPairs = activeStatuses
+    .flatMap((status) => status.missing_pairs)
+    .filter((pair) => {
+      const key = `${pair.base}/${pair.quote}`
+      if (missingPairKeys.has(key)) return false
+      missingPairKeys.add(key)
+      return true
+    })
 
   if (missingPairs.length === 0) return { state: 'complete', missing_pairs: [] }
   return {

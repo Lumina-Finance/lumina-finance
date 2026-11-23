@@ -46,10 +46,7 @@ export function isTransactionAmountUnconverted(transaction: Transaction, fixedAc
  *
  * An amount with no rate is left out of the sum, which the day's FX status says
  */
-export function getTransactionDateGroupTotal(
-  transactions: Transaction[],
-  fixedAccount?: TransactionListAccount,
-) {
+export function getTransactionDateGroupTotal(transactions: Transaction[], fixedAccount?: TransactionListAccount) {
   return transactions.reduce((sum, transaction) => sum + (getDisplayAmount(transaction, fixedAccount) ?? 0), 0)
 }
 
