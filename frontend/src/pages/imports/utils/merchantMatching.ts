@@ -96,6 +96,9 @@ function fileRowsUnder(
   getFiledName: (source: string) => string,
 ): PreviewTransactionRow[] {
   return rows.map((row) => {
+    // A merchant an import rule chose is already the one the row is filed under
+    if (row.isMerchantFromRule) return row
+
     const source = row.transaction.merchant_name
     if (!source) return row
 

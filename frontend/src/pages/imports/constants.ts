@@ -707,6 +707,59 @@ export const TAG_MATCHES_LOAD_FAILURE_TITLE = 'Your tags could not be checked'
 export const TAG_MATCHES_LOAD_FAILURE_EXPLANATION =
   'Without that check every tag in this import reads as a new one here. Importing still files a row under the tag you already have with the same name, and creates a tag only where you have none.'
 
+/** Heads the note listing the import rules that changed rows */
+export const IMPORT_RULES_NOTICE_TITLE = 'Import rules'
+
+/** Ties a count to its noun, so a phone cannot wrap a line between them */
+const NO_BREAK_SPACE = ' '
+
+/** Says how many rows one import rule changed */
+export function getImportRuleChangeLine(ruleName: string, rowCount: number) {
+  return `The rule "${ruleName}" changed ${rowCount.toLocaleString()}${NO_BREAK_SPACE}${rowCount === 1 ? 'row' : 'rows'}.`
+}
+
+/**
+ * Says which merchant names the import rules cover, so the merchant step explains why they are not listed
+ *
+ * A single name is spelled out with the rules that set its merchant. Several are counted, since a
+ * file of many names would otherwise fill the step with its own list
+ *
+ * With no name left to match, the step shows "No merchants to match" in place of its list. That
+ * message already names the rules as the reason, so no line is added beneath
+ *
+ * @param covered - Each covered name with the rules that choose its merchant
+ * @param listedCount - How many names the step still lists
+ */
+export function getRuleCoveredMerchantsLine(covered: { name: string; ruleNames: string[] }[], listedCount: number) {
+  if (covered.length === 0 || listedCount === 0) return null
+
+  if (covered.length === 1) {
+    const [{ name, ruleNames }] = covered
+    const rules = formatList(ruleNames.map((rule) => `"${rule}"`))
+    return `The merchant name "${name}" isn't listed: the ${ruleNames.length === 1 ? 'rule' : 'rules'} ${rules} ${ruleNames.length === 1 ? 'sets' : 'set'} the merchant of its rows.`
+  }
+
+  return `${covered.length.toLocaleString()}${NO_BREAK_SPACE}merchant names aren't listed: import rules set the merchant of their rows.`
+}
+
+/** What the merchant step says while the import rules set the merchant of every row that names one */
+export const RULE_COVERED_MERCHANTS_EMPTY = {
+  title: 'No merchants to match',
+  description: 'Import rules set the merchant of every row that names one.',
+}
+
+// Shown while the rules are asked what they give the rows, and after they could not be. The import
+// waits for the answer, since it decides which merchants the page asks about and what each row is filed under
+export const IMPORT_RULES_LOADING_LABEL = 'Checking your import rules…'
+export const IMPORT_RULES_LOAD_FAILURE_TITLE = 'Your import rules could not be checked'
+export const IMPORT_RULES_REFUSED_REASON = "The rows couldn't be sent."
+export const IMPORT_RULES_CHANGED_REASON = 'Your import rules or the records they name changed while they were being checked.'
+export const IMPORT_RULES_LOAD_FAILURE_EXPLANATION =
+  "Your rules decide each row's merchant, category and tags, so the import can't go on until they are checked."
+
+/** Said beside Commit import when the rules could not be checked, since nothing is saved unchecked */
+export const IMPORT_RULES_CHECK_FAILED_MESSAGE = `Couldn't check your import rules. Please${NO_BREAK_SPACE}try${NO_BREAK_SPACE}again.`
+
 // Shown when a mapping was answered with an account that has since been deleted. The answer is
 // dropped rather than sent, and nothing fills the row back in, so the user is told why a source
 // they already dealt with is asking again

@@ -1,5 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Category } from '@/api/categories'
+import type { ImportRuleMatchRow, ImportRuleRowMatch } from '@/api/import-rules'
 import type { Transaction } from '@/api/transactions'
 import type { TransactionImportPayload } from '@/api/transaction-imports'
 import type { ImportDelimiter } from './utils/csv'
@@ -215,7 +216,32 @@ export interface PreviewTransactionRow {
 
   /** Name behind the transaction's counterparty account, since the preview has no account list to read */
   counterpartyAccountName?: string
+
+  /** Whether an import rule chose the merchant, so the merchant step's answers leave it as it is */
+  isMerchantFromRule?: boolean
 }
+
+/**
+ * One row the import rules are asked about: the row the save would send, with the identity the
+ * preview and the warnings find its answer by
+ */
+export interface ImportRuleRow {
+  /** Identity of the row within the import */
+  id: string
+  request: ImportRuleMatchRow
+}
+
+/** The import rules being asked about the rows, or the failure of that. The steps that depend on the answer show it */
+export interface ImportRuleCheckState {
+  status: 'loading' | 'failed'
+
+  /** What the check failed with, read for the reason shown */
+  error: unknown
+  onRetry: () => void
+}
+
+/** What the rules give each row they were asked about, by the row's identity */
+export type ImportRuleMatchLookup = Map<string, ImportRuleRowMatch>
 
 /**
  * One row the import has something to say about, against its position among the file's data rows
@@ -254,6 +280,12 @@ export interface ImportBuildResult {
    */
   rowWarnings: ImportRowProblem[]
   payload: TransactionImportPayload | null
+
+  /**
+   * Every row of the payload, as the import rules are asked about it, in the order the payload
+   * holds them. Empty while the payload is not built
+   */
+  ruleRows: ImportRuleRow[]
 }
 
 /**
