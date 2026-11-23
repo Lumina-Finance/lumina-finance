@@ -51,6 +51,23 @@ describe('replacing a cached transaction', () => {
     expect(queryClient.getQueryData(transactionKeys.detail(waiting.id))).toEqual(kept)
   })
 
+  it('keeps the reason a list gave for leaving a row unconverted, since a single transaction comes back without one', () => {
+    const reason = 'This server allows no more of these'
+    const listed: Transaction = {
+      ...waiting,
+      account_amount: null,
+      base_currency_amount: null,
+      withheld_reason: reason,
+    }
+    queryClient.setQueryData(transactionKeys.list({}), [listed])
+    queryClient.setQueryData(transactionKeys.detail(waiting.id), { ...waiting, withheld_reason: null })
+
+    replaceCachedTransaction(queryClient, { ...kept, withheld_reason: null })
+
+    expect(queryClient.getQueryData<Transaction[]>(transactionKeys.list({}))?.[0].withheld_reason).toBe(reason)
+    expect(queryClient.getQueryData<Transaction>(transactionKeys.detail(waiting.id))?.withheld_reason).toBeNull()
+  })
+
   it('leaves lists and details that never held it as they were', () => {
     const otherList = [other]
     queryClient.setQueryData(transactionKeys.list({ account_id: 'account-2' }), otherList)
