@@ -777,7 +777,11 @@ for (const [name, anchor, saved, pick] of [
     if (saved) await expect(dialog.getByTestId('linked-transaction')).toHaveCount(1)
     if (pick) await linkOne(dialog, saved ? 'last' : 'first')
     await expect(dialog.getByTestId('linked-transaction')).toHaveCount(saved && pick ? 2 : 1)
-    await page.waitForTimeout(800)
+    // Waits for a picked row to finish growing in, however slow a busy run makes it, so Save starts from settled rows
+    await expect.poll(() => dialog.evaluate((node) => Math.max(0, ...[...node.querySelectorAll<HTMLElement>('[data-testid="linked-row"]')].map((wrapper) => {
+      const inner = wrapper.querySelector('[data-testid="linked-transaction"]')
+      return inner ? inner.getBoundingClientRect().bottom - wrapper.getBoundingClientRect().bottom : 0
+    })))).toBeLessThanOrEqual(0.5)
 
     // Per frame: the linked rows' total layout height, how many rows there are, and the most any row's bottom edge
     // reaches past the bottom of its own reveal wrapper, which is what clips it
