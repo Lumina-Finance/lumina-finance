@@ -1,10 +1,13 @@
 """Foreign exchange conversion service"""
 
+import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 
 from app.schemas.fx import FxIssueReason, FxRateIssue, FxStatus
+from app.services.allowance.require import is_asked_about
 from app.services.fx.errors import FxProviderUnavailableError, FxRateNotFoundError
 from app.services.fx.frankfurter_provider import FrankfurterProvider
 from app.services.fx.provider import FxRateProvider
@@ -46,15 +49,25 @@ class FxConverter:
         *,
         provider: FxRateProvider | None = None,
         currency_exponents: dict[str, int] | None = None,
+        withheld_reason: str | None = None,
+        find_withheld_reason: Callable[[], Awaitable[str | None]] | None = None,
     ):
         """Initialize a converter with per-instance rate and failure memoization
 
         Args:
             provider: Optional FX provider implementation
             currency_exponents: Minor-unit exponents keyed by currency code
+            withheld_reason: The sentence the installed check gives for refusing conversion between
+                currencies, or None to convert. While set, an amount in another currency is left out
+                rather than converted, except one from a group-owned record
+            find_withheld_reason: Looks the sentence up, called once before the first conversion between
+                currencies, so a request that converts nothing never asks
         """
         self.provider = provider or CachedFxRateProvider(FrankfurterProvider())
         self.currency_exponents = currency_exponents or {}
+        self.withheld_reason = withheld_reason
+        self.find_withheld_reason = find_withheld_reason
+        self.has_withheld = False
         self.rates: dict[FxRateKey, Decimal] = {}
         self.failed_rates: dict[FxRateKey, FxIssueReason] = {}
         self.recorded_failed_rates: set[FxRateKey] = set()
@@ -71,11 +84,31 @@ class FxConverter:
 
         Lets several metrics of one request share a prefetch while each reports its own status
         """
-        cloned = FxConverter(provider=self.provider, currency_exponents=self.currency_exponents)
+        cloned = FxConverter(
+            provider=self.provider,
+            currency_exponents=self.currency_exponents,
+            withheld_reason=self.withheld_reason,
+            find_withheld_reason=self.find_withheld_reason,
+        )
         cloned.rates = self.rates.copy()
         cloned.failed_rates = self.failed_rates.copy()
         cloned.recorded_pairs = self.recorded_pairs
         return cloned
+
+    def withholds(self, group_id: uuid.UUID | None = None) -> bool:
+        """Return whether an amount in another currency from a record is left out instead of converted
+
+        Args:
+            group_id: The group owning the record, or None for one the user owns alone, since a
+                group-owned record is never withheld
+        """
+        return self.withheld_reason is not None and is_asked_about(group_id)
+
+    async def _settle_withheld_reason(self) -> None:
+        """Look the reason up the first time a conversion between currencies is asked for"""
+        if self.find_withheld_reason is not None:
+            self.withheld_reason = await self.find_withheld_reason()
+            self.find_withheld_reason = None
 
     async def convert_minor_units(
         self,
@@ -84,6 +117,7 @@ class FxConverter:
         base: str,
         quote: str,
         rate_date: date,
+        group_id: uuid.UUID | None = None,
     ) -> int | None:
         """Convert a minor-unit amount into a target currency
 
@@ -92,9 +126,12 @@ class FxConverter:
             base: Source currency code
             quote: Target currency code
             rate_date: Date for the conversion rate
+            group_id: The group owning the record the amount comes from, which converts even while the
+                converter withholds, or None for an amount from a record the user owns alone
 
         Returns:
-            Converted amount in quote currency minor units, or None when the rate is unavailable
+            Converted amount in quote currency minor units, or None when the rate is unavailable or the
+            conversion is withheld
         """
         normalized_base = base.upper()
         normalized_quote = quote.upper()
@@ -102,6 +139,10 @@ class FxConverter:
             return amount
         if amount == 0:
             return 0
+        await self._settle_withheld_reason()
+        if self.withholds(group_id):
+            self.has_withheld = True
+            return None
 
         self.used_fx = True
         await self._record_pair(normalized_base, normalized_quote)
@@ -145,6 +186,12 @@ class FxConverter:
         if normalized_base == normalized_quote or start_date > end_date:
             return
 
+        # Prefetching can't tell a group-owned amount from the user's own. While withholding, only group-owned
+        # amounts convert, and each looks its rate up on its own
+        await self._settle_withheld_reason()
+        if self.withheld_reason is not None:
+            return
+
         await self._record_pair(normalized_base, normalized_quote)
         dates = get_dates_in_range(start_date, end_date)
         try:
@@ -171,6 +218,9 @@ class FxConverter:
         Returns:
             FX conversion status for all conversions attempted by this converter
         """
+        if self.has_withheld:
+            status = FxStatus(state="none", withheld_reason=self.withheld_reason)
+            return status
         if not self.used_fx:
             status = FxStatus(state="none")
             return status
