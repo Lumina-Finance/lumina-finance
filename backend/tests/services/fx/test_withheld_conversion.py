@@ -130,3 +130,19 @@ async def test_user_converter_asks_the_check_once_for_every_converter_a_request_
 
     assert tuple(results) == amounts
     assert [request.kind for request in asked] == [AllowanceKind.FOREIGN_CURRENCIES] * asks
+
+
+async def test_withheld_conversion_keeps_the_reason_beside_a_group_owned_conversion_the_provider_could_not_make():
+    """A personal US amount left out beside a group-owned one the provider fails on reads as unavailable, naming the pair and the reason"""
+    from app.services.fx import FxProviderUnavailableError
+
+    provider = FakeProvider(errors={("EUR", "CAD"): FxProviderUnavailableError()})
+    converter = _withholding(provider)
+
+    left_out = await converter.convert_minor_units(10_00, base="USD", quote="CAD", rate_date=_RATE_DATE)
+    failed = await converter.convert_minor_units(10_00, base="EUR", quote="CAD", rate_date=_RATE_DATE, group_id=uuid.uuid4())
+
+    assert (left_out, failed) == (None, None)
+    assert converter.get_status() == FxStatus(
+        state="unavailable", missing_pairs=[FxRateIssue(base="EUR", quote="CAD")], withheld_reason=ALLOWANCE_REASON
+    )
