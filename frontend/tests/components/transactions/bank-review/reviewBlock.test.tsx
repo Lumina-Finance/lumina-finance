@@ -180,6 +180,24 @@ describe('the block while the list is in selection mode', () => {
     expect(rows[1]).not.toMatch(/role="checkbox"[^>]*disabled=""/)
   })
 
+  // Adding an item writes it to its account, and a bulk Add takes only what can be ticked
+  it("holds back the box of an item on a read-only account, with the account's reason", () => {
+    const reason = 'Records in USD are read-only. They can be archived or deleted'
+    const rows = renderBlock(MIXED, false, {
+      selection: {
+        ...selection(false),
+        isSelectable: (itemId: string) => itemId !== 'fresh',
+        readOnlyReasonFor: (itemId: string) => (itemId === 'fresh' ? reason : undefined),
+      },
+    })
+      .split('role="listitem"')
+      .slice(1)
+
+    expect(rows[0]).toContain(`title="${reason}"`)
+    expect(rows[0]).toMatch(/role="checkbox"[^>]*disabled=""/)
+    expect(rows[1]).not.toMatch(/role="checkbox"[^>]*disabled=""/)
+  })
+
   it('shows no checkbox outside selection mode', () => {
     expect(renderBlock(MIXED, false)).not.toContain('role="checkbox"')
   })

@@ -46,4 +46,22 @@ describe('counterparty-account options', () => {
 
     expect(options.map((option) => option.value)).toEqual(['savings'])
   })
+
+  // The checkbox writes the matching transaction to the chosen account, and a read-only account takes none.
+  // Naming one without the checkbox only records where the money went
+  it('leaves out a read-only account once the pair checkbox is ticked, and keeps it as a plain reference', () => {
+    const withReadOnly = [
+      ...accounts,
+      createAccount({ id: 'us-chequing', name: 'US Chequing', read_only_reason: 'Records in USD are read-only' }),
+    ]
+
+    expect(buildCounterpartyAccountOptions(withReadOnly, 'checking', true).map((option) => option.value)).toEqual([
+      'savings',
+    ])
+    expect(buildCounterpartyAccountOptions(withReadOnly, 'checking', false).map((option) => option.value)).toEqual([
+      OUTSIDE_ACCOUNT_VALUE,
+      'savings',
+      'us-chequing',
+    ])
+  })
 })
