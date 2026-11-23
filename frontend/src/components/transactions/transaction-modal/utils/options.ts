@@ -1,5 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
+import { getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 
 /**
@@ -38,7 +39,9 @@ export function buildCounterpartyAccountOptions(
   // is nowhere outside the app to write one, so the entry is not offered there. Nor is an account the
   // server keeps read-only, as it takes no new transaction. Naming one without the checkbox only records
   // where the money went, so the plain list keeps it
-  if (isSymmetricTransfer) return toOptions(eligibleAccounts.filter((account) => !account.read_only_reason))
+  if (isSymmetricTransfer) {
+    return toOptions(eligibleAccounts.filter((account) => getAccountWriteBlockReason(account) === undefined))
+  }
 
   // First, because it is the one answer that is not a search through the account list
   return [{ value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL }, ...toOptions(eligibleAccounts)]

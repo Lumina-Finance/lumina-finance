@@ -1,5 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Transaction } from '@/api/transactions'
+import { getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
 
 /**
  * Whether a transaction can be refunded: money that left, in a category the app counts as an expense.
@@ -82,6 +83,24 @@ export function getRefundAccounts<T extends Pick<AccountsOverview, 'currency' | 
   currency: string,
 ): T[] {
   return accounts.filter((account) => account.currency === currency && account.group_id === null)
+}
+
+/**
+ * The accounts the transaction form's Account dropdown offers. An archived account takes no new transaction,
+ * and neither does one the server keeps read-only. A bank item's own account stays, so its review names it
+ * while Add to ledger waits, and a refund keeps to the accounts its expense's refund can go to
+ *
+ * @param accounts Every account the form knows
+ * @param reviewAccountId The account of the bank item under review, if any
+ * @param refundCurrency The currency of the expense a refund is for, if the form records one
+ */
+export function getSelectableAccounts<
+  T extends Pick<AccountsOverview, 'id' | 'currency' | 'group_id' | 'is_archived' | 'read_only_reason'>,
+>(accounts: readonly T[], reviewAccountId?: string, refundCurrency?: string): T[] {
+  const writable = accounts.filter(
+    (account) => account.id === reviewAccountId || getAccountWriteBlockReason(account) === undefined,
+  )
+  return refundCurrency === undefined ? writable : getRefundAccounts(writable, refundCurrency)
 }
 
 /**

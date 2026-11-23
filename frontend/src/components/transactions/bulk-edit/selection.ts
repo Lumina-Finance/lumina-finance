@@ -9,6 +9,7 @@ import type { Category } from '@/api/categories'
 import type { BulkDirectionChange, BulkTransferEnd, TransactionDirection } from '@/api/transactions'
 import type { TransactionListAccount } from '@/components/transactions/types/transactionList'
 import { MAX_BULK_EDIT_TRANSACTIONS, MAX_BULK_TAGS } from '@/components/transactions/bulk-edit/constants'
+import { getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
 import { BALANCE_ADJUSTMENT_CATEGORY_NAME, doesTransferRecordCounterpartyAccount } from '@/utils/transfers'
 
 /** What an empty selection says on a list that offers no items waiting for review */
@@ -49,7 +50,7 @@ export function getBulkMoveTargets<
 function takesWrites(
   account: { can_write?: boolean; is_archived?: boolean; read_only_reason?: string | null } | undefined,
 ) {
-  return account?.can_write === true && !account.is_archived && !account.read_only_reason
+  return account?.can_write === true && getAccountWriteBlockReason(account) === undefined
 }
 
 /**
