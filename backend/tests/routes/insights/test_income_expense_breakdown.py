@@ -630,3 +630,50 @@ async def test_income_expense_breakdown_requires_auth(client):
     )
 
     assert resp.status_code == 401
+
+
+async def test_income_expense_breakdown_leaves_out_an_account_in_another_currency_the_check_refuses_converting(client):
+    """A personal US account's spending is left out of the card and the status says why"""
+    from app.allowance_hook import AllowanceKind
+    from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all(
+            [
+                salary,
+                food,
+                _transaction(user_id, cad_account_id, salary_id, date(2026, 6, 1), 100_000),
+                _transaction(user_id, usd_account_id, food_id, date(2026, 6, 2), -70_000, "USD"),
+            ]
+        )
+        await session.commit()
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    resp = await client.get(
+        "/insights/income-expense-breakdown",
+        params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {
+        "expense": [],
+        "income": [[str(salary_id), "Salary", "income", 100_000]],
+        "expense_total": 0,
+        "income_total": 100_000,
+        "expense_increases": [],
+        "expense_decreases": [],
+        "income_increases": [[str(salary_id), "Salary", 100_000, 0, 1]],
+        "income_decreases": [],
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON},
+    }

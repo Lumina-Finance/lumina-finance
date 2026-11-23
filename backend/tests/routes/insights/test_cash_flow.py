@@ -456,3 +456,46 @@ async def test_cash_flow_requires_auth(client):
     )
 
     assert response.status_code == 401
+
+
+async def test_cash_flow_leaves_out_an_account_in_another_currency_the_check_refuses_converting(client):
+    """A personal US account's spending is left out of the buckets and the status says why"""
+    from app.allowance_hook import AllowanceKind
+    from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all(
+            [
+                salary,
+                groceries,
+                _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 1), 100_00),
+                _transaction(user_id, usd_account_id, groceries_id, date(2026, 5, 2), -90_00, "USD"),
+            ]
+        )
+        await session.commit()
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    response = await client.get(
+        "/insights/cash-flow",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-02"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "points": [
+            ["2026-05-01", "2026-05-01", 10_000, 0],
+            ["2026-05-02", "2026-05-02", 0, 0],
+        ],
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON},
+    }

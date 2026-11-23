@@ -434,3 +434,47 @@ async def test_net_worth_requires_auth(client):
     )
 
     assert resp.status_code == 401
+
+
+async def test_net_worth_leaves_out_an_account_in_another_currency_the_check_refuses_converting(client):
+    """A personal US account's balance is left out of the points and the baseline before them, and the status says why"""
+    from app.allowance_hook import AllowanceKind
+    from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+
+    async with TestSession() as session:
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(AccountBalanceSnapshot.account_id.in_([cad_account_id, usd_account_id]))
+            .values(balance=0, dt=date(2026, 4, 29)),
+        )
+        session.add_all(
+            [
+                _snapshot(cad_account_id, date(2026, 4, 30), 40_000),
+                _snapshot(usd_account_id, date(2026, 4, 30), 30_000),
+                _snapshot(cad_account_id, date(2026, 5, 1), 100_000),
+                _snapshot(usd_account_id, date(2026, 5, 1), 70_000),
+            ]
+        )
+        await session.commit()
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    resp = await client.get(
+        "/insights/net-worth",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-01"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {
+        "groups": [["cash", "Cash", "asset"]],
+        "baseline": [40_000],
+        "points": [["2026-05-01", "2026-05-01", [100_000]]],
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON},
+    }

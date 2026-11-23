@@ -589,3 +589,46 @@ async def test_merchants_rejects_invalid_date_range(client):
     )
 
     assert resp.status_code == 422
+
+
+async def test_merchants_leave_out_an_account_in_another_currency_the_check_refuses_converting(client):
+    """A personal US account's merchant spending is left out and the status says why"""
+    from app.allowance_hook import AllowanceKind
+    from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    expense_id, expense = _category(user_id, "Shopping", CategoryKind.EXPENSE)
+    alpha_id, alpha = _merchant(user_id, "Alpha Market")
+    beta_id, beta = _merchant(user_id, "Beta Grocer")
+
+    async with TestSession() as session:
+        session.add_all(
+            [
+                expense,
+                alpha,
+                beta,
+                _transaction(user_id, cad_account_id, expense_id, date(2026, 5, 1), -100_00, alpha_id),
+                _transaction(user_id, usd_account_id, expense_id, date(2026, 5, 2), -90_00, beta_id, "USD"),
+            ]
+        )
+        await session.commit()
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    resp = await client.get(
+        "/insights/merchants",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-02"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {
+        "distribution": [[str(alpha_id), "Alpha Market", 10_000, 10_000]],
+        "ranking": [[str(alpha_id), "Alpha Market", 10_000, 1, 0]],
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON},
+    }
