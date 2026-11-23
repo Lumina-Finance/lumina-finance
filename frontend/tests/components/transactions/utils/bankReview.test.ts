@@ -9,7 +9,9 @@
  * a removal showing the bank's amount rather than the ledger's, a date in this year carrying its year,
  * a warning shown over a pause, accounts named out of the order given, a scoped list
  * asking for a group or shared account's items (the server refuses it), Keep window open
- * going on to a correction, skipping a new item, or ending while a new item before it still waits
+ * going on to a correction, skipping a new item, or ending while a new item before it still waits, a
+ * row still asking for a merchant or category a rule gave it or showing one a rule left out, and the
+ * wrong reason on Apply rules while it is unavailable
  */
 import { describe, expect, it } from 'vitest'
 import type { BankReviewBacklog, BankReviewItem, BankReviewItemKind } from '@/api/bank-sync/types'
@@ -22,6 +24,8 @@ import {
   formatReviewDate,
   getReviewAccountIds,
   getReviewItemAmount,
+  getApplyRulesReason,
+  getRuleFilledValues,
 } from '@/components/transactions/utils/bankReview'
 import { formatMovedCurrency } from '@/utils/formatCurrency'
 
@@ -108,6 +112,58 @@ describe('the line under an item', () => {
     ],
   ])('says what %s asks', (_, item, line) => {
     expect(describeReviewItem(item)).toBe(line)
+  })
+})
+
+describe('a new item the import rules fill in', () => {
+  const rule = { id: 'rule-1', name: 'Pay' }
+  const merchant = { id: 'merchant-1', name: 'Acme', rule }
+  const category = { id: 'category-1', name: 'Salary', kind: 'income' as const, rule }
+  const fill = (overrides: Partial<NonNullable<BankReviewItem['rule_fill']>>) => ({
+    merchant: null,
+    category: null,
+    tags: [],
+    category_left_out: null,
+    tags_left_out: null,
+    ...overrides,
+  })
+
+  it.each([
+    ['a merchant and a category', fill({ merchant, category }), null, ['Acme', 'Salary']],
+    ['a merchant alone', fill({ merchant }), 'Needs category', ['Acme']],
+    ['a category alone', fill({ category }), 'Needs merchant', ['Salary']],
+    ['tags alone', fill({ tags: [{ id: 'tag-1', name: 'Work', rule }] }), 'Needs merchant and category', []],
+  ])('asks only for what the rules left out when they give %s', (_, ruleFill, line, values) => {
+    const item = createReviewItem('new', { rule_fill: ruleFill })
+
+    expect(describeReviewItem(item)).toBe(line)
+    expect(getRuleFilledValues(item)).toEqual(values)
+  })
+
+  it('still asks for an amount its currency cannot hold, whatever the rules gave', () => {
+    const item = createReviewItem('new', {
+      bank: { ...createReviewItem('new').bank, amount: null, raw_amount: '-12.345' },
+      rule_fill: fill({ merchant, category }),
+    })
+
+    expect(describeReviewItem(item)).toBe('Needs amount')
+  })
+
+  it('shows an item no rule matched as it always was', () => {
+    const item = createReviewItem('new')
+
+    expect(describeReviewItem(item)).toBe('Needs merchant and category')
+    expect(getRuleFilledValues(item)).toEqual([])
+  })
+})
+
+describe('why Apply rules is unavailable', () => {
+  it.each([
+    [{ version: 'v1', any_matches: false, any_addable: false }, 'No waiting item matches your import rules'],
+    [{ version: 'v1', any_matches: true, any_addable: false }, 'No waiting item can be added by your import rules'],
+    [{ version: 'v1', any_matches: true, any_addable: true }, null],
+  ])('gives the reason for %j', (rules, reason) => {
+    expect(getApplyRulesReason(rules)).toBe(reason)
   })
 })
 

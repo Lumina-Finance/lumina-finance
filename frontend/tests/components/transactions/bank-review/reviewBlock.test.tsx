@@ -5,7 +5,9 @@
  *
  * These tests catch the block hiding the toggle a long backlog needs, offering one a short backlog
  * doesn't, a removal showing anything but the ledger amount struck through, a kind of item whose row
- * a keyboard can't open, and a failed read counting nothing as zero or offering no retry. The
+ * a keyboard can't open, a failed read counting nothing as zero or offering no retry, Apply rules
+ * missing from the header or drawn with nothing saying what the rules do, and a row showing no
+ * merchant or category a rule gave it, or changed for one no rule matched. The
  * notice's own retry is covered with the notice, and following a Needs review marker to a failed
  * read, and opening an item, run in the browser, since they need effects and clicks
  */
@@ -24,6 +26,9 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
   }),
 }))
 
+// The crossfade of Apply rules' label needs a browser to mount, so the label is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
+
 import { BankReviewBlock } from '@/components/transactions/bank-review/ReviewBlock'
 
 const ITEMS = Array.from({ length: 6 }, (_, index) => createReviewItem(`item-${index}`, 'new', 'everyday'))
@@ -31,7 +36,9 @@ const ITEMS = Array.from({ length: 6 }, (_, index) => createReviewItem(`item-${i
 function renderBlock(
   items: BankReviewItem[],
   expanded: boolean,
-  overrides: Partial<Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure' | 'selection'>> = {},
+  overrides: Partial<
+    Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure' | 'selection' | 'applyRules'>
+  > = {},
 ): string {
   return renderToStaticMarkup(
     createElement(BankReviewBlock, {
@@ -122,6 +129,83 @@ describe('the rows the block shows', () => {
     expect(rows[0]).toMatch(/<button type="button"[^>]*>.*GROCER fresh/)
     expect(rows[1]).toMatch(/<button type="button"[^>]*>.*GROCER changed/)
     expect(rows[2]).toMatch(/<button type="button"[^>]*>.*GROCER gone/)
+  })
+})
+
+describe('Apply rules in the header', () => {
+  const applyRules = {
+    rules: { version: 'v1', any_matches: true, any_addable: true },
+    isApplying: false,
+    onApply: () => {},
+  }
+
+  it('sits in the header above the rows, level with the toggle and before it, so the toggle stays the last control', () => {
+    const markup = renderBlock(ITEMS, false, { applyRules })
+    const button = markup.indexOf('Apply rules')
+
+    expect(button).toBeGreaterThan(-1)
+    expect(button).toBeLessThan(markup.search(/aria-expanded=/))
+    expect(button).toBeLessThan(markup.indexOf('role="list"'))
+  })
+
+  it('stays alone at the top right when there are too few items for a toggle', () => {
+    const markup = renderBlock(ITEMS.slice(0, 2), false, { applyRules })
+
+    expect(markup).toContain('Apply rules')
+    expect(markup).not.toContain('aria-expanded')
+    // With no toggle after it the button ends where the rows' amounts end, not at the header's own edge
+    expect(markup).toMatch(/<div class="[^"]*\blast:mr-2\b[^"]*"><button[^>]*>(?:<span[^>]*>.*?<\/span>)?Apply rules/)
+  })
+
+  it('is drawn beside the line under the header on a phone, where the header has no room for it', () => {
+    const markup = renderBlock(ITEMS, false, { applyRules })
+    const line = markup.indexOf('Bank items stay out of every balance')
+    const beside = markup.indexOf('Apply rules', line)
+
+    expect(beside).toBeGreaterThan(line)
+    expect(beside).toBeLessThan(markup.indexOf('role="list"'))
+    // Each place shows at one width only: the header's from the small breakpoint up, the line's below it.
+    // Both hold the button as a flex item, so a spinner in place of the label can't shift the button
+    // off the line a label's baseline put it on
+    expect(markup.slice(0, line)).toMatch(/class="hidden [^"]*sm:flex"/)
+    expect(markup.slice(line, beside)).toContain('flex shrink-0 sm:hidden')
+  })
+
+  it('is left out while the items could not load, and when nothing says what the rules do', () => {
+    expect(renderBlock([], false, { applyRules, itemsFailure: { retry: () => {}, isRetrying: false } })).not.toContain(
+      'Apply rules',
+    )
+    expect(renderBlock(ITEMS, false, { applyRules: { ...applyRules, rules: null } })).not.toContain('Apply rules')
+    expect(renderBlock(ITEMS, false)).not.toContain('Apply rules')
+  })
+})
+
+describe('the values a rule gave a waiting row', () => {
+  const rule = { id: 'rule-1', name: 'Pay' }
+  const fillOf = (merchantName: string | null, categoryName: string | null) => ({
+    merchant: merchantName ? { id: 'm', name: merchantName, rule } : null,
+    category: categoryName ? { id: 'c', name: categoryName, kind: 'expense' as const, rule } : null,
+    tags: [],
+    category_left_out: null,
+    tags_left_out: null,
+  })
+  const detailsOf = (item: BankReviewItem) =>
+    /data-testid="review-item-details"[^>]*>(.*?)<\/p>/s.exec(renderBlock([item], false))?.[1].replace(/<[^>]+>/g, '')
+
+  it('shows the merchant and the category in the plain muted line under the description, with no label of its own', () => {
+    const matched = createReviewItem('matched', 'new', 'everyday', { rule_fill: fillOf('Market', 'Groceries') })
+
+    expect(detailsOf(matched)).toBe('Sep 21 · Everyday · Market · Groceries')
+    expect(renderBlock([matched], false)).not.toContain('Filled in')
+  })
+
+  it('shows what is still missing after the values it gives, and leaves an unmatched row as it was', () => {
+    expect(detailsOf(createReviewItem('part', 'new', 'everyday', { rule_fill: fillOf('Market', null) }))).toBe(
+      'Sep 21 · Everyday · Market · Needs category',
+    )
+    expect(detailsOf(createReviewItem('plain', 'new', 'everyday'))).toBe(
+      'Sep 21 · Everyday · Needs merchant and category',
+    )
   })
 })
 

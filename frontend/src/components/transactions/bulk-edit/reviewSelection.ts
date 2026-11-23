@@ -6,10 +6,12 @@
  * A new item has no merchant or category yet, so adding it in bulk needs both, and it keeps its own
  * bank amount. It isn't in the ledger, so it can be dismissed but not deleted or exported
  */
+import { ApiError } from '@/api/auth'
 import type { BankReviewItem, BulkAddReviewValues } from '@/api/bank-sync'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
 import type { BulkEditFields } from '@/components/transactions/bulk-edit/selection'
 import { countNoun } from '@/utils/bankSync'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 
 /** What an empty selection says on a list that offers items waiting for review too */
 export const NOTHING_TICKED_WITH_REVIEW = 'Please tick a transaction or review item first'
@@ -118,6 +120,30 @@ export function describeBulkAdd(added: number, skipped: number, updated: number 
   const addedText = `Added ${countNoun(added, 'item')} to your ledger`
   const updatedText = updated === null ? '' : ` and updated ${countNoun(updated, 'transaction')}`
   return `${addedText}${updatedText}.${describeSkipped(skipped, 'added')}`
+}
+
+/**
+ * What the toast says once a press of Apply rules has gone through, with the sentence a bulk add has
+ * for its items, and one more when items are left to add
+ *
+ * @param added - How many items the press added to the ledger, as the server counted them
+ * @param moreToAdd - Whether more items than one press adds are left to add
+ */
+export function describeAppliedRules(added: number, moreToAdd: boolean): string {
+  if (added === 0) return 'No items were added to your ledger.'
+  const more = moreToAdd ? ' More items are left to add, so please press Apply rules again.' : ''
+  return `${describeBulkAdd(added, 0, null)}${more}`
+}
+
+/**
+ * What the error toast says when a press of Apply rules was refused. Rules that changed since the list
+ * loaded refuse it, and the list is read again, so the person is asked to check it before trying again
+ */
+export function describeApplyRulesFailure(error: unknown): string {
+  const reason = getSaveFailureMessage(error)
+  return error instanceof ApiError && error.status === 409
+    ? `${reason}. Please check the waiting items and try again.`
+    : reason
 }
 
 /**

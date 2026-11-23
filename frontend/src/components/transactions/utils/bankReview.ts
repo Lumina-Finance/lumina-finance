@@ -5,6 +5,7 @@ import {
   type BankReviewBacklog,
   type BankReviewItem,
   type BankReviewItemKind,
+  type BankReviewRules,
   type CorrectableBankField,
 } from '@/api/bank-sync'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
@@ -61,18 +62,51 @@ function joinWithAnd(names: string[]): string {
 }
 
 /**
- * Says what a review item asks of the user, on the line under its description
+ * Says what a review item asks of the user, on the line under its description, or null when it asks
+ * nothing
  *
- * A new item always needs a merchant and a category, and an amount too when the bank sent more
- * decimal places than the account's currency holds, since that amount can't be stored as sent
+ * A new item needs a merchant and a category unless the user's import rules gave them, and an amount
+ * too when the bank sent more decimal places than the account's currency holds, since that amount can't
+ * be stored as sent
  */
-export function describeReviewItem(item: BankReviewItem): string {
+export function describeReviewItem(item: BankReviewItem): string | null {
   if (item.kind === 'removal') return 'The bank no longer reports this transaction'
   if (item.kind === 'new') {
-    return item.bank.amount === null ? 'Needs amount, merchant and category' : 'Needs merchant and category'
+    const needs = [
+      item.bank.amount === null && 'amount',
+      !item.rule_fill?.merchant && 'merchant',
+      !item.rule_fill?.category && 'category',
+    ].filter((name): name is string => name !== false)
+    return needs.length > 0 ? `Needs ${joinWithAnd(needs)}` : null
   }
   const changed = CHANGED_FIELD_NAMES.filter(([field]) => item.changed_fields.includes(field)).map(([, name]) => name)
   return changed.length > 0 ? `The bank changed the ${joinWithAnd(changed)}` : 'The bank changed this transaction'
+}
+
+/**
+ * The merchant and the category the user's import rules gave a new item, in the order a ledger row
+ * shows them, for the plain line under the item's description. Empty for an item no rule gave either
+ */
+export function getRuleFilledValues(item: BankReviewItem): string[] {
+  if (item.kind !== 'new' || !item.rule_fill) return []
+  return [item.rule_fill.merchant?.name, item.rule_fill.category?.name].filter(
+    (name): name is string => name !== undefined,
+  )
+}
+
+/** Why Apply rules is unavailable while no waiting item matches the rules */
+export const APPLY_RULES_NO_MATCH_REASON = 'No waiting item matches your import rules'
+
+/** Why Apply rules is unavailable while items match but the rules give none a merchant and a fitting category */
+export const APPLY_RULES_NONE_ADDABLE_REASON = 'No waiting item can be added by your import rules'
+
+/**
+ * Why Apply rules is unavailable, or null while it can add an item. Both facts come from the first
+ * page of the list and cover every waiting new item, never only the rows loaded
+ */
+export function getApplyRulesReason(rules: Pick<BankReviewRules, 'any_matches' | 'any_addable'>): string | null {
+  if (!rules.any_matches) return APPLY_RULES_NO_MATCH_REASON
+  return rules.any_addable ? null : APPLY_RULES_NONE_ADDABLE_REASON
 }
 
 /**

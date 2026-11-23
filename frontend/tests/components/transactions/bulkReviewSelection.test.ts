@@ -5,14 +5,18 @@
  *
  * These tests catch Dismiss running over a ledger transaction, Edit opening over an item missing its
  * amount, Apply counting only one kind toward the cap, a bulk add sending a note taken off or tags it
- * can't replace, and a toast hiding the items that were skipped
+ * can't replace, a toast hiding the items that were skipped, and a press of Apply rules saying
+ * nothing of the items it left to add or giving no next step when its rules changed
  */
 import { describe, expect, it } from 'vitest'
+import { ApiError } from '@/api/auth'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
 import {
   NOTHING_TICKED_WITH_REVIEW,
   ONLY_REVIEW_ITEMS_DISMISSED,
   describeAddedButNotUpdated,
+  describeAppliedRules,
+  describeApplyRulesFailure,
   describeBulkAdd,
   describeBulkDismiss,
   describeTickLimit,
@@ -147,6 +151,25 @@ describe('the toasts after a bulk decision', () => {
     expect(describeBulkAdd(1, 2, 1)).toBe(
       "Added 1 item to your ledger and updated 1 transaction. 2 items couldn't be added and still wait for review.",
     )
+  })
+
+  it('says how many a press of Apply rules added, and that more are left to add only when they are', () => {
+    expect(describeAppliedRules(12, false)).toBe('Added 12 items to your ledger.')
+    expect(describeAppliedRules(1, false)).toBe('Added 1 item to your ledger.')
+    expect(describeAppliedRules(1000, true)).toBe(
+      'Added 1000 items to your ledger. More items are left to add, so please press Apply rules again.',
+    )
+    expect(describeAppliedRules(0, false)).toBe('No items were added to your ledger.')
+  })
+
+  it('names the reason a press of Apply rules was refused, and asks to check the list only when the rules changed', () => {
+    expect(describeApplyRulesFailure(new ApiError('Your import rules changed, so nothing was added', 409))).toBe(
+      'Your import rules changed, so nothing was added. Please check the waiting items and try again.',
+    )
+    expect(describeApplyRulesFailure(new ApiError('Choose the account on the other side of this transfer', 422))).toBe(
+      'Choose the account on the other side of this transfer',
+    )
+    expect(describeApplyRulesFailure(new Error('network down'))).toBe('Something went wrong. Please try again.')
   })
 
   it('says the items went in when the ledger update was then refused', () => {

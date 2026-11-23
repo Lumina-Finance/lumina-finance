@@ -1,13 +1,14 @@
 import { useId, useRef, type Ref } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { ChevronDown, Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
-import type { BankReviewItem } from '@/api/bank-sync'
+import type { BankReviewItem, BankReviewRules } from '@/api/bank-sync'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { Checkbox } from '@/components/forms/Checkbox'
 import { HintButton } from '@/components/tooltips/HintButton'
 import { CONTENT_EASE_CURVE, QUICK_EASE_S } from '@/utils/widthEase'
 import { describeTickLimit } from '@/components/transactions/bulk-edit/reviewSelection'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
+import { ApplyRulesButton } from '@/components/transactions/bank-review/ApplyRulesButton'
 import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { BANK_BOX_CLASS, BANK_BOX_EDGE_CLASS, REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
@@ -22,6 +23,7 @@ import {
   describeReviewItem,
   formatReviewDate,
   getReviewItemAmount,
+  getRuleFilledValues,
   type BacklogNotice,
 } from '@/components/transactions/utils/bankReview'
 
@@ -118,6 +120,16 @@ type BankReviewBlockProps = {
   /** Set while the transaction list is in selection mode. A new item's row then ticks it rather than opening it */
   selection?: ReviewRowSelection
 
+  /**
+   * The Apply rules button. Its rules come from the first page of the list and are null while that
+   * page has none. The button is left out then
+   */
+  applyRules?: {
+    rules: BankReviewRules | null
+    isApplying: boolean
+    onApply: () => void
+  }
+
   prefersReducedMotion: boolean | null
 }
 
@@ -152,6 +164,7 @@ export function BankReviewBlock({
   registerRow,
   onOpenItem,
   selection,
+  applyRules,
   prefersReducedMotion,
 }: BankReviewBlockProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
@@ -172,6 +185,12 @@ export function BankReviewBlock({
     listRef.current?.querySelector<HTMLElement>('[role="listitem"]'),
   )
   useFocusAfterRetry(backlogFailure !== null, backlogFailureRef, () => backlogNoticeRef.current ?? headingRef.current)
+
+  // Drawn in two places, each shown at one width only. A phone's header has no room for the button
+  // beside the title, the count and the caret, so there the button sits beside the line under the header
+  const applyButton = applyRules?.rules && itemsFailure === null && (
+    <ApplyRulesButton rules={applyRules.rules} isApplying={applyRules.isApplying} onApply={applyRules.onApply} />
+  )
 
   // Each notice grows in and collapses out under the title, its room kept inside it
   const notice = {
@@ -214,42 +233,60 @@ export function BankReviewBlock({
           </span>
         )}
 
-        {/* The caret opens and closes the list, up here so a long list closes from where it starts, not
-            from its end, and ends the header's first row like the chevron of the app's other collapsible
-            sections. It stays mounted as the list changes, so keyboard focus stays on it through both.
-            It turns over as they do, and its name says what pressing it does */}
-        {/* Grows in when the backlog passes the rows shown, and shrinks away when it falls back under */}
-        <AnimatePresence initial={false}>
-          {total > COLLAPSED_ITEM_COUNT && (
-            <motion.span
-              key="toggle"
-              className="ml-auto inline-flex shrink-0"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
+        {/* Apply rules and the caret share one right-aligned wrapper, so neither depends on the other for
+            its place. The button glides along when the caret mounts or goes, rather than jumping. With no
+            caret after it the button keeps the rows' inset, so its edge lines up with their amounts */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {applyButton && (
+            <motion.div
+              layout="position"
+              className="hidden last:mr-2 sm:flex"
               transition={{ duration: prefersReducedMotion ? 0 : QUICK_EASE_S, ease: CONTENT_EASE_CURVE }}
             >
-              <HintButton
-                aria-expanded={expanded}
-                aria-controls={listId}
-                aria-label={toggleLabel}
-                hint={toggleLabel}
-                onClick={onToggleExpanded}
-                className="app-icon-button"
-              >
-                <ChevronDown
-                  size={16}
-                  aria-hidden
-                  className={`transition-transform motion-reduce:transition-none ${expanded ? 'rotate-180' : ''}`}
-                />
-              </HintButton>
-            </motion.span>
+              {applyButton}
+            </motion.div>
           )}
-        </AnimatePresence>
+
+          {/* The caret opens and closes the list, up here so a long list closes from where it starts, not
+              from its end, and ends the header's first row like the chevron of the app's other collapsible
+              sections. It stays mounted as the list changes, so keyboard focus stays on it through both.
+              It turns over as they do, and its name says what pressing it does */}
+          {/* Grows in when the backlog passes the rows shown, and shrinks away when it falls back under */}
+          <AnimatePresence initial={false}>
+            {total > COLLAPSED_ITEM_COUNT && (
+              <motion.span
+                key="toggle"
+                className="inline-flex shrink-0"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: prefersReducedMotion ? 0 : QUICK_EASE_S, ease: CONTENT_EASE_CURVE }}
+              >
+                <HintButton
+                  aria-expanded={expanded}
+                  aria-controls={listId}
+                  aria-label={toggleLabel}
+                  hint={toggleLabel}
+                  onClick={onToggleExpanded}
+                  className="app-icon-button"
+                >
+                  <ChevronDown
+                    size={16}
+                    aria-hidden
+                    className={`transition-transform motion-reduce:transition-none ${expanded ? 'rotate-180' : ''}`}
+                  />
+                </HintButton>
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
-      <p className="px-3 pb-2 text-xs" style={{ color: 'var(--app-text-muted)', ...PAST_THE_RAIL }}>
-        Bank items stay out of every balance until you add them to your ledger.
-      </p>
+      <div className="flex items-center gap-3 px-3 pb-2" style={PAST_THE_RAIL}>
+        <p className="min-w-0 flex-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          Bank items stay out of every balance until you add them to your ledger.
+        </p>
+        {applyButton && <div className="flex shrink-0 sm:hidden">{applyButton}</div>}
+      </div>
 
       <AnimatePresence initial={false}>
         {backlogNotice && (
@@ -312,6 +349,7 @@ export function BankReviewBlock({
             const details = [
               formatReviewDate(item.bank.date, today),
               showAccountNames && account.name,
+              ...getRuleFilledValues(item),
               describeReviewItem(item),
             ]
 
