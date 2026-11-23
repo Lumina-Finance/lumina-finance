@@ -3,15 +3,34 @@
  * the password confirms it, the app lands on the sign-in screen saying the profile is gone, and the
  * password no longer signs in
  */
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 import { signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
-import { API_BASE_URL } from '../support/target'
+import { API_BASE_URL, BASE_URL } from '../support/target'
 
 // Runs on desktop only: the section and its dialogue behave the same at every size
 
 const DELETE_URL = `${API_BASE_URL}/auth/profile/delete`
+
+/**
+ * Answers the account's linked providers, as an account that signs in without a password has them
+ */
+async function stubIdentities(page: Page, providers: string[]) {
+  await page.route(`${API_BASE_URL}/auth/oidc/identities`, (route) => route.fulfill({
+    json: {
+      has_password: false,
+      identities: providers.map((slug) => ({
+        id: `identity-${slug}`,
+        provider_slug: slug,
+        provider_display_name: slug,
+        email: 'someone@example.com',
+        created_at: new Date().toISOString(),
+        last_login_at: null,
+      })),
+    },
+  }))
+}
 
 test('deletes the profile once the user types delete and confirms with the password', async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -81,7 +100,11 @@ test('holds the deletion until the export the dialogue started has finished', as
   await dialog.getByRole('button', { name: 'Export all data' }).click()
   await dialog.getByRole('textbox').fill('delete')
   const confirm = dialog.getByRole('button', { name: 'Delete profile', exact: true })
-  await expect(confirm).toBeDisabled()
+  await expect(confirm).toHaveAttribute('aria-disabled', 'true')
+  // Forced, since the button says it is unavailable and a plain click would wait for it to be enabled
+  await confirm.click({ force: true })
+  await confirm.focus()
+  await page.keyboard.press('Enter')
   // Enter in the field asks to confirm as the button would, and is held off the same way
   await dialog.getByRole('textbox').press('Enter')
   const stepUp = page.getByRole('dialog', { name: 'Delete profile' })
@@ -93,4 +116,47 @@ test('holds the deletion until the export the dialogue started has finished', as
   await downloaded
   await confirm.click()
   await expect(stepUp).toBeVisible()
+})
+
+test('names the bank sync credentials for a user with a connection where new banks cannot be linked', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  // No provider is offered, so Settings has no bank section of its own to load the connections
+  await page.route(`${API_BASE_URL}/bank-sync/providers`, (route) => route.fulfill({ json: { may_link: true, sync_running: true, providers: [] } }))
+  // Answered here in place of a connection kept from when a provider was offered
+  await page.route(`${API_BASE_URL}/bank-sync/connections`, (route) => route.fulfill({ json: [{ id: 'connection-1' }] }))
+  await logInViaApi(page, user)
+  await openPage(page, '/settings')
+  await expect(page.locator('#bank-connections')).toHaveCount(0)
+
+  await page.locator('#delete-profile').getByRole('button', { name: 'Delete profile', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Delete your profile and all your data?' })
+  await expect(dialog.getByText("We'll remove the bank sync credentials we store for you.", { exact: false })).toBeVisible()
+})
+
+test('shows the deletion under way when it returns from the provider sign-in', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await stubIdentities(page, ['stub-provider'])
+  // The reauth is stubbed end to end, with the provider's page replaced by its return to the app
+  await page.route(`${API_BASE_URL}/auth/oidc/reauth`, (route) => route.fulfill({
+    json: { authorization_url: `${BASE_URL}/auth/oidc/callback?code=stub-code&state=stub-state` },
+  }))
+  await page.route(`${API_BASE_URL}/auth/oidc/reauth/callback`, (route) => route.fulfill({ status: 204 }))
+  let release: () => void = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await page.route(DELETE_URL, async (route) => {
+    await held
+    await route.fulfill({ status: 204 })
+  })
+  await logInViaApi(page, user)
+  await openPage(page, '/settings')
+
+  await page.locator('#delete-profile').getByRole('button', { name: 'Delete profile', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Delete your profile and all your data?' })
+  await dialog.getByRole('textbox').fill('delete')
+  await dialog.getByRole('button', { name: 'Delete profile', exact: true }).click()
+
+  const pending = page.locator('#delete-profile').getByRole('button', { name: 'Deleting profile', exact: true })
+  await expect(pending).toHaveAttribute('aria-busy', 'true')
+  release()
+  await expect(page).toHaveURL(/\/login$/)
 })

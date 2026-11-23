@@ -177,7 +177,7 @@ async def test_the_request_ends_sessions_and_emailed_links_before_the_data_goes(
         assert (await client.get("/auth/2fa/status", headers=device)).status_code == 401
 
 
-async def test_delete_passwordless_with_a_fresh_provider_proof_works_once(client, profile_deletions):
+async def test_delete_passwordless_needs_a_fresh_provider_proof(client, profile_deletions):
     """With no password to send, the proof of a fresh provider sign-in deletes the profile, and a missing proof does not"""
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
