@@ -136,8 +136,12 @@ export default function BudgetEditorModalCadenceSection({
           </div>
         </div>
 
+        {/* Each field sits at the foot of its cell, so a long error wrapping beside one label keeps the two
+            fields side by side on one line */}
         <div className="grid gap-3 md:grid-cols-[10rem_minmax(0,1fr)]">
-          <div className={`min-w-0 ${recurrenceControlsLocked || !form.recurs ? 'opacity-60' : ''}`}>
+          <div
+            className={`flex min-w-0 flex-col justify-between ${recurrenceControlsLocked || !form.recurs ? 'opacity-60' : ''}`}
+          >
             <BudgetEditorFieldLabelRow
               htmlFor={ids.interval}
               label="Period length"
@@ -157,7 +161,7 @@ export default function BudgetEditorModalCadenceSection({
             />
           </div>
 
-          <div className={`min-w-0 ${recurrenceControlsLocked ? 'opacity-60' : ''}`}>
+          <div className={`flex min-w-0 flex-col justify-between ${recurrenceControlsLocked ? 'opacity-60' : ''}`}>
             <BudgetEditorFieldLabelRow
               htmlFor={ids.periodStart}
               label={periodStartLabel}
