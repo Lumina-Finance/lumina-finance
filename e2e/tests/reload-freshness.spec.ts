@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 
-import { createAccount, createTransaction, signUpUser } from '../support/api'
+import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, startOfDayInTestTimezone } from '../support/api'
 import {
   logIn,
   logInViaApi,
@@ -415,7 +415,14 @@ test('requests no data beyond the checks when nothing changed since the saved co
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Unchanged Savings' })
   const row = await createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', amount: -1000 })
+  // The real time, pulled back only when the reopen ten minutes on would land on the next day in the
+  // user's zone. The transactions overview is keyed on today, so a new day has nothing saved and the
+  // app rightly fetches it. The page clock never runs ahead of the real time, so the server's own
+  // times are never in its future
+  const startOfTomorrow = startOfDayInTestTimezone(daysFromTodayInTestTimezone(1)).getTime()
+  const openedAt = Math.min(Date.now(), startOfTomorrow - 11 * 60_000)
   await logInViaApi(page, user)
+  await page.clock.install({ time: openedAt })
   await openPage(page, '/transactions')
   await expect(page.getByTestId(`transaction-row-${row}`)).toBeVisible()
   await waitForSavedCache(page, [row])
@@ -429,7 +436,7 @@ test('requests no data beyond the checks when nothing changed since the saved co
 
   // Ten minutes on, so every restored answer is older than its five minutes and only the check's
   // answer keeps it from being fetched again
-  await page.clock.setFixedTime(Date.now() + 10 * 60_000)
+  await page.clock.setFixedTime(openedAt + 10 * 60_000)
   await page.goto('/transactions')
   await waitForPageReady(page)
   await expect(page.getByTestId(`transaction-row-${row}`)).toBeVisible()
