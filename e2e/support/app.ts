@@ -316,6 +316,25 @@ export async function openPage(page: Page, url: string): Promise<void> {
 }
 
 /**
+ * Navigate to an authenticated page and wait until its first cache check has been answered and the
+ * reads it set off have landed
+ *
+ * A browser with no saved cache record counts its first answer as a difference and fetches all the
+ * app's data a second time, a list of pages from its first page. That answer can come after the page
+ * is ready, so a test that counts the reads of a list, or moves the page's clock on, waits for it first
+ * and only then notes what the page asks for
+ */
+export async function openPageAfterFirstCacheCheck(page: Page, url: string): Promise<void> {
+  const requestsLanded = watchServerRequests(page)
+  const checked = page.waitForResponse(`${API_BASE_URL}/me/cache-status`)
+  await openPage(page, url)
+  await checked
+  // The reads the answer sets off are sent as the page takes it in, so the fence comes after them
+  await waitForRequestsSoFar(page)
+  await requestsLanded()
+}
+
+/**
  * Load every page of the transaction list, returning once it says it has reached the end.
  *
  * The list loads fifteen rows at a time, a page each time its end comes into view, and may load the

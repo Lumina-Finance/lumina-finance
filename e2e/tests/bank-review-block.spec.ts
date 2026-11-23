@@ -10,7 +10,7 @@ import {
   type SeededAccount,
   type TestUser,
 } from '../support/api'
-import { filterTransactions, logInViaApi, openPage, setTabHidden } from '../support/app'
+import { filterTransactions, logInViaApi, openPage, openPageAfterFirstCacheCheck, setTabHidden } from '../support/app'
 import {
   addBridgeTransactions,
   answerAsBankImported,
@@ -349,7 +349,7 @@ test('says the pause status could not load while still showing the items, and re
       : route.fulfill({ json: [{ account_id: everyday.id, waiting_new_count: 105, paused: true, review_warning: false }] })
   })
 
-  await openPage(page, '/transactions')
+  await openPageAfterFirstCacheCheck(page, '/transactions')
 
   const block = reviewBlock(page)
   const failure = block.getByRole('alert').filter({ hasText: 'Sync pause status could not load.' })
@@ -432,7 +432,9 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
     await route.fallback()
   })
 
-  await openPage(page, '/transactions')
+  await openPageAfterFirstCacheCheck(page, '/transactions')
+  // The first check fetched the first page again, so the reads to count are those after it
+  cursors.length = 0
 
   const block = reviewBlock(page)
   const rows = block.getByRole('listitem')
@@ -442,12 +444,12 @@ test('shows the first 4 of a 1,500 item backlog, and loads the rest a page at a 
 
   await block.getByRole('button', { name: 'Show all 1,500' }).click()
   await expect(rows).toHaveCount(50)
-  expect(cursors).toEqual([null])
+  expect(cursors).toEqual([])
 
   await rows.last().scrollIntoViewIfNeeded()
   const loading = block.getByRole('status')
   await expect(loading).toHaveText('Loading more items…')
-  await expect.poll(() => cursors).toEqual([null, 'page-1'])
+  await expect.poll(() => cursors).toEqual(['page-1'])
   releaseSecondPage()
   await expect(rows).toHaveCount(100)
   await expect(count).toBeVisible()
@@ -481,7 +483,9 @@ test('loads no more of a 1,500 item backlog when the end of the list has moved a
     await route.fallback()
   })
   await page.clock.install()
-  await openPage(page, '/transactions')
+  await openPageAfterFirstCacheCheck(page, '/transactions')
+  // The first check fetched the first page again, so the reads to count are those after it
+  cursors.length = 0
 
   const block = reviewBlock(page)
   const rows = block.getByRole('listitem')
@@ -504,7 +508,7 @@ test('loads no more of a 1,500 item backlog when the end of the list has moved a
   await releaseIntersections(page)
   await runClockUntil(page, async () => !(await loading.isVisible()))
   await expect(rows).toHaveCount(50)
-  expect(cursors).toEqual([null])
+  expect(cursors).toEqual([])
 })
 
 test('closes once four or fewer items wait, so it shows only the first four when more come back', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -561,7 +565,9 @@ test("goes from a ledger row's Needs review marker to its item, loading the page
     }
   })
 
-  await openPage(page, '/transactions')
+  await openPageAfterFirstCacheCheck(page, '/transactions')
+  // The first check fetched the first page again, so the reads to count are those after it
+  cursors.length = 0
 
   const block = reviewBlock(page)
   await expect(block.getByRole('listitem')).toHaveCount(4)
@@ -573,7 +579,7 @@ test("goes from a ledger row's Needs review marker to its item, loading the page
   await expect(ring).toHaveCSS('box-shadow', /inset/)
   await expect(item).toBeFocused()
   await expect(item).toBeInViewport()
-  expect(cursors).toEqual([null, 'page-1'])
+  expect(cursors).toEqual(['page-1'])
   await expect(item.getByText(`${MINUS}$18.00`)).toHaveCSS('text-decoration-line', 'line-through')
 
   // The ring runs from edge to edge of the block, as the Upcoming box's rows do, clear of the text it frames
