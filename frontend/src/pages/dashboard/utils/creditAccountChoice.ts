@@ -51,9 +51,13 @@ export type CreditEmptyMessage = {
  * conversion says a rate is missing rather than that no limit is set or that there are no accounts
  */
 export function getCreditEmptyMessage(credit: CreditUtilizationResponse | undefined): CreditEmptyMessage {
-  if (!credit?.accounts.some((account) => account.is_counted)) return { message: 'No credit accounts', needsAttention: false }
+  if (!credit?.accounts.some((account) => account.is_counted))
+    return { message: 'No credit accounts', needsAttention: false }
   if (credit.fx_status.state === 'incomplete' || credit.fx_status.state === 'unavailable') {
-    return { message: `An exchange rate is missing for ${formatMissingFxPairs(credit.fx_status.missing_pairs)}`, needsAttention: true }
+    return {
+      message: `An exchange rate is missing for ${formatMissingFxPairs(credit.fx_status.missing_pairs)}`,
+      needsAttention: true,
+    }
   }
   return { message: 'No credit limit set', needsAttention: false }
 }

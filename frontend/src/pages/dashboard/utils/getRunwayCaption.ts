@@ -6,11 +6,7 @@ import { formatRunwayBasis } from '@/utils/runway'
 /**
  * Builds the runway caption for setup, history, and active runway states
  */
-export function getRunwayCaption(
-  runway: RunwayResult | undefined,
-  displayCurrency: string,
-  currencies: Currency[],
-) {
+export function getRunwayCaption(runway: RunwayResult | undefined, displayCurrency: string, currencies: Currency[]) {
   if (!runway) return ''
 
   if (runway.reason === 'no_accounts') return 'Choose accounts in Settings'
