@@ -48,22 +48,30 @@ describe('credit account choice', () => {
     const usdToCad = { base: 'USD', quote: 'CAD' }
 
     // The only counted card has a USD limit and no rate, so the total is 0 (FX unavailable)
-    expect(getCreditEmptyMessage({ ...noLimit, fx_status: { state: 'unavailable', missing_pairs: [usdToCad] } }))
-      .toEqual({ message: 'An exchange rate is missing for USD/CAD', needsAttention: true })
+    expect(
+      getCreditEmptyMessage({ ...noLimit, fx_status: { state: 'unavailable', missing_pairs: [usdToCad] } }),
+    ).toEqual({ message: 'An exchange rate is missing for USD/CAD', needsAttention: true })
 
     // A CAD card with no limit beside it changes nothing (FX incomplete)
-    expect(getCreditEmptyMessage({ ...noLimit, accounts: [CARDS[0], usdCard], fx_status: { state: 'incomplete', missing_pairs: [usdToCad] } }))
-      .toEqual({ message: 'An exchange rate is missing for USD/CAD', needsAttention: true })
+    expect(
+      getCreditEmptyMessage({
+        ...noLimit,
+        accounts: [CARDS[0], usdCard],
+        fx_status: { state: 'incomplete', missing_pairs: [usdToCad] },
+      }),
+    ).toEqual({ message: 'An exchange rate is missing for USD/CAD', needsAttention: true })
 
     // Four pairs show three and the count of the rest
     const pairs = ['USD', 'EUR', 'GBP', 'JPY'].map((base) => ({ base, quote: 'CAD' }))
-    expect(getCreditEmptyMessage({ ...noLimit, fx_status: { state: 'unavailable', missing_pairs: pairs } }).message)
-      .toBe('An exchange rate is missing for USD/CAD, EUR/CAD, GBP/CAD and 1 more')
+    expect(
+      getCreditEmptyMessage({ ...noLimit, fx_status: { state: 'unavailable', missing_pairs: pairs } }).message,
+    ).toBe('An exchange rate is missing for USD/CAD, EUR/CAD, GBP/CAD and 1 more')
   })
 
   it('says no limit is set when counted cards have none and no conversion failed', () => {
-    expect(getCreditEmptyMessage({ credit_limit_total: 0, credit_used: 0, fx_status: fxStatus, accounts: CARDS }))
-      .toEqual({ message: 'No credit limit set', needsAttention: false })
+    expect(
+      getCreditEmptyMessage({ credit_limit_total: 0, credit_used: 0, fx_status: fxStatus, accounts: CARDS }),
+    ).toEqual({ message: 'No credit limit set', needsAttention: false })
   })
 
   it('says there are no credit accounts when the user has none or counts none', () => {
