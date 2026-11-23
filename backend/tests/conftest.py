@@ -11,7 +11,8 @@ from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, Pool
 
-from app import allowance_hook, email_change_hook, profile_deletion_hook, request_hook
+import app.profile_deletion_hook as profile_deletion_hook
+from app import allowance_hook, email_change_hook, request_hook
 from app.abuse_log import abuse_log
 from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
 from app.config.env import require
