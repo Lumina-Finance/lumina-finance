@@ -18,9 +18,13 @@ const { authenticatedFetchMock } = vi.hoisted(() => ({
   authenticatedFetchMock: vi.fn(),
 }))
 
-vi.mock('@/api/client', () => ({
-  authenticatedFetch: authenticatedFetchMock,
-}))
+vi.mock('@/api/client', async () => {
+  const { answerAsResponse } = await import('./fixtures')
+  return {
+    authenticatedFetch: authenticatedFetchMock,
+    authenticatedRequest: answerAsResponse(authenticatedFetchMock),
+  }
+})
 
 import { ImportRunError, isImportCommitWorthRepeating } from '@/api/import-runs'
 import { runTransactionImport } from '@/api/transaction-imports'

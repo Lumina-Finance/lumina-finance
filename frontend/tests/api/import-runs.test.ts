@@ -17,9 +17,13 @@ const { authenticatedFetchMock } = vi.hoisted(() => ({
   authenticatedFetchMock: vi.fn(),
 }))
 
-vi.mock('@/api/client', () => ({
-  authenticatedFetch: authenticatedFetchMock,
-}))
+vi.mock('@/api/client', async () => {
+  const { answerAsResponse } = await import('./fixtures')
+  return {
+    authenticatedFetch: authenticatedFetchMock,
+    authenticatedRequest: answerAsResponse(authenticatedFetchMock),
+  }
+})
 
 const hookContext = vi.hoisted(() => ({ client: undefined as QueryClient | undefined }))
 
@@ -45,7 +49,7 @@ import { REQUEST_TIMEOUT_MS } from '@/api/server'
 
 // Any import's routes do here, since only the limit each request carries is under test
 const TRANSACTION_ROUTES = { rows: 'rows', commit: 'commit' }
-import { commitStagedImportRun, useImportTransactions } from '@/api/transaction-imports'
+import { useImportTransactions } from '@/api/transaction-imports'
 
 const RUN_ID = 'run_1'
 
@@ -230,7 +234,6 @@ describe('giving a large import time to finish', () => {
   // import that was about to land
   it.each([
     ['uploading a batch', () => stageImportRunRows('run_1', TRANSACTION_ROUTES, { rows: [] })],
-    ['saving', () => commitStagedImportRun('run_1')],
     ['dropping a kept upload', () => deleteImportRun('run_1')],
     ['undoing', () => undoImportRun('run_1')],
   ])('waits longer than the shared request limit when %s', async (_label, send) => {

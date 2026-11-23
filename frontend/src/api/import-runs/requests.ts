@@ -1,4 +1,6 @@
-import { authenticatedFetch } from '@/api/client'
+import { ApiError, isAnsweredByApp } from '@/api/auth/errors'
+import { authenticatedFetch, authenticatedRequest } from '@/api/client'
+import { createTimeoutError } from '@/api/server'
 import type {
   LastImport,
   ImportRun,
@@ -9,8 +11,10 @@ import type {
 
 const IMPORT_RUNS_PATH = '/transactions/import/runs'
 
-// How long a request that sends, writes or deletes an import's rows may go unanswered. These scale
-// with the file, so a large import on a slow connection can take far longer than an ordinary request
+// How long a request that sends or deletes an import's rows may go unanswered, and in all how long
+// the page waits for a save to finish. These scale with the file, so a large import on a slow
+// connection can take far longer than an ordinary request. The request that asks for a save is
+// answered at once and has the ordinary limit
 const IMPORT_REQUEST_TIMEOUT_MS = 5 * 60_000
 
 /**
@@ -36,17 +40,79 @@ export function stageImportRunRows(runId: string, routes: ImportRunRoutes, batch
   })
 }
 
+// The status of an answer that says the save is still going, and asks to be asked again
+const SAVE_GOING_STATUS = 202
+
+// How often the page asks whether a save has finished
+const SAVE_POLL_INTERVAL_MS = 1_500
+
 /**
  * Writes a staged run and returns what it created
  *
- * Answering a second time with the summary of the first is what makes this safe to send again
+ * The server answers the request at once and writes the run after that, however long the file
+ * takes, so the answer to this is found by asking for it every 1.5 seconds. The wait is as long
+ * as one request was allowed before, in all. A poll that fails without an answer from the app, such
+ * as a dropped connection or a gateway's page, is asked again, since the save carries on without the
+ * page. Answering a second time with the summary of the first is what makes this safe to send again
  * when a response goes missing
+ *
+ * @throws ApiError built from the answer when the server refuses the save, and a TimeoutError once
+ *   the wait runs out, though the save may still finish
  */
-export function commitImportRun<TResponse>(runId: string, routes: ImportRunRoutes, signal?: AbortSignal) {
-  return authenticatedFetch<TResponse>(`${IMPORT_RUNS_PATH}/${runId}/${routes.commit}`, {
-    method: 'POST',
-    signal,
-    timeoutMs: IMPORT_REQUEST_TIMEOUT_MS,
+export async function commitImportRun<TResponse>(runId: string, routes: ImportRunRoutes, signal?: AbortSignal) {
+  const path = `${IMPORT_RUNS_PATH}/${runId}/${routes.commit}`
+  const giveUpAt = Date.now() + IMPORT_REQUEST_TIMEOUT_MS
+
+  let answer: Response | null = await authenticatedRequest(path, { method: 'POST', signal })
+  while (answer === null || answer.status === SAVE_GOING_STATUS) {
+    await waitToAskAgain(signal)
+    if (Date.now() >= giveUpAt) throw createTimeoutError()
+    answer = await askHowTheSaveIsGoing(path, signal)
+  }
+  return (await answer.json()) as TResponse
+}
+
+/**
+ * Reads how a save is going, or null when the answer didn't reach the page and asking again is
+ * what to do
+ */
+async function askHowTheSaveIsGoing(path: string, signal?: AbortSignal) {
+  try {
+    return await authenticatedRequest(path, { signal })
+  } catch (error) {
+    if (signal?.aborted || !isNoAnswerFromApp(error)) throw error
+    return null
+  }
+}
+
+/**
+ * Whether a failed request got no answer from the app: a dropped connection, a request that went
+ * unanswered, or a gateway's own page
+ */
+function isNoAnswerFromApp(error: unknown) {
+  if (error instanceof ApiError) return !isAnsweredByApp(error)
+  return error instanceof TypeError || (error instanceof DOMException && error.name === 'TimeoutError')
+}
+
+/**
+ * Waits out the time between two questions about a save, ending early with the caller's reason when
+ * the caller stops waiting
+ */
+function waitToAskAgain(signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason)
+      return
+    }
+    const stop = () => {
+      clearTimeout(timer)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', stop)
+      resolve()
+    }, SAVE_POLL_INTERVAL_MS)
+    signal?.addEventListener('abort', stop, { once: true })
   })
 }
 
