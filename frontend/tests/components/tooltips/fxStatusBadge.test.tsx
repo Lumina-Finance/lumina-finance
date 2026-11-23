@@ -32,14 +32,21 @@ describe('FX status badge with a reason for leaving amounts out', () => {
     }
   })
 
-  it('still names the missing pairs beside the reason', () => {
-    const markup = render({
-      state: 'incomplete',
-      missing_pairs: [{ base: 'EUR', quote: 'CAD' }],
-      withheld_reason: REASON,
-    })
+  it('keeps the failure message and tone of a missing rate and puts the reason after the message', () => {
+    const markup = render(
+      {
+        state: 'incomplete',
+        missing_pairs: [{ base: 'EUR', quote: 'CAD' }],
+        withheld_reason: REASON,
+      },
+      () => 'Some amounts could not be converted',
+    )
 
     expect(markup).toContain('Missing: EUR/CAD')
+    expect(tone(markup)).toBe('red')
+    expect(markup.indexOf('Some amounts could not be converted')).toBeGreaterThanOrEqual(0)
+    expect(markup.indexOf(REASON)).toBeGreaterThan(markup.indexOf('Some amounts could not be converted'))
+    expect(markup.indexOf(REASON)).toBeLessThan(markup.indexOf('Missing: EUR/CAD'))
   })
 
   it('keeps the caller message and the state tone when there is no reason', () => {
