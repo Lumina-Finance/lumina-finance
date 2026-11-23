@@ -4,7 +4,7 @@ import hashlib
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,6 @@ from app.config.runtime import APP_VERSION
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import TaxAdvantagedCategory
-from app.models.currency import Currency
 from app.models.group import Group
 from app.models.user import User
 from app.schemas.user import (
@@ -25,11 +24,12 @@ from app.schemas.user import (
     UserProfile,
 )
 from app.services.allowance.require import list_granted_features
-from app.services.cache_state import get_shared_cache_changed_at, get_visible_cache_status, mark_user_cache_changed, select_user_group_ids
+from app.services.cache_state import get_shared_cache_changed_at, get_visible_cache_status, select_user_group_ids
 from app.services.csv_export import download_response
 from app.services.data_export.archive import ZIP_MEDIA_TYPE, start_data_export
 from app.services.fx.rates_status import get_rates_digest, holds_other_currencies
 from app.services.tax_advantaged_categories import get_category_owner_timezones
+from app.services.users.profile_update import update_user_profile
 from app.utils.dates import resolve_timezone
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -145,32 +145,4 @@ async def update_me(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Update the authenticated user's profile"""
-    updates = data.model_dump(exclude_unset=True)
-    if not updates:
-        profile = UserProfile.model_validate(user)
-        return profile
-
-    # Non-nullable fields cannot be explicitly set to null
-    non_nullable_fields = {"first_name", "tz", "base_currency", "date_format"}
-    null_fields = [field for field in non_nullable_fields if field in updates and updates[field] is None]
-    if null_fields:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Cannot set to null: {', '.join(sorted(null_fields))}",
-        )
-
-    if "base_currency" in updates:
-        base_currency = updates["base_currency"]
-
-        # Fetch the target currency so users cannot save an unsupported base currency
-        result = await db.execute(select(Currency).where(Currency.id == base_currency))
-        if not result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid currency code")
-
-    for field, value in updates.items():
-        setattr(user, field, value)
-
-    await mark_user_cache_changed(db, user.id)
-    await db.commit()
-    profile = UserProfile.model_validate(user)
-    return profile
+    return await update_user_profile(db, user, data)
