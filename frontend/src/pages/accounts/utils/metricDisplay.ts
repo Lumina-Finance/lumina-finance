@@ -44,7 +44,9 @@ export function getCreditUsageDisplay(
       ? `${formatCurrency(creditUsage.totalUsed, displayCurrency, currencies)} of ${formatCurrency(creditUsage.totalLimit, displayCurrency, currencies)}`
       : creditUsage.isLimitWithheld && creditUsage.fxStatus?.withheld_reason
         ? [
-            creditUsage.hasCreditLimits && creditUsage.fxStatus.state !== 'none' ? 'FX unavailable' : null,
+            creditUsage.fxStatus.state === 'incomplete' || creditUsage.fxStatus.state === 'unavailable'
+              ? 'FX unavailable'
+              : null,
             formatWithheldAmounts(creditUsage.fxStatus.withheld_reason),
           ]
             .filter(Boolean)

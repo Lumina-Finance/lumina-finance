@@ -104,6 +104,18 @@ describe('account metric display helpers', () => {
         testCurrencies,
       ).caption,
     ).toBe(`FX unavailable. ${sentence}`)
+
+    // A group's card that converted fine leaves the state complete, so the reason stands alone
+    expect(
+      getCreditUsageDisplay(
+        {
+          ...creditUsage,
+          fxStatus: { state: 'complete', missing_pairs: [], withheld_reason: 'This server allows no more of these' },
+        },
+        'USD',
+        testCurrencies,
+      ).caption,
+    ).toBe(sentence)
   })
 
   it('explains credit usage gaps caused by unavailable FX conversion', () => {
