@@ -77,18 +77,21 @@ async function readRail(dialog: Locator): Promise<RailReading> {
   })
 }
 
-/** Waits for the panel to finish scaling in, then reads its rail */
+/** Waits for the panel to finish scaling in, then reads its rail. The entrance is driven frame by frame from
+ *  script, so no animation object marks its end. Only the end drops the transform on the panel and on the
+ *  frame that carries the entrance when an aside hangs off it, while the starting pose and every frame between
+ *  keep one. Two equal reads one interval apart would also pass on a runner that skipped frames */
 async function settledRail(dialog: Locator): Promise<RailReading> {
-  let last = ''
   await expect
     .poll(
-      async () => {
-        const now = JSON.stringify(await readRail(dialog))
-        const still = now === last
-        last = now
-        return still
-      },
-      { timeout: SETTLE_MS, intervals: [100] },
+      () =>
+        dialog.evaluate((panel) => {
+          for (let node: Element | null = panel; node; node = node.parentElement) {
+            if (getComputedStyle(node).transform !== 'none') return false
+          }
+          return true
+        }),
+      { timeout: SETTLE_MS },
     )
     .toBe(true)
   return readRail(dialog)
