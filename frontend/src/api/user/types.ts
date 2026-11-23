@@ -58,6 +58,14 @@ export interface RatesStatus {
   digest: string | null
 }
 
+/** A feature the server grants a user or not, as the server names it */
+export type GrantableFeature = 'bank_sync' | 'insights'
+
+/** The features the signed-in user is granted */
+export type FeatureGrants = {
+  features: GrantableFeature[]
+}
+
 export interface RunwayThresholdsResponse {
   risky_below_months: number
   healthy_at_months: number

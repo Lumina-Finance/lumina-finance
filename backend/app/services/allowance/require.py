@@ -50,6 +50,10 @@ HELD_QUERIES: dict[AllowanceKind, Callable[[uuid.UUID], Select]] = {
 }
 
 
+# The feature kinds, each asked about before the feature is used rather than before a record is added
+FEATURES: tuple[AllowanceKind, ...] = (AllowanceKind.BANK_SYNC, AllowanceKind.INSIGHTS)
+
+
 def _refuse(refusal: Refusal) -> HTTPException:
     """Return the 403 that shows the user the check's own sentence"""
     return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=refusal.reason)
@@ -63,6 +67,15 @@ async def find_feature_refusal(user_id: uuid.UUID, kind: AllowanceKind) -> Refus
         kind: The feature
     """
     return await find_refusal(AllowanceRequest(user_id=user_id, kind=kind, held=None, adding=0))
+
+
+async def list_granted_features(user_id: uuid.UUID) -> list[AllowanceKind]:
+    """Return the features the installed check lets a user use, in the order FEATURES lists them, or all of them when no check is installed
+
+    Args:
+        user_id: The signed-in user
+    """
+    return [kind for kind in FEATURES if await find_feature_refusal(user_id, kind) is None]
 
 
 async def require_feature(user_id: uuid.UUID, kind: AllowanceKind) -> None:

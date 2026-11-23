@@ -1,5 +1,6 @@
 import { Landmark, LifeBuoy, Link2, Shield, Store, Tag, Tags, User as UserIcon, type LucideIcon } from 'lucide-react'
 import { offersBankSync, type BankProvidersResponse } from '@/api/bank-sync'
+import type { FeatureCoverState } from '@/components/feature-cover/useFeatureCover'
 
 export type SettingsSectionId =
   | 'profile'
@@ -42,12 +43,19 @@ export function isHeldWhenLinked(id: SettingsSectionId): boolean {
 /**
  * The sections the settings page shows. Bank connections shows only while the deployment offers bank
  * sync to the user, as the account page's bank link section does. Wherever it offers none, settings
- * leaves Bank connections out
+ * leaves Bank connections out, unless the build's screen covers the section.
+ * While the build waits to learn whether to cover it, the section draws nothing, so it stays out of
+ * the list until then and a link to the section scrolls there once the section is drawn
  *
  * @param providers - The deployment's providers and whether the user may link, undefined until read
+ * @param bankSyncCover - Whether the section shows as it is, waits, or shows the build's screen
  */
-export function listSettingsSections(providers: BankProvidersResponse | undefined): SettingsSection[] {
-  return offersBankSync(providers)
+export function listSettingsSections(
+  providers: BankProvidersResponse | undefined,
+  bankSyncCover: FeatureCoverState['status'],
+): SettingsSection[] {
+  const showsBankConnections = bankSyncCover === 'covered' || (bankSyncCover === 'shown' && offersBankSync(providers))
+  return showsBankConnections
     ? SETTINGS_SECTIONS
     : SETTINGS_SECTIONS.filter((section) => section.id !== 'bank-connections')
 }
