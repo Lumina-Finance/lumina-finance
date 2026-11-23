@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.allowance_hook import AllowanceKind
 from app.preferences import DateFormat
 from app.schemas.auth import validate_iana_timezone
 from app.schemas.fx import FxStatus
@@ -58,6 +59,12 @@ class RatesStatus(BaseModel):
 
     # None when the rates can't be read now, and the browser then treats them as changed
     digest: str | None
+
+
+class FeatureGrants(BaseModel):
+    """The features the signed-in user may use"""
+
+    features: list[AllowanceKind]
 
 
 class UpdateProfileRequest(BaseModel):

@@ -19,10 +19,12 @@ from app.models.user import User
 from app.schemas.user import (
     CacheScopeStatus,
     CacheStatus,
+    FeatureGrants,
     RatesStatus,
     UpdateProfileRequest,
     UserProfile,
 )
+from app.services.allowance.require import list_granted_features
 from app.services.cache_state import get_shared_cache_changed_at, get_visible_cache_status, mark_user_cache_changed, select_user_group_ids
 from app.services.csv_export import download_response
 from app.services.data_export.archive import ZIP_MEDIA_TYPE, start_data_export
@@ -70,6 +72,14 @@ async def get_cache_status(
         server_version=APP_VERSION,
     )
     return cache_status
+
+
+@router.get("/feature-grants", response_model=FeatureGrants)
+async def get_feature_grants(
+    user: Annotated[User, Depends(get_current_user)],
+):
+    """Return the features the installed allowance check lets the user use"""
+    return FeatureGrants(features=await list_granted_features(user.id))
 
 
 @router.get("/rates-status", response_model=RatesStatus)
