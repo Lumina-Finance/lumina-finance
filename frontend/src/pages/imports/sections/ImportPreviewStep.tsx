@@ -89,13 +89,15 @@ export function ImportPreviewStep({
     <ImportPreviewLayout
       index="07"
       stats={importStats}
-      blocked={hasBlockingErrors ? (
-        <ImportNotice
-          tone="danger"
-          title={getBlockingErrorsTitle(importBuild.errors.length)}
-          items={hiddenErrorCount > 0 ? [...visibleErrors, getHiddenErrorSummary(hiddenErrorCount)] : visibleErrors}
-        />
-      ) : undefined}
+      blocked={
+        hasBlockingErrors ? (
+          <ImportNotice
+            tone="danger"
+            title={getBlockingErrorsTitle(importBuild.errors.length)}
+            items={hiddenErrorCount > 0 ? [...visibleErrors, getHiddenErrorSummary(hiddenErrorCount)] : visibleErrors}
+          />
+        ) : undefined
+      }
       previewGroups={previewGroups}
       emptyDescription="Mapped rows will appear here."
       importError={importError}
