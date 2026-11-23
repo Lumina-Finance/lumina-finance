@@ -6,12 +6,14 @@ from dataclasses import dataclass
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.account import Account
 from app.models.base import PermissionLevel
 from app.models.user import User
 from app.permissions import check_account_access
 from app.permissions.accounts import AccountAccessLookup, load_account_access_lookup
 from app.schemas.import_run import TransactionImportAccountMapping
+from app.services.allowance.require import require_allowance
 from app.services.importers.shared.account_creation_helpers import create_import_account, load_import_account_references
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
@@ -58,6 +60,9 @@ async def resolve_import_account_sources(
     Raises:
         HTTPException: Raised with 422 when a source is declared twice or maps to no single answer
     """
+    # The file's own mistakes come first, so the user is told to fix them rather than refused
+    _check_account_mappings(mappings)
+
     accounts_by_source: dict[str, Account] = {}
     outside_sources: set[str] = set()
 
@@ -71,20 +76,15 @@ async def resolve_import_account_sources(
         {mapping.create.institution_id for mapping in mappings if mapping.create is not None and mapping.create.institution_id is not None},
     )
 
+    # Asked once for every account the import creates, before any is written, so a refusal saves nothing
+    creating = sum(1 for mapping in mappings if mapping.create is not None and not mapping.outside)
+    if creating:
+        await require_allowance(db, user.id, AllowanceKind.ACCOUNT, adding=creating)
+
     # Build each declared account source once so import rows can use a stable lookup map
     for mapping in mappings:
         source = strip_import_text_or_raise(mapping.source, "Account source")
-        if source in accounts_by_source or source in outside_sources:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"The account source {source} is listed more than once"
-            )
-
         if mapping.outside:
-            if mapping.account_id is not None or mapping.create is not None:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail=f"The account source {source} must map to exactly one account action",
-                )
             outside_sources.add(source)
             continue
 
@@ -100,6 +100,29 @@ async def resolve_import_account_sources(
             existing_institutions=existing_institutions,
         )
     return ImportAccountSources(accounts_by_source=accounts_by_source, outside_sources=outside_sources)
+
+
+def _check_account_mappings(mappings: list[TransactionImportAccountMapping]) -> None:
+    """Refuse a source listed twice or a mapping that doesn't name exactly one account action, before any account is read or written
+
+    Raises:
+        HTTPException: Raised with 422 for the first mapping at fault
+    """
+    sources: set[str] = set()
+    for mapping in mappings:
+        source = strip_import_text_or_raise(mapping.source, "Account source")
+        if source in sources:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"The account source {source} is listed more than once"
+            )
+        sources.add(source)
+
+        actions = (mapping.account_id is not None) + (mapping.create is not None)
+        if actions != (0 if mapping.outside else 1):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"The account source {source} must map to exactly one account action",
+            )
 
 
 async def _get_or_create_import_account_for_mapping(
@@ -131,14 +154,8 @@ async def _get_or_create_import_account_for_mapping(
         Existing or newly created account row for the import source
 
     Raises:
-        HTTPException: Raised with 422 when the source does not map to exactly one account action
+        HTTPException: Raised with 404 or 422 when the existing account can't be used
     """
-    if (mapping.account_id is None) == (mapping.create is None):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"The account source {source} must map to exactly one account action",
-        )
-
     if mapping.account_id is not None:
         account = (
             await _get_counterparty_import_account(db, user, mapping.account_id, access_lookup)

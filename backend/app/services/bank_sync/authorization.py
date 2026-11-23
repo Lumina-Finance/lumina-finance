@@ -21,6 +21,7 @@ from sqlalchemy import delete, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.db.rls.functions import PRUNE_EXPIRED_BANK_AUTHORIZATIONS
 from app.encryption import decrypt, encrypt
 from app.models.bank_authorization import BANK_AUTHORIZATION_LIFETIME, BankAuthorization
@@ -32,6 +33,7 @@ from app.schemas.bank_sync import (
     StartBankAuthorizationResponse,
 )
 from app.services.accounts.access import get_own_personal_account
+from app.services.allowance.require import require_allowance
 from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, get_enabled_adapter, require_bank_linking
 from app.services.bank_sync.claim import (
     check_reconnectable,
@@ -116,7 +118,7 @@ async def start_authorization(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"{adapter.provider_name} connects by pasting a credential, not by signing in at your bank",
         )
-    require_bank_linking(user.id)
+    await require_bank_linking(user.id)
     redirect_url = _build_redirect_url(origin)
     nickname = await _check_target(db, user, adapter, request)
     if request.return_account_id is not None:
@@ -212,8 +214,12 @@ async def finish_authorization(db: AsyncSession, user: User, request: FinishBank
 
     if taken.connection_id is None:
         adapter = get_enabled_adapter(taken.provider)
-        require_bank_linking(user.id)
+        await require_bank_linking(user.id)
         require_offered(taken.provider, adapter)
+
+        # Asked again here, since the start's answer may be old by the time the user returns, and
+        # before the one-time code is spent
+        await require_allowance(db, user.id, AllowanceKind.BANK_CONNECTION)
     else:
         adapter = await check_reconnectable(db, user, taken.connection_id)
 
@@ -302,6 +308,9 @@ async def _check_target(db: AsyncSession, user: User, adapter: ProviderAdapter, 
     if request.connection_id is None:
         nickname = read_nickname(request.nickname)
         require_offered(adapter.provider_id, adapter)
+
+        # Before the user is sent to their bank, so a refused connection spends nothing
+        await require_allowance(db, user.id, AllowanceKind.BANK_CONNECTION)
         return nickname
     if request.nickname:
         raise HTTPException(

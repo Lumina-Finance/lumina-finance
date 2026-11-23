@@ -65,6 +65,9 @@ EXPECTED_SHAPES: dict[str, str] = {
     "set_service_name": "set_service_name(name: str) -> None",
     "set_signup_check": "set_signup_check(check: Callable[[SignupAttempt], Awaitable[bool]]) -> None",
     "SignupAttempt": "SignupAttempt(email: str)",
+    "set_allowance_check": "set_allowance_check(check: Callable[[AllowanceRequest], Awaitable[Refusal | None]]) -> None",
+    "AllowanceRequest": "AllowanceRequest(user_id: UUID, kind: AllowanceKind, held: int | None, adding: int)",
+    "Refusal": "Refusal(reason: str)",
     "verify_ready_to_sync": "async verify_ready_to_sync() -> None",
     "enqueue_due_work": "async enqueue_due_work() -> None",
     "run_jobs": "async run_jobs(max_jobs: int, deadline: datetime | None = ...) -> int",
@@ -81,9 +84,36 @@ EXPECTED_SHAPES: dict[str, str] = {
 }
 
 
+# What a supported enumeration promises: each member's name and value
+# Code built on the app matches on them, so a member is added here with its entry in the design page and never renamed
+EXPECTED_MEMBERS: dict[str, dict[str, str]] = {
+    "AllowanceKind": {
+        "ACCOUNT": "account",
+        "BUDGET": "budget",
+        "CATEGORY": "category",
+        "TAG": "tag",
+        "MERCHANT": "merchant",
+        "TAX_ADVANTAGED_CATEGORY": "tax_advantaged_category",
+        "TAX_ADVANTAGED_CATEGORY_LIMIT": "tax_advantaged_category_limit",
+        "SAVED_INSIGHTS_RANGE": "saved_insights_range",
+        "BANK_CONNECTION": "bank_connection",
+        "BANK_SYNC": "bank_sync",
+        "INSIGHTS": "insights",
+    },
+}
+
+
 def test_every_supported_point_has_its_shape_pinned():
     """Listing a point in the module means writing down the shape it promises, and the reverse"""
-    assert set(SUPPORTED_POINTS) == {"app", *EXPECTED_SHAPES}
+    assert set(SUPPORTED_POINTS) == {"app", *EXPECTED_SHAPES, *EXPECTED_MEMBERS}
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED_MEMBERS))
+def test_a_supported_enumeration_keeps_its_members(name):
+    """Renaming a member, changing its value, or dropping one fails naming the enumeration"""
+    members = {member.name: member.value for member in getattr(extension, name)}
+
+    assert members == EXPECTED_MEMBERS[name], f"supported point {name} changed its members"
 
 
 @pytest.mark.parametrize("name", sorted(EXPECTED_SHAPES))

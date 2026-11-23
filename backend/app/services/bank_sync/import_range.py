@@ -113,7 +113,7 @@ async def get_import_range(db: AsyncSession, user: User, account_id: uuid.UUID, 
         HTTPException 422: The deployment doesn't enable the provider, or the profile's timezone
             no longer resolves
     """
-    require_bank_linking(user.id)
+    await require_bank_linking(user.id)
     adapter = get_enabled_adapter(provider)
     account = await get_own_personal_account(db, account_id, user.id, not_own_detail=LINK_NOT_OWN_DETAIL)
     today = datetime.now(resolve_timezone(user.tz)).date()

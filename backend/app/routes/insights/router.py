@@ -7,13 +7,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import delete, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.saved_insights_range import SavedInsightsRange
 from app.models.user import User
+from app.routes.insights.feature_check import require_insights
 from app.schemas.insights import (
     InsightsCashFlowResponse,
     InsightsComparisonPeriod,
@@ -40,11 +40,12 @@ from app.services.insights import (
     get_period_at_a_glance,
     get_savings_rate_trend,
 )
+from app.services.insights.saved_ranges import create_saved_range
 from app.utils.date_window import require_report_range
 from app.utils.dates import resolve_timezone
 from app.utils.pagination import LIST_PAGE_SIZE, MAX_LIST_OFFSET
 
-router = APIRouter(prefix="/insights", tags=["insights"])
+router = APIRouter(prefix="/insights", tags=["insights"], dependencies=[Depends(require_insights)])
 
 
 def _validate_date_range(
@@ -362,31 +363,10 @@ async def create_saved_range_route(
         Newly saved range
 
     Raises:
-        HTTPException: Raised with 409 when the user already has a saved range with the same name
+        HTTPException: Raised with 403 when the allowance check refuses another saved range, and
+            with 409 when the user already has a saved range with the same name
     """
-    saved_range = SavedInsightsRange(
-        user_id=user.id,
-        name=data.name,
-        amount=data.amount,
-        unit=data.unit,
-        qualifier=data.qualifier,
-    )
-    db.add(saved_range)
-
-    # Surface a duplicate name as a domain conflict instead of a raw integrity error
-    try:
-        await db.flush()
-        await mark_user_cache_changed(db, user.id)
-        await db.commit()
-    except IntegrityError as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="A saved range with this name already exists",
-        ) from e
-
-    await db.refresh(saved_range)
-    return saved_range
+    return await create_saved_range(db, user, data)
 
 
 @router.delete("/saved-ranges/{range_id}", status_code=status.HTTP_204_NO_CONTENT)

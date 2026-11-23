@@ -16,6 +16,7 @@ from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.encryption import encrypt
 from app.models.bank_connection import BankAccountLink, BankConnection, BankImportKind, BankLinkState, ProviderRequestPurpose
 from app.models.bank_sync_job import BankSyncJobKind
@@ -26,6 +27,7 @@ from app.schemas.bank_sync import (
     ReconnectBankConnectionRequest,
     ReconnectBankConnectionResponse,
 )
+from app.services.allowance.require import require_allowance
 from app.services.bank_sync.availability import (
     LIVE_LINK,
     PROVIDER_GONE_DETAIL,
@@ -73,9 +75,12 @@ async def claim_connection(db: AsyncSession, user: User, request: CreateBankConn
     """
     adapter = get_enabled_adapter(request.provider)
     _refuse_pasting(adapter)
-    require_bank_linking(user.id)
+    await require_bank_linking(user.id)
     nickname = read_nickname(request.nickname)
     require_offered(request.provider, adapter)
+
+    # Before the credential is claimed, so a refused connection spends no one-time token
+    await require_allowance(db, user.id, AllowanceKind.BANK_CONNECTION)
 
     credential = await _claim_credential(adapter, request.credentials)
     return await save_claimed_connection(db, user, adapter, nickname=nickname, credential=credential)
@@ -180,7 +185,7 @@ async def check_reconnectable(db: AsyncSession, user: User, connection_id: uuid.
         HTTPException 409: The connection's provider is no longer installed, or its credential still works
         HTTPException 422: The provider isn't enabled
     """
-    require_bank_linking(user.id)
+    await require_bank_linking(user.id)
     connection = await get_own_connection(db, user.id, connection_id)
     if adapter_for(connection.provider) is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=PROVIDER_GONE_DETAIL)

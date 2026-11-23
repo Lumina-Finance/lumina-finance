@@ -18,11 +18,13 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import func, select, update
 
+from app.allowance_hook import AllowanceKind
 from app.models.bank_connection import BankAccountLink, BankConnection, BankLinkState
 from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobStatus
 from app.models.cache_state import UserCacheState
 from app.services.bank_sync import account_link, import_range, jobs, links, sync_now
 from tests.conftest import TestSession
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
 from tests.routes.support.bank_sync_helpers import (
     _changed_at,
     _commit_link,
@@ -362,6 +364,24 @@ async def test_sync_now_queues_no_sync_of_its_own_while_it_starts_the_waiting_im
 
     assert (await _sync_now(client, headers, everyday)).status_code == 200
 
+    assert [kind for kind, _ in await _queued_requests()] == ["initial"]
+
+
+@pytest.mark.usefixtures("_import_wait_clock")
+async def test_sync_now_refused_by_the_allowance_check_leaves_the_waiting_import_waiting(client):
+    """A refused user pressing Sync now while the import waits starts nothing, so the import keeps its start and the queue is as it was"""
+    headers, everyday, _, connection = await _linkable_pair(client)
+    assert (await _link(client, headers, everyday, connection.id, "ACT-1")).status_code == 201
+    [before] = await _waits()
+    install_check(refused={AllowanceKind.BANK_SYNC})
+
+    refused = await _sync_now(client, headers, everyday)
+
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == ALLOWANCE_REASON
+    assert await _starts_at(client, headers, everyday) is not None
+    [after] = await _waits()
+    assert after >= before - _ALLOWANCE
     assert [kind for kind, _ in await _queued_requests()] == ["initial"]
 
 

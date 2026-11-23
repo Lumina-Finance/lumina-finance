@@ -115,7 +115,7 @@ async def list_bank_accounts_for_account(
         HTTPException 409: The account is already linked, or the provider rejected the connection
         HTTPException 422: The account is archived, or the deployment doesn't enable the provider
     """
-    require_bank_linking(user.id)
+    await require_bank_linking(user.id)
     account = await _get_account_to_link(db, user, account_id, lock=False)
     connection, adapter = await _get_working_connection(db, user.id, connection_id, lock=False)
     if await _request_fresh_discovery(db, connection, now=datetime.now(UTC)):
@@ -189,7 +189,7 @@ async def link_bank_account(
         HTTPException 422: The account is archived, the deployment doesn't enable the provider,
             the currencies differ, a day is outside the import range or the start is after the end
     """
-    require_bank_linking(user.id)
+    await require_bank_linking(user.id)
     account = await _get_account_to_link(db, user, account_id, lock=True)
     connection, adapter = await _get_working_connection(db, user.id, request.connection_id, lock=True)
 

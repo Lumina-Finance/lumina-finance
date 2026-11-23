@@ -7,11 +7,13 @@ from fastapi import HTTPException, status
 from sqlalchemy import String, column, func, literal_column, select, text, values
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.group import GroupMember
 from app.models.user import User
 from app.schemas.import_run import TransactionImportCategoryMapping, TransactionImportCreateCategory
+from app.services.allowance.require import require_allowance
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
@@ -92,6 +94,9 @@ async def get_or_create_import_categories_by_source(
     Returns:
         Category rows keyed by trimmed category source
     """
+    # The file's own mistakes come first, so the user is told to fix them rather than refused
+    _check_category_mappings(mappings)
+
     categories_by_source: dict[str, Category] = {}
 
     # Preload facts but keep source validation, kind checks and writes in declaration order
@@ -102,14 +107,19 @@ async def get_or_create_import_categories_by_source(
         db, user.id, {mapping.create.name.strip() for mapping in mappings if mapping.create is not None}
     )
 
+    # Asked once for the categories no existing one is reused for, before any is written, so a
+    # refusal saves nothing. Two names that differ only in capitals make one category between them
+    new_keys = {
+        key
+        for mapping in mappings
+        if mapping.create is not None and (key := name_facts.keys_by_name[mapping.create.name.strip()]) not in name_facts.categories_by_key
+    }
+    if new_keys:
+        await require_allowance(db, user.id, AllowanceKind.CATEGORY, adding=len(new_keys))
+
     # Build each declared category source once so import rows can use a stable lookup map
     for mapping in mappings:
         source = strip_import_text_or_raise(mapping.source, "Category source")
-        if source in categories_by_source:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"The category source {source} is listed more than once"
-            )
-
         categories_by_source[source] = await _get_or_create_import_category_for_mapping(
             db,
             user.id,
@@ -120,6 +130,28 @@ async def get_or_create_import_categories_by_source(
             name_facts,
         )
     return categories_by_source
+
+
+def _check_category_mappings(mappings: list[TransactionImportCategoryMapping]) -> None:
+    """Refuse a source listed twice or a mapping that doesn't name exactly one category action, before any category is read or written
+
+    Raises:
+        HTTPException: Raised with 422 for the first mapping at fault
+    """
+    sources: set[str] = set()
+    for mapping in mappings:
+        source = strip_import_text_or_raise(mapping.source, "Category source")
+        if source in sources:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"The category source {source} is listed more than once"
+            )
+        sources.add(source)
+
+        if (mapping.category_id is None) == (mapping.create is None):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"The category source {source} must map to exactly one category action",
+            )
 
 
 async def _get_or_create_import_category_for_mapping(
@@ -146,14 +178,8 @@ async def _get_or_create_import_category_for_mapping(
         Existing or newly created category row for the import source
 
     Raises:
-        HTTPException: Raised with 422 when the source does not map to exactly one category action
+        HTTPException: Raised with 422 when the existing category can't be used
     """
-    if (mapping.category_id is None) == (mapping.create is None):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"The category source {source} must map to exactly one category action",
-        )
-
     if mapping.category_id is not None:
         category = await get_visible_import_category(db, mapping.category_id, user_id, categories_by_id=categories_by_id)
         stats.reused_category_ids.add(category.id)

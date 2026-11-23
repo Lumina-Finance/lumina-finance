@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.base import RecurrenceFreq
 from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.currency import Currency
@@ -18,6 +19,7 @@ from app.schemas.import_run import (
     JournalBudgetLimit,
     JournalBudgetRecurrence,
 )
+from app.services.allowance.require import require_allowance
 from app.services.budgets.limits import ensure_room_for_base_budgets
 from app.services.budgets.periods import compute_period_end, validate_period_start
 from app.services.budgets.tracked_categories import get_allowed_tracked_category_ids
@@ -97,6 +99,7 @@ async def write_journal_budgets(
         return []
 
     await ensure_room_for_base_budgets(db, user.id, len(budgets))
+    await require_allowance(db, user.id, AllowanceKind.BUDGET, adding=len(budgets))
 
     currency_codes = {budget.currency for budget in budgets}
     currency_rows = await db.execute(select(Currency).where(Currency.id.in_(currency_codes)))

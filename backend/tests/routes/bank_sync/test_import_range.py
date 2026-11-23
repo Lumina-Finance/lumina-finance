@@ -8,8 +8,9 @@ import uuid
 
 import pytest
 
-from app.services.bank_sync import availability
+from app.allowance_hook import AllowanceKind
 from tests.conftest import TestSession
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
 from tests.routes.support.bank_sync_helpers import _build_account, _build_user, _new_account, _sign_up
 from tests.services.bank_sync.fake_provider import FAKE_PROVIDER, remove_provider, use_adapter
 
@@ -61,13 +62,13 @@ async def test_import_range_through_a_provider_turned_off_or_removed_is_refused(
     assert refused.json()["detail"] == "Choose a bank provider this server supports"
 
 
-async def test_import_range_for_a_user_who_may_not_link_bank_accounts_is_refused(client, monkeypatch):
-    """The bank-linking check is enforced on the start step's range, not only in the interface"""
-    monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
+async def test_import_range_for_a_user_who_may_not_link_bank_accounts_is_refused(client):
+    """The check's refusal of bank sync is enforced on the start step's range, not only in the interface"""
+    install_check(refused={AllowanceKind.BANK_SYNC})
     headers, _ = await _sign_up(client)
     account_id = await _new_account(client, headers, "Everyday")
 
     refused = await _read_range(client, headers, account_id)
 
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "Bank sync isn't available for your account"
+    assert refused.json()["detail"] == ALLOWANCE_REASON

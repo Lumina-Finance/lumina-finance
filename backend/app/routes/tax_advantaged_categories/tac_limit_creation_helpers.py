@@ -4,10 +4,12 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.account import TaxAdvantagedCategoryLimit
 from app.routes.tax_advantaged_categories.tac_category_helpers import get_owned_tax_advantaged_category_or_404
 from app.routes.tax_advantaged_categories.tac_limit_helpers import build_tac_limit, validate_tac_limit_year_available
 from app.schemas.tax_advantaged_category import CreateTaxAdvantagedCategoryLimitRequest
+from app.services.allowance.require import require_allowance
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
@@ -33,6 +35,7 @@ async def create_tac_limit_for_owned_tax_advantaged_category(
     """
     tax_advantaged_category = await get_owned_tax_advantaged_category_or_404(db, tax_advantaged_category_id, owner_id)
     await validate_tac_limit_year_available(db, tax_advantaged_category_id, data.year)
+    await require_allowance(db, owner_id, AllowanceKind.TAX_ADVANTAGED_CATEGORY_LIMIT, group_id=tax_advantaged_category.group_id)
 
     limit_row = build_tac_limit(tax_advantaged_category_id, data)
     db.add(limit_row)

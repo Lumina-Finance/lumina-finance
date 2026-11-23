@@ -8,8 +8,10 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, literal_column, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.tag import Tag
 from app.schemas.import_run import MAX_IMPORT_TAG_NAME_LENGTH, TransactionImportTagMapping
+from app.services.allowance.require import require_allowance
 from app.services.importers.shared.insertion_helpers import insert_import_records_if_absent
 from app.services.importers.shared.name_keys import load_import_name_keys
 from app.services.importers.shared.stats import ImportStats
@@ -236,6 +238,7 @@ async def create_missing_import_tags(
     if not names_by_key:
         return
 
+    await require_allowance(db, user_id, AllowanceKind.TAG, adding=len(names_by_key))
     inserted = await insert_import_records_if_absent(
         db,
         Tag,

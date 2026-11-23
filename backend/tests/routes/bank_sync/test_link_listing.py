@@ -11,10 +11,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
+from app.allowance_hook import AllowanceKind
 from app.models.bank_connection import BankExternalAccount
 from app.models.institution import Institution, InstitutionStatus
 from app.services.bank_sync import availability
 from tests.conftest import TestSession
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
 from tests.routes.support.bank_sync_helpers import (
     _build_account,
     _build_external_account,
@@ -174,9 +176,9 @@ async def test_listing_that_asks_for_a_fresh_discovery_leaves_the_last_import_un
     assert last.json() is not None
 
 
-async def test_listing_for_a_user_who_may_not_link_bank_accounts_is_refused(client, monkeypatch):
-    """The bank-linking check is enforced on the link flow's list, not only in the interface"""
-    monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
+async def test_listing_for_a_user_who_may_not_link_bank_accounts_is_refused(client):
+    """The check's refusal of bank sync is enforced on the link flow's list, not only in the interface"""
+    install_check(refused={AllowanceKind.BANK_SYNC})
     headers, user_id = await _sign_up(client)
     everyday_id = await _new_account(client, headers, "Everyday")
     connection = await _commit_listed_connection(user_id, discovered_at=datetime.now(UTC))
@@ -184,7 +186,7 @@ async def test_listing_for_a_user_who_may_not_link_bank_accounts_is_refused(clie
     refused = await _list(client, headers, connection.id, everyday_id)
 
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "Bank sync isn't available for your account"
+    assert refused.json()["detail"] == ALLOWANCE_REASON
 
 
 async def test_listing_for_another_users_connection_or_account_is_not_found(client):

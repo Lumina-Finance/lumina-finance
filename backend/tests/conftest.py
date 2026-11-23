@@ -11,7 +11,7 @@ from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, Pool
 
-from app import email_change_hook, request_hook
+from app import allowance_hook, email_change_hook, request_hook
 from app.abuse_log import abuse_log
 from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
 from app.config.env import require
@@ -173,6 +173,12 @@ async def clean_tables():
 def unset_service_name(monkeypatch):
     """Start each test with no service name set, and put back whatever a test sets afterwards"""
     monkeypatch.setattr(service_name, "_service_name", None)
+
+
+@pytest.fixture(autouse=True)
+def no_allowance_check(monkeypatch):
+    """Start each test with no allowance check installed, as a server nobody installed one on has, and put back whatever a test installs"""
+    monkeypatch.setattr(allowance_hook, "_check", None)
 
 
 @pytest.fixture

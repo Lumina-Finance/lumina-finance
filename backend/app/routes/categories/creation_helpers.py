@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.allowance_hook import AllowanceKind
 from app.models.category import Category
 from app.routes.categories.access_helpers import (
     is_valid_category_kind,
@@ -13,6 +14,7 @@ from app.routes.categories.access_helpers import (
     require_group_member,
 )
 from app.schemas.category import CreateCategoryRequest
+from app.services.allowance.require import require_allowance
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
@@ -42,6 +44,7 @@ async def create_category_for_user(
         await require_group_member(db, group_id, user_id)
 
     await require_category_name_available(db, data.name, user_id, group_id)
+    await require_allowance(db, user_id, AllowanceKind.CATEGORY, group_id=group_id)
 
     category = Category(
         owner_id=None if group_id else user_id,

@@ -8,6 +8,11 @@ ACCOUNT_PAYLOAD = {
 }
 
 
+async def _account_names(client, headers) -> list[str]:
+    """Return the names of the user's accounts"""
+    return [account["name"] for account in (await client.get("/accounts", headers=headers)).json()]
+
+
 async def _create_account(client, headers, **overrides):
     """Create an account with the route API
 

@@ -13,6 +13,7 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy import func, select, update
 
+from app.allowance_hook import AllowanceKind
 from app.models.account import Account
 from app.models.bank_connection import (
     BankAccountLink,
@@ -25,6 +26,7 @@ from app.models.bank_sync_job import BankSyncJob
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
 from app.services.bank_sync import availability, import_range, links
 from tests.conftest import TestSession
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
 from tests.routes.support.bank_sync_helpers import (
     BANK_ACCOUNT_ID,
     _build_account,
@@ -453,15 +455,15 @@ async def test_link_refusals_save_nothing(client, change, status_code, detail):
     assert await _queued_jobs() == []
 
 
-async def test_link_by_a_user_who_may_not_link_bank_accounts_is_refused(client, monkeypatch):
-    """The bank-linking check is enforced on the link, not only in the interface"""
-    monkeypatch.setattr(availability, "may_link_bank_accounts", lambda _user_id: False)
+async def test_link_by_a_user_who_may_not_link_bank_accounts_is_refused(client):
+    """The check's refusal of bank sync is enforced on the link, not only in the interface"""
+    install_check(refused={AllowanceKind.BANK_SYNC})
     headers, _, account_id, connection = await _linkable(client)
 
     refused = await _link(client, headers, account_id, connection.id)
 
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == "Bank sync isn't available for your account"
+    assert refused.json()["detail"] == ALLOWANCE_REASON
     assert await _stored_links() == []
 
 
