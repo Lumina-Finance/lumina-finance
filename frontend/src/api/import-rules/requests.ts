@@ -4,9 +4,27 @@ import type {
   CreateImportRulePayload,
   ImportRule,
   ImportRuleBudget,
+  ImportRuleMatchesResponse,
+  ImportRuleMatchRow,
   MoveImportRuleRequest,
   UpdateImportRuleRequest,
 } from '@/api/import-rules/types'
+
+/**
+ * Asks the rules what they would give some file rows, saving nothing
+ *
+ * The rows travel in the body only, so no URL or cache key holds what a statement says
+ *
+ * @param rows - At most one batch of an import
+ * @param signal - Aborts the request when the load that asked for it is abandoned
+ */
+export function fetchImportRuleMatches(rows: ImportRuleMatchRow[], signal?: AbortSignal) {
+  return authenticatedFetch<ImportRuleMatchesResponse>('/import-rules/matches', {
+    method: 'POST',
+    body: JSON.stringify({ rows }),
+    signal,
+  })
+}
 
 /**
  * Fetches one page of the user's import rules, in the order they are checked

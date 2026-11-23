@@ -24,7 +24,7 @@ import {
   takeSavedCopyKey,
 } from '@/api/cache/persistence'
 import { getCheckRecord, setCheckRecord } from '@/api/cache/cacheCheck'
-import { authKeys, twoFactorKeys } from '@/api/cache/queryKeys'
+import { authKeys, importRuleKeys, twoFactorKeys } from '@/api/cache/queryKeys'
 import { clearUserScopedCache } from '@/api/cache/session'
 import { importSavedCopyKey, openSavedCopy, sealSavedCopy } from '@/api/cache/savedCopyCipher'
 import type { TotpSetupResponse } from '@/api/two-factor'
@@ -651,6 +651,24 @@ describe('saving the query cache', () => {
     page.hide()
     await settleSaves()
     expect((await readSavedCopy(page)) ?? '').not.toContain(resetToken)
+  })
+
+  it('never saves what the import rules give a file, which names what the file says', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.client.setQueryData(['accounts'], [{ id: 'account-kept' }])
+    page.client.setQueryData(importRuleKeys.budget(), { limit: 100, used: 2 })
+    page.client.setQueryData(importRuleKeys.matches('3-abc-def'), {
+      rows: [{ merchant: { id: 'merchant-1', name: 'Corner Market Name', rule: { id: 'rule-1', name: 'Market' } } }],
+      rules: [],
+      rules_version: 'v1',
+    })
+
+    await runTimedSave()
+    const saved = (await readSavedCopy(page)) ?? ''
+
+    expect(saved).toContain('account-kept')
+    expect(saved).toContain('"used":2')
+    expect(saved).not.toContain('Corner Market Name')
   })
 })
 

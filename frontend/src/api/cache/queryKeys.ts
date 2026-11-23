@@ -168,6 +168,20 @@ export const importRuleKeys = {
 
   /** The conditions the rules may hold together and how many they hold */
   budget: () => ['import-rules', 'budget'] as const,
+
+  /**
+   * Every answer to what the rules give a file's rows, whatever rows were asked. It has a root of its own, outside
+   * the app-wide change check, since an import in progress must not be asked again, and its steps swapped for a
+   * loading message, whenever a sync, another tab or another import changes app data. The writes the answer
+   * depends on mark it stale through `invalidateImportRules`
+   */
+  matchesAll: ['import-rule-matches'] as const,
+
+  /**
+   * What the rules give one list of file rows. The digest stands for the rows and never holds them, since
+   * the rows say what a statement says and the persisted query cache writes keys out to browser storage
+   */
+  matches: (rowsDigest: string) => ['import-rule-matches', rowsDigest] as const,
 }
 
 export const institutionKeys = {

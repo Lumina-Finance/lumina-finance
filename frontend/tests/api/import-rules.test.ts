@@ -459,3 +459,78 @@ describe('changes elsewhere that a rule row shows', () => {
     queryClient.clear()
   })
 })
+
+describe('the answer to what the rules give a file import', () => {
+  const merchant: Merchant = {
+    id: 'merchant-1',
+    owner_id: 'user-1',
+    group_id: null,
+    name: 'Corner Cafe',
+    is_system: false,
+    default_category_id: null,
+    created_at: '2026-01-01T00:00:00Z',
+  }
+  const tag: Tag = { id: 'tag-1', owner_id: 'user-1', group_id: null, name: 'Work', created_at: '2026-01-01T00:00:00Z' }
+
+  function seededClient() {
+    const queryClient = new QueryClient()
+    const key = importRuleKeys.matches('3-abc-def')
+    queryClient.setQueryData(key, { rows: [] })
+    return { queryClient, isStale: () => queryClient.getQueryState(key)?.isInvalidated === true }
+  }
+
+  it.each([
+    ['a rule is created', (queryClient: QueryClient) => updateImportRuleCreateCaches(queryClient)],
+    [
+      'a rule is edited',
+      (queryClient: QueryClient) => updateImportRuleUpdateCaches(queryClient, { ...buildRule('c', 2), name: 'New' }),
+    ],
+    ['a rule is deleted', (queryClient: QueryClient) => removeImportRuleCaches(queryClient, 'b')],
+    ['a rule is moved and the server has answered', (queryClient: QueryClient) => settleImportRuleMove(queryClient)],
+    [
+      'a merchant is renamed',
+      (queryClient: QueryClient) => updateMerchantUpdateCaches(queryClient, merchant, { name: 'Cafe' }),
+    ],
+    [
+      'a merchant is deleted or merged away',
+      (queryClient: QueryClient) => removeMerchantCaches(queryClient, 'merchant-1'),
+    ],
+    [
+      'a category is deleted or merged away',
+      (queryClient: QueryClient) => removeCategoryCaches(queryClient, 'category-1'),
+    ],
+    ['a tag is renamed', (queryClient: QueryClient) => updateTagUpdateCaches(queryClient, tag)],
+    ['a tag is deleted or merged away', (queryClient: QueryClient) => removeTagCaches(queryClient, 'tag-1')],
+    [
+      'an account is deleted',
+      (queryClient: QueryClient) =>
+        invalidateAccountAggregateData(queryClient, 'account-1', undefined, { isDeleted: true }),
+    ],
+    [
+      'an account is archived',
+      (queryClient: QueryClient) => invalidateAccountAggregateData(queryClient, 'account-1', undefined),
+    ],
+    [
+      'an account is renamed',
+      (queryClient: QueryClient) =>
+        invalidateRenamedAccountData(queryClient, { name: 'Chequing' }, { name: 'Everyday' }),
+    ],
+  ])('asks again when %s', (_name, change) => {
+    const { queryClient, isStale } = seededClient()
+    expect(isStale()).toBe(false)
+
+    change(queryClient)
+
+    expect(isStale()).toBe(true)
+    queryClient.clear()
+  })
+
+  it('is left alone when app data is read again as a whole, so a sync or another tab never restarts the check', () => {
+    const { queryClient, isStale } = seededClient()
+
+    invalidateAppData(queryClient)
+
+    expect(isStale()).toBe(false)
+    queryClient.clear()
+  })
+})

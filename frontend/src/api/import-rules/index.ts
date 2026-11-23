@@ -17,7 +17,12 @@ export type {
   ImportRuleItem,
   ImportRuleItemRequest,
   ImportRuleMatch,
+  ImportRuleGivenValue,
+  ImportRuleMatchesResponse,
+  ImportRuleMatchRow,
   ImportRuleReference,
+  ImportRuleRowCount,
+  ImportRuleRowMatch,
   MoveImportRuleRequest,
   TextCondition,
   TextConditionAttribute,
@@ -32,15 +37,27 @@ export {
   createImportRule,
   deleteImportRule,
   fetchImportRuleBudget,
+  fetchImportRuleMatches,
   fetchImportRulesPage,
   moveImportRule,
   updateImportRule,
 } from '@/api/import-rules/requests'
 
 export {
+  fetchImportRuleMatchesInBatches,
+  getImportRuleRowsDigest,
+  ImportRulesChangedError,
+  mergeImportRuleMatches,
+  splitImportRuleMatchRows,
+} from '@/api/import-rules/matches'
+
+export { getImportRuleCheck, type ImportRuleCheckStatus } from '@/api/import-rules/check'
+export type { ImportRuleCheck } from '@/api/import-rules/hooks'
+export {
   useCreateImportRule,
   useDeleteImportRule,
   useImportRuleBudget,
+  useImportRuleCheck,
   useInfiniteImportRules,
   useMoveImportRule,
   useUpdateImportRule,
