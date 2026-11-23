@@ -1,5 +1,5 @@
 import type { CreditUtilizationAccount, CreditUtilizationResponse } from '@/api/dashboard'
-import { formatMissingFxPairs } from '@/utils/fxStatus'
+import { formatMissingFxPairs, formatWithheldAmounts } from '@/utils/fxStatus'
 
 /**
  * Returns the IDs of the credit accounts the server currently leaves out
@@ -58,6 +58,9 @@ export function getCreditEmptyMessage(credit: CreditUtilizationResponse | undefi
       message: `An exchange rate is missing for ${formatMissingFxPairs(credit.fx_status.missing_pairs)}`,
       needsAttention: true,
     }
+  }
+  if (credit.fx_status.withheld_reason) {
+    return { message: formatWithheldAmounts(credit.fx_status.withheld_reason), needsAttention: false }
   }
   return { message: 'No credit limit set', needsAttention: false }
 }

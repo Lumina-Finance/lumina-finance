@@ -13,4 +13,18 @@ describe('runway caption', () => {
     )
     expect(getRunwayCaption(runway, 'USD', currencies)).toContain('/mth · 3 mths basis')
   })
+
+  it('gives the reason the expenses were left out, not that history is short, when converting them is refused', () => {
+    const noHistory = { ...runway, reason: 'insufficient_history' as const }
+    const withheld = {
+      state: 'none' as const,
+      missing_pairs: [],
+      withheld_reason: 'This server allows no more of these',
+    }
+
+    expect(getRunwayCaption(noHistory, 'USD', currencies)).toBe('Need 1+ month of net expense data')
+    expect(getRunwayCaption({ ...noHistory, fx_status: withheld }, 'USD', currencies)).toBe(
+      'Amounts in other currencies stay out of this total. This server allows no more of these',
+    )
+  })
 })

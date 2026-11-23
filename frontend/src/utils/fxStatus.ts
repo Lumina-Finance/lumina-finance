@@ -68,3 +68,10 @@ export function getFxStatusTone(fxStatus: FxStatus | undefined) {
   if (fxStatus?.state === 'none') return 'gray'
   return 'red'
 }
+
+/**
+ * Says an empty total has nothing in it because amounts in other currencies stay out of it, with the reason given
+ */
+export function formatWithheldAmounts(reason: string): string {
+  return `Amounts in other currencies stay out of this total. ${reason}`
+}

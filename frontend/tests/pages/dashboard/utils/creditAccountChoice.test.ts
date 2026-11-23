@@ -68,6 +68,21 @@ describe('credit account choice', () => {
     ).toBe('An exchange rate is missing for USD/CAD, EUR/CAD, GBP/CAD and 1 more')
   })
 
+  it('gives the reason a limit was left out, not that no limit is set, when converting it is refused', () => {
+    const withheld = {
+      state: 'none' as const,
+      missing_pairs: [],
+      withheld_reason: 'This server allows no more of these',
+    }
+
+    expect(
+      getCreditEmptyMessage({ credit_limit_total: 0, credit_used: 0, fx_status: withheld, accounts: CARDS }),
+    ).toEqual({
+      message: 'Amounts in other currencies stay out of this total. This server allows no more of these',
+      needsAttention: false,
+    })
+  })
+
   it('says no limit is set when counted cards have none and no conversion failed', () => {
     expect(
       getCreditEmptyMessage({ credit_limit_total: 0, credit_used: 0, fx_status: fxStatus, accounts: CARDS }),

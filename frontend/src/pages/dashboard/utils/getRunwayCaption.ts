@@ -1,6 +1,7 @@
 import type { RunwayResult } from '@/api/user'
 import type { Currency } from '@/api/currency'
 import { formatCurrency } from '@/utils/formatCurrency'
+import { formatWithheldAmounts } from '@/utils/fxStatus'
 import { formatRunwayBasis } from '@/utils/runway'
 
 /**
@@ -10,7 +11,11 @@ export function getRunwayCaption(runway: RunwayResult | undefined, displayCurren
   if (!runway) return ''
 
   if (runway.reason === 'no_accounts') return 'Choose accounts in Settings'
-  if (runway.reason === 'insufficient_history') return 'Need 1+ month of net expense data'
+  if (runway.reason === 'insufficient_history') {
+    return runway.fx_status.withheld_reason
+      ? formatWithheldAmounts(runway.fx_status.withheld_reason)
+      : 'Need 1+ month of net expense data'
+  }
 
   return `${formatCurrency(runway.avg_monthly_expense, displayCurrency, currencies)}/mth \u00B7 ${formatRunwayBasis(runway.months_covered)}`
 }

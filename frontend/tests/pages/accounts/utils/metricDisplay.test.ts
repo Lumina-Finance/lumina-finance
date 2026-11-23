@@ -65,6 +65,26 @@ describe('account metric display helpers', () => {
     expect(getSavingsRateDisplay(savingsRate, 'USD', testCurrencies).value).toBe(expected)
   })
 
+  it('gives the reason credit limits were left out when converting them is refused', () => {
+    const creditUsage: AccountsMetricsViewModel['creditUsage'] = {
+      hasCreditAccounts: true,
+      hasCreditLimits: true,
+      hasCreditData: false,
+      isLoading: false,
+      utilization: 0,
+      totalUsed: 0,
+      totalLimit: 0,
+      color: 'var(--app-text-subtle)',
+      barColor: 'var(--app-text-subtle)',
+      fxStatus: { state: 'none', missing_pairs: [], withheld_reason: 'This server allows no more of these' },
+    }
+
+    expect(getCreditUsageDisplay(creditUsage, 'USD', testCurrencies)).toEqual({
+      value: 'N/A',
+      caption: 'Amounts in other currencies stay out of this total. This server allows no more of these',
+    })
+  })
+
   it('explains credit usage gaps caused by unavailable FX conversion', () => {
     const creditUsage: AccountsMetricsViewModel['creditUsage'] = {
       hasCreditAccounts: true,
