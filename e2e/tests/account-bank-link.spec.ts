@@ -216,15 +216,22 @@ async function openImportingLink(page: Page, request: APIRequestContext): Promis
 
 /**
  * Holds back every render React puts off for later, as a busy machine can, until `releaseRenders`. React
- * runs those off a message it posts to itself, so the message waits. One a press or a change to shared
- * state needs at once doesn't wait for a message, and runs straight away still
+ * runs those off a message it posts to itself, so the hold keeps back each message from the app's own
+ * scripts. One a press or a change to shared state needs at once doesn't wait for a message, and runs
+ * straight away still. The page's clock posts messages to itself too, between the timers it fires, and
+ * those go through, or moving the clock on would never come to an end
  */
 async function holdRenders(page: Page): Promise<void> {
   await page.evaluate(() => {
     const held: (() => void)[] = []
     const post = MessagePort.prototype.postMessage
     MessagePort.prototype.postMessage = function (this: MessagePort, ...message: unknown[]) {
-      held.push(() => Reflect.apply(post, this, message))
+      const send = () => Reflect.apply(post, this, message)
+
+      // Line 0 of the stack names the error and line 1 this function, so line 2 holds the caller
+      const caller = new Error().stack?.split('\n')[2] ?? ''
+      if (caller.includes(location.origin)) held.push(send)
+      else send()
     }
     Object.assign(window, {
       releaseRenders: () => {
