@@ -42,8 +42,13 @@ export function getCreditUsageDisplay(
     ? 'Loading credit totals'
     : creditUsage.hasCreditData
       ? `${formatCurrency(creditUsage.totalUsed, displayCurrency, currencies)} of ${formatCurrency(creditUsage.totalLimit, displayCurrency, currencies)}`
-      : creditUsage.fxStatus?.withheld_reason
-        ? formatWithheldAmounts(creditUsage.fxStatus.withheld_reason)
+      : creditUsage.isLimitWithheld && creditUsage.fxStatus?.withheld_reason
+        ? [
+            creditUsage.hasCreditLimits && creditUsage.fxStatus.state !== 'none' ? 'FX unavailable' : null,
+            formatWithheldAmounts(creditUsage.fxStatus.withheld_reason),
+          ]
+            .filter(Boolean)
+            .join('. ')
         : creditUsage.hasCreditLimits && creditUsage.fxStatus?.state !== 'none'
           ? 'FX unavailable'
           : creditUsage.hasCreditAccounts

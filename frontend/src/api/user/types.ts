@@ -126,6 +126,9 @@ export interface RunwayResultResponse {
   account_balances: RunwayAccountBalance[]
   thresholds: RunwayThresholdsResponse
   fx_status: FxStatus
+
+  // Whether expenses in another currency were left out of the history because converting them is refused
+  expenses_withheld?: boolean
 }
 
 /**
@@ -140,4 +143,5 @@ export interface RunwayResult {
   account_balances: RunwayAccountBalance[]
   thresholds: RunwayThresholds
   fx_status: FxStatus
+  expenses_withheld?: boolean
 }

@@ -77,12 +77,33 @@ describe('account metric display helpers', () => {
       color: 'var(--app-text-subtle)',
       barColor: 'var(--app-text-subtle)',
       fxStatus: { state: 'none', missing_pairs: [], withheld_reason: 'This server allows no more of these' },
+      isLimitWithheld: true,
     }
+    const sentence =
+      'Amounts in your own accounts in other currencies stay out of this total. This server allows no more of these'
 
-    expect(getCreditUsageDisplay(creditUsage, 'USD', testCurrencies)).toEqual({
-      value: 'N/A',
-      caption: 'Amounts in other currencies stay out of this total. This server allows no more of these',
-    })
+    expect(getCreditUsageDisplay(creditUsage, 'USD', testCurrencies)).toEqual({ value: 'N/A', caption: sentence })
+
+    // A limit that was not left out, as with a US card with no limit, keeps the usual caption
+    expect(getCreditUsageDisplay({ ...creditUsage, isLimitWithheld: false }, 'USD', testCurrencies).caption).toBe(
+      'No credit limits set',
+    )
+
+    // A missing rate comes first and the reason after it
+    expect(
+      getCreditUsageDisplay(
+        {
+          ...creditUsage,
+          fxStatus: {
+            state: 'incomplete',
+            missing_pairs: [{ base: 'EUR', quote: 'CAD' }],
+            withheld_reason: 'This server allows no more of these',
+          },
+        },
+        'USD',
+        testCurrencies,
+      ).caption,
+    ).toBe(`FX unavailable. ${sentence}`)
   })
 
   it('explains credit usage gaps caused by unavailable FX conversion', () => {

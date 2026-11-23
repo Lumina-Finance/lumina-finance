@@ -70,8 +70,8 @@ export function getFxStatusTone(fxStatus: FxStatus | undefined) {
 }
 
 /**
- * Says an empty total has nothing in it because amounts in other currencies stay out of it, with the reason given
+ * Says an empty total has nothing in it because amounts in other currencies the user owns alone stay out of it, with the reason given
  */
 export function formatWithheldAmounts(reason: string): string {
-  return `Amounts in other currencies stay out of this total. ${reason}`
+  return `Amounts in your own accounts in other currencies stay out of this total. ${reason}`
 }

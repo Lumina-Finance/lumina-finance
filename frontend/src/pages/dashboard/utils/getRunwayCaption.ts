@@ -12,7 +12,7 @@ export function getRunwayCaption(runway: RunwayResult | undefined, displayCurren
 
   if (runway.reason === 'no_accounts') return 'Choose accounts in Settings'
   if (runway.reason === 'insufficient_history') {
-    return runway.fx_status.withheld_reason
+    return runway.expenses_withheld && runway.fx_status.withheld_reason
       ? formatWithheldAmounts(runway.fx_status.withheld_reason)
       : 'Need 1+ month of net expense data'
   }

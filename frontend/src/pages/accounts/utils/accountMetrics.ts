@@ -3,18 +3,12 @@ import type { CreditWidgetResponse, SavingsRateWidgetResponse } from '@/api/dash
 import type { RunwayResult } from '@/api/user'
 import type { Currency } from '@/api/currency'
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { getRunwayCaption } from '@/pages/dashboard/utils/getRunwayCaption'
 import { getRoundedPercent } from '@/utils/rounding'
 import { getSavingsRate } from '@/utils/savingsRate'
 import { getSavingsRateTier } from '@/utils/savingsRateTier'
 import { getValueMarkColor, type ValueMarkTone } from '@/utils/valueMarkColor'
-import {
-  RUNWAY_BAND_STYLE,
-  RUNWAY_TARGET_MONTHS,
-  formatCompactRunway,
-  formatRunwayBasis,
-  runwayBand,
-} from '@/utils/runway'
+import { RUNWAY_BAND_STYLE, RUNWAY_TARGET_MONTHS, formatCompactRunway, runwayBand } from '@/utils/runway'
 
 // Colour of the figure on a metric tile. A number needs more contrast against the tile than the
 // bar under it does, so the two are not drawn from the same pair
@@ -100,6 +94,7 @@ export function getCreditUsageMetric(
     color: getMetricTextColor(tone),
     barColor: getMetricBarColor(tone),
     fxStatus: dashboardCredit?.fx_status,
+    isLimitWithheld: dashboardCredit?.limit_withheld ?? false,
   }
 }
 
@@ -116,13 +111,7 @@ export function getRunwayMetric(
   const bandKey = runwayBand(months, runway?.thresholds)
   const style = bandKey ? RUNWAY_BAND_STYLE[bandKey] : null
   const progress = months === null ? 0 : Math.min((months / RUNWAY_TARGET_MONTHS) * 100, 100)
-  const caption = !runway
-    ? ''
-    : runway.reason === 'no_accounts'
-      ? 'Choose accounts in Settings'
-      : runway.reason === 'insufficient_history'
-        ? 'Need 1+ month of net expense data'
-        : `${formatCurrency(runway.avg_monthly_expense, displayCurrency, currencies)}/mth · ${formatRunwayBasis(runway.months_covered)}`
+  const caption = getRunwayCaption(runway, displayCurrency, currencies)
 
   return {
     label: formatCompactRunway(months),

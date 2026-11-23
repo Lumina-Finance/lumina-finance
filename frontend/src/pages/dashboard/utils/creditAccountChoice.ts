@@ -53,14 +53,14 @@ export type CreditEmptyMessage = {
 export function getCreditEmptyMessage(credit: CreditUtilizationResponse | undefined): CreditEmptyMessage {
   if (!credit?.accounts.some((account) => account.is_counted))
     return { message: 'No credit accounts', needsAttention: false }
+  const withheldSentence =
+    credit.limit_withheld && credit.fx_status.withheld_reason
+      ? formatWithheldAmounts(credit.fx_status.withheld_reason)
+      : null
   if (credit.fx_status.state === 'incomplete' || credit.fx_status.state === 'unavailable') {
-    return {
-      message: `An exchange rate is missing for ${formatMissingFxPairs(credit.fx_status.missing_pairs)}`,
-      needsAttention: true,
-    }
+    const missing = `An exchange rate is missing for ${formatMissingFxPairs(credit.fx_status.missing_pairs)}`
+    return { message: withheldSentence ? `${missing}. ${withheldSentence}` : missing, needsAttention: true }
   }
-  if (credit.fx_status.withheld_reason) {
-    return { message: formatWithheldAmounts(credit.fx_status.withheld_reason), needsAttention: false }
-  }
+  if (withheldSentence) return { message: withheldSentence, needsAttention: false }
   return { message: 'No credit limit set', needsAttention: false }
 }

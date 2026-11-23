@@ -23,8 +23,21 @@ describe('runway caption', () => {
     }
 
     expect(getRunwayCaption(noHistory, 'USD', currencies)).toBe('Need 1+ month of net expense data')
-    expect(getRunwayCaption({ ...noHistory, fx_status: withheld }, 'USD', currencies)).toBe(
-      'Amounts in other currencies stay out of this total. This server allows no more of these',
+    expect(getRunwayCaption({ ...noHistory, fx_status: withheld, expenses_withheld: true }, 'USD', currencies)).toBe(
+      'Amounts in your own accounts in other currencies stay out of this total. This server allows no more of these',
+    )
+  })
+
+  it('still says the history is short when only a balance was left out, as with a US savings account and two weeks of Canadian spending', () => {
+    const noHistory = { ...runway, reason: 'insufficient_history' as const }
+    const withheld = {
+      state: 'none' as const,
+      missing_pairs: [],
+      withheld_reason: 'This server allows no more of these',
+    }
+
+    expect(getRunwayCaption({ ...noHistory, fx_status: withheld, expenses_withheld: false }, 'USD', currencies)).toBe(
+      'Need 1+ month of net expense data',
     )
   })
 })

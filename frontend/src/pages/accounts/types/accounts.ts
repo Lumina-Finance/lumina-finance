@@ -44,6 +44,9 @@ export interface AccountsMetricsViewModel {
     /** Colour of the bar under it, drawn from the chart colours rather than the text ones */
     barColor: string
     fxStatus: FxStatus | undefined
+
+    /** Whether a limit in another currency was left out of the total because converting it is refused */
+    isLimitWithheld?: boolean
   }
   runway: {
     label: string

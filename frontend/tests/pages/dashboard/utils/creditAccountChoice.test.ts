@@ -68,18 +68,39 @@ describe('credit account choice', () => {
     ).toBe('An exchange rate is missing for USD/CAD, EUR/CAD, GBP/CAD and 1 more')
   })
 
-  it('gives the reason a limit was left out, not that no limit is set, when converting it is refused', () => {
-    const withheld = {
-      state: 'none' as const,
-      missing_pairs: [],
-      withheld_reason: 'This server allows no more of these',
-    }
+  describe('when converting amounts in other currencies is refused', () => {
+    const reason = 'This server allows no more of these'
+    const sentence = `Amounts in your own accounts in other currencies stay out of this total. ${reason}`
+    const withheld = { state: 'none' as const, missing_pairs: [], withheld_reason: reason }
+    const total = { credit_limit_total: 0, credit_used: 0, accounts: CARDS }
 
-    expect(
-      getCreditEmptyMessage({ credit_limit_total: 0, credit_used: 0, fx_status: withheld, accounts: CARDS }),
-    ).toEqual({
-      message: 'Amounts in other currencies stay out of this total. This server allows no more of these',
-      needsAttention: false,
+    it('gives the reason a limit was left out, not that no limit is set', () => {
+      expect(getCreditEmptyMessage({ ...total, fx_status: withheld, limit_withheld: true })).toEqual({
+        message: sentence,
+        needsAttention: false,
+      })
+    })
+
+    it('still says no limit is set when only credit used was left out, as with a US card with no limit', () => {
+      expect(getCreditEmptyMessage({ ...total, fx_status: withheld, limit_withheld: false })).toEqual({
+        message: 'No credit limit set',
+        needsAttention: false,
+      })
+    })
+
+    it('names the missing rate first and the reason after it', () => {
+      const missingRate = { state: 'incomplete' as const, missing_pairs: [{ base: 'EUR', quote: 'CAD' }] }
+
+      expect(
+        getCreditEmptyMessage({
+          ...total,
+          fx_status: { ...missingRate, withheld_reason: reason },
+          limit_withheld: true,
+        }),
+      ).toEqual({ message: `An exchange rate is missing for EUR/CAD. ${sentence}`, needsAttention: true })
+      expect(getCreditEmptyMessage({ ...total, fx_status: { ...missingRate, withheld_reason: reason } }).message).toBe(
+        'An exchange rate is missing for EUR/CAD',
+      )
     })
   })
 

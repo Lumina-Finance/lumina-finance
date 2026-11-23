@@ -218,4 +218,25 @@ describe('account metric helpers', () => {
       progress: 100,
     })
   })
+
+  it('says the same as the dashboard when expenses were left out of a history too short to use', () => {
+    const noHistory: RunwayResult = {
+      months: null,
+      reason: 'insufficient_history',
+      avg_monthly_expense: 0,
+      months_covered: 0,
+      liquid_balance: 900_000,
+      account_balances: [],
+      thresholds: { riskyBelowMonths: 3, healthyAtMonths: 6 },
+      fx_status: { state: 'none', missing_pairs: [], withheld_reason: 'This server allows no more of these' },
+      expenses_withheld: true,
+    }
+
+    expect(getRunwayMetric(noHistory, false, 'USD', testCurrencies).caption).toBe(
+      'Amounts in your own accounts in other currencies stay out of this total. This server allows no more of these',
+    )
+    expect(getRunwayMetric({ ...noHistory, expenses_withheld: false }, false, 'USD', testCurrencies).caption).toBe(
+      'Need 1+ month of net expense data',
+    )
+  })
 })
