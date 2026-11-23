@@ -13,6 +13,7 @@ import contextlib
 import uuid
 from collections.abc import AsyncIterator, Collection
 from datetime import UTC, date, datetime, timedelta
+from unittest.mock import ANY
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, update
@@ -56,7 +57,12 @@ BANK_DESCRIPTION = "HARBOUR COFFEE 0412"
 BANK_RECEIVED_AT = datetime(2026, 10, 4, 9, 5, tzinfo=UTC)
 
 # The review list with nothing waiting
-EMPTY_REVIEW_PAGE = {"items": [], "counts": {"new": 0, "correction": 0, "removal": 0}, "next_cursor": None}
+EMPTY_REVIEW_PAGE = {
+    "items": [],
+    "counts": {"new": 0, "correction": 0, "removal": 0},
+    "next_cursor": None,
+    "rules": {"version": ANY, "any_matches": False, "any_addable": False},
+}
 
 # The values a dismissal clears, since a dismissed bank transaction keeps only its identity
 _DISMISSED = {"disposition": BankTransactionDisposition.DISMISSED} | dict.fromkeys(OBSERVATION_COLUMNS)

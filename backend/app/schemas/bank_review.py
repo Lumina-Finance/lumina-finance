@@ -7,7 +7,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.bank_transaction import CorrectableBankField, EditableBankField
+from app.models.base import CategoryKind
 from app.schemas.bank_sync import BankValues
+from app.schemas.import_rule import ImportRuleGivenValue, ImportRuleReference
 from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
 from app.schemas.limits import Counter
 from app.schemas.transaction import MAX_BULK_UPDATE_TRANSACTIONS, TransactionEntry
@@ -15,6 +17,49 @@ from app.utils.date_window import WindowDate
 
 # A bank transaction to add or dismiss, or a change or removal the bank reports for one already in the ledger
 ReviewItemKind = Literal["new", "correction", "removal"]
+
+# Why a rule's category is left out of an item: a transfer category never fills, and an income or
+# expense one only fills the direction its kind names. An amount of zero, or one the bank sent
+# unreadable, has no direction
+CategoryLeftOutReason = Literal["income_for_money_out", "expense_for_money_in", "transfer", "no_direction"]
+
+
+class ReviewRuleCategory(ImportRuleGivenValue):
+    """A category the rules give an item, with its kind"""
+
+    kind: CategoryKind
+
+
+class ReviewRuleCategoryLeftOut(ReviewRuleCategory):
+    """A category a rule gives that doesn't fit the item, so the item isn't filled with it"""
+
+    reason: CategoryLeftOutReason
+
+
+class ReviewRuleTagsLeftOut(BaseModel):
+    """The tags the rules give an item that together pass what one transaction carries, so none is filled in"""
+
+    # The rules that add them, first checked first
+    rules: list[ImportRuleReference]
+
+    # How many tags the rules add, and the most a transaction carries
+    count: int
+    limit: int
+    reason: Literal["too_many"]
+
+
+class ReviewItemRuleFill(BaseModel):
+    """What the user's import rules fill in for one new item, worked out as the list is read"""
+
+    merchant: ImportRuleGivenValue | None
+
+    # Only a category whose kind fits the item's direction
+    category: ReviewRuleCategory | None
+    tags: list[ImportRuleGivenValue]
+
+    # Set when the rules' category, or their tags, were left out, and why
+    category_left_out: ReviewRuleCategoryLeftOut | None
+    tags_left_out: ReviewRuleTagsLeftOut | None
 
 
 class BankReviewItemResponse(BaseModel):
@@ -42,6 +87,9 @@ class BankReviewItemResponse(BaseModel):
     # The fields the correction changes that the user had edited
     protected_fields: list[EditableBankField]
 
+    # What the import rules fill in. Null on a correction or removal and on a new item no rule matches
+    rule_fill: ReviewItemRuleFill | None = None
+
 
 class BankReviewCountsResponse(BaseModel):
     """How many items wait of each kind, across every page"""
@@ -51,11 +99,25 @@ class BankReviewCountsResponse(BaseModel):
     removal: int
 
 
+class BankReviewRulesResponse(BaseModel):
+    """What the import rules do to the waiting new items of the accounts listed, across every page"""
+
+    # Sent back when the rules are applied, so rules changed since the list loaded are refused
+    version: str
+
+    # Whether any waiting new item matches a rule, and whether applying the rules would add any
+    any_matches: bool
+    any_addable: bool
+
+
 class BankReviewPageResponse(BaseModel):
     """One page of the items waiting for review, newest first by the bank's date"""
 
     items: list[BankReviewItemResponse]
     counts: BankReviewCountsResponse
+
+    # Read for the first page only, null on the pages after it
+    rules: BankReviewRulesResponse | None = None
 
     # Sent back as the cursor to read the page after this one, null on the last page
     next_cursor: str | None
