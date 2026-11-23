@@ -153,7 +153,7 @@ async def test_a_profile_marked_for_deletion_cannot_sign_in_or_renew(client):
 
 
 async def test_the_request_ends_sessions_and_emailed_links_before_the_data_goes(client, monkeypatch):
-    """Once the request answers, the user is marked, every session is over and no reset or email change link works, though the data is still there"""
+    """Once the request answers, the user is marked and every session, reset link and email change is gone, before the data goes"""
     monkeypatch.setattr(request_module, "delete_profile", _skip_deletion)
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])

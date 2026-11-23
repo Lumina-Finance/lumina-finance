@@ -49,8 +49,9 @@ class User(Base):
     # under an earlier number becomes unreadable. The key itself is derived from the number, never stored
     saved_copy_key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
-    # Set when the user asks to delete their profile. From then on the user can't sign in, bank sync skips
-    # them, and app.services.profile_deletion removes their data and then this row
+    # Set when the user asks to delete their profile. From then on the user can't sign in, nothing syncs
+    # since the same request deletes every bank connection, and app.services.profile_deletion removes
+    # their data and then this row
     deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

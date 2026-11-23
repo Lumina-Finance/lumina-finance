@@ -46,6 +46,8 @@ def upgrade() -> None:
     op.add_column("users", sa.Column("deletion_requested_at", sa.DateTime(timezone=True), nullable=True))
     for table, column in _USER_REFERENCES:
         _replace_user_reference(table, column, ondelete="CASCADE")
+    # Lets each deletion batch find the transactions a user created without reading every user's
+    op.create_index(op.f("ix_transactions_created_by_user_id"), "transactions", ["created_by_user_id"], unique=False)
     create_helper_functions(op.get_bind())
 
 
@@ -56,6 +58,7 @@ def downgrade() -> None:
     Run this only with the app offline, once no profile is waiting to be deleted
     """
     op.execute(sa.text("DROP FUNCTION IF EXISTS public.list_profiles_to_delete()"))
+    op.drop_index(op.f("ix_transactions_created_by_user_id"), table_name="transactions")
     for table, column in _USER_REFERENCES:
         _replace_user_reference(table, column, ondelete=None)
     op.drop_column("users", "deletion_requested_at")

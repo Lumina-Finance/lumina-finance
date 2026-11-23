@@ -45,3 +45,52 @@ test('deletes the profile once the user types delete and confirms with the passw
   const signIn = await request.post(`${API_BASE_URL}/auth/login`, { data: { email: user.email, password: user.password } })
   expect(signIn.status()).toBe(401)
 })
+
+test('asks for the word again after the password step is closed', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings')
+  const open = page.locator('#delete-profile').getByRole('button', { name: 'Delete profile', exact: true })
+  const dialog = page.getByRole('dialog', { name: 'Delete your profile and all your data?' })
+
+  await open.click()
+  await dialog.getByRole('textbox').fill('delete')
+  await dialog.getByRole('button', { name: 'Delete profile', exact: true }).click()
+  const stepUp = page.getByRole('dialog', { name: 'Delete profile' })
+  await expect(stepUp).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(stepUp).toBeHidden()
+
+  await open.click()
+  await expect(dialog.getByRole('textbox')).toHaveValue('')
+})
+
+test('holds the deletion until the export the dialogue started has finished', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await logInViaApi(page, user)
+  await openPage(page, '/settings')
+  let release: () => void = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await page.route('**/me/export', async (route) => {
+    await held
+    await route.continue()
+  })
+
+  await page.locator('#delete-profile').getByRole('button', { name: 'Delete profile', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Delete your profile and all your data?' })
+  await dialog.getByRole('button', { name: 'Export all data' }).click()
+  await dialog.getByRole('textbox').fill('delete')
+  const confirm = dialog.getByRole('button', { name: 'Delete profile', exact: true })
+  await expect(confirm).toBeDisabled()
+  // Enter in the field asks to confirm as the button would, and is held off the same way
+  await dialog.getByRole('textbox').press('Enter')
+  const stepUp = page.getByRole('dialog', { name: 'Delete profile' })
+  await expect(stepUp).toBeHidden()
+  await expect(dialog).toBeVisible()
+
+  const downloaded = page.waitForEvent('download')
+  release()
+  await downloaded
+  await confirm.click()
+  await expect(stepUp).toBeVisible()
+})

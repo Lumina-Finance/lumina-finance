@@ -1,11 +1,13 @@
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 
-interface DeleteProfileCardProps {
+type DeleteProfileCardProps = {
   onDelete: () => void
   /** Why the deletion can't start, such as an account with no way to confirm it's them */
   blockedReason?: string
   /** True while the browser leaves for a sign-in provider to confirm it's the user */
   leaving: boolean
+  /** True while the deletion a provider sign-in resumed is on its way to the server */
+  resuming: boolean
   /** What went wrong finishing a deletion after a provider sign-in */
   error: string | null
 }
@@ -15,7 +17,8 @@ interface DeleteProfileCardProps {
  * apart from every editable field, so a stray press while editing can't reach it, and its button
  * stays quiet until the pointer or keyboard focus reaches it
  */
-export default function DeleteProfileCard({ onDelete, blockedReason, leaving, error }: DeleteProfileCardProps) {
+export function DeleteProfileCard({ onDelete, blockedReason, leaving, resuming, error }: DeleteProfileCardProps) {
+  const busy = leaving || resuming
   return (
     <section id="delete-profile">
       {/* The panel's line says what the section does, so the heading stands alone */}
@@ -33,10 +36,11 @@ export default function DeleteProfileCard({ onDelete, blockedReason, leaving, er
           <DisabledReasonButton
             className="app-danger-button app-danger-button-quiet shrink-0 self-start sm:self-auto"
             disabledReason={blockedReason}
-            disabled={leaving}
+            disabled={busy}
+            aria-busy={busy}
             onClick={onDelete}
           >
-            {leaving ? "Confirming it's you" : 'Delete profile'}
+            {leaving ? 'Re-confirming your identity' : resuming ? 'Deleting profile' : 'Delete profile'}
           </DisabledReasonButton>
         </div>
         {error && (

@@ -1,7 +1,9 @@
 """A place for code that acts when a user's profile is deleted to plug in
 
 Code registers an observer with observe_profile_deletions. Once a profile and everything it held are
-gone, each observer is called with a ProfileDeletion, once per profile
+gone, each observer is called with a ProfileDeletion, at most once per profile. The call follows the
+commit in the same process, so a restart between the two loses it, and an observer that must never
+miss one also checks for users it knows that no longer exist
 """
 
 import logging

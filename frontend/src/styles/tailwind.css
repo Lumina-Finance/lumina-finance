@@ -2339,6 +2339,13 @@
     background: color-mix(in srgb, var(--app-danger-fill) 41%, transparent);
   }
 
+  /* The quiet danger button held off keeps its outlined look, faded as a whole as the filled one is */
+  .app-danger-button.app-danger-button-quiet[aria-disabled="true"] {
+    color: color-mix(in srgb, var(--app-negative) 50%, transparent);
+    border-color: color-mix(in srgb, var(--app-negative) 22%, transparent);
+    background: color-mix(in srgb, var(--app-surface-soft) 50%, transparent);
+  }
+
   :is(.app-secondary-button, .app-glass-button)[aria-disabled="true"] {
     color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
     border-color: color-mix(in srgb, var(--app-border-strong) 50%, transparent);

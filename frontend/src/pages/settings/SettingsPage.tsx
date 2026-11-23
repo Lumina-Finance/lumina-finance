@@ -1,6 +1,6 @@
 import { useAccounts } from '@/api/accounts'
 import { useBankConnections, useBankProviders } from '@/api/bank-sync'
-import DeleteProfileCard from '@/pages/settings/components/DeleteProfileCard'
+import { DeleteProfileCard } from '@/pages/settings/components/DeleteProfileCard'
 import { DeleteProfileDialogue } from '@/pages/settings/components/DeleteProfileDialogue'
 import { useOidcIdentities } from '@/api/oidc'
 import { FeatureCover } from '@/components/feature-cover/Cover'
@@ -94,8 +94,10 @@ export default function SettingsPage() {
   const sectionNavigation = useSettingsSectionNavigation(sections)
   const showBankConnections = sections.some((section) => section.id === 'bank-connections')
   const { exportAllData, isExporting } = useExportAllData()
-  const { data: bankConnections } = useBankConnections({ enabled: showBankConnections })
   const deleteProfile = useDeleteProfile(hasPassword)
+  // Delete profile's dialogue names the bank sync credentials for anyone who still has a connection,
+  // even where new banks can't be linked, so it asks for the connections whenever it opens
+  const { data: bankConnections } = useBankConnections({ enabled: showBankConnections || deleteProfile.dialogueOpen })
 
   const profileActions = (
     <SettingsPaneActions
@@ -250,9 +252,11 @@ export default function SettingsPage() {
             onDelete={deleteProfile.open}
             blockedReason={deleteProfile.blockedReason}
             leaving={deleteProfile.leaving}
+            resuming={deleteProfile.resuming}
             error={deleteProfile.error}
           />
           <DeleteProfileDialogue
+            key={deleteProfile.dialogueKey}
             open={deleteProfile.dialogueOpen}
             hasBankConnections={(bankConnections?.length ?? 0) > 0}
             exporting={isExporting}

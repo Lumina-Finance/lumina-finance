@@ -20,7 +20,13 @@ export function useDeleteProfile(hasPassword: boolean) {
   const { logout } = useAuth()
   const reauth = useProviderReauth()
   const [dialogueOpen, setDialogueOpen] = useState(false)
+  // Counts the openings, so each one starts a fresh dialogue that asks for the word again
+  const [openings, setOpenings] = useState(0)
   const [stepUpOpen, setStepUpOpen] = useState(false)
+  // A provider sign-in returns here with the deletion to finish, so the page opens already busy
+  const [resuming, setResuming] = useState(
+    () => (location.state as { resumeDeleteProfile?: boolean } | null)?.resumeDeleteProfile === true,
+  )
   const [error, setError] = useState<string | null>(null)
 
   // Signing out takes the app to the sign-in screen. That screen reads the flag and shows the deletion message
@@ -41,11 +47,15 @@ export function useDeleteProfile(hasPassword: boolean) {
 
     deleteProfile()
       .then(finish)
-      .catch((resumeError: Error) => setError(resumeError.message || 'Oops, something went wrong. Please try again.'))
+      .catch((resumeError: Error) => {
+        setResuming(false)
+        setError(resumeError.message || 'Oops, something went wrong. Please try again.')
+      })
   }, [location.state, location.pathname, navigate, finish])
 
   const open = () => {
     setError(null)
+    setOpenings((count) => count + 1)
     setDialogueOpen(true)
   }
 
@@ -67,6 +77,7 @@ export function useDeleteProfile(hasPassword: boolean) {
 
   return {
     dialogueOpen,
+    dialogueKey: openings,
     open,
     cancel: () => setDialogueOpen(false),
     confirmTyped,
@@ -75,6 +86,8 @@ export function useDeleteProfile(hasPassword: boolean) {
     verify,
     reauth,
     leaving: reauth.busySlug !== null,
+    // True while the deletion a provider sign-in resumed is on its way to the server
+    resuming,
     // Confirming takes what signing out of other devices takes, so it is held off for the same accounts
     blockedReason: getEndOtherSessionsBlockedReason(hasPassword, reauth.linkedProviders.length),
     error,

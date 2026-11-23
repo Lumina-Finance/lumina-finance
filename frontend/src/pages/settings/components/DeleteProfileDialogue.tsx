@@ -7,6 +7,7 @@ import { WarningCallout } from '@/components/WarningCallout'
 import { isDeletionConfirmed } from '@/pages/settings/utils/deleteProfile'
 
 const CONFIRM_WORD_MISSING = 'Please type delete to confirm'
+const EXPORT_RUNNING = 'Please wait for the export to finish'
 
 type DeleteProfileDialogueProps = {
   open: boolean
@@ -47,6 +48,8 @@ export function DeleteProfileDialogue({
   }
 
   function confirm() {
+    // The export the dialogue offers finishes first, since signing out would drop the file it is saving
+    if (exporting) return
     setPressed(true)
     if (confirmed) onConfirm()
   }
@@ -65,7 +68,7 @@ export function DeleteProfileDialogue({
         <ModalFormFooter
           submitLabel="Delete profile"
           submitDisabled={false}
-          submitBlockedReason={error ?? undefined}
+          submitBlockedReason={exporting ? EXPORT_RUNNING : (error ?? undefined)}
           submitWidthClassName="w-full sm:w-auto"
           onCancel={close}
           onPrimary={confirm}
@@ -78,8 +81,8 @@ export function DeleteProfileDialogue({
         <WarningCallout>This will permanently delete all your data and is irrevocable.</WarningCallout>
         {hasBankConnections && (
           <p>
-            We'll remove the bank sync credentials we store for you. Anything set up with your bank sync provider,
-            including charges and subscriptions, needs to be dealt with separately.
+            We'll remove the bank sync credentials we store for you. Please cancel anything you set up with your bank
+            sync provider, such as charges or subscriptions, with that provider.
           </p>
         )}
         <p>
