@@ -18,6 +18,7 @@ import {
   openPage,
   readSettledBox,
   signUpThroughTheForm,
+  waitForDeletePanelOpen,
 } from '../support/app'
 import { AT_EVERY_SIZE } from '../support/sizes'
 import { API_BASE_URL, BASE_URL } from '../support/target'
@@ -274,6 +275,7 @@ test.describe('dialog input errors', () => {
     await page.getByRole('button', { name: 'Edit account', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
     await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+    await waitForDeletePanelOpen(dialog)
     await dialog.getByRole('button', { name: 'Continue', exact: true }).click()
     const typedName = dialog.getByRole('textbox', { name: 'Type "Everyday" to delete.', exact: true })
     const clickable = dialog.getByRole('button', { name: 'Delete account', exact: true, disabled: false })

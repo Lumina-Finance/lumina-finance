@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser, type SeededAccount, type TestUser } from '../support/api'
-import { logInViaApi, openPage, waitForRequestsSoFar } from '../support/app'
+import { logInViaApi, openPage, waitForDeletePanelOpen, waitForRequestsSoFar } from '../support/app'
 import {
   addImportedItem,
   answerAsBankImported,
@@ -350,6 +350,7 @@ test('reads a correction in its comparison, failing a decision, lining up its ac
       await page.getByRole('button', { name: 'Edit account', exact: true }).click()
       const editor = page.getByRole('dialog')
       await editor.getByRole('button', { name: 'Delete account', exact: true }).click()
+      await waitForDeletePanelOpen(editor)
       await editor.getByRole('button', { name: 'Continue', exact: true }).click()
       const typedName = editor.getByRole('textbox', { name: 'Type "Everyday" to delete.' })
       await typedName.fill('Everyday')

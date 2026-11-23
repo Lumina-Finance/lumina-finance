@@ -756,6 +756,22 @@ export async function readSettledBox(element: Locator): Promise<NonNullable<Awai
   return last!
 }
 
+/**
+ * Waits until the delete panel in the Edit account dialogue has finished opening and has stopped moving
+ *
+ * The panel grows in over a fraction of a second and hands focus to its first control when it has finished,
+ * which is the app's own mark of the end. A press landing before it makes Playwright scroll the body to the
+ * control while the panel is still growing, so the control slides between mouse down and up and no click fires.
+ * The panel then scrolls itself into view, so its box is read once that has ended too
+ *
+ * @param dialogue - The Edit account dialogue
+ */
+export async function waitForDeletePanelOpen(dialogue: Locator): Promise<void> {
+  const panel = dialogue.getByRole('group', { name: /^Delete .+\?$/ })
+  await expect(panel.locator(':focus')).toHaveCount(1)
+  await readSettledBox(panel)
+}
+
 // A value counts as settled once it reads the same on this many frames in a row, and a read that never settles
 // within the frame limit fails rather than loops
 const SETTLED_FRAMES = 6

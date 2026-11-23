@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, signUpUser } from '../support/api'
-import { logInViaApi, openPage, readScrollingBox, readSettledScrollingBox, roomBelow } from '../support/app'
+import { logInViaApi, openPage, readScrollingBox, readSettledScrollingBox, roomBelow, waitForDeletePanelOpen } from '../support/app'
 import { NEEDS_BANK_SYNC } from '../support/bankSyncServer'
 import { API_BASE_URL } from '../support/target'
 
@@ -47,16 +47,6 @@ async function pressTrash(dialog: Locator) {
   await trash.press('Enter')
 }
 
-/** Wait until the control and everything around it have faded all the way in */
-async function waitForFadeIn(control: Locator) {
-  await expect.poll(() => control.evaluate((element) => {
-    for (let node: Element | null = element; node; node = node.parentElement) {
-      if (getComputedStyle(node).opacity !== '1') return false
-    }
-    return true
-  })).toBe(true)
-}
-
 // The sizes with bank sync read the server's own providers, so the test runs against one offering bank
 // sync, and the sizes without it answer the providers with none
 test('brings the delete confirmation into view and moves focus through its steps', NEEDS_BANK_SYNC, async ({ page, request }) => {
@@ -79,7 +69,7 @@ test('brings the delete confirmation into view and moves focus through its steps
     const question = dialog.getByText(`Delete ${ACCOUNT_NAME}?`, { exact: true })
     const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
     const continueButton = dialog.getByRole('button', { name: 'Continue', exact: true })
-    await waitForFadeIn(continueButton)
+    await waitForDeletePanelOpen(dialog)
 
     // Where the panel opened: past the end of what the body showed before the press on a phone, and
     // inside it with room
@@ -230,7 +220,7 @@ test('lines the delete confirmation and the save error up with the sections abov
 
     await pressTrash(dialog)
     const continueButton = dialog.getByRole('button', { name: 'Continue', exact: true })
-    await waitForFadeIn(continueButton)
+    await waitForDeletePanelOpen(dialog)
     await expect.poll(async () => Math.abs((await panel.boundingBox())!.x - sections!.x), `panel left edge at ${at}`).toBeLessThanOrEqual(1)
     expectNear((await panel.boundingBox())?.width, sections?.width, `panel width at ${at}`)
 
@@ -316,7 +306,7 @@ test('shows the whole focus ring on Archive instead, with room around its icon a
     const dialog = await openEditDialog(page, account.id)
     await pressTrash(dialog)
     const archiveInstead = dialog.getByRole('button', { name: 'Archive instead', exact: true })
-    await waitForFadeIn(archiveInstead)
+    await waitForDeletePanelOpen(dialog)
     // The panel hands focus to its first control, reached by keyboard, so the ring shows
     await expect(archiveInstead, `focus at ${at}`).toBeFocused()
 

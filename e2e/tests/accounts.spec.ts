@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, createTransaction, signUpUser } from '../support/api'
-import { openPage, chooseFromDropdown, logInViaApi, openModal, waitForRequestsSoFar } from '../support/app'
+import { openPage, chooseFromDropdown, logInViaApi, openModal, waitForDeletePanelOpen, waitForRequestsSoFar } from '../support/app'
 import {
   expectPendingAction,
   expectStretchedFocusRing,
@@ -583,6 +583,7 @@ test('asks nothing more about an account once it is deleted from its page', asyn
   await page.getByRole('button', { name: 'Edit account', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Edit account', exact: true })
   await dialog.getByRole('button', { name: 'Delete account', exact: true }).click()
+  await waitForDeletePanelOpen(dialog)
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click()
   const confirmation = dialog.getByLabel(`Type "${ACCOUNT_NAME}" to delete.`, { exact: true })
   await confirmation.fill(ACCOUNT_NAME)
