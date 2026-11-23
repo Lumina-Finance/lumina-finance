@@ -4,7 +4,7 @@
  */
 export function answerNever(_url: string, init: RequestInit): Promise<Response> {
   return new Promise((_, reject) => {
-    if (init.signal?.aborted) reject(init.signal.reason);
-    init.signal?.addEventListener('abort', () => reject(init.signal?.reason));
-  });
+    if (init.signal?.aborted) reject(init.signal.reason)
+    init.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+  })
 }
