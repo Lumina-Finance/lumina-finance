@@ -146,7 +146,9 @@ async def create_budget_instance_and_get_response(
 
 
 async def _is_scheduled_period(db: AsyncSession, base_budget: BaseBudget, data: CreateBudgetRequest, today: date) -> bool:
-    """Return whether a new period is one the budget's schedule starts: after its latest period, already begun and keeping that period's limit
+    """Return whether a new period is the one a recurring budget's schedule starts next
+
+    That period starts the day after the latest one ends, has already begun and keeps the latest one's limit
 
     Args:
         db: Active database session
@@ -154,10 +156,27 @@ async def _is_scheduled_period(db: AsyncSession, base_budget: BaseBudget, data: 
         data: Budget instance creation request body
         today: Current date in the user's timezone
     """
-    latest = await db.scalar(
-        select(Budget).where(Budget.base_budget_id == base_budget.id).order_by(Budget.period_start.desc(), Budget.created_at.desc()).limit(1)
+    if not base_budget.recurs:
+        return False
+    latest = await _find_latest_period(db, base_budget.id)
+    return (
+        latest is not None
+        and data.period_start == latest.period_end + timedelta(days=1)
+        and data.period_start <= today
+        and data.overall_limit == latest.overall_limit
     )
-    return latest is not None and latest.period_end < data.period_start <= today and data.overall_limit == latest.overall_limit
+
+
+async def _find_latest_period(db: AsyncSession, base_budget_id: uuid.UUID) -> Budget | None:
+    """Return a base budget's newest period, or None when it has none
+
+    Args:
+        db: Active database session
+        base_budget_id: Base budget whose periods are searched
+    """
+    return await db.scalar(
+        select(Budget).where(Budget.base_budget_id == base_budget_id).order_by(Budget.period_start.desc(), Budget.created_at.desc()).limit(1)
+    )
 
 
 def _validate_budget_instance_period_start(base_budget: BaseBudget, data: CreateBudgetRequest) -> None:
@@ -247,13 +266,8 @@ async def resume_budget_generation_at_current_period(
     _raise_if_base_budget_archived(base_budget)
     await lock_base_budget_periods(db, base_budget.id)
 
-    latest_budget_query = (
-        select(Budget).where(Budget.base_budget_id == base_budget.id).order_by(Budget.period_start.desc(), Budget.created_at.desc()).limit(1)
-    )
-
     # The newest instance supplies both the series phase origin and the carry-forward cap
-    latest_result = await db.execute(latest_budget_query)
-    latest_budget = latest_result.scalar_one_or_none()
+    latest_budget = await _find_latest_period(db, base_budget.id)
 
     # A base budget with no prior instance has no phase and no series to resume
     if latest_budget is None:
