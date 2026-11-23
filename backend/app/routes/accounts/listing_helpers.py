@@ -1,4 +1,5 @@
 """Account listing helpers"""
+
 import uuid
 from datetime import date
 

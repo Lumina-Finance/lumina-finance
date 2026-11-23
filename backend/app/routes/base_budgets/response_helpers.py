@@ -1,4 +1,5 @@
 """Base budget response helpers"""
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import BaseBudget, Budget

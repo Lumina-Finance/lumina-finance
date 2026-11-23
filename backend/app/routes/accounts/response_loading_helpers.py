@@ -1,4 +1,5 @@
 """Account response loading helpers"""
+
 import uuid
 from datetime import date
 
@@ -62,11 +63,7 @@ async def get_account_for_response(
     Returns:
         Account prepared for route response serialization
     """
-    query = (
-        select(Account)
-        .where(Account.id == account_id)
-        .options(selectinload(Account.institution))
-    )
+    query = select(Account).where(Account.id == account_id).options(selectinload(Account.institution))
     if refresh_cached_account:
         query = query.execution_options(populate_existing=True)
 

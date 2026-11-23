@@ -1,4 +1,5 @@
 """Base budget listing helpers"""
+
 import uuid
 
 from sqlalchemy import select
@@ -40,7 +41,4 @@ async def get_visible_base_budget_responses(db: AsyncSession, user_id: uuid.UUID
     base_budgets = result.scalars().unique().all()
 
     tracked_categories_by_base_budget = await load_tracked_categories(db, [base_budget.id for base_budget in base_budgets])
-    return [
-        build_base_budget_response(base_budget, tracked_categories_by_base_budget.get(base_budget.id, []))
-        for base_budget in base_budgets
-    ]
+    return [build_base_budget_response(base_budget, tracked_categories_by_base_budget.get(base_budget.id, [])) for base_budget in base_budgets]

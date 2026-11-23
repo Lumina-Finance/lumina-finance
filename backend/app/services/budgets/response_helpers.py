@@ -11,7 +11,8 @@ from app.schemas.budget import BaseBudgetResponse, BudgetResponse
 
 
 async def load_tracked_categories(
-    db: AsyncSession, base_budget_ids: list[uuid.UUID],
+    db: AsyncSession,
+    base_budget_ids: list[uuid.UUID],
 ) -> dict[uuid.UUID, list[uuid.UUID]]:
     """Return active tracked category IDs keyed by base budget ID
 
@@ -46,7 +47,8 @@ async def load_tracked_categories(
 
 
 def build_base_budget_response(
-    base_budget: BaseBudget, category_ids: list[uuid.UUID],
+    base_budget: BaseBudget,
+    category_ids: list[uuid.UUID],
 ) -> BaseBudgetResponse:
     """Return a base budget response from a model and preloaded category IDs
 
@@ -63,7 +65,9 @@ def build_base_budget_response(
 
 
 def build_budget_response(
-    budget: Budget, base_budget: BaseBudget, category_ids: list[uuid.UUID],
+    budget: Budget,
+    base_budget: BaseBudget,
+    category_ids: list[uuid.UUID],
 ) -> BudgetResponse:
     """Return a budget response from models and preloaded category IDs
 
@@ -87,7 +91,9 @@ def build_budget_response(
 
 
 async def get_budget_response(
-    db: AsyncSession, budget: Budget, base_budget: BaseBudget,
+    db: AsyncSession,
+    budget: Budget,
+    base_budget: BaseBudget,
 ) -> BudgetResponse:
     """Return a budget instance response
 
