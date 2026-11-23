@@ -12,6 +12,8 @@ from app.models.bank_connection import PROVIDER_ID_MAX_LENGTH
 from app.models.user import User
 from app.schemas.bank_review import (
     AddReviewItemRequest,
+    ApplyImportRulesRequest,
+    ApplyImportRulesResponse,
     BankReviewBacklogResponse,
     BankReviewPageResponse,
     BulkAddReviewItemsRequest,
@@ -78,6 +80,7 @@ from app.services.bank_sync.review_items import (
     list_review_backlogs,
     list_review_items,
 )
+from app.services.bank_sync.rule_apply import apply_import_rules_to_review_items
 from app.services.bank_sync.sync_now import sync_account_now
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
@@ -582,6 +585,25 @@ async def bulk_add_bank_review_items(
         The items added, and the items skipped since they changed or can't take their bank amount
     """
     return await bulk_add_review_items(db, user, data)
+
+
+@review_router.post("/items/apply-rules", response_model=ApplyImportRulesResponse)
+async def apply_import_rules_to_bank_review_items(
+    data: ApplyImportRulesRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Add every waiting new item the user's import rules give a merchant and a fitting category, in one save
+
+    Args:
+        data: The accounts the list shows and the version of the rules it answered with
+        user: Authenticated user reviewing
+        db: Active database session
+
+    Returns:
+        The items added, the accounts they went to, and whether more are left to add
+    """
+    return await apply_import_rules_to_review_items(db, user, data)
 
 
 @review_router.post("/items/bulk-dismiss", response_model=BulkReviewResultResponse)

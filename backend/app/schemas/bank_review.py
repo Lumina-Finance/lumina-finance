@@ -15,6 +15,12 @@ from app.schemas.limits import Counter
 from app.schemas.transaction import MAX_BULK_UPDATE_TRANSACTIONS, TransactionEntry
 from app.utils.date_window import WindowDate
 
+# The most accounts one request to apply the rules names
+MAX_APPLY_ACCOUNTS = 500
+
+# The length of the digest a version of the rules is, in hexadecimal
+MAX_RULES_VERSION_LENGTH = 64
+
 # A bank transaction to add or dismiss, or a change or removal the bank reports for one already in the ledger
 ReviewItemKind = Literal["new", "correction", "removal"]
 
@@ -186,3 +192,25 @@ class AddReviewItemRequest(TransactionEntry):
     The item's account and its currency are where it goes. The amount, in signed minor units of
     that currency, is always sent, so an item whose bank amount the currency can't hold gets one
     """
+
+
+class ApplyImportRulesRequest(BaseModel):
+    """Add every waiting new item the user's import rules give a merchant and a fitting category, over the accounts the list shows"""
+
+    # The accounts the list is filtered to, or every one of the user's own when left out
+    account_ids: list[uuid.UUID] | None = Field(None, max_length=MAX_APPLY_ACCOUNTS)
+
+    # The version of the rules the list answered with
+    rules_version: str = Field(max_length=MAX_RULES_VERSION_LENGTH)
+
+
+class ApplyImportRulesResponse(BaseModel):
+    """What applying the import rules added"""
+
+    added_ids: list[uuid.UUID]
+
+    # The accounts the added items went to, whose ledgers changed
+    account_ids: list[uuid.UUID]
+
+    # More items than one press adds are left to add
+    more_to_add: bool
