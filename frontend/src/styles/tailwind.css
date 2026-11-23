@@ -2465,6 +2465,16 @@
     background: var(--app-hover-soft);
   }
 
+  /* An option held back with its reason stays focusable, with no hover or focus fill. Its label is faded
+     by halving its colour's alpha rather than with opacity, which would fade the focus ring too */
+  .app-segmented-option[aria-disabled="true"],
+  .app-segmented-option[aria-disabled="true"]:hover,
+  .app-segmented-option[aria-disabled="true"]:focus-visible {
+    cursor: not-allowed;
+    color: color-mix(in srgb, var(--app-text-muted) 50%, transparent);
+    background: transparent;
+  }
+
   .app-segmented-option-active {
     background: var(--app-accent-soft);
     color: var(--app-accent);

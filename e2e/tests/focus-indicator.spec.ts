@@ -346,6 +346,32 @@ for (const colorScheme of ['light', 'dark'] as const) {
     expect(await readTextContrast(selected)).toBeGreaterThanOrEqual(4.5)
   })
 
+  // A one-off budget whose repeat would pass 1,200 periods holds back Recurring with its reason. The
+  // option fades its label alone, so its ring stays whole and opaque. A fade on the whole option once
+  // faded the ring with it
+  test(`keeps the whole ring on a held-back Recurring option in the ${colorScheme} theme`, async ({ page, request }) => {
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
+    const user = await signUpUser(request)
+    const id = await createMonthlyBudget(request, user, {
+      name: 'Old one-off',
+      categoryNames: ['Groceries'],
+      overallLimit: 50_000,
+      periodStart: '1900-01-01',
+      recurs: false,
+    })
+    await logInViaApi(page, user)
+    await openPage(page, '/budgets')
+    await page.getByTestId(`budget-card-${id}`).click()
+    await page.getByRole('dialog', { name: 'Old one-off', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
+    const edit = page.getByRole('dialog', { name: 'Edit budget', exact: true })
+    const recurring = edit.getByRole('button', { name: 'Recurring', exact: true })
+
+    await expect(recurring).toHaveAttribute('aria-disabled', 'true')
+    await focusFromKeyboard(page, recurring)
+    await expect(recurring).toBeFocused()
+    await expectSharedRing(recurring, 'outline', '2px')
+  })
+
   // A row has no border, so it keeps the ring, drawn around the row itself inside its edges where the
   // next row can't cover it. The row's title reaches the ring through the row's own outline and shows the
   // row's hover look as well. The same holds when its checkbox while selecting holds focus, and that also

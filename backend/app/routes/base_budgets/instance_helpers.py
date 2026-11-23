@@ -1,4 +1,5 @@
 """Base budget instance creation helpers"""
+
 import uuid
 from datetime import date, timedelta
 
@@ -11,7 +12,8 @@ from app.models.budget import BaseBudget, Budget
 from app.permissions import check_base_budget_access
 from app.routes.base_budgets.response_helpers import get_budget_instance_response
 from app.schemas.budget import BudgetResponse, CreateBudgetRequest
-from app.services.budgets.periods import compute_period_end, validate_period_start
+from app.services.budgets.limits import lock_base_budget_periods, remove_oldest_periods_for_new_one
+from app.services.budgets.periods import compute_period_end, iter_period_starts_through, validate_period_start
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
@@ -26,23 +28,19 @@ def _get_initial_budget_period_starts(base_budget: BaseBudget, period_start: dat
     Returns:
         Period start dates to materialize
     """
-    period_starts = [period_start]
     if not base_budget.recurs:
-        return period_starts
+        return [period_start]
 
-    next_start = period_start
-    while True:
-        period_end = compute_period_end(
-            next_start,
+    return list(
+        iter_period_starts_through(
+            period_start,
+            today,
             base_budget.recurrence_freq,
             base_budget.instance_length,
             dom=base_budget.recurrence_dom,
             month=base_budget.recurrence_month,
         )
-        next_start = period_end + timedelta(days=1)
-        if next_start > today:
-            return period_starts
-        period_starts.append(next_start)
+    )
 
 
 def add_initial_budget_instances(
@@ -114,7 +112,12 @@ async def create_budget_instance_and_get_response(
         dom=base_budget.recurrence_dom,
         month=base_budget.recurrence_month,
     )
+
+    # Locking before the overlap check makes a second copy of the same period wait and then meet the
+    # first, so it is refused before it removes anything
+    await lock_base_budget_periods(db, base_budget_id)
     await _raise_for_overlapping_budget_instance(db, base_budget_id, data.period_start, period_end)
+    await remove_oldest_periods_for_new_one(db, base_budget)
 
     budget = Budget(
         base_budget_id=base_budget_id,
@@ -216,12 +219,10 @@ async def resume_budget_generation_at_current_period(
         today: Current date in the user's timezone
     """
     _raise_if_base_budget_archived(base_budget)
+    await lock_base_budget_periods(db, base_budget.id)
 
     latest_budget_query = (
-        select(Budget)
-        .where(Budget.base_budget_id == base_budget.id)
-        .order_by(Budget.period_start.desc(), Budget.created_at.desc())
-        .limit(1)
+        select(Budget).where(Budget.base_budget_id == base_budget.id).order_by(Budget.period_start.desc(), Budget.created_at.desc()).limit(1)
     )
 
     # The newest instance supplies both the series phase origin and the carry-forward cap
@@ -257,6 +258,7 @@ async def resume_budget_generation_at_current_period(
     if overlap_result.scalar_one_or_none():
         return
 
+    await remove_oldest_periods_for_new_one(db, base_budget)
     db.add(
         Budget(
             base_budget_id=base_budget.id,

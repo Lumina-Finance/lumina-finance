@@ -20,6 +20,11 @@ MAX_BASE_BUDGETS = 100
 # Categories one budget tracks. It keeps a period's utilization and the budget forms small
 MAX_BUDGET_CATEGORIES = 100
 
+# Periods one budget keeps, a century of a monthly budget or about 23 years of a weekly one. A setup
+# or a switch to recurring that would pass it is refused, and a new period past it removes the oldest.
+# The frontend repeats it as MAX_BUDGET_PERIODS in src/utils/budgetLimits.ts
+MAX_BUDGET_PERIODS = 1200
+
 
 def validate_recurrence_anchor_fields(
     freq: RecurrenceFreq,

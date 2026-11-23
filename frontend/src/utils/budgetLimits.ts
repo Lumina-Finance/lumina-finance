@@ -5,6 +5,25 @@ import type { BaseBudget } from '@/api/budgets'
 export const MAX_BASE_BUDGETS = 100
 export const MAX_BUDGET_CATEGORIES = 100
 
+// Most periods one budget keeps, mirroring the backend. The create form refuses a start date whose
+// periods to today would pass it, the edit form holds back Recurring for a one-off budget that would,
+// and the budget import refuses a budget with more limit periods
+export const MAX_BUDGET_PERIODS = 1200
+
+/** Shown on the start date when a recurring budget would start more periods back than a budget keeps */
+export const BUDGET_PERIOD_LIMIT_ERROR = `A budget can go back at most ${MAX_BUDGET_PERIODS.toLocaleString('en-CA')} periods. Please choose a later start date.`
+
+/** Why a one-off budget can't repeat, when repeating it would start more periods back than a budget keeps */
+export const BUDGET_REPEAT_LIMIT_REASON = `This budget can't repeat: a budget can go back at most ${MAX_BUDGET_PERIODS.toLocaleString('en-CA')} periods.`
+
+/**
+ * Whether a budget is held to the most periods one keeps, as on the server. Only a person's own budgets
+ * are, since a group's budget keeps every period its members see
+ */
+export function isPeriodLimited(baseBudget: Pick<BaseBudget, 'group_id'>) {
+  return baseBudget.group_id === null
+}
+
 /**
  * Counts the budgets toward the most a person keeps. Those are the ones they own, archived included,
  * and a group's budgets belong to the group and are not counted

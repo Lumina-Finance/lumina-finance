@@ -7,7 +7,6 @@ import {
   FIREFLY_ACTIVE_VALUE,
   FIREFLY_BUDGET_MAX_CATEGORIES,
   FIREFLY_BUDGET_MAX_INSTANCE_LENGTH,
-  FIREFLY_BUDGET_MAX_LIMIT_PERIODS,
   FIREFLY_BUDGET_MIXED_CURRENCIES_REASON,
   FIREFLY_BUDGET_NO_CATEGORIES_REASON,
   FIREFLY_BUDGET_NO_LIMITS_REASON,
@@ -25,6 +24,7 @@ import {
 } from '@/pages/imports/firefly/constants'
 import type { FireflyBudgetDraft } from '@/pages/imports/firefly/types'
 import { toImportMinorUnits } from '@/pages/imports/utils/valueParsers'
+import { MAX_BUDGET_PERIODS } from '@/utils/budgetLimits'
 import { parseYmd } from '@/utils/date'
 import { getDateWindowError } from '@/utils/dateWindow'
 import { formatList } from '@/utils/formatList'
@@ -507,12 +507,8 @@ function getRefusalReason(
   if (nameLength > IMPORT_BUDGET_NAME_MAX_LENGTH) {
     return getFireflyBudgetOverLimitReason('name length', nameLength, IMPORT_BUDGET_NAME_MAX_LENGTH)
   }
-  if (schedule.limits.length > FIREFLY_BUDGET_MAX_LIMIT_PERIODS) {
-    return getFireflyBudgetOverLimitReason(
-      'limit period count',
-      schedule.limits.length,
-      FIREFLY_BUDGET_MAX_LIMIT_PERIODS,
-    )
+  if (schedule.limits.length > MAX_BUDGET_PERIODS) {
+    return getFireflyBudgetOverLimitReason('limit period count', schedule.limits.length, MAX_BUDGET_PERIODS)
   }
   if (categoryNames.length > FIREFLY_BUDGET_MAX_CATEGORIES) {
     return getFireflyBudgetOverLimitReason('category count', categoryNames.length, FIREFLY_BUDGET_MAX_CATEGORIES)

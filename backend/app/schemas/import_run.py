@@ -8,7 +8,13 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validat
 
 from app.models.base import RecurrenceFreq
 from app.models.transaction import BANK_TRANSACTION_HASH_LENGTH
-from app.schemas.budget import MAX_BASE_BUDGETS, MAX_BUDGET_CATEGORIES, MAX_BUDGET_INSTANCE_LENGTH, validate_recurrence_anchor_fields
+from app.schemas.budget import (
+    MAX_BASE_BUDGETS,
+    MAX_BUDGET_CATEGORIES,
+    MAX_BUDGET_INSTANCE_LENGTH,
+    MAX_BUDGET_PERIODS,
+    validate_recurrence_anchor_fields,
+)
 from app.schemas.category import MAX_CATEGORY_ICON_LENGTH, MAX_CATEGORY_NAME_LENGTH
 from app.schemas.limits import MAX_ENUM_TEXT_LENGTH
 from app.schemas.names import TrimmedName
@@ -47,10 +53,6 @@ MAX_IMPORT_TAG_NAME_LENGTH = 64
 
 # Characters a merchant name may carry, matching the column merchants are stored in
 MAX_IMPORT_MERCHANT_NAME_LENGTH = 256
-
-# Bounds the limit history one budget can carry, which covers a century of
-# monthly limits or two decades of weekly ones
-MAX_BUDGET_LIMIT_PERIODS = 1200
 
 # Budgets one import may carry, and categories one budget may track. They are the most a person
 # keeps, so an import never stages more than the commit could write
@@ -606,7 +608,7 @@ class ImportBudgetDraft(BaseModel):
     name: TrimmedImportText = Field(max_length=256)
     currency: CurrencyCode
     category_sources: list[ImportSourceName] = Field(min_length=1, max_length=MAX_JOURNAL_BUDGET_CATEGORIES)
-    limits: list[JournalBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_LIMIT_PERIODS)
+    limits: list[JournalBudgetLimit] = Field(min_length=1, max_length=MAX_BUDGET_PERIODS)
     recurrence: JournalBudgetRecurrence | None
     is_archived: bool = False
 

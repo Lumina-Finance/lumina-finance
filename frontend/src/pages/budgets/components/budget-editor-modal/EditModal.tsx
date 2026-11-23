@@ -18,7 +18,7 @@ import type {
 } from '@/pages/budgets/components/budget-editor-modal/types'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { budgetCadenceLabel, formatBudgetPeriod } from '@/pages/budgets/utils/budgetPeriods'
-import { getEditCategoryError } from '@/pages/budgets/utils/budgetFormValidation'
+import { getEditCategoryError, getRepeatLimitReason } from '@/pages/budgets/utils/budgetFormValidation'
 import { BUDGET_FORM_FIELD_ORDER, getBudgetControlIds, sameStringSet } from '@/pages/budgets/utils/form'
 import { currencySymbol, toMinorUnits } from '@/pages/budgets/utils/money'
 import { useCurrencyListState } from '@/hooks/useCurrencyListState'
@@ -72,6 +72,7 @@ export default function BudgetEditModal({
   latestPeriod,
   categories,
   currencies,
+  today,
   onClose,
   onSaved,
 }: {
@@ -80,6 +81,9 @@ export default function BudgetEditModal({
   latestPeriod: Budget | undefined
   categories: Category[]
   currencies: Currency[]
+
+  // The person's local day. It decides how many periods repeating a one-off budget would add
+  today: string
   onClose: () => void
 
   // Reports whether the save flipped the archived flag so callers can reveal the archive animations
@@ -142,6 +146,7 @@ export default function BudgetEditModal({
   // The backend rejects any non-unarchive change to an archived budget, so every other field is locked
   // against the persisted archived state rather than the staged toggle until the unarchive is saved
   const fieldsLocked = baseBudget.is_archived
+  const recurringUnavailableReason = getRepeatLimitReason(baseBudget, latestPeriod, today)
 
   // A locked limit is blank, disabled and left out of the save, so requiring a readable one would refuse
   // every other edit to the budget
@@ -349,6 +354,7 @@ export default function BudgetEditModal({
             cadenceSummaryText={`${budgetCadenceLabel(baseBudget)}${latestPeriod ? ` · ${formatBudgetPeriod(latestPeriod)}` : ''}`}
             recurrenceControlsLocked
             fieldsLocked={fieldsLocked}
+            recurringUnavailableReason={recurringUnavailableReason}
             showError={showError}
             handlers={handlers}
           />

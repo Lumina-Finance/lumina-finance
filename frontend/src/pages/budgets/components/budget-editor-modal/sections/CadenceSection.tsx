@@ -5,6 +5,7 @@ import type {
   BudgetEditorModalViewState,
 } from '@/pages/budgets/components/budget-editor-modal/types'
 import DateField from '@/components/date-field/DateField'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import BudgetEditorFieldLabelRow from '@/pages/budgets/components/shared/EditorFieldLabelRow'
 import { budgetFieldErrorId } from '@/pages/budgets/utils/form'
 import { RECURRENCE_OPTIONS } from '@/pages/budgets/constants'
@@ -20,6 +21,9 @@ interface BudgetEditorModalCadenceSectionProps {
 
   // Locks the recurrence type toggle while the budget is archived so no cadence edit can be staged
   fieldsLocked: boolean
+
+  // Why Recurring can't be chosen, shown in a tooltip while the option stays focusable
+  recurringUnavailableReason?: string
   showError: BudgetEditorModalErrorGetter
   handlers: BudgetEditorModalHandlers
 }
@@ -34,6 +38,7 @@ export default function BudgetEditorModalCadenceSection({
   cadenceSummaryText,
   recurrenceControlsLocked,
   fieldsLocked,
+  recurringUnavailableReason,
   showError,
   handlers,
 }: BudgetEditorModalCadenceSectionProps) {
@@ -76,15 +81,16 @@ export default function BudgetEditorModalCadenceSection({
               role="group"
               aria-labelledby={getFieldLabelId(ids.recurrenceType)}
             >
-              <button
+              <DisabledReasonButton
                 type="button"
                 className={`app-segmented-option flex-1 text-sm ${fieldsLocked ? 'cursor-not-allowed' : ''} ${form.recurs ? 'app-segmented-option-active' : ''}`}
                 onClick={() => onRecursChange(true)}
                 disabled={fieldsLocked}
+                disabledReason={fieldsLocked ? undefined : recurringUnavailableReason}
                 aria-pressed={form.recurs}
               >
                 Recurring
-              </button>
+              </DisabledReasonButton>
               <button
                 type="button"
                 className={`app-segmented-option flex-1 text-sm ${fieldsLocked ? 'cursor-not-allowed' : ''} ${!form.recurs ? 'app-segmented-option-active' : ''}`}
@@ -130,8 +136,12 @@ export default function BudgetEditorModalCadenceSection({
           </div>
         </div>
 
+        {/* Each field sits at the foot of its cell, so a long error wrapping beside one label keeps the two
+            fields side by side on one line */}
         <div className="grid gap-3 md:grid-cols-[10rem_minmax(0,1fr)]">
-          <div className={`min-w-0 ${recurrenceControlsLocked || !form.recurs ? 'opacity-60' : ''}`}>
+          <div
+            className={`flex min-w-0 flex-col justify-between ${recurrenceControlsLocked || !form.recurs ? 'opacity-60' : ''}`}
+          >
             <BudgetEditorFieldLabelRow
               htmlFor={ids.interval}
               label="Period length"
@@ -151,7 +161,7 @@ export default function BudgetEditorModalCadenceSection({
             />
           </div>
 
-          <div className={`min-w-0 ${recurrenceControlsLocked ? 'opacity-60' : ''}`}>
+          <div className={`flex min-w-0 flex-col justify-between ${recurrenceControlsLocked ? 'opacity-60' : ''}`}>
             <BudgetEditorFieldLabelRow
               htmlFor={ids.periodStart}
               label={periodStartLabel}

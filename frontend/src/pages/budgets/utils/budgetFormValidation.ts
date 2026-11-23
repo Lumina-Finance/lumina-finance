@@ -1,13 +1,53 @@
+import type { BaseBudget, Budget } from '@/api/budgets'
 import type { Category } from '@/api/categories'
 import type { Currency } from '@/api/currency'
 import type { BudgetFormFieldErrors, BudgetFormState } from '@/pages/budgets/types'
 import { sameStringSet } from '@/pages/budgets/utils/form'
-import { getBudgetCategoryLimitError } from '@/utils/budgetLimits'
+import { countRecurringPeriodsThrough, recurrenceAnchorsFromStart } from '@/pages/budgets/utils/budgetPeriods'
+import {
+  BUDGET_PERIOD_LIMIT_ERROR,
+  BUDGET_REPEAT_LIMIT_REASON,
+  MAX_BUDGET_PERIODS,
+  getBudgetCategoryLimitError,
+  isPeriodLimited,
+} from '@/utils/budgetLimits'
 import { toMinorUnits } from '@/pages/budgets/utils/money'
 import { getDateWindowError } from '@/utils/dateWindow'
 
 /** Shown in Tracked categories whenever no expense category is chosen */
 export const NO_CATEGORY_ERROR = 'Select at least one category'
+
+/**
+ * Whether a recurring budget's periods from its start to today would pass the most one keeps. A period
+ * length that is not a whole number of at least 1 has its own error, so it is not counted
+ */
+function isPastPeriodLimit(form: BudgetFormState, instanceLength: number, todayYmd: string) {
+  if (!Number.isInteger(instanceLength) || instanceLength < 1) return false
+
+  const cadence = {
+    recurrence_freq: form.recurrenceFreq,
+    instance_length: instanceLength,
+    recurrence_dom: recurrenceAnchorsFromStart(form.recurrenceFreq, form.periodStart).recurrence_dom,
+  }
+  const count = countRecurringPeriodsThrough(cadence, form.periodStart, todayYmd, MAX_BUDGET_PERIODS)
+  return count !== null && count > MAX_BUDGET_PERIODS
+}
+
+/**
+ * Why a one-off budget can't be made recurring, or undefined when it can. Repeating adds a period for each
+ * step from its latest period to today, so a latest period too far back would pass the most a budget keeps.
+ * A group's budgets keep every period, as on the server
+ */
+export function getRepeatLimitReason(
+  baseBudget: Pick<BaseBudget, 'recurs' | 'group_id' | 'recurrence_freq' | 'instance_length' | 'recurrence_dom'>,
+  latestPeriod: Pick<Budget, 'period_start'> | undefined,
+  todayYmd: string,
+) {
+  if (baseBudget.recurs || !isPeriodLimited(baseBudget) || !latestPeriod) return undefined
+
+  const count = countRecurringPeriodsThrough(baseBudget, latestPeriod.period_start, todayYmd, MAX_BUDGET_PERIODS)
+  return count !== null && count > MAX_BUDGET_PERIODS ? BUDGET_REPEAT_LIMIT_REASON : undefined
+}
 
 /**
  * Validates the create-budget form against frontend and backend budget requirements
@@ -36,6 +76,8 @@ export function validateBudgetCreateForm(
     // A start far in the past would make a period for every cadence step since, so it is held to the window every date must sit in
     const windowError = getDateWindowError(form.periodStart, todayYmd)
     if (windowError) errors.periodStart = windowError
+    else if (form.recurs && isPastPeriodLimit(form, instanceLength, todayYmd))
+      errors.periodStart = BUDGET_PERIOD_LIMIT_ERROR
   }
   if (form.recurs && (!Number.isInteger(instanceLength) || instanceLength < 1)) {
     errors.instanceLength = 'Enter at least 1'

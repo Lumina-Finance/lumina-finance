@@ -13,6 +13,7 @@ from app.routes.base_budgets.category_helpers import update_tracked_category_lin
 from app.routes.base_budgets.instance_helpers import resume_budget_generation_at_current_period
 from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.schemas.budget import BaseBudgetResponse, UpdateBaseBudgetRequest
+from app.services.budgets.limits import ensure_one_off_budget_can_repeat
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
@@ -59,6 +60,9 @@ async def update_base_budget_and_get_response(
 
     # Capture the unarchive transition before applying fields so resumption can key off the prior state
     is_unarchiving = changed_fields.get("is_archived") is False and base_budget.is_archived
+
+    if changed_fields.get("recurs") is True and not base_budget.recurs:
+        await ensure_one_off_budget_can_repeat(db, base_budget, today)
 
     for field, value in changed_fields.items():
         setattr(base_budget, field, value)

@@ -13,7 +13,7 @@ from tests.conftest import TestSession
 from tests.routes.base_budgets._helpers import _create_base_budget, _create_category
 from tests.routes.support import _create_user, _get_auth_header
 
-# A Monday, so a weekly budget anchored on Mondays starts on 1 January 1900, a Monday too
+# The day the window and the periods are counted from
 FROZEN_MOMENT = datetime(2026, 5, 4, 16, 0, tzinfo=UTC)
 
 
@@ -39,27 +39,6 @@ async def test_create_recurring_budget_from_2024_makes_a_period_for_each_month_t
 
     assert resp.status_code == 201
     assert await _count_periods(resp.json()["id"]) == 29
-
-
-async def test_create_weekly_budget_from_the_first_allowed_day_makes_every_week_since(client):
-    """The cost at the window's edge is known: a weekly budget from 1 January 1900 has 6,593 periods"""
-    headers = _get_auth_header(await _create_user(client))
-    category_id = await _create_category(client, headers)
-
-    resp = await _create_base_budget(
-        client,
-        headers,
-        category_ids=[category_id],
-        recurrence_freq="weekly",
-        recurrence_weekday=0,
-        recurrence_dom=None,
-        recurs=True,
-        period_start="1900-01-01",
-        overall_limit=1,
-    )
-
-    assert resp.status_code == 201
-    assert await _count_periods(resp.json()["id"]) == 6593
 
 
 @pytest.mark.parametrize(
