@@ -935,10 +935,12 @@
     font-size: 0.9375rem;
   }
 
-  /* The red tint of a field in error takes faint text under the contrast text needs in the dark theme, so
-     the placeholder and the currency symbol step up to the muted colour while the field is in error */
+  /* The red tint of a field in error takes faint text under the contrast text needs, in the dark theme and
+     in the light one for the dashes of a date field, so the placeholder, the dashes and the currency symbol
+     step up to the muted colour while the field is in error */
   .app-input-error::placeholder,
   .app-input-error .app-date-field-segment::placeholder,
+  .app-input-error .app-date-field-separator,
   :has(> .app-input-error) > .app-input-prefix {
     color: var(--app-text-muted);
   }
@@ -985,6 +987,10 @@
   }
 
   .app-date-field-segment::placeholder {
+    color: var(--app-text-subtle);
+  }
+
+  .app-date-field-separator {
     color: var(--app-text-subtle);
   }
 

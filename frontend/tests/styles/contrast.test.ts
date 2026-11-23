@@ -3,6 +3,7 @@
  * label below the WCAG AA minimum for normal text in either theme
  */
 import { describe, expect, it } from 'vitest'
+import dateFieldSource from '@/components/date-field/DateField.tsx?raw'
 import selectorSource from '@/components/time-range/Selector.tsx?raw'
 import { FX_TONE_CLASS } from '@/components/tooltips/fxToneClass'
 import { contrast, paint, stylesheet, THEMES, type Rgb, type Theme, type Tokens } from './fixtures'
@@ -592,5 +593,64 @@ describe('Runway account tile text', () => {
     const tokens = THEMES[theme]
     const fill = FILLS[state as keyof typeof FILLS](tokens, solid(tokens, '--app-surface-soft'))
     expect(contrast(resolve(tokens, token), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+})
+
+describe('date field separators', () => {
+  // The dashes between year, month and day are drawn in the date field's own markup. Each reads in the colour
+  // its class draws at rest and the one it draws in a field in error, over the field's fill and over the error
+  // tint laid on the dialogue's panel (the page colour) and on a card-shaded surface
+  const separator = /<span\s+className="([^"]*)"\s+aria-hidden[^>]*>\s*-\s*<\/span>/.exec(dateFieldSource)
+  const classes = (separator?.[1] ?? '').split(/\s+/).map((name) => `.${name}`)
+  const inline = /style=\{\{\s*color:\s*'var\((--[\w-]+)\)'/.exec(separator?.[0] ?? '')?.[1]
+
+  /** The colour token a rule sets on the separator's class, for the selectors the filter accepts */
+  function tokenFor(accepts: (selector: string) => boolean): string | undefined {
+    let token: string | undefined
+    stylesheet.walkRules((rule) => {
+      if (!rule.selectors.some((selector) => accepts(selector.trim()))) return
+      rule.walkDecls('color', (declaration) => {
+        token = /^var\((--[\w-]+)\)$/.exec(declaration.value)?.[1]
+      })
+    })
+    return token
+  }
+
+  const atRest = tokenFor((selector) => classes.includes(selector)) ?? inline
+  const inError =
+    tokenFor((selector) => /\.app-input-error\s/.test(selector) && classes.some((name) => selector.endsWith(name))) ??
+    atRest
+
+  it('finds the dashes in the date field and the colour they rest in', () => {
+    expect(separator).not.toBeNull()
+    expect(atRest).toBeDefined()
+  })
+
+  const cases = (Object.keys(THEMES) as Theme[]).flatMap((theme) => {
+    const tokens = THEMES[theme]
+    const backdrops = {
+      dialogue: solid(tokens, '--app-bg'),
+      'card-shaded surface': solid(tokens, '--app-surface-soft'),
+    }
+    return [
+      { theme, state: 'at rest', token: atRest!, fill: solid(tokens, '--app-input-bg') },
+      ...Object.entries(backdrops).map(([surface, backdrop]) => ({
+        theme,
+        state: `in error on the ${surface}`,
+        token: inError!,
+        fill: solid(tokens, '--app-negative-soft', backdrop),
+      })),
+    ]
+  })
+
+  it.each(cases)('read at 4.5:1 or better $state in the $theme theme', ({ theme, token, fill }) => {
+    expect(contrast(resolve(THEMES[theme], token), fill)).toBeGreaterThanOrEqual(MINIMUM_TEXT_CONTRAST)
+  })
+
+  // They stay quieter than the typed digits, so the field still reads as digits first
+  it.each(Object.keys(THEMES) as Theme[])('read quieter than the typed digits in the %s theme', (theme) => {
+    const tokens = THEMES[theme]
+    const field = solid(tokens, '--app-input-bg')
+    expect(contrast(resolve(tokens, atRest!), field)).toBeLessThan(contrast(solid(tokens, '--app-text'), field))
   })
 })

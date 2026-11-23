@@ -292,7 +292,7 @@ export default function DateField({
         {SEGMENT_ORDER.map((segment, index) => (
           <div key={segment} className="flex items-center">
             {index > 0 && (
-              <span className="px-0.5 select-none" aria-hidden style={{ color: 'var(--app-text-subtle)' }}>
+              <span className="app-date-field-separator px-0.5 select-none" aria-hidden>
                 -
               </span>
             )}
