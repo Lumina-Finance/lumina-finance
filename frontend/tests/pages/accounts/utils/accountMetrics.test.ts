@@ -8,22 +8,23 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { RunwayResult } from '@/api/user'
-import {
-  getCreditUsageMetric,
-  getRunwayMetric,
-  getSavingsRateMetric,
-} from '@/pages/accounts/utils/accountMetrics'
+import { getCreditUsageMetric, getRunwayMetric, getSavingsRateMetric } from '@/pages/accounts/utils/accountMetrics'
 import { createAccount, testCurrencies } from './fixtures'
 
 describe('account metric helpers', () => {
   it('uses the latest savings period and handles no-income expense months', () => {
-    expect(getSavingsRateMetric({
-      savings_rate_history: [
-        { month: '2026-05-01', income: 1_000, expenses: 900 },
-        { month: '2026-06-01', income: 2_000, expenses: 1_500 },
-      ],
-      fx_status: { state: 'complete', missing_pairs: [] },
-    }, false)).toMatchObject({
+    expect(
+      getSavingsRateMetric(
+        {
+          savings_rate_history: [
+            { month: '2026-05-01', income: 1_000, expenses: 900 },
+            { month: '2026-06-01', income: 2_000, expenses: 1_500 },
+          ],
+          fx_status: { state: 'complete', missing_pairs: [] },
+        },
+        false,
+      ),
+    ).toMatchObject({
       value: 25,
       hasExpenses: true,
       net: 500,
@@ -33,12 +34,15 @@ describe('account metric helpers', () => {
       barColor: 'var(--app-chart-positive)',
     })
 
-    expect(getSavingsRateMetric({
-      savings_rate_history: [
-        { month: '2026-06-01', income: 0, expenses: 100 },
-      ],
-      fx_status: { state: 'none', missing_pairs: [] },
-    }, false)).toMatchObject({
+    expect(
+      getSavingsRateMetric(
+        {
+          savings_rate_history: [{ month: '2026-06-01', income: 0, expenses: 100 }],
+          fx_status: { state: 'none', missing_pairs: [] },
+        },
+        false,
+      ),
+    ).toMatchObject({
       value: null,
       hasExpenses: true,
       progress: 100,
@@ -48,36 +52,54 @@ describe('account metric helpers', () => {
   })
 
   it('rounds the savings rate tile down, so an exact 14.5% reads 14%', () => {
-    const rateOf = (income: number, expenses: number) => getSavingsRateMetric({
-      savings_rate_history: [{ month: '2026-06-01', income, expenses }],
-      fx_status: { state: 'complete', missing_pairs: [] },
-    }, false).value
+    const rateOf = (income: number, expenses: number) =>
+      getSavingsRateMetric(
+        {
+          savings_rate_history: [{ month: '2026-06-01', income, expenses }],
+          fx_status: { state: 'complete', missing_pairs: [] },
+        },
+        false,
+      ).value
 
     expect(rateOf(200_000, 171_000)).toBe(14)
     expect(rateOf(200_000, 229_000)).toBe(-15)
   })
 
   it('rounds credit utilization up', () => {
-    const metric = getCreditUsageMetric([], { credit_limit_total: 300_000, credit_used: 100_000, fx_status: { state: 'complete', missing_pairs: [] } }, false)
+    const metric = getCreditUsageMetric(
+      [],
+      { credit_limit_total: 300_000, credit_used: 100_000, fx_status: { state: 'complete', missing_pairs: [] } },
+      false,
+    )
 
     expect(metric.utilization).toBe(34)
   })
 
   it('leaves an empty or still-loading savings rate tile grey rather than red', () => {
-    expect(getSavingsRateMetric({
-      savings_rate_history: [{ month: '2026-06-01', income: 0, expenses: 0 }],
-      fx_status: { state: 'none', missing_pairs: [] },
-    }, false)).toMatchObject({
+    expect(
+      getSavingsRateMetric(
+        {
+          savings_rate_history: [{ month: '2026-06-01', income: 0, expenses: 0 }],
+          fx_status: { state: 'none', missing_pairs: [] },
+        },
+        false,
+      ),
+    ).toMatchObject({
       value: null,
       hasExpenses: false,
       color: 'var(--app-text-subtle)',
       barColor: 'var(--app-text-subtle)',
     })
 
-    expect(getSavingsRateMetric({
-      savings_rate_history: [{ month: '2026-06-01', income: 1_000, expenses: 100 }],
-      fx_status: { state: 'complete', missing_pairs: [] },
-    }, true)).toMatchObject({
+    expect(
+      getSavingsRateMetric(
+        {
+          savings_rate_history: [{ month: '2026-06-01', income: 1_000, expenses: 100 }],
+          fx_status: { state: 'complete', missing_pairs: [] },
+        },
+        true,
+      ),
+    ).toMatchObject({
       color: 'var(--app-text-subtle)',
       barColor: 'var(--app-text-subtle)',
     })
@@ -98,11 +120,17 @@ describe('account metric helpers', () => {
       }),
     ]
 
-    expect(getCreditUsageMetric(rows, {
-      credit_used: 250,
-      credit_limit_total: 1_000,
-      fx_status: { state: 'complete', missing_pairs: [] },
-    }, false)).toMatchObject({
+    expect(
+      getCreditUsageMetric(
+        rows,
+        {
+          credit_used: 250,
+          credit_limit_total: 1_000,
+          fx_status: { state: 'complete', missing_pairs: [] },
+        },
+        false,
+      ),
+    ).toMatchObject({
       hasCreditAccounts: true,
       hasCreditLimits: true,
       hasCreditData: true,
@@ -115,18 +143,24 @@ describe('account metric helpers', () => {
   })
 
   it('splits the credit usage figure from its bar across all three bands', () => {
-    const rows = [createAccount({
-      id: 'card',
-      account_kind: 'revolving',
-      account_type: 'credit_card',
-      credit_limit: 1_000,
-    })]
+    const rows = [
+      createAccount({
+        id: 'card',
+        account_kind: 'revolving',
+        account_type: 'credit_card',
+        credit_limit: 1_000,
+      }),
+    ]
     const getTileColors = (creditUsed: number) => {
-      const metric = getCreditUsageMetric(rows, {
-        credit_used: creditUsed,
-        credit_limit_total: 1_000,
-        fx_status: { state: 'complete', missing_pairs: [] },
-      }, false)
+      const metric = getCreditUsageMetric(
+        rows,
+        {
+          credit_used: creditUsed,
+          credit_limit_total: 1_000,
+          fx_status: { state: 'complete', missing_pairs: [] },
+        },
+        false,
+      )
 
       return { utilization: metric.utilization, color: metric.color, barColor: metric.barColor }
     }
@@ -173,7 +207,9 @@ describe('account metric helpers', () => {
       progress: 0,
       caption: '',
     })
-    expect(getRunwayMetric({ ...runway, months: null, reason: 'no_accounts' }, false, 'USD', testCurrencies)).toMatchObject({
+    expect(
+      getRunwayMetric({ ...runway, months: null, reason: 'no_accounts' }, false, 'USD', testCurrencies),
+    ).toMatchObject({
       caption: 'Choose accounts in Settings',
     })
     expect(getRunwayMetric(runway, false, 'USD', testCurrencies)).toMatchObject({
