@@ -41,8 +41,9 @@ class AllowanceKind(StrEnum):
     INSIGHTS = "insights"
 
     # Adding an account, budget or tax-advantaged category in a currency other than the user's main
-    # one. Asked as a feature. A no also leaves amounts in other currencies out of the converted totals
-    # the server computes, and its sentence shows on those totals and on each transaction row left out
+    # one. Asked as a feature. A no also leaves amounts in other currencies the user owns alone out of
+    # the converted totals the server computes, while group-owned amounts still convert. Its sentence
+    # shows on those totals and on each transaction row left out
     FOREIGN_CURRENCIES = "foreign_currencies"
 
     # Changing the user's main currency, asked after the change is validated and before it is saved.
