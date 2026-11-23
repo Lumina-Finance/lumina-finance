@@ -18,6 +18,7 @@ import {
 } from '@/components/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
 import { NOT_CONVERTED_NOTE } from '@/utils/fxStatus'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
@@ -213,18 +214,6 @@ function AccountLogo({
           $
         </span>
       )}
-    </span>
-  )
-}
-
-function ReadOnlyReasonPill({ id, reason }: { id: string; reason: string }) {
-  return (
-    <span
-      id={id}
-      className="inline-flex w-fit max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
-      style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
-    >
-      <span className="min-w-0 truncate">{reason}</span>
     </span>
   )
 }
