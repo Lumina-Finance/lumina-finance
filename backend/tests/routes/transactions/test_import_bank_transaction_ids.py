@@ -109,12 +109,12 @@ async def test_a_full_statement_after_part_of_it_adds_only_the_rest_and_keeps_ev
     headers, account_id, category_id = await _setup_user_with_deps(client)
 
     first = await _import_ofx(client, headers, _ofx_payload(account_id, category_id, [*_march(1, 15), *_INSTALMENTS]))
-    assert first.status_code == 201, first.text
+    assert first.status_code == 200, first.text
     assert (first.json()["transactions_created"], first.json()["transactions_already_imported"]) == (25, 0)
 
     full = await _import_ofx(client, headers, _ofx_payload(account_id, category_id, [*_march(1, 31), *_INSTALMENTS]))
 
-    assert full.status_code == 201, full.text
+    assert full.status_code == 200, full.text
     assert (full.json()["transactions_created"], full.json()["transactions_already_imported"]) == (16, 25)
     ledger = await _ledger(client, headers, account_id)
     assert len(ledger) == 41
@@ -128,11 +128,11 @@ async def test_the_same_statement_into_another_account_skips_nothing(client):
     """Example 4: matching reaches past its account, so a second account loses the statement"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
-    assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, _march(1, 5)))).status_code == 201
+    assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, _march(1, 5)))).status_code == 200
 
     resp = await _import_ofx(client, headers, _ofx_payload(other_id, category_id, _march(1, 5)))
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert (resp.json()["transactions_created"], resp.json()["transactions_already_imported"]) == (5, 0)
     assert len(await _ledger(client, headers, other_id)) == 5
 
@@ -144,7 +144,7 @@ async def test_rows_with_no_bank_id_import_every_time(client):
 
     for expected_count in (3, 6):
         resp = await _import_ofx(client, headers, payload)
-        assert resp.status_code == 201, resp.text
+        assert resp.status_code == 200, resp.text
         assert (resp.json()["transactions_created"], resp.json()["transactions_already_imported"]) == (3, 0)
         assert len(await _ledger(client, headers, account_id)) == expected_count
 
@@ -153,7 +153,7 @@ async def test_a_statement_imported_again_after_its_import_was_undone_imports_wh
     """Example 3: the undo deletes the transactions, so their bank IDs must not stay behind to skip them"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     payload = _ofx_payload(account_id, category_id, _march(1, 5))
-    assert (await _import_ofx(client, headers, payload)).status_code == 201
+    assert (await _import_ofx(client, headers, payload)).status_code == 200
     last = (await client.get("/transactions/import/last", headers=headers)).json()
     undone = await client.post(f"/transactions/import/runs/{last['id']}/undo", headers=headers)
     assert undone.status_code == 200, undone.text
@@ -161,7 +161,7 @@ async def test_a_statement_imported_again_after_its_import_was_undone_imports_wh
 
     resp = await _import_ofx(client, headers, payload)
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert (resp.json()["transactions_created"], resp.json()["transactions_already_imported"]) == (5, 0)
     assert len(await _ledger(client, headers, account_id)) == 5
 
@@ -170,7 +170,7 @@ async def test_a_statement_whose_every_transaction_is_already_there_is_refused_a
     """Saving nothing would still become the last import and take away the undo of the one that wrote them"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     payload = _ofx_payload(account_id, category_id, _march(1, 5))
-    assert (await _import_ofx(client, headers, payload)).status_code == 201
+    assert (await _import_ofx(client, headers, payload)).status_code == 200
     last_before = (await client.get("/transactions/import/last", headers=headers)).json()
 
     resp = await _import_ofx(client, headers, payload)
@@ -335,7 +335,7 @@ async def test_the_pair_is_staged_and_stored_only_as_its_keyed_hash(client):
 
     resp = await _commit_run(client, headers, run_id, source="ofx")
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     async with TestSession() as session:
         stored = await session.scalar(
             select(Transaction.bank_transaction_hash).where(Transaction.account_id == uuid.UUID(account_id)),
@@ -357,7 +357,7 @@ async def test_an_account_key_of_exactly_the_cap_is_accepted(client):
 
     resp = await _import_ofx(client, headers, payload)
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert (resp.json()["transactions_created"], resp.json()["transactions_already_imported"]) == (1, 0)
 
 
@@ -370,7 +370,7 @@ async def test_a_long_bank_id_imports_and_is_recognised_when_imported_again(clie
     first = await _import_ofx(client, headers, payload)
     again = await _import_ofx(client, headers, payload)
 
-    assert first.status_code == 201, first.text
+    assert first.status_code == 200, first.text
     assert (first.json()["transactions_created"], first.json()["transactions_already_imported"]) == (1, 0)
     assert again.status_code == 422
     assert again.json()["detail"] == "Every transaction in this import is already in Main Chequing"
@@ -380,7 +380,7 @@ async def test_an_edited_transaction_moved_to_another_account_is_still_recognise
     """Acceptance 2: an edit that dropped the bank ID would let the next statement bring it in again"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
-    assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, _march(1, 1)))).status_code == 201
+    assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, _march(1, 1)))).status_code == 200
     transaction_id = (await _list_transactions(client, headers))[0]["id"]
 
     edit = await client.patch(
@@ -392,7 +392,7 @@ async def test_an_edited_transaction_moved_to_another_account_is_still_recognise
 
     resp = await _import_ofx(client, headers, _ofx_payload(other_id, category_id, _march(1, 2)))
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert (resp.json()["transactions_created"], resp.json()["transactions_already_imported"]) == (1, 1)
 
 
@@ -412,7 +412,7 @@ async def _count_transaction_reads(client, headers, account_id, category_id, row
     finally:
         event.remove(scoped_engine.sync_engine, "before_cursor_execute", record)
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert (resp.json()["transactions_created"], resp.json()["transactions_already_imported"]) == (row_count - 10, 10)
     return len(reads)
 
@@ -426,7 +426,7 @@ async def test_the_bank_ids_are_read_in_one_statement_however_many_rows_carry_th
         (small_headers, small_account_id, small_category_id),
         (large_headers, large_account_id, large_category_id),
     ):
-        assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, held))).status_code == 201
+        assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, held))).status_code == 200
 
     small = await _count_transaction_reads(client, small_headers, small_account_id, small_category_id, 20)
     large = await _count_transaction_reads(client, large_headers, large_account_id, large_category_id, 1000)
@@ -469,13 +469,13 @@ async def test_two_imports_saving_one_bank_transaction_at_once_write_it_once(cli
         release_first.set()
         won, lost = await asyncio.gather(first, second)
 
-    assert won.status_code == 201, won.text
+    assert won.status_code == 200, won.text
     assert lost.status_code == 409
     assert lost.json()["detail"] == generic_service.BANK_TRANSACTION_RACE_DETAIL
 
     # The loser's run is still staged, so saving it again writes only what the winner left out
     retried = await _commit_run(client, headers, second_run, source="ofx")
-    assert retried.status_code == 201, retried.text
+    assert retried.status_code == 200, retried.text
     assert (retried.json()["transactions_created"], retried.json()["transactions_already_imported"]) == (1, 2)
     async with TestSession() as session:
         ids = (
@@ -495,7 +495,7 @@ async def _import_into_both(client):
     headers, account_id, category_id = await _setup_user_with_deps(client)
     other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
     for target_id in (account_id, other_id):
-        assert (await _import_ofx(client, headers, _ofx_payload(target_id, category_id, _march(1, 3)))).status_code == 201
+        assert (await _import_ofx(client, headers, _ofx_payload(target_id, category_id, _march(1, 3)))).status_code == 200
     first_account = [t for t in await _list_transactions(client, headers) if t["account_id"] == account_id]
     return headers, account_id, other_id, first_account
 
@@ -536,7 +536,7 @@ async def test_moving_a_transaction_into_an_account_holding_other_bank_ids_is_al
     other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
     for target_id, bank_transaction_id in ((account_id, "0001"), (other_id, "0002")):
         payload = _ofx_payload(target_id, category_id, [(bank_transaction_id, "2026-03-01", "-10.00")])
-        assert (await _import_ofx(client, headers, payload)).status_code == 201
+        assert (await _import_ofx(client, headers, payload)).status_code == 200
     moving_id = (await _ledger_transactions(client, headers, account_id))[0]["id"]
 
     resp = await client.patch(f"/transactions/{moving_id}", json={"account_id": other_id}, headers=headers)
@@ -550,8 +550,8 @@ async def test_moving_a_set_some_of_which_an_account_holds_in_bulk_is_refused_wh
     """A set where only some rows clash must not move the free ones and leave the rest behind"""
     headers, account_id, category_id = await _setup_user_with_deps(client)
     other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
-    assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, _march(1, 3)))).status_code == 201
-    assert (await _import_ofx(client, headers, _ofx_payload(other_id, category_id, _march(2, 2)))).status_code == 201
+    assert (await _import_ofx(client, headers, _ofx_payload(account_id, category_id, _march(1, 3)))).status_code == 200
+    assert (await _import_ofx(client, headers, _ofx_payload(other_id, category_id, _march(2, 2)))).status_code == 200
     moving = await _ledger_transactions(client, headers, account_id)
 
     resp = await client.patch(
@@ -604,7 +604,7 @@ async def _import_one_each_with_a_free_row_in_the_other(client):
     other_id = (await _create_account(client, headers, name="Joint Chequing")).json()["id"]
     for target_id, bank_transaction_id in ((account_id, "M1"), (other_id, "X1")):
         payload = _ofx_payload(target_id, category_id, [(bank_transaction_id, "2026-03-01", "-10.00")])
-        assert (await _import_ofx(client, headers, payload)).status_code == 201
+        assert (await _import_ofx(client, headers, payload)).status_code == 200
     return headers, account_id, other_id
 
 

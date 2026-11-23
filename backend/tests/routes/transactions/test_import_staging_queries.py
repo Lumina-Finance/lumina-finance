@@ -24,7 +24,7 @@ from tests.routes.transactions._helpers import (
     _get_system_category_id,
     _setup_user_with_deps,
 )
-from tests.routes.transactions._import_helpers import _build_reference_batch, _open_run
+from tests.routes.transactions._import_helpers import _build_reference_batch, _commit_run, _open_run
 
 # Includes authentication and the run read, while remaining independent of declaration count
 STAGING_SELECT_LIMIT = 16
@@ -98,7 +98,7 @@ async def test_staging_group_alias_reads_are_bounded_and_read_grant_does_not_aut
     run_id = await _open_run(client, member, count)
     staged, selects = await _stage_with_select_count(client, member, run_id, batch)
     assert staged.status_code == 204, staged.text
-    committed = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=member)
+    committed = await _commit_run(client, member, run_id)
     assert committed.status_code == 403
     assert committed.json()["detail"] == "Insufficient permissions"
     assert (await client.get("/transactions", headers=member)).json() == []
@@ -272,7 +272,7 @@ async def test_staging_facts_do_not_survive_permission_revocation_before_commit(
     replay, _replay_count = await _stage_with_select_count(client, member, run_id, batch)
     assert replay.status_code == 404
     assert replay.json()["detail"] == "Account not found"
-    commit = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=member)
+    commit = await _commit_run(client, member, run_id)
     assert commit.status_code == 404
     assert commit.json()["detail"] == "Account not found"
     assert (await client.get("/transactions", headers=admin)).json() == []

@@ -102,7 +102,7 @@ async def _count_unlinked_rows(account_id):
 async def _import_everyday(client, headers, amounts=("-4.50", "-3.25", "-6.00")):
     """Import a CSV into a new account Everyday, returning the run and its summary"""
     committed = await _import_run(client, headers, _csv_payload(list(amounts)), file_name="everyday-test.csv")
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     return (await _last(client, headers))["id"], committed.json()
 
 
@@ -156,7 +156,7 @@ async def test_undo_deletes_everything_the_import_wrote_and_keeps_what_it_reused
     payload["accounts"] = [_EVERYDAY, {"source": "Main", "account_id": main_id}]
     payload["rows"][1]["account_source"] = "Main"
     committed = await _import_run(client, headers, payload, file_name="everyday-test.csv")
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     summary = committed.json()
 
     entry = await _last(client, headers)
@@ -191,7 +191,7 @@ async def test_undo_deletes_everything_an_ofx_import_wrote_and_the_run_with_it(c
     """An OFX statement saves like a CSV, so undoing it must delete its transactions and the account it made too"""
     headers = _get_auth_header(await _create_user(client))
     committed = await _import_run(client, headers, _csv_payload(["-4.50", "12.00"]), source="ofx", file_name="statement.ofx")
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     summary = committed.json()
     entry = await _last(client, headers)
     assert (entry["source"], entry["file_name"], entry["transaction_count"]) == ("ofx", "statement.ofx", 2)
@@ -252,7 +252,7 @@ async def test_undo_deletes_a_provider_import_with_the_accounts_it_archived_and_
         archive={"account_sources": ["Everyday Chequing", "Savings"]},
         file_name="firefly-export.csv",
     )
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     summary = committed.json()
 
     # Both rows and both archive adjustments are the import's
@@ -547,7 +547,7 @@ async def test_an_import_into_a_group_account_cannot_be_undone(client):
     joint = await _create_account(client, headers, name="Joint Checking", group_id=group.json()["id"])
     payload = {**_csv_payload(["-4.50"]), "accounts": [{"source": "Everyday", "account_id": joint.json()["id"]}]}
     committed = await _import_run(client, headers, payload, file_name="joint.csv")
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
 
     # It is never offered, and asked for directly it is refused with its row kept
     assert await _last(client, headers) is None

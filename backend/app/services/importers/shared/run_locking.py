@@ -24,7 +24,8 @@ async def load_locked_run(db: AsyncSession, run_id: uuid.UUID) -> ImportRun | No
     """Load a run and hold it for the rest of the transaction
 
     Every request that changes a run takes this, so staging, committing and dropping one cannot
-    interleave
+    interleave. The request that asks for a save skips a held run instead of waiting, and answers
+    that it is saving
 
     Args:
         db: Active database session

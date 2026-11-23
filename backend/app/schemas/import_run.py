@@ -256,6 +256,12 @@ class TransactionImportRunResponse(BaseModel):
     id: uuid.UUID
 
 
+class ImportRunSaveResponse(BaseModel):
+    """The answer while a run's save is still going, for the page to ask again"""
+
+    state: Literal["saving"]
+
+
 class TransactionImportCreateAccount(BaseModel):
     """New personal account to create during a transaction import."""
 

@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.support.auth_helpers import SIGNUP_PAYLOAD
-from tests.routes.transactions._import_helpers import _format_manifest_amount, _list_transactions, _open_run
+from tests.routes.transactions._import_helpers import _commit_run, _format_manifest_amount, _list_transactions, _open_run
 
 FIXTURE = json.loads(
     (Path(__file__).resolve().parents[2] / "fixtures" / "actual" / "envelope-upload.json").read_text(),
@@ -35,8 +35,8 @@ async def test_a_real_actual_export_imports_to_the_balances_totals_and_budgets_a
     assert resp.status_code == 204, resp.text
     resp = await client.put(f"{run_path}/archive", json={"account_sources": FIXTURE["archive"]}, headers=headers)
     assert resp.status_code == 204, resp.text
-    resp = await client.post(f"{run_path}/journal/commit", headers=headers)
-    assert resp.status_code == 201, resp.text
+    resp = await _commit_run(client, headers, run_id, "actual_budget")
+    assert resp.status_code == 200, resp.text
 
     expected = FIXTURE["expected"]
     as_of = expected["asOf"]

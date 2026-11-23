@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 import pytest
 from sqlalchemy import event, select
-from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
@@ -26,7 +25,7 @@ from tests.routes.base_budgets._helpers import (
 )
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header, sign_up_confirmed
 from tests.routes.transactions._helpers import _get_system_category_id
-from tests.routes.transactions._import_helpers import _chequing_mapping, _firefly_row, _open_staged_run
+from tests.routes.transactions._import_helpers import _chequing_mapping, _commit_run, _firefly_row, _open_staged_run
 
 # The cadence of a budget whose latest limit is one calendar month
 MONTHLY_ON_THE_FIRST = {"freq": "monthly", "instance_length": 1, "weekday": None, "dom": 1, "month": None}
@@ -233,7 +232,12 @@ async def _import_budgets(client, headers, payload):
     staged, run_path = await _stage_budgets(client, headers, payload)
     if staged.status_code != 204:
         return staged
-    return await client.post(f"{run_path}/journal/commit", headers=headers)
+    return await _commit_staged(client, headers, run_path)
+
+
+async def _commit_staged(client, headers, run_path):
+    """Save the run staged under a path and return how the save went"""
+    return await _commit_run(client, headers, run_path.rsplit("/", 1)[1], "firefly")
 
 
 async def _import_one_budget(client, headers, category_id, limits, name="Groceries", is_archived=None, recurrence=None):
@@ -263,7 +267,7 @@ async def _import_one_budget(client, headers, category_id, limits, name="Groceri
         payload["is_archived"] = is_archived
 
     resp = await _import_budgets(client, headers, {"budgets": [payload]})
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     result = resp.json()["budgets"][0]
 
     base_resp = await client.get(f"/base-budgets/{result['base_budget_id']}", headers=headers)
@@ -471,10 +475,10 @@ async def _assert_compact_budget_import(client, record_property):
     staged, run_path = await _stage_budgets(client, headers, payload)
     assert staged.status_code == 204, staged.text
     with _observe_budget_import() as get_observations:
-        response = await client.post(f"{run_path}/journal/commit", headers=headers)
+        response = await _commit_staged(client, headers, run_path)
     observations = get_observations()
 
-    assert response.status_code == 201
+    assert response.status_code == 200
     body = response.json()
     assert body["budgets_created"] == 8
     assert [result["name"] for result in body["budgets"]] == budget_names
@@ -619,7 +623,7 @@ async def test_firefly_budget_import_accepts_system_and_own_categories_with_dupl
         },
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 200
     base_budget_id = uuid.UUID(response.json()["budgets"][0]["base_budget_id"])
     _, _, tracked_categories = await _read_personal_budget_rows(owner_id, [base_budget_id])
     assert len(tracked_categories) == 2
@@ -737,10 +741,10 @@ async def test_firefly_budget_import_bounds_pending_children(client):
     )
     assert staged.status_code == 204, staged.text
     with _observe_budget_import() as get_observations:
-        response = await client.post(f"{run_path}/journal/commit", headers=headers)
+        response = await _commit_staged(client, headers, run_path)
     observations = get_observations()
 
-    assert response.status_code == 201
+    assert response.status_code == 200
     result = response.json()["budgets"][0]
     assert result["instance_count"] == 1000
     child_flushes = [flush for flush in observations.flushes if flush.budgets or flush.tracked_categories]
@@ -782,7 +786,7 @@ async def test_firefly_budget_import_keeps_duplicate_definitions_independent(cli
         },
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 200
     results = response.json()["budgets"]
     assert [result["name"] for result in results] == ["Repeated budget", "Repeated budget"]
     base_budget_ids = [uuid.UUID(result["base_budget_id"]) for result in results]
@@ -845,7 +849,7 @@ async def test_firefly_budget_import_preserves_currency_precision(client, curren
         },
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 200
     base_budget_id = uuid.UUID(response.json()["budgets"][0]["base_budget_id"])
     _, budgets, _ = await _read_personal_budget_rows(owner_id, [base_budget_id])
     assert len(budgets) == 1
@@ -1000,10 +1004,10 @@ async def test_firefly_budget_import_rolls_back_database_failures(client, fault_
     staged, run_path = await _stage_budgets(client, headers, payload)
     assert staged.status_code == 204, staged.text
     with _observe_budget_import(fail_after=fault_boundary) as get_observations:
-        with pytest.raises(DBAPIError):
-            await client.post(f"{run_path}/journal/commit", headers=headers)
+        refused = await _commit_staged(client, headers, run_path)
     observations = get_observations()
 
+    assert (refused.status_code, refused.json()["detail"]) == (500, "The import couldn't be saved")
     assert observations.fault_attempts == 1, observations
     assert observations.commits == 0, observations
     if fault_boundary == "parents":

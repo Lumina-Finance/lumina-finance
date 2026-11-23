@@ -2,6 +2,7 @@
 
 import uuid
 
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bank_transaction_key import seal_bank_transaction_hash
@@ -21,6 +22,7 @@ from app.schemas.import_run import (
 from app.services.importers.generic.service import import_transactions
 from app.services.importers.shared.layouts import save_import_layout
 from app.services.importers.shared.run_commit import commit_run
+from app.services.importers.shared.run_save import read_run_save, request_run_save
 from app.services.importers.shared.run_staging import stage_run_batch
 from app.services.importers.shared.sources import save_import_sources
 
@@ -121,6 +123,45 @@ async def commit_import_run(db: AsyncSession, user: User, run_id: uuid.UUID) -> 
         return summary
 
     return await commit_run(db, run_id, _GENERIC_RUN_SOURCES, TransactionImportResponse, write_run)
+
+
+async def request_import_run_save(db: AsyncSession, user: User, run_id: uuid.UUID) -> TransactionImportResponse | JSONResponse:
+    """Ask for a staged run to be written into the ledger, answering at once that its save is going
+
+    The save is commit_import_run, and the app runs it after answering. A run already saved answers
+    with the summary it returned the first time
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        run_id: Run to save
+
+    Returns:
+        The summary of a run already saved, or the 202 answer that its save is going
+
+    Raises:
+        HTTPException: Raised with 404 for a run that is absent or not the caller's, and 422 when
+            another importer opened the run or it was abandoned before it was saved
+    """
+    return await request_run_save(db, user, run_id, _GENERIC_RUN_SOURCES, TransactionImportResponse)
+
+
+async def read_import_run_save(db: AsyncSession, run_id: uuid.UUID) -> TransactionImportResponse | JSONResponse:
+    """Say how the save of a staged run is going
+
+    Args:
+        db: Active database session
+        run_id: Run whose save is read
+
+    Returns:
+        The summary of a saved run, or the 202 answer that its save is going
+
+    Raises:
+        HTTPException: Raised with 404 for a run that is absent or not the caller's, 409 for a run no
+            save was requested for, 422 when another importer opened the run, and the status and
+            detail commit_import_run refused the save with
+    """
+    return await read_run_save(db, run_id, _GENERIC_RUN_SOURCES, TransactionImportResponse)
 
 
 def _build_import_request(run: ImportRun, rows: list[ImportStagedRow]) -> TransactionImportRequest:

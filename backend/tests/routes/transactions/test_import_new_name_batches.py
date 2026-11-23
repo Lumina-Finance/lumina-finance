@@ -65,7 +65,7 @@ async def test_an_import_of_10000_new_merchants_and_10000_new_tags_commits_with_
 
     resp = await _commit_run(client, headers, run_id)
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     summary = resp.json()
     assert summary["transactions_created"] == NEW_NAME_COUNT
     assert summary["merchants_created"] == NEW_NAME_COUNT

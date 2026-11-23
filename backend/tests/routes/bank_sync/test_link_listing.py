@@ -166,7 +166,7 @@ async def test_listing_that_asks_for_a_fresh_discovery_leaves_the_last_import_un
             ],
         },
     )
-    assert imported.status_code == 201, imported.text
+    assert imported.status_code == 200, imported.text
 
     listed = await _list(client, headers, connection.id, everyday_id)
     last = await client.get("/transactions/import/last", headers=headers)

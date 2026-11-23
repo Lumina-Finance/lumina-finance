@@ -12,8 +12,6 @@ import contextlib
 import functools
 import logging
 import signal
-import uuid
-from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -25,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.allowance_hook import AllowanceKind
 from app.config.bank_sync import BANK_SYNC_WORKER_CONCURRENCY
-from app.database import async_session, current_user_id_ctx, engine, verify_app_role_is_unprivileged
+from app.database import acting_as, async_session, engine, verify_app_role_is_unprivileged
 from app.db.database_keys import verify_database_keys
 from app.db.rls.functions import LIST_DUE_BANK_CONNECTIONS, MIGRATION_REVISIONS, RECORD_BANK_SYNC_SCAN
 from app.models import import_all_models
@@ -66,16 +64,6 @@ _ALEMBIC_INI = Path(__file__).resolve().parents[3] / "alembic.ini"
 _TIMED_OUT = ProviderError(ProviderErrorKind.TEMPORARY, f"The sync took longer than {JOB_TIME_LIMIT.seconds // 60} minutes")
 _STOPPED_BY_AN_ERROR = ProviderError(ProviderErrorKind.UNKNOWN, "The sync stopped because of an unexpected error")
 _INTERRUPTED_TOO_OFTEN = ProviderError(ProviderErrorKind.UNKNOWN, f"The sync was interrupted {MAX_JOB_ATTEMPTS} times")
-
-
-@contextlib.contextmanager
-def _acting_as(user_id: uuid.UUID) -> Iterator[None]:
-    """Work as a user, so every session opened inside stamps their identity for row-level security"""
-    token = current_user_id_ctx.set(user_id)
-    try:
-        yield
-    finally:
-        current_user_id_ctx.reset(token)
 
 
 async def verify_ready_to_sync() -> None:
@@ -122,7 +110,7 @@ async def enqueue_due_work() -> None:
 
     for connection_id, owner_id in due:
         try:
-            with _acting_as(owner_id):
+            with acting_as(owner_id):
                 # Left unqueued, and asked again at the next scan. A check that raises falls to the
                 # handler below as any other failure of this connection does
                 if await find_feature_refusal(owner_id, AllowanceKind.BANK_SYNC) is not None:
@@ -181,7 +169,7 @@ async def run_jobs(max_jobs: int, deadline: datetime | None = None) -> int:
 async def _run_claimed_job(job: ClaimedJob) -> None:
     """Run a claimed job as its owner within its time limit, recording it as failed when it can't finish"""
     started_at = datetime.now(UTC)
-    with _acting_as(job.owner_id):
+    with acting_as(job.owner_id):
         if job.attempt > MAX_JOB_ATTEMPTS:
             logger.warning("Bank sync job %s was interrupted %d times, so it is recorded as failed", job.id, MAX_JOB_ATTEMPTS)
             await _fail_job(job, _INTERRUPTED_TOO_OFTEN, started_at=started_at)

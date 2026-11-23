@@ -40,7 +40,7 @@ async def test_an_import_commits_budgets_up_to_the_most_a_person_keeps(client):
     assert resp.status_code == 204, resp.text
 
     resp = await _commit_run(client, headers, run_id, "firefly")
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert len((await client.get("/base-budgets", headers=headers)).json()) == MAX_BASE_BUDGETS
 
 
@@ -90,5 +90,5 @@ async def test_a_shorter_part_over_longer_staged_budgets_leaves_only_what_it_rep
     assert resp.status_code == 204, resp.text
 
     resp = await _commit_run(client, headers, run_id, "firefly")
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert [budget["name"] for budget in resp.json()["budgets"]] == ["A", "Replacement"]

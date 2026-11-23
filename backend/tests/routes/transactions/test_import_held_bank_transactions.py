@@ -39,7 +39,7 @@ async def _import_statement(client, headers, account_id, category_id, bank_trans
         ],
     }
     resp = await _import_run(client, headers, payload, source="ofx")
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
 
 
 async def _ask(client, headers, items):

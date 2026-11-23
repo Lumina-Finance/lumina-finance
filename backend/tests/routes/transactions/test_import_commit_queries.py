@@ -14,7 +14,7 @@ from app.models.transaction import Transaction
 from app.services.importers.shared import categories as import_categories
 from tests.conftest import TestSession, scoped_engine
 from tests.routes.groups.test_transactions import _grant_account_permission, _setup_group_with_shared_account
-from tests.routes.transactions._import_helpers import _build_reference_batch, _open_run
+from tests.routes.transactions._import_helpers import _build_reference_batch, _commit_run, _open_run
 
 # Reference acquisition must remain bounded independently of necessary snapshot and write work
 COMMIT_REFERENCE_SELECT_LIMIT = 16
@@ -50,7 +50,7 @@ async def _commit_with_reference_count(client, headers, run_id):
 
     event.listen(scoped_engine.sync_engine, "before_cursor_execute", record)
     try:
-        response = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+        response = await _commit_run(client, headers, run_id)
     finally:
         event.remove(scoped_engine.sync_engine, "before_cursor_execute", record)
     return response, counts
@@ -71,14 +71,14 @@ async def test_commit_reference_reads_are_bounded_with_exact_financial_rows_and_
     staged = await client.post(f"/transactions/import/runs/{run_id}/rows", headers=headers, json=batch)
     assert staged.status_code == 204, staged.text
     committed, counts = await _commit_with_reference_count(client, headers, run_id)
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     summary = committed.json()
     assert summary["transactions_created"] == count
     assert summary["accounts_created"] == (count if mode == "create_accounts" else 0)
     assert summary["categories_created"] == ((count + 1) // 2 if mode == "new_category_names" else 0)
     with client.expecting_no_change():
         replay, replay_counts = await _commit_with_reference_count(client, headers, run_id)
-    assert replay.status_code == 201, replay.text
+    assert replay.status_code == 200, replay.text
     assert replay.json() == summary
     async with TestSession() as session:
         # Read the actual durable ledger to prove every source survived resolution and replay
@@ -133,7 +133,7 @@ async def test_commit_batched_group_access_keeps_admin_and_explicit_write_succes
     staged = await client.post(f"/transactions/import/runs/{run_id}/rows", headers=headers, json=batch)
     assert staged.status_code == 204, staged.text
     committed, counts = await _commit_with_reference_count(client, headers, run_id)
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert committed.json()["transactions_created"] == 10
     transactions = (await client.get("/transactions", headers=headers)).json()
     assert len(transactions) == 10
@@ -176,7 +176,7 @@ async def test_commit_category_name_candidates_keep_personal_precedence_and_data
     staged = await client.post(f"/transactions/import/runs/{run_id}/rows", headers=headers, json=batch)
     assert staged.status_code == 204, staged.text
     committed, _counts = await _commit_with_reference_count(client, headers, run_id)
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     summary = committed.json()
     assert summary["categories_created"] == 0
     assert summary["categories_reused"] == 1
@@ -222,7 +222,7 @@ async def test_commit_category_collision_rereads_real_row_and_updates_later_sour
     assert staged.status_code == 204, staged.text
     monkeypatch.setattr(import_categories, "_load_import_category_name_facts", load_then_commit_writer)
     monkeypatch.setattr(import_categories, "_select_reusable_import_category", record_real_reread)
-    committed = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+    committed = await _commit_run(client, headers, run_id)
     assert reread_names == ["Concurrent category"]
     if collision_kind == "income":
         assert committed.status_code == 422, committed.text
@@ -233,7 +233,7 @@ async def test_commit_category_collision_rereads_real_row_and_updates_later_sour
         )
         assert (await client.get("/transactions", headers=headers)).json() == []
     else:
-        assert committed.status_code == 201, committed.text
+        assert committed.status_code == 200, committed.text
         assert committed.json()["categories_created"] == 0
         assert committed.json()["categories_reused"] == 1
         assert set(committed.json()["category_source_ids"].values()) == set(created_ids)

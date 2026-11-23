@@ -2555,7 +2555,7 @@ async def test_concurrent_generic_import_waits_for_bulk_rebuild_and_preserves_to
     )
 
     assert bulk_response.status_code == 200, bulk_response.text
-    assert import_response.status_code == 201, import_response.text
+    assert import_response.status_code == 200, import_response.text
     assert await _read_snapshots(account_id) == [(date(2026, 8, 1), -1000)]
     assert await _read_transaction_total(account_id) == -1000
 
@@ -2613,7 +2613,7 @@ async def test_concurrent_firefly_import_waits_for_bulk_rebuild_and_preserves_to
     )
 
     assert bulk_response.status_code == 200, bulk_response.text
-    assert import_response.status_code == 201, import_response.text
+    assert import_response.status_code == 200, import_response.text
     assert await _read_snapshots(account_id) == [(date(2026, 8, 1), -1000)]
     assert await _read_transaction_total(account_id) == -1000
 

@@ -9,7 +9,7 @@ from tests.conftest import TestSession
 from tests.routes.groups.test_transactions import _grant_account_permission, _setup_group_with_shared_account
 from tests.routes.support import _create_user, _get_auth_header
 from tests.routes.transactions._helpers import _create_account, _setup_user_with_deps
-from tests.routes.transactions._import_helpers import _csv_batch, _firefly_batch, _import_run
+from tests.routes.transactions._import_helpers import _commit_run, _csv_batch, _firefly_batch, _import_run
 
 _SOURCES = "/transactions/import/sources"
 
@@ -26,7 +26,7 @@ def _into(account_id, category_id, amounts=("-4.50",)):
 async def _import(client, headers, account_id, category_id, source):
     """Commit a one-row import from the given importer into the account, returning the run's id"""
     committed = await _import_run(client, headers, _into(account_id, category_id), source=source)
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     return (await client.get("/transactions/import/last", headers=headers)).json()["id"]
 
 
@@ -99,7 +99,7 @@ async def test_an_import_spread_over_two_accounts_remembers_the_source_for_both(
 
     committed = await _import_run(client, headers, batch, source="ofx")
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert sorted(entry["account_id"] for entry in await _list_sources(client, headers)) == sorted([checking_id, savings_id])
 
 
@@ -109,7 +109,7 @@ async def test_a_provider_import_is_remembered_for_the_accounts_it_created(clien
 
     committed = await _import_run(client, headers, _firefly_batch(1), source="firefly")
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert await _list_sources(client, headers) == [
         {"account_id": committed.json()["created_account_ids"][0], "source": "firefly"},
     ]
@@ -161,7 +161,7 @@ async def test_an_import_into_a_shared_group_account_remembers_nothing_for_anyon
 
     committed = await _import_run(client, member, _into(account_id, category_id), source="ofx")
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert await _list_sources(client, member) == []
     assert await _list_sources(client, admin) == []
 
@@ -195,7 +195,7 @@ async def test_a_repeated_commit_answers_without_remembering_again(client):
         await session.commit()
 
     with client.expecting_no_change():
-        repeated = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+        repeated = await _commit_run(client, headers, run_id)
 
-    assert repeated.status_code == 201, repeated.text
+    assert repeated.status_code == 200, repeated.text
     assert await _list_sources(client, headers) == [{"account_id": account_id, "source": "generic"}]

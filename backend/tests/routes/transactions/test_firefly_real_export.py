@@ -15,7 +15,7 @@ from pathlib import Path
 from app.models.currency import Currency
 from tests.conftest import TestSession
 from tests.routes.support import _create_user, _get_auth_header
-from tests.routes.transactions._import_helpers import _format_manifest_amount, _list_transactions, _open_run
+from tests.routes.transactions._import_helpers import _commit_run, _format_manifest_amount, _list_transactions, _open_run
 
 FIXTURE = json.loads(
     (Path(__file__).resolve().parents[2] / "fixtures" / "firefly" / "real-export-upload.json").read_text(),
@@ -88,8 +88,8 @@ async def test_a_real_firefly_export_imports_to_the_balances_and_totals_firefly_
         resp = await client.put(f"{run_path}/archive", json={"account_sources": FIXTURE["archive"]}, headers=headers)
         assert resp.status_code == 204, resp.text
 
-    resp = await client.post(f"{run_path}/journal/commit", headers=headers)
-    assert resp.status_code == 201, resp.text
+    resp = await _commit_run(client, headers, run_id, "firefly")
+    assert resp.status_code == 200, resp.text
 
     # The commit may have created categories the budgets and totals below are read by
     category_ids = await _get_category_ids_by_name(client, headers)

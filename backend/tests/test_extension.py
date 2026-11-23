@@ -81,6 +81,9 @@ EXPECTED_SHAPES: dict[str, str] = {
     "use_valkey": "use_valkey(store: ValkeyStore | None = ...) -> AsyncIterator[ValkeyStore | None]",
     "run_cleanup_timer": "run_cleanup_timer() -> AsyncIterator[None]",
     "set_cleanup_timer_enabled": "set_cleanup_timer_enabled(enabled: bool) -> None",
+    "run_in_app_saves": "run_in_app_saves() -> AsyncIterator[None]",
+    "set_import_save_starter": "set_import_save_starter(starter: Callable[[UUID, UUID], Awaitable[None]]) -> None",
+    "run_import_save": "async run_import_save(run_id: UUID, owner_id: UUID, session_factory: async_sessionmaker[AsyncSession] = ...) -> None",
 }
 
 

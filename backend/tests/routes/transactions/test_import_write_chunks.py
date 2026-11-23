@@ -53,7 +53,7 @@ async def test_an_import_past_one_write_chunk_keeps_every_tag_and_each_account_s
         },
     )
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert resp.json()["transactions_created"] == IMPORT_WRITE_CHUNK + 2
     assert resp.json()["affected_account_ids"] == sorted([chequing_id, savings_id])
 

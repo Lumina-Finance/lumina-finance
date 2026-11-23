@@ -43,6 +43,9 @@ SUPPORTED_POINTS: dict[str, str] = {
     "use_valkey": "app.valkey_store:use_valkey",
     "run_cleanup_timer": "app.services.maintenance.expired_records:run_cleanup_timer",
     "set_cleanup_timer_enabled": "app.services.maintenance.expired_records:set_cleanup_timer_enabled",
+    "run_in_app_saves": "app.services.importers.background_save:run_in_app_saves",
+    "set_import_save_starter": "app.services.importers.shared.run_save:set_import_save_starter",
+    "run_import_save": "app.services.importers.background_save:run_import_save",
 }
 
 __all__ = list(SUPPORTED_POINTS)

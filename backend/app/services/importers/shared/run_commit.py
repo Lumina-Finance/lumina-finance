@@ -12,7 +12,7 @@ from app.models.cache_state import UserCacheState
 from app.models.import_run import ImportRun, ImportRunSource, ImportStagedRow
 from app.services.cache_state import mark_user_cache_changed
 from app.services.importers.shared.run_locking import load_locked_run
-from app.services.importers.shared.run_staging import is_run_abandoned, require_run_source
+from app.services.importers.shared.run_staging import require_run_not_abandoned, require_run_source
 
 
 async def commit_run[Summary: BaseModel](
@@ -77,14 +77,7 @@ async def _lock_run_for_commit(db: AsyncSession, run_id: uuid.UUID, sources: Col
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import run not found")
     require_run_source(run, sources)
-
-    # Refused rather than written, so an import its user has since brought in again cannot land a
-    # second time. The page reads the refusal as nothing written, which is true
-    if is_run_abandoned(run):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="This import expired before it was saved",
-        )
+    require_run_not_abandoned(run)
     return run
 
 

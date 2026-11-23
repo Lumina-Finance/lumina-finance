@@ -127,6 +127,15 @@ class ImportRun(Base):
     # no account's source
     replaced_account_sources: Mapped[dict[str, str | None] | None] = mapped_column(JSONB)
 
+    # When the last request to save the run was made. The save runs after that request is answered, so
+    # a run holding this without a committed_at is being saved, was stopped before it finished, or was
+    # refused, and save_error then says why. A later request overwrites it, so it tells one attempt from the next
+    save_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # The status and detail the last attempt to save the run was refused with. A poll for the
+    # outcome answers with them. Cleared by the next request to save
+    save_error: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
 
 class ImportStagedRow(Base):
     """One row of a staged file, parked until its run is committed

@@ -641,7 +641,7 @@ async def _import_a_file(client, headers) -> None:
             ],
         },
     )
-    assert imported.status_code == 201, imported.text
+    assert imported.status_code == 200, imported.text
 
 
 async def _undoable_import(client, headers) -> dict | None:

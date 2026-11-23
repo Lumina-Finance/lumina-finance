@@ -1,6 +1,8 @@
 """Database engine and session setup"""
 
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar
 
 from sqlalchemy import event, text
@@ -65,6 +67,16 @@ def stamp_request_identity(connection) -> None:
 # The test suite registers this same listener on its own app-role engine so route
 # tests stamp identity exactly as production does
 event.listen(engine.sync_engine, "begin", stamp_request_identity)
+
+
+@contextmanager
+def acting_as(user_id: uuid.UUID) -> Iterator[None]:
+    """Work as a user, so every session opened inside stamps their identity for row-level security"""
+    token = current_user_id_ctx.set(user_id)
+    try:
+        yield
+    finally:
+        current_user_id_ctx.reset(token)
 
 
 async def get_db():
