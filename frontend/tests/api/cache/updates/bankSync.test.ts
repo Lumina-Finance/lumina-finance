@@ -13,7 +13,8 @@
  * kept removal taking out the correction it reopened or leaving it named a removal, a bulk add or
  * dismissal taking out an item it skipped, leaving its count too high for a decided item on a page not
  * loaded yet, reloading the ledger for a dismissal or never reading the inbox again for the items
- * skipped, a restored bank value leaving the inbox showing the ledger value it replaced or the balance panel's ledger stale, a link change settling
+ * skipped, a press of Apply rules leaving an added item in a loaded page or its count, or writing
+ * to the ledger when nothing was added, a restored bank value leaving the inbox showing the ledger value it replaced or the balance panel's ledger stale, a link change settling
  * before the views that show it have refetched, and a deleted account's own bank views asking about
  * it again while its page still shows them
  */
@@ -22,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { BankReviewCounts, BankReviewItem, BankReviewPage } from '@/api/bank-sync/types'
 import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys'
 import {
+  applyAppliedRulesOutcome,
   applyBankLinkChanges,
   applyBulkReviewOutcome,
   applyLedgerReviewOutcome,
@@ -76,11 +78,13 @@ function seedReviewPages(): void {
       {
         items: [createReviewItem('item-1', 'new'), createReviewItem('item-2', 'new')],
         counts: { new: 3, correction: 1, removal: 0 },
+        rules: null,
         next_cursor: 'cursor-2',
       },
       {
         items: [createReviewItem('item-3', 'new'), createReviewItem('item-4', 'correction')],
         counts: { new: 3, correction: 1, removal: 0 },
+        rules: null,
         next_cursor: null,
       },
     ],
@@ -304,7 +308,7 @@ describe('a bulk add or dismissal', () => {
   const accountScopeKey = bankSyncKeys.reviewItems(['account-1'])
 
   const pagesOf = (items: BankReviewItem[], counts: BankReviewCounts): CachedReviewPages => ({
-    pages: [{ items, counts, next_cursor: 'cursor-2' }],
+    pages: [{ items, counts, rules: null, next_cursor: 'cursor-2' }],
     pageParams: [null],
   })
   const pagesIn = (key: QueryKey) =>
@@ -388,6 +392,91 @@ describe('a bulk add or dismissal', () => {
   })
 })
 
+describe('a press of Apply rules', () => {
+  const accountScopeKey = bankSyncKeys.reviewItems(['account-1'])
+  const pagesIn = (key: QueryKey) =>
+    queryClient
+      .getQueryData<CachedReviewPages>(key)
+      ?.pages.map((page) => [page.items.map((item) => item.id), page.counts.new])
+
+  /** Caches the block's scope as two pages, seven new items waiting, and an account's scope holding one of them */
+  function seedScopes(): void {
+    queryClient.setQueryData<CachedReviewPages>(reviewKey, {
+      pages: [
+        {
+          items: [createReviewItem('item-1', 'new'), createReviewItem('item-2', 'correction')],
+          counts: { new: 7, correction: 1, removal: 0 },
+          rules: null,
+          next_cursor: 'cursor-2',
+        },
+        {
+          items: [createReviewItem('item-3', 'new'), createReviewItem('item-4', 'new')],
+          counts: { new: 7, correction: 1, removal: 0 },
+          rules: null,
+          next_cursor: null,
+        },
+      ],
+      pageParams: [null, 'cursor-2'],
+    })
+    queryClient.setQueryData<CachedReviewPages>(accountScopeKey, {
+      pages: [
+        {
+          items: [createReviewItem('item-1', 'new')],
+          counts: { new: 5, correction: 0, removal: 0 },
+          rules: null,
+          next_cursor: null,
+        },
+      ],
+      pageParams: [null],
+    })
+  }
+
+  beforeEach(() => {
+    seedBankViews()
+    seedScopes()
+  })
+
+  it('takes the added items out of every loaded page, and out of the block counts by every one added, once the ledger and the waiting counts have refetched', async () => {
+    const answerTransactions = observeWithHeldRead(transactionKeys.list({ account_id: 'account-1' }), [])
+    const answerLinks = observeWithHeldRead(bankSyncKeys.links(), [createBankLink()])
+    const answerBacklogs = observeWithHeldRead(backlogKey, [createBacklog()])
+
+    const done = applyAppliedRulesOutcome(queryClient, undefined, {
+      // item-9 sits on a page that was never loaded
+      added_ids: ['item-1', 'item-4', 'item-9'],
+      account_ids: ['account-1'],
+      more_to_add: false,
+    })
+    answerTransactions()
+    answerLinks()
+    await settle()
+
+    // The backlog notice would otherwise count items the block no longer shows
+    expect(reviewItemIds()).toContain('item-1')
+
+    answerBacklogs()
+    await done
+
+    expect(pagesIn(reviewKey)).toEqual([
+      [['item-2'], 4],
+      [['item-3'], 4],
+    ])
+
+    // Another scope only loses the items it holds, until it is read again when next shown
+    expect(pagesIn(accountScopeKey)).toEqual([[[], 4]])
+    expectInvalidated([...statusKeys, accountScopeKey, accountKeys.detail('account-1')], true)
+    expectInvalidated([otherAccountKey], false)
+  })
+
+  it('writes nothing and reads only the inbox again when no item was added', async () => {
+    await applyAppliedRulesOutcome(queryClient, undefined, { added_ids: [], account_ids: [], more_to_add: false })
+
+    expect(reviewItemIds()).toEqual(['item-1', 'item-2', 'item-3', 'item-4'])
+    expectInvalidated([reviewKey, accountScopeKey], true)
+    expectInvalidated([...ledgerKeys, ...statusKeys, otherAccountKey], false)
+  })
+})
+
 describe('a review decision that left the ledger alone', () => {
   const waiting = createBankTransaction('transaction-item-4', 'item-4')
   const kept = createBankTransaction('transaction-item-4')
@@ -434,6 +523,7 @@ describe('a review decision that left the ledger alone', () => {
         {
           items: [createReviewItem('item-1', 'new'), item],
           counts: { new: 1, correction: 0, removal: 0, [item.kind]: 1 },
+          rules: null,
           next_cursor: null,
         },
       ],

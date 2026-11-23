@@ -52,6 +52,7 @@ function createReviewItem(kind: BankReviewItemKind, overrides: Partial<BankRevie
     current: kind === 'new' ? null : { ...bank, amount: -1800 },
     changed_fields: [],
     protected_fields: [],
+    rule_fill: null,
     ...overrides,
   }
 }

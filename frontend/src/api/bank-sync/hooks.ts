@@ -19,6 +19,7 @@ import {
 } from '@/api/bank-sync/polling'
 import {
   addReviewItem,
+  applyImportRules,
   bulkAddReviewItems,
   bulkDismissReviewItems,
   claimCredential,
@@ -59,6 +60,7 @@ import { invalidateAccountBankLink, invalidateBankLinks, invalidateBankSyncStatu
 import { bankSyncKeys } from '@/api/cache/queryKeys'
 import {
   applyAccountBankStatus,
+  applyAppliedRulesOutcome,
   applyBankLinkChanges,
   applyBulkReviewOutcome,
   applyLedgerReviewOutcome,
@@ -606,6 +608,30 @@ export function bulkAddReviewItemsMutationOptions(queryClient: QueryClient) {
 export function useBulkAddReviewItems() {
   const queryClient = useQueryClient()
   return useMutation(bulkAddReviewItemsMutationOptions(queryClient))
+}
+
+/**
+ * How a press of Apply rules runs. It settles once the ledger and the review block both show the
+ * items added, and a refusal, most often rules that changed since the list loaded, reads the inbox
+ * again and adds nothing
+ *
+ * @param payload.scope - The accounts the block's list is read for, the same the press takes
+ * @param payload.rulesVersion - The version of the rules the list answered with
+ */
+export function applyImportRulesMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: (payload: { scope: string[] | undefined; rulesVersion: string }) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () =>
+        applyImportRules({ accountIds: payload.scope, rulesVersion: payload.rulesVersion }),
+      ),
+    onSuccess: (result, { scope }) => applyAppliedRulesOutcome(queryClient, scope, result),
+    onError: () => applyRefusedReviewDecision(queryClient),
+  })
+}
+
+export function useApplyImportRules() {
+  const queryClient = useQueryClient()
+  return useMutation(applyImportRulesMutationOptions(queryClient))
 }
 
 /**

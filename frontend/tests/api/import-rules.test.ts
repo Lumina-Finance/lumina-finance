@@ -6,7 +6,8 @@
  * These tests catch a rule sent to the wrong route or with the wrong body, a move that leaves
  * positions or page sizes wrong in the pages on screen, a refused move that isn't put back, a
  * renamed merchant, category, tag or account leaving a rule's row showing the old name, and a count of
- * conditions that stays old after a rule is created, edited or deleted
+ * conditions that stays old after a rule is created, edited or deleted, and a waiting bank item that
+ * keeps showing what a rule filled in after the rule or a name it uses changed
  */
 import { QueryClient, type InfiniteData } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,7 +33,7 @@ import {
 } from '@/api/cache/updates/importRules'
 import { removeMerchantCaches, updateMerchantUpdateCaches } from '@/api/cache/updates/merchants'
 import { removeTagCaches, updateTagUpdateCaches } from '@/api/cache/updates/tags'
-import { importRuleKeys } from '@/api/cache/queryKeys'
+import { bankSyncKeys, importRuleKeys } from '@/api/cache/queryKeys'
 import { invalidateAppData } from '@/api/cache/invalidation'
 import {
   countImportRuleConditions,
@@ -456,6 +457,48 @@ describe('changes elsewhere that a rule row shows', () => {
     invalidateRenamedAccountData(queryClient, { name: 'Chequing' }, { name: 'Chequing' })
 
     expect(isStale()).toBe(false)
+    queryClient.clear()
+  })
+})
+
+describe('the review list the rules fill in', () => {
+  const merchant: Merchant = {
+    id: 'merchant-1',
+    owner_id: 'user-1',
+    group_id: null,
+    name: 'Corner Cafe',
+    is_system: false,
+    default_category_id: null,
+    created_at: '2026-01-01T00:00:00Z',
+  }
+  const tag: Tag = { id: 'tag-1', owner_id: 'user-1', group_id: null, name: 'Work', created_at: '2026-01-01T00:00:00Z' }
+
+  it.each([
+    ['a rule is created', (queryClient: QueryClient) => updateImportRuleCreateCaches(queryClient)],
+    [
+      'a rule is edited',
+      (queryClient: QueryClient) => updateImportRuleUpdateCaches(queryClient, { ...buildRule('c', 2), name: 'New' }),
+    ],
+    ['a rule is deleted', (queryClient: QueryClient) => removeImportRuleCaches(queryClient, 'b')],
+    ['a rule is moved and the server has answered', (queryClient: QueryClient) => settleImportRuleMove(queryClient)],
+    [
+      'a merchant is renamed',
+      (queryClient: QueryClient) => updateMerchantUpdateCaches(queryClient, merchant, { name: 'Cafe' }),
+    ],
+    [
+      'a category is deleted or merged away',
+      (queryClient: QueryClient) => removeCategoryCaches(queryClient, 'category-1'),
+    ],
+    ['a tag is renamed', (queryClient: QueryClient) => updateTagUpdateCaches(queryClient, tag)],
+  ])('reads the waiting items again when %s, since the rule behind each fill may have changed', (_name, change) => {
+    const queryClient = new QueryClient()
+    const key = bankSyncKeys.reviewItems(undefined)
+    queryClient.setQueryData(key, { pages: [], pageParams: [] })
+    expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false)
+
+    change(queryClient)
+
+    expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true)
     queryClient.clear()
   })
 })

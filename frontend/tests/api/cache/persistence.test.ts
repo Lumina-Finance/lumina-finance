@@ -7,7 +7,8 @@
  * leaving it does when it can't be brought up to date, a save that fails must not leave an older
  * copy behind for the next load to restore as fresh, and no save may write a request held while
  * offline along with what it sends, such as both passwords of a password change, the authenticator
- * secret and setup link of a setup in progress, or an emailed reset token
+ * secret and setup link of a setup in progress, or an emailed reset token. A copy saved before the
+ * waiting bank items carried the fill of the import rules is dropped rather than restored as fresh
  */
 import { focusManager, MutationObserver, onlineManager, QueryClient } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -323,6 +324,20 @@ describe('restoring the saved copy', () => {
     await reloaded.restore()
 
     expect(reloaded.client.getQueryData(['bank-sync', 'holds'])).toBeUndefined()
+    expect(reloaded.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('removes a copy saved before waiting bank items carried the fill of the import rules', async () => {
+    const stored = await savedCopyOf((client) =>
+      client.setQueryData(['bank-sync', 'review', 'items', 'all'], { pages: [{ items: [] }], pageParams: [null] }),
+    )
+    // The shape that was current before, '13'. This copy then reads as saved by it
+    stored[QUERY_CACHE_STORAGE_KEY] = JSON.stringify({ ...JSON.parse(stored[QUERY_CACHE_STORAGE_KEY]), shape: '13' })
+
+    const reloaded = loadPage(stored)
+    await reloaded.restore()
+
+    expect(reloaded.client.getQueryData(['bank-sync', 'review', 'items', 'all'])).toBeUndefined()
     expect(reloaded.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
   })
 

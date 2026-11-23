@@ -3,6 +3,7 @@ import { REVIEW_PAGE_SIZE } from '@/api/bank-sync/constants'
 import type {
   AccountBankStatus,
   AddReviewItemPayload,
+  ApplyImportRulesResult,
   BankAccountLink,
   BankConnection,
   BankHistoryReminder,
@@ -301,6 +302,27 @@ function toSentItems(items: BankReviewItem[]) {
  */
 export function bulkAddReviewItems({ items, values }: { items: BankReviewItem[]; values: BulkAddReviewValues }) {
   return post<BulkReviewResult>('/bank-review/items/bulk-add', { items: toSentItems(items), ...values })
+}
+
+/**
+ * Adds every waiting new item the user's import rules give a merchant and a fitting category, over
+ * the accounts the list shows, pages not loaded included. A press against rules changed since the
+ * list loaded is refused and adds nothing
+ *
+ * @param accountIds - The accounts the list is filtered to, or undefined for every account of the user's own
+ * @param rulesVersion - The version of the rules the list answered with
+ */
+export function applyImportRules({
+  accountIds,
+  rulesVersion,
+}: {
+  accountIds: string[] | undefined
+  rulesVersion: string
+}) {
+  return post<ApplyImportRulesResult>('/bank-review/items/apply-rules', {
+    account_ids: accountIds ?? null,
+    rules_version: rulesVersion,
+  })
 }
 
 /**

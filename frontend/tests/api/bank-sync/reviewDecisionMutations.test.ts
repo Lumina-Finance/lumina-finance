@@ -3,8 +3,8 @@
  *
  * These tests catch an item decided in another tab or on another device, or withdrawn by the bank,
  * staying in the review block after a decision on it fails here, whether that was Add to ledger, a
- * bulk add or dismissal or any other decision, and the waiting counts beside the block staying as
- * they were
+ * bulk add or dismissal, a press of Apply rules or any other decision, and the waiting counts beside
+ * the block staying as they were
  */
 import { MutationObserver, QueryClient, type QueryKey } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,6 +20,7 @@ vi.mock('@/api/client', () => ({
 import { ApiError } from '@/api/auth'
 import {
   addReviewItemMutationOptions,
+  applyImportRulesMutationOptions,
   bulkAddReviewItemsMutationOptions,
   bulkDismissReviewItemsMutationOptions,
   resolveReviewItemMutationOptions,
@@ -71,6 +72,15 @@ const refusals = [
         values: { merchant_id: 'merchant-1', category_id: 'transfer' },
       }),
     new ApiError('Choose the account on the other side of this transfer', 422),
+  ],
+  [
+    'a press of Apply rules against rules changed since the list loaded',
+    () =>
+      new MutationObserver(queryClient, applyImportRulesMutationOptions(queryClient)).mutate({
+        scope: undefined,
+        rulesVersion: 'version-1',
+      }),
+    new ApiError('Your import rules changed, so nothing was added', 409),
   ],
   [
     'a bulk dismissal the server could not take',

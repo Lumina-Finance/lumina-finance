@@ -2,7 +2,8 @@
  * Covers the bank sync request functions that reshape what they send
  *
  * These tests catch the review list losing its place between pages, a body losing the field names
- * the backend reads, such as the credential a reconnect sends, a request that waits on the bank
+ * the backend reads, such as the credential a reconnect sends or the version of the rules a press of
+ * Apply rules sends back, a request that waits on the bank
  * provider failing at the shared request limit while the server is still finishing it, and a read
  * that keeps going after the load that asked for it was abandoned
  */
@@ -18,6 +19,7 @@ vi.mock('@/api/client', () => ({
 
 import { createReviewItem } from '@tests/api/cache/updates/fixtures'
 import {
+  applyImportRules,
   bulkAddReviewItems,
   bulkDismissReviewItems,
   claimCredential,
@@ -137,6 +139,20 @@ describe('bank sync writes', () => {
         JSON.stringify({ items: sentItems, merchant_id: 'merchant-1', category_id: 'groceries', dt: '2026-10-01' }),
       ],
       ['/bank-review/items/bulk-dismiss', JSON.stringify({ items: sentItems })],
+    ])
+  })
+
+  it('sends the accounts the list shows and the version of the rules it read, or no accounts for every one', async () => {
+    await applyImportRules({ accountIds: ['account-1', 'account-2'], rulesVersion: 'version-1' })
+    await applyImportRules({ accountIds: undefined, rulesVersion: 'version-2' })
+
+    expect(authenticatedFetchMock.mock.calls.map(([path, options]) => [path, options.method, options.body])).toEqual([
+      [
+        '/bank-review/items/apply-rules',
+        'POST',
+        JSON.stringify({ account_ids: ['account-1', 'account-2'], rules_version: 'version-1' }),
+      ],
+      ['/bank-review/items/apply-rules', 'POST', JSON.stringify({ account_ids: null, rules_version: 'version-2' })],
     ])
   })
 })

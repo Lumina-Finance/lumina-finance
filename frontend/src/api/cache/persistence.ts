@@ -48,7 +48,9 @@ const TIMED_SAVE_INTERVAL_MS = 1000
 // Version 13 adds the reason every account, budget and tax-advantaged category gives while its currency
 // keeps it read-only
 // Version 14 adds whether each refund link candidate shares the merchant and matches the amount left
-const PERSISTED_CACHE_SHAPE = '14'
+// Version 15 adds the fill of the import rules to every waiting bank item, and the facts and version of
+// the rules to the first page of the review list
+const PERSISTED_CACHE_SHAPE = '15'
 
 /**
  * What local storage holds: the saved cache sealed under the user's key, and in plain text only what
