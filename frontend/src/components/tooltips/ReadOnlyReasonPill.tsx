@@ -10,6 +10,8 @@ type ReadOnlyReasonPillProps = {
 /**
  * Why a record can't change, in a pill on one line that cuts the reason short where it runs out of room
  *
+ * The pill is positioned, so it sits above a row's press layer and takes the hover and tap itself
+ *
  * The whole reason shows in a tooltip under the pointer, or beside the pill after a tap, where it stays
  * until the next tap elsewhere. The pill holds the whole reason in its text, so a screen reader reads it
  * all, and the tooltip adds no second copy. The record's own controls, held off with the same reason,
@@ -25,7 +27,7 @@ export function ReadOnlyReasonPill({ id, reason }: ReadOnlyReasonPillProps) {
       <span
         id={pillId}
         data-testid="read-only-reason-pill"
-        className="inline-flex w-fit min-w-0 max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
+        className="relative inline-flex w-fit min-w-0 max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
         style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
         onMouseEnter={controlProps.onMouseEnter}
         onMouseLeave={controlProps.onMouseLeave}

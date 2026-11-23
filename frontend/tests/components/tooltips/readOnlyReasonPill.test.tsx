@@ -18,6 +18,12 @@ describe('ReadOnlyReasonPill', () => {
     expect(pill?.[0]).toContain('max-w-full')
   })
 
+  it('sits above a row’s press layer, so the hover and tap reach it', () => {
+    const markup = renderToStaticMarkup(<ReadOnlyReasonPill id="row-read-only" reason={REASON} />)
+
+    expect(markup).toMatch(/<span id="row-read-only" data-testid="read-only-reason-pill" class="relative /)
+  })
+
   it('carries a tooltip with the reason, closed until a hover or a tap opens it', () => {
     const markup = renderToStaticMarkup(<ReadOnlyReasonPill reason={REASON} />)
     const tooltip = markup.match(/<div data-testid="disabled-reason-tooltip"[^>]*style="([^"]*)"/)
