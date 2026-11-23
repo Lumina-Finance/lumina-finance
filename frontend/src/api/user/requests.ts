@@ -6,6 +6,7 @@ import { fromRunwayResultResponse, fromRunwaySettingsResponse, toRunwaySettingsP
 import type {
   CacheStatus,
   ChangePasswordPayload,
+  FeatureGrants,
   RatesStatus,
   RequestEmailChangePayload,
   RunwayResultResponse,
@@ -26,6 +27,13 @@ export function fetchCacheStatus() {
  */
 export function fetchRatesStatus() {
   return authenticatedFetch<RatesStatus>('/me/rates-status')
+}
+
+/**
+ * Fetches the features the current user is granted
+ */
+export function fetchFeatureGrants(signal?: AbortSignal) {
+  return authenticatedFetch<FeatureGrants>('/me/feature-grants', { signal })
 }
 
 /**

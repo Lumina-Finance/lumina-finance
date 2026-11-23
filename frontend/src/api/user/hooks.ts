@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   invalidateProfileUpdateCaches,
   updateRunwayAccountCaches,
@@ -8,6 +8,7 @@ import { runWithMinimumPendingTime } from '@/api/utils/mutationFeedback'
 import {
   changePassword,
   fetchDataExport,
+  fetchFeatureGrants,
   fetchRunway,
   fetchRunwayAccounts,
   fetchRunwaySettings,
@@ -21,6 +22,34 @@ import { getFxAwareStaleTime } from '@/api/shared/fxCache'
 import { useAuth } from '@/hooks/useAuth'
 
 const RUNWAY_FX_STALE_TIME_MS = 10 * 60 * 1000
+
+// Asked again each time a page that reads it opens, since the features a user is granted can change
+// between visits without any change to their data
+const FEATURE_GRANTS_STALE_TIME_MS = 0
+
+/**
+ * The read of the features the current user is granted
+ *
+ * @param enabled - Whether to ask at all
+ */
+export function featureGrantsQueryOptions(enabled: boolean) {
+  return queryOptions({
+    queryKey: userKeys.featureGrants(),
+    queryFn: ({ signal }) => fetchFeatureGrants(signal),
+    enabled,
+    staleTime: FEATURE_GRANTS_STALE_TIME_MS,
+  })
+}
+
+/**
+ * Reads the features the current user is granted
+ *
+ * @param enabled - Whether to ask at all, false wherever no screen would cover a page
+ */
+export function useFeatureGrants(enabled: boolean) {
+  const { accessToken } = useAuth()
+  return useQuery(featureGrantsQueryOptions(enabled && !!accessToken))
+}
 
 /**
  * Updates the current user's editable profile fields

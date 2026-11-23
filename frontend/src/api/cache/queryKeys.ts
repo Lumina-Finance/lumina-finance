@@ -109,6 +109,7 @@ export const userKeys = {
   runwayAccounts: () => ['me', 'runway-accounts'] as const,
   runwaySettings: () => ['me', 'runway-settings'] as const,
   runway: () => ['me', 'runway'] as const,
+  featureGrants: () => ['me', 'feature-grants'] as const,
 }
 
 // Keyed by the frontend build, so the first load after an update asks the server again rather

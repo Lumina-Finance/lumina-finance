@@ -17,6 +17,7 @@ import { useLabelFocus } from '@/hooks/useLabelFocus'
 import Navigation from '@/components/navigation/Navigation'
 import ErrorBoundary from '@/components/errors/Boundary'
 import Fallback from '@/components/errors/Fallback'
+import { FeatureCover } from '@/components/feature-cover/Cover'
 import { MaintenanceScreen } from '@/components/errors/MaintenanceScreen'
 import { ServerNotice } from '@/components/feedback/ServerNotice'
 import LoadingScreen from '@/components/loading/Screen'
@@ -496,7 +497,14 @@ function AnimatedRoutes() {
           <Route path="/accounts/:accountId" element={<AccountDetailPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/budgets" element={<BudgetsPage />} />
-          <Route path="/insights" element={<InsightsPage />} />
+          <Route
+            path="/insights"
+            element={
+              <FeatureCover feature="insights">
+                <InsightsPage />
+              </FeatureCover>
+            }
+          />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/imports" element={<ImportsPage />} />
           <Route path="/settings/bank-authorization" element={<BankAuthorizationPage />} />

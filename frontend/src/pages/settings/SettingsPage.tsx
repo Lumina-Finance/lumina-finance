@@ -1,6 +1,8 @@
 import { useAccounts } from '@/api/accounts'
 import { useBankProviders } from '@/api/bank-sync'
 import { useOidcIdentities } from '@/api/oidc'
+import { FeatureCover } from '@/components/feature-cover/Cover'
+import { useFeatureCover } from '@/components/feature-cover/useFeatureCover'
 import { BankConnectionsSection } from '@/pages/settings/components/bank-connections-section/Section'
 import CategorySettingsSection from '@/pages/settings/components/category-settings-section/Section'
 import MerchantSettingsSection from '@/pages/settings/components/merchant-settings-section/Section'
@@ -25,7 +27,7 @@ import { listSettingsSections } from '@/pages/settings/settingsNavigation'
  * and tax-advantaged panes behind one section navigation
  *
  * Bank connections are left out, section and navigation entry alike, for a user the bank-linking
- * check refuses
+ * check refuses, unless the build has a screen to cover the section with
  *
  * Each pane keeps its own draft, dirty state, and save controls, so saving or discarding one
  * pane leaves the edits in the others alone
@@ -84,7 +86,8 @@ export default function SettingsPage() {
     closeStepUp,
   } = useSecuritySettingsForm({ savedEmail: user?.email ?? '', hasPassword })
   const { data: bankProviders } = useBankProviders()
-  const sections = listSettingsSections(bankProviders)
+  const bankSyncCover = useFeatureCover('bank_sync')
+  const sections = listSettingsSections(bankProviders, bankSyncCover.status)
   const sectionNavigation = useSettingsSectionNavigation(sections)
   const showBankConnections = sections.some((section) => section.id === 'bank-connections')
   const { exportAllData, isExporting } = useExportAllData()
@@ -220,7 +223,11 @@ export default function SettingsPage() {
             actions={runwayActions}
           />
 
-          {showBankConnections && <BankConnectionsSection />}
+          {showBankConnections && (
+            <FeatureCover feature="bank_sync" id="bank-connections" className="scroll-mt-18">
+              <BankConnectionsSection />
+            </FeatureCover>
+          )}
 
           <CategorySettingsSection />
 
