@@ -40,14 +40,18 @@ async def test_an_import_past_one_write_chunk_keeps_every_tag_and_each_account_s
         "tag_names": ["imported", "boundary"],
     }
 
-    resp = await _import_run(client, headers, {
-        "accounts": [
-            {"source": "Chequing", "account_id": chequing_id},
-            {"source": "Savings", "account_id": savings_id},
-        ],
-        "categories": [{"source": "Groceries", "category_id": category_id}],
-        "rows": [*chequing_rows, later_chequing_row, savings_row],
-    })
+    resp = await _import_run(
+        client,
+        headers,
+        {
+            "accounts": [
+                {"source": "Chequing", "account_id": chequing_id},
+                {"source": "Savings", "account_id": savings_id},
+            ],
+            "categories": [{"source": "Groceries", "category_id": category_id}],
+            "rows": [*chequing_rows, later_chequing_row, savings_row],
+        },
+    )
 
     assert resp.status_code == 201, resp.text
     assert resp.json()["transactions_created"] == IMPORT_WRITE_CHUNK + 2
