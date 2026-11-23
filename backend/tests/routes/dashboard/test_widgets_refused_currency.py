@@ -86,6 +86,7 @@ async def test_dashboard_widgets_leave_out_accounts_in_another_currency_the_chec
     assert data["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON}
 
 
+@pytest.mark.parametrize("path", ["/dashboard/credit", "/dashboard/credit-utilization"])
 @pytest.mark.parametrize(
     ("usd_limit", "limit_withheld"),
     [
@@ -93,7 +94,7 @@ async def test_dashboard_widgets_leave_out_accounts_in_another_currency_the_chec
         pytest.param(0, False, id="only-us-credit-used-is-left-out"),
     ],
 )
-async def test_dashboard_credit_says_whether_a_limit_was_left_out(client, monkeypatch, usd_limit, limit_withheld):
+async def test_dashboard_credit_says_whether_a_limit_was_left_out(client, monkeypatch, path, usd_limit, limit_withheld):
     """A Canadian card with no limit beside a US card with 50.00 used says a limit was left out only when the US card has one"""
     from app.routes import dashboard as dashboard_routes
 
@@ -120,7 +121,7 @@ async def test_dashboard_credit_says_whether_a_limit_was_left_out(client, monkey
         await session.commit()
     install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
 
-    response = await client.get("/dashboard/credit", headers=headers)
+    response = await client.get(path, headers=headers)
 
     assert response.status_code == 200, response.text
     data = response.json()
