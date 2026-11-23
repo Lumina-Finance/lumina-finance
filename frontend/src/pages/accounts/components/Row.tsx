@@ -235,7 +235,10 @@ export default function AccountRow({
               >
                 {convertedBalanceText}
               </p>
-              <span className="relative z-10 inline-flex">
+              {/* Positioned and later than the name's stretched link, so it takes presses over it, with no z-index.
+                  One would make a stacking context that holds the tooltip's own z-40 down under the sticky
+                  institution header, so the sentence would show only below it */}
+              <span className="relative inline-flex">
                 <FxStatusBadge
                   label="Account balance FX status"
                   fxStatus={fxStatus}

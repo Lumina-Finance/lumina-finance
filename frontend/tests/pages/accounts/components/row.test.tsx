@@ -61,6 +61,10 @@ describe('account row', () => {
     expect(markup).not.toContain('FX unavailable')
     expect(markup).toContain('aria-label="Account balance FX status"')
     expect(markup).toContain(reason)
+
+    // No z-index around the badge, since one would hold its tooltip under the sticky institution header
+    const wrapper = markup.split('aria-label="Account balance FX status"')[0].split('<span').at(-2) ?? ''
+    expect(wrapper).not.toMatch(/\bz-\d+/)
   })
 
   it("describes the link by what the row shows beside the name, in the row's order", () => {
