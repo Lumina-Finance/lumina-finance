@@ -54,8 +54,11 @@ export function useAccountField({
     () => buildCounterpartyAccountOptions(counterpartyAccounts, form.account_id, form.symmetric_transfer),
     [counterpartyAccounts, form.account_id, form.symmetric_transfer],
   )
+  // An archived or read-only account is off the list, so the transaction's own account is supplied as its own option
   const selectedArchivedAccountOption =
-    editing && selectedAccount?.is_archived ? { value: selectedAccount.id, label: selectedAccount.name } : undefined
+    editing && (selectedAccount?.is_archived || selectedAccount?.read_only_reason)
+      ? { value: selectedAccount.id, label: selectedAccount.name }
+      : undefined
 
   // An account archived after the transfer was recorded is off the list above, so the stored answer
   // is supplied as its own option. Without it the field would read as unanswered, and every edit
@@ -86,7 +89,7 @@ export function useAccountField({
 
   /** Reports whether an account can hold the matching transaction the ticked checkbox writes */
   const canReceivePairedTransaction = (accountId: string) =>
-    accounts.some((account) => account.id === accountId && !account.is_archived)
+    accounts.some((account) => account.id === accountId && !account.is_archived && !account.read_only_reason)
 
   const handleSymmetricTransferChange = (value: boolean) => {
     setForm((f) => ({

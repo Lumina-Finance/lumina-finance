@@ -139,12 +139,19 @@ export default function CreateTransactionModal({
   const linksByAccount = useBankLinksByAccount()
   const currencyState = useCurrencyListState()
   const selectableAccounts = useMemo(() => {
-    const unarchived = accounts.filter((account) => !account.is_archived)
-    return refundOf ? getRefundAccounts(unarchived, refundOf.currency) : unarchived
-  }, [accounts, refundOf])
+    // An archived account takes no new transactions, and neither does one the server keeps read-only. A bank
+    // item's own account stays, so its review names it while Add to ledger waits
+    const writable = accounts.filter(
+      (account) => account.id === reviewItem?.account_id || (!account.is_archived && !account.read_only_reason),
+    )
+    return refundOf ? getRefundAccounts(writable, refundOf.currency) : writable
+  }, [accounts, refundOf, reviewItem?.account_id])
   const prefersReducedMotion = useReducedMotion()
   const reviewAccount = reviewItem && accounts.find((account) => account.id === reviewItem.account_id)
   const reviewCurrency = reviewAccount?.currency ?? ''
+
+  // A bank item in an account the server keeps read-only can be dismissed but not added
+  const reviewReadOnlyReason = reviewAccount?.read_only_reason ?? undefined
 
   // Build the initial form from the bank item (review), the existing transaction (edit) or sensible
   // defaults (create)
@@ -197,7 +204,8 @@ export default function CreateTransactionModal({
     () => accounts.find((account) => account.id === form.counterparty_account_id),
     [accounts, form.counterparty_account_id],
   )
-  const readOnly = editing && (readOnlyProp || Boolean(selectedAccount?.is_archived))
+  const readOnly =
+    editing && (readOnlyProp || Boolean(selectedAccount?.is_archived || selectedAccount?.read_only_reason))
 
   // A restored bank value is already saved, so the transaction as the restore answered it is the one a
   // save compares the form with, and its bank source says which fields are still edited. The form
@@ -421,7 +429,7 @@ export default function CreateTransactionModal({
     resetRefusal: refusal.reset,
     setSubmitError,
     setSubmitErrorTitle,
-    readOnly,
+    readOnly: readOnly || Boolean(reviewReadOnlyReason),
     accounts,
     selectedAccount,
     selectedCurrencyExponent,
@@ -579,7 +587,7 @@ export default function CreateTransactionModal({
     <TransactionReviewFooter
       isPending={isPending}
       submitLoading={submitLoading}
-      submitBlockedReason={refusal.blockedReason}
+      submitBlockedReason={reviewReadOnlyReason ?? refusal.blockedReason}
       dismissLoading={dismissLoading}
       keepOpen={keepOpenAfterCreate}
       onKeepOpenChange={setKeepOpenAfterCreate}

@@ -30,16 +30,18 @@ export function buildCounterpartyAccountOptions(
 ) {
   // Money cannot move from an account to itself, so the account holding the transfer is left out
   // rather than offered and then refused
-  const eligibleAccounts = accounts
-    .filter((account) => account.id !== recordedAccountId && !account.is_archived)
-    .map((account) => ({ value: account.id, label: account.name }))
+  const eligibleAccounts = accounts.filter((account) => account.id !== recordedAccountId && !account.is_archived)
+  const toOptions = (eligible: AccountsOverview[]) =>
+    eligible.map((account) => ({ value: account.id, label: account.name }))
 
   // Ticking the checkbox makes this the account the matching transaction is written to, and there
-  // is nowhere outside the app to write one, so the entry is not offered there
-  if (isSymmetricTransfer) return eligibleAccounts
+  // is nowhere outside the app to write one, so the entry is not offered there. Nor is an account the
+  // server keeps read-only, as it takes no new transaction. Naming one without the checkbox only records
+  // where the money went, so the plain list keeps it
+  if (isSymmetricTransfer) return toOptions(eligibleAccounts.filter((account) => !account.read_only_reason))
 
   // First, because it is the one answer that is not a search through the account list
-  return [{ value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL }, ...eligibleAccounts]
+  return [{ value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL }, ...toOptions(eligibleAccounts)]
 }
 
 /**

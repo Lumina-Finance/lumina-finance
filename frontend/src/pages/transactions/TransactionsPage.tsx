@@ -187,7 +187,9 @@ export default function TransactionsPage() {
   const editingTransactionReadOnly = useMemo(() => {
     if (!editingTransaction) return false
 
-    return Boolean(accounts?.find((account) => account.id === editingTransaction.account_id)?.is_archived)
+    // An archived account's transactions open read-only, and so do those of an account the server keeps read-only
+    const account = accounts?.find((candidate) => candidate.id === editingTransaction.account_id)
+    return Boolean(account?.is_archived || account?.read_only_reason)
   }, [accounts, editingTransaction])
   const handleSettledTransactionsChange = useCallback((transactions: Transaction[]) => {
     latestTransactionsRef.current = transactions
