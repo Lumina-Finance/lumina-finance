@@ -23,7 +23,7 @@ export default function UnlinkableCandidates({ picksRefund, rooms, children }: U
       label={describeUnlinkable(picksRefund, rooms)}
       expanded={expanded}
       onToggle={() => setExpanded((open) => !open)}
-      // The section's own header pins as it scrolls. Isolating the section keeps that header under the pinned search
+      // The section's own header draws above its rows. Isolating the section keeps that header under the pinned search
       // field as the list scrolls up beneath it
       className="isolate mt-2"
       bodyClassName="pt-1"
