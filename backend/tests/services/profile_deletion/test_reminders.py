@@ -92,7 +92,7 @@ async def test_the_edges_of_the_lead_decide_who_is_reminded(sent_action_emails, 
 async def test_the_reminder_names_the_date_in_the_profile_zone(sent_action_emails):
     """A due time at 03:00 UTC is still the evening before in Toronto, so the reminder names that day, not the UTC one"""
     now = datetime.now(UTC)
-    # The next 03:00 UTC at least an hour ahead, so inside the lead
+    # The next 03:00 UTC at least an hour ahead, so the due time is still ahead when the pass claims it
     due_at = now.replace(hour=3, minute=0, second=0, microsecond=0)
     if due_at < now + timedelta(hours=1):
         due_at += timedelta(days=1)

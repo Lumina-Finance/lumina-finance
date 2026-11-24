@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import func, select, text, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -115,6 +115,24 @@ async def test_a_cancel_waits_for_the_lock_and_clears_the_mark_once_it_is_releas
     assert cancelled.deletion_due_at is None
     assert await _stored_marks(user) == (None, None, None)
     assert await _accounts(user.id) == 1
+
+
+async def test_a_cancel_that_waited_while_the_profile_was_deleted_is_refused_as_too_late(profile_deletions):
+    """A cancel queued behind the lock finds the user row gone once the holder deletes it, and is told the deletion has begun"""
+    now = datetime.now(UTC)
+    user = await _commit_user("gone@example.com", requested_at=now - timedelta(days=7), due_at=now - timedelta(minutes=1))
+
+    async with _holding_the_user_row(user.id) as (holder, someone_is_waiting):
+        cancel = asyncio.create_task(_cancel(user.id))
+        await _poll(someone_is_waiting, "the cancel never queued behind the lock")
+        assert not cancel.done(), "the cancel is still waiting"
+        await holder.execute(delete(User).where(User.id == user.id))
+
+    with pytest.raises(HTTPException) as refused:
+        await cancel
+
+    assert (refused.value.status_code, refused.value.detail) == (409, _ALREADY_UNDER_WAY)
+    assert await _stored_marks(user) is None
 
 
 async def test_a_cancel_that_waits_past_the_due_time_is_refused_and_the_profile_stays_marked(profile_deletions):
