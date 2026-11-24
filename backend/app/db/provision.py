@@ -11,9 +11,9 @@ from app.db.credentials import resolve_role_password
 from app.db.rls import apply_rls, revoke_rls
 
 # Least-privilege attributes both managed roles are created with. They are set only at creation,
-# since a role without superuser rights may not name SUPERUSER or BYPASSRLS in any ALTER ROLE, even
-# to turn them off. A later run refuses a role that no longer has them instead of repairing it
-_ROLE_ATTRIBUTES = "LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS"
+# since a role without superuser rights may not name SUPERUSER, BYPASSRLS or REPLICATION in any ALTER
+# ROLE, even to turn them off. A later run refuses a role that no longer has them instead of repairing it
+_ROLE_ATTRIBUTES = "LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS NOREPLICATION"
 
 # What each managed role must still hold on every run: the pg_roles column, the value it must have,
 # the attribute's name and the clause that restores it. LOGIN is checked too, since a role that
@@ -21,9 +21,23 @@ _ROLE_ATTRIBUTES = "LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS"
 _REQUIRED_ATTRIBUTES = (
     ("rolsuper", False, "SUPERUSER", "NOSUPERUSER"),
     ("rolbypassrls", False, "BYPASSRLS", "NOBYPASSRLS"),
+    ("rolreplication", False, "REPLICATION", "NOREPLICATION"),
     ("rolcreaterole", False, "CREATEROLE", "NOCREATEROLE"),
     ("rolcreatedb", False, "CREATEDB", "NOCREATEDB"),
     ("rolcanlogin", True, "LOGIN", "LOGIN"),
+)
+
+# Every grant of another role to the app role, as the role granted and the role that granted it. A
+# member inheriting the migrator's privileges owns every table, and an owner skips the row-level
+# security policies. The app role needs no membership, so setup refuses any. Direct memberships are
+# enough to find, since every indirect one passes through a direct one. A server older than
+# PostgreSQL 16 lets the granting role be dropped, and the grantor is then null
+_APP_ROLE_MEMBERSHIPS = (
+    "SELECT granted.rolname, grantor.rolname FROM pg_auth_members m "
+    "JOIN pg_roles granted ON granted.oid = m.roleid "
+    "LEFT JOIN pg_roles grantor ON grantor.oid = m.grantor "
+    "WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = :role) "
+    "ORDER BY granted.rolname, grantor.rolname"
 )
 
 # Role key passed to the password resolver paired with the role name it provisions
@@ -65,11 +79,12 @@ async def _create_missing_roles(conn: AsyncConnection) -> None:
 
 
 async def _refuse_drifted_roles(conn: AsyncConnection) -> None:
-    """Refuse to go on while a managed role no longer has the attributes it was created with
+    """Refuse to go on while a managed role lost an attribute it was created with, or the app role belongs to another role
 
     Raises:
-        RuntimeError: A role has SUPERUSER, BYPASSRLS, CREATEROLE or CREATEDB, or lacks LOGIN,
-            naming each role and attribute and the statement that restores it
+        RuntimeError: A role has SUPERUSER, BYPASSRLS, REPLICATION, CREATEROLE or CREATEDB, or lacks
+            LOGIN, or the app role is a member of another role, naming each and the statements that
+            restore the roles
     """
     problems = []
     fixes = []
@@ -79,11 +94,18 @@ async def _refuse_drifted_roles(conn: AsyncConnection) -> None:
             if row[column] != required:
                 problems.append(f'"{role_name}" {"has" if row[column] else "lacks"} {attribute}')
                 fixes.append(f'ALTER ROLE "{role_name}" {restoring_clause}')
+
+    # A role granted by two grantors is one membership with two grants to revoke, since on
+    # PostgreSQL 16 and later a REVOKE removes only the grant made by the grantor it names
+    grants = (await conn.execute(text(_APP_ROLE_MEMBERSHIPS), {"role": APP_DB_USER})).all()
+    problems.extend(f'"{APP_DB_USER}" is a member of "{granted}"' for granted in dict.fromkeys(granted for granted, _ in grants))
+    fixes.extend(f'REVOKE "{granted}" FROM "{APP_DB_USER}"' + (f' GRANTED BY "{grantor}"' if grantor else "") for granted, grantor in grants)
+
     if problems:
         raise RuntimeError(
             f"Refusing to set up the database roles because {', '.join(problems)}. "
-            "Set-up gives a role its attributes only when it creates the role. "
-            f"A database administrator can restore them by running {', '.join(fixes)}"
+            "Setup gives a role its attributes only when it creates the role, and never grants the app role another role or revokes one. "
+            f"A superuser can restore the roles by running {', '.join(fixes)}"
         )
 
 
@@ -139,7 +161,8 @@ async def ensure_roles() -> None:
     """Create the migrator and app roles and grant their baseline access
 
     Works for an admin login with or without superuser rights. Role attributes are set only when a
-    role is created. Each run refuses a role that has drifted, then sets both
+    role is created. Each run refuses a role that has drifted or an app role that belongs to another
+    role, then sets both
     passwords, grants and reads back the baseline access, and sets the app role's two limits again
     """
     engine = _create_admin_engine()
