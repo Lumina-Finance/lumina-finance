@@ -124,6 +124,15 @@ export function deleteProfile(stepUp?: StepUpPayload) {
 }
 
 /**
+ * Cancels a deletion that is waiting to run, answering with the user it hands back to the app
+ *
+ * The server refuses once the due time has passed
+ */
+export function cancelProfileDeletion() {
+  return authenticatedFetch<User>('/auth/profile/delete/cancel', { method: 'POST' })
+}
+
+/**
  * Asks for a confirmation email to a new address for the account
  *
  * The answer is the same whether or not another account uses the address, and the account's address

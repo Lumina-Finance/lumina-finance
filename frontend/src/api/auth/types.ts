@@ -11,6 +11,9 @@ export interface User {
   created_at: string
   // True after a recovery-code login, holding the account to the forced re-enrolment screen
   second_factor_reenrollment_required: boolean
+  // When the profile is deleted, as an ISO time, while a deletion waits to run. Holds the app to the
+  // cancel screen until then
+  deletion_due_at: string | null
 }
 
 export interface AuthResponse {

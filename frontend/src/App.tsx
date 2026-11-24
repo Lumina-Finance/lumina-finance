@@ -21,6 +21,7 @@ import { FeatureCover } from '@/components/feature-cover/Cover'
 import { MaintenanceScreen } from '@/components/errors/MaintenanceScreen'
 import { ServerNotice } from '@/components/feedback/ServerNotice'
 import LoadingScreen from '@/components/loading/Screen'
+import ScheduledDeletionScreen from '@/components/profile-deletion/ScheduledDeletionScreen'
 import ForcedReenrollScreen from '@/components/two-factor/ForcedReenrollScreen'
 import { lazyPage } from '@/utils/pageCode'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
@@ -172,7 +173,7 @@ function ProtectedRoute({
     return () => cancelAnimationFrame(frame)
   }, [ready])
 
-  useCacheValidation(user?.id, Boolean(user && ready && !currencyListUnavailable), setUser)
+  useCacheValidation(user?.id, Boolean(user && ready && !currencyListUnavailable && !user.deletion_due_at), setUser)
 
   // Hold the route loader back until the chunk has stayed pending past the delay so
   // cached or fast navigations never flash the spinner, and clear the flag on
@@ -207,6 +208,10 @@ function ProtectedRoute({
 
   // A recovery-code login holds the account to re-enrolment before any route renders
   if (user?.second_factor_reenrollment_required) return <ForcedReenrollScreen />
+
+  // A profile waiting to be deleted can only cancel the deletion or sign out, since the server refuses every
+  // other request until then
+  if (user?.deletion_due_at) return <ScheduledDeletionScreen dueAt={user.deletion_due_at} />
 
   // Nothing retries this on its own, not a refocus, a reconnect, or the remount every navigation
   // performs, so it stands until the user reloads, which is what the screen asks them to do. It says
@@ -414,7 +419,12 @@ function AnimatedRoutes() {
   // Bank sync status is kept current from here rather than from a page, since this outlives every
   // navigation, so a sync that finishes while the user is anywhere in the app shows as finished
   useBankSyncHeartbeat(
-    Boolean(user && !user.second_factor_reenrollment_required && isProtectedPath(displayLocation.pathname)),
+    Boolean(
+      user &&
+      !user.second_factor_reenrollment_required &&
+      !user.deletion_due_at &&
+      isProtectedPath(displayLocation.pathname),
+    ),
   )
 
   return (
@@ -426,6 +436,7 @@ function AnimatedRoutes() {
           loading screen, which sits above the nav's stacking level */}
       {user &&
         !user.second_factor_reenrollment_required &&
+        !user.deletion_due_at &&
         isProtectedPath(displayLocation.pathname) &&
         hasRevealedApp && <Navigation />}
       {/* Login, sign-up and forgot-password share one key, so moving between them morphs the form in

@@ -16,6 +16,7 @@ export type {
 } from '@/api/user/types'
 
 export {
+  cancelProfileDeletion,
   changePassword,
   deleteProfile,
   endOtherSessions,
