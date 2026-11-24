@@ -1,19 +1,21 @@
 """What the allowance check does to account creation, the full table every other record kind's route repeats one case of
 
-A refusal answers 403 with the check's own sentence and creates nothing. A check that raises is a
+A refusal answers 403 with the check's own sentence and creates nothing, and so does a refusal of
+accounts in a currency other than the user's main one. A check that raises is a
 fault in the installed code, so the request fails as any server fault does and creates nothing
 """
 
 import asyncio
 import contextlib
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.allowance_hook import AllowanceKind, AllowanceRequest, Refusal, set_allowance_check
 from app.main import app
 from tests.routes.accounts._account_helpers import _create_second_user
 from tests.routes.support import _account_names, _create_account, _create_user, _get_auth_header
-from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check, seed_usd_currency
 from tests.routes.support.authorization_helpers import _sign_up_other_user
 
 # How long a check waits for another request to join it, long enough for a loaded host to start both
@@ -142,3 +144,43 @@ async def test_two_users_creating_at_once_do_not_wait_for_each_other(client):
 
     assert [response.status_code for response in responses] == [201, 201]
     assert max(overlaps) == 2, "one user's create waited for the other's"
+
+
+async def test_create_account_in_another_currency_without_a_check_is_created(client):
+    """With no check installed, a US dollar account is created beside a Canadian dollar main currency"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+
+    created = await _create_account(client, headers, name="US Cash", currency="USD")
+
+    assert created.status_code == 201, created.text
+    assert created.json()["currency"] == "USD"
+    assert await _account_names(client, headers) == ["US Cash"]
+
+
+@pytest.mark.parametrize(
+    ("currency", "in_group", "status_code", "detail", "names", "asks"),
+    [
+        pytest.param("USD", False, 403, ALLOWANCE_REASON, [], 1, id="another-currency-refused"),
+        pytest.param("CAD", False, 201, None, ["Cash"], 0, id="main-currency-never-asked"),
+        pytest.param("USD", True, 201, None, ["Cash"], 0, id="group-account-never-asked"),
+    ],
+)
+async def test_create_account_asks_about_another_currency_only_for_a_personal_account_outside_the_main_currency(
+    client, currency, in_group, status_code, detail, names, asks
+):
+    """A check refusing other currencies stops a personal US dollar account with its sentence and creates nothing, and leaves the rest alone"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    overrides = {}
+    if in_group:
+        group = await client.post("/groups", json={"name": "Household"}, headers=headers)
+        overrides["group_id"] = group.json()["id"]
+    asked = install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    response = await _create_account(client, headers, name="Cash", currency=currency, **overrides)
+
+    assert response.status_code == status_code, response.text
+    assert response.json().get("detail") == detail
+    assert await _account_names(client, headers) == names
+    assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [(None, 0)] * asks

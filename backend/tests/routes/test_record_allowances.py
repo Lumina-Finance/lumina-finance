@@ -2,14 +2,15 @@
 
 A refusal answers 403 with the check's own sentence and creates nothing, and the check is told
 how many of the kind the user owns alone. The tax-advantaged category's yearly limit and the saved
-insights range each have their own kind
+insights range each have their own kind. A budget or tax-advantaged category in a currency other
+than the user's main one is refused when the check refuses foreign currencies
 """
 
 import pytest
 
 from app.allowance_hook import AllowanceKind
 from tests.routes.support import _create_user, _get_auth_header
-from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check, seed_usd_currency
 from tests.routes.support.authorization_helpers import _sign_up_other_user
 
 _TAX_CATEGORY = {"name": "TFSA", "tax_treatment": "tax_free", "currency": "CAD"}
@@ -85,6 +86,61 @@ async def test_create_refused_by_the_check_says_the_checks_reason_and_creates_no
     allowed = await client.post(create_path, json=payload, headers=headers)
 
     assert allowed.status_code == 201, allowed.text
+
+
+@pytest.mark.parametrize(
+    "prepare",
+    [pytest.param(_budget, id="budget"), pytest.param(_tax_advantaged_category, id="tax-advantaged-category")],
+)
+async def test_create_in_another_currency_refused_by_the_check_says_the_checks_reason_and_creates_nothing(client, prepare):
+    """A US dollar budget or tax-advantaged category beside a Canadian dollar main currency is refused with the check's sentence"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    create_path, payload, list_path = await prepare(client, headers)
+    before = (await client.get(list_path, headers=headers)).json()
+    asked = install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    refused = await client.post(create_path, json={**payload, "currency": "USD"}, headers=headers)
+
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == ALLOWANCE_REASON
+    assert (await client.get(list_path, headers=headers)).json() == before
+    assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [(None, 0)]
+
+    install_check()
+    allowed = await client.post(create_path, json={**payload, "currency": "USD"}, headers=headers)
+
+    assert allowed.status_code == 201, allowed.text
+
+
+@pytest.mark.parametrize(
+    "prepare",
+    [pytest.param(_budget, id="budget"), pytest.param(_tax_advantaged_category, id="tax-advantaged-category")],
+)
+@pytest.mark.parametrize(
+    ("currency", "in_group"),
+    [pytest.param("CAD", False, id="main-currency"), pytest.param("USD", True, id="group-owned")],
+)
+async def test_create_never_asks_about_other_currencies_for_the_main_currency_or_a_group_owned_record(client, prepare, currency, in_group):
+    """A budget or tax-advantaged category in the main currency, or one a group owns in US dollars, is created without asking"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    create_path, payload, _ = await prepare(client, headers)
+    payload = {**payload, "currency": currency}
+    if in_group:
+        group = await client.post("/groups", json={"name": "Household"}, headers=headers)
+        payload["group_id"] = group.json()["id"]
+        if "category_ids" in payload:
+            category = await client.post(
+                "/categories", json={"name": "Shared", "kind": "expense", "group_id": group.json()["id"]}, headers=headers
+            )
+            payload["category_ids"] = [category.json()["id"]]
+    asked = install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    created = await client.post(create_path, json=payload, headers=headers)
+
+    assert created.status_code == 201, created.text
+    assert [request for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == []
 
 
 @pytest.mark.parametrize(

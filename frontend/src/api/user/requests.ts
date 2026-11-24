@@ -13,6 +13,7 @@ import type {
   RunwaySettingsResponse,
   RunwaySettingsUpdate,
   UpdateProfilePayload,
+  UserProfile,
 } from '@/api/user/types'
 
 /**
@@ -41,6 +42,15 @@ export function fetchFeatureGrants(signal?: AbortSignal) {
  */
 export function fetchProfile() {
   return authenticatedFetch<User>('/me')
+}
+
+/**
+ * Fetches the current user's profile with the sentence the server gives when it refuses other currencies
+ *
+ * @param signal - Aborts the request when the read that asked for it is abandoned
+ */
+export function fetchUserProfile(signal?: AbortSignal) {
+  return authenticatedFetch<UserProfile>('/me', { signal })
 }
 
 /**

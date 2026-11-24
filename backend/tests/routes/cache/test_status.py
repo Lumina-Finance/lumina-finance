@@ -2,8 +2,10 @@ import importlib
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
+from app.allowance_hook import AllowanceKind
 from app.config.runtime import APP_VERSION
 from tests.routes.support import _create_account, _create_user, _get_auth_header, sign_up_confirmed
+from tests.routes.support.allowance_helpers import install_check
 
 
 async def _create_second_user(client):
@@ -71,6 +73,7 @@ async def test_cache_status_initially_null(client):
         "changed_at": None,
         "current_date": resp.json()["current_date"],
         "calculation_date_token": resp.json()["calculation_date_token"],
+        "foreign_currencies_token": None,
         "next_calculation_boundary_at": resp.json()["next_calculation_boundary_at"],
         "personal": {
             "changed_at": None,
@@ -80,6 +83,29 @@ async def test_cache_status_initially_null(client):
         "shared_changed_at": None,
         "server_version": APP_VERSION,
     }
+
+
+async def test_cache_status_foreign_currencies_token_follows_the_checks_answer(client):
+    """The token is null while other currencies are allowed, and each refusing sentence gives its own, so a changed answer shows"""
+    headers = _get_auth_header(await _create_user(client))
+
+    async def token() -> str | None:
+        return (await client.get("/me/cache-status", headers=headers)).json()["foreign_currencies_token"]
+
+    allowed = await token()
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES}, reason="First sentence")
+    refused = await token()
+    refused_again = await token()
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES}, reason="Second sentence")
+    refused_otherwise = await token()
+    install_check()
+    allowed_again = await token()
+
+    assert allowed is None
+    assert refused is not None
+    assert refused_again == refused
+    assert refused_otherwise not in (None, refused)
+    assert allowed_again is None
 
 
 async def test_cache_status_uses_profile_date_and_dst_midnight(client, monkeypatch):
@@ -213,6 +239,7 @@ async def test_group_write_updates_member_cache_status(client):
         "changed_at": None,
         "current_date": before_resp.json()["current_date"],
         "calculation_date_token": before_resp.json()["calculation_date_token"],
+        "foreign_currencies_token": None,
         "next_calculation_boundary_at": before_resp.json()["next_calculation_boundary_at"],
         "personal": {
             "changed_at": None,

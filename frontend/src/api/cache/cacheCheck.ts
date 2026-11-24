@@ -11,12 +11,14 @@ export const FULL_FETCH_MAX_AGE_MS = 30 * DAY_MS
 
 /**
  * What the change check answered: the times the user's own data and the data everyone shares last
- * changed, the token that moves with the calculation date, and the release the server runs
+ * changed, the token that moves with the calculation date, the token of the answer about other
+ * currencies (null while they are allowed), and the release the server runs
  */
 export type CheckAnswer = {
   personalChangedAt: string | null
   sharedChangedAt: string | null
   calculationDateToken: string
+  foreignCurrenciesToken: string | null
   serverVersion: string
 }
 
@@ -70,7 +72,7 @@ function toUtcTimestamp(value: string | null) {
 
 /**
  * Takes from the server's answer what the comparison uses: the user's own change time, the shared
- * change time, the calculation date token and the server version
+ * change time, the calculation date token, the other currencies token and the server version
  *
  * Group markers are not compared. A grouped resource is not reachable (product rule), so a change
  * to one can't show in anything this browser holds, and the change times of both sides are read as
@@ -81,6 +83,7 @@ export function toCheckAnswer(status: CacheStatus): CheckAnswer {
     personalChangedAt: toUtcTimestamp(status.personal.changed_at),
     sharedChangedAt: toUtcTimestamp(status.shared_changed_at),
     calculationDateToken: status.calculation_date_token,
+    foreignCurrenciesToken: status.foreign_currencies_token,
     serverVersion: status.server_version,
   }
 }
@@ -90,6 +93,7 @@ export function isSameAnswer(a: CheckAnswer, b: CheckAnswer) {
     a.personalChangedAt === b.personalChangedAt &&
     a.sharedChangedAt === b.sharedChangedAt &&
     a.calculationDateToken === b.calculationDateToken &&
+    a.foreignCurrenciesToken === b.foreignCurrenciesToken &&
     a.serverVersion === b.serverVersion
   )
 }

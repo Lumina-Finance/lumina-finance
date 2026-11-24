@@ -1,14 +1,15 @@
 """What the allowance check refuses in an import: each kind of record the import creates, asked once with how many it adds
 
 An import saves everything or nothing, so a refusal of any kind answers 403 with the check's own
-sentence and leaves the account and every other record the import would have created unsaved
+sentence and leaves the account and every other record the import would have created unsaved. An
+account or budget in a currency other than the user's main one is asked about once for the currency
 """
 
 import pytest
 
 from app.allowance_hook import AllowanceKind
 from tests.routes.support import _account_names, _create_account, _create_user, _get_auth_header
-from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check, seed_eur_currency, seed_usd_currency
 from tests.routes.transactions._helpers import _get_system_category_id
 from tests.routes.transactions._import_helpers import (
     _NEW_MAIN_CHEQUING,
@@ -130,14 +131,18 @@ async def test_import_reusing_everything_it_names_never_asks_the_check(client):
     assert asked == [], "an import adding no account, category, merchant or tag asked the check"
 
 
-async def _stage_journal_run_with_budgets(client, headers, budget_names: list[str]) -> str:
-    """Stage a journal import creating an account, with one Groceries budget for each name, and return the path of its run"""
+async def _stage_journal_run_with_budgets(
+    client, headers, budget_names: list[str], budget_currency: str = "CAD", account_currency: str = "CAD"
+) -> str:
+    """Stage a journal import creating an account, with a Groceries budget for each name, each in its currency, and return the run's path"""
     groceries_id = await _get_system_category_id(client, headers, "Groceries")
+    chequing = _chequing_mapping()
+    chequing["create"]["currency"] = account_currency
     run_id = await _open_staged_run(
         client,
         headers,
         {
-            "accounts": [_chequing_mapping()],
+            "accounts": [chequing],
             "categories": [],
             "rows": [
                 _firefly_row(
@@ -158,7 +163,7 @@ async def _stage_journal_run_with_budgets(client, headers, budget_names: list[st
     budgets = [
         {
             "name": name,
-            "currency": "CAD",
+            "currency": budget_currency,
             "category_sources": [groceries_id],
             "recurrence": None,
             "limits": [{"start": "2023-01-01", "end": "2023-01-31", "amount": "100.00"}],
@@ -189,6 +194,7 @@ async def test_import_of_two_budgets_asks_once_with_the_one_the_user_already_hol
     assert requested.status_code == 202, requested.text
     assert committed.status_code == 200, committed.text
     assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.BUDGET] == [(1, 2)]
+    assert [request for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [], "a main currency budget was asked about"
 
 
 async def test_import_of_budgets_refused_saves_nothing_at_all(client):
@@ -205,3 +211,132 @@ async def test_import_of_budgets_refused_saves_nothing_at_all(client):
     assert refused.json()["detail"] == ALLOWANCE_REASON
     assert await _account_names(client, headers) == [], "the account of a refused import was saved"
     assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.BUDGET] == [(0, 1)]
+
+
+async def test_import_creating_an_account_in_another_currency_refused_saves_nothing_at_all(client):
+    """A US dollar account beside a Canadian dollar main currency is refused with the check's sentence, while a Canadian dollar one saves"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    usd_account = {"source": "Main Chequing", "create": {"name": "Main Chequing", "account_type": "checking", "currency": "USD"}}
+    asked = install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    refused = await _import_run(client, headers, {**_PAYLOAD, "accounts": [usd_account]})
+
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == ALLOWANCE_REASON
+    assert await _account_names(client, headers) == [], "the account of a refused import was saved"
+    assert await _list_transactions(client, headers) == []
+    assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [(None, 0)]
+
+    saved = await _import_run(client, headers, _PAYLOAD)
+
+    assert saved.status_code == 200, saved.text
+    assert await _account_names(client, headers) == ["Main Chequing"]
+    assert len([request for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES]) == 1, (
+        "an account in the main currency was asked about"
+    )
+
+
+async def test_import_of_a_budget_in_another_currency_refused_saves_nothing_at_all(client):
+    """A journal import with a US dollar budget is refused with the check's sentence, so neither its account nor its transactions are saved"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    run_path = await _stage_journal_run_with_budgets(client, headers, ["Groceries"], budget_currency="USD")
+    asked = install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    requested = await client.post(f"{run_path}/journal/commit", headers=headers)
+    refused = await client.get(f"{run_path}/journal/commit", headers=headers)
+
+    assert requested.status_code == 202, requested.text
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == ALLOWANCE_REASON
+    assert await _account_names(client, headers) == [], "the account of a refused import was saved"
+    assert await _list_transactions(client, headers) == []
+    assert (await client.get("/base-budgets", headers=headers)).json() == []
+    assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [(None, 0)]
+
+
+async def test_import_asks_about_other_currencies_once_for_each_and_never_for_the_main_one(client):
+    """Accounts in CAD, USD and usd ask once, for USD alone, and the preview a run is staged for asks nothing"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    accounts = [
+        _NEW_MAIN_CHEQUING,
+        {"source": "Cash A", "create": {"name": "Cash A", "account_type": "checking", "currency": "USD"}},
+        {"source": "Cash B", "create": {"name": "Cash B", "account_type": "checking", "currency": "usd"}},
+    ]
+    payload = {**_PAYLOAD, "accounts": accounts}
+    asked = install_check()
+
+    await _open_staged_run(client, headers, payload)
+
+    assert asked == [], "staging a run for preview asked the check"
+
+    saved = await _import_run(client, headers, payload)
+
+    assert saved.status_code == 200, saved.text
+    assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [(None, 0)]
+
+
+async def test_import_of_two_different_other_currencies_asks_once_for_each(client):
+    """Accounts in USD and EUR ask twice, once for each currency"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    await seed_eur_currency()
+    accounts = [
+        _NEW_MAIN_CHEQUING,
+        {"source": "Cash A", "create": {"name": "Cash A", "account_type": "checking", "currency": "USD"}},
+        {"source": "Cash B", "create": {"name": "Cash B", "account_type": "checking", "currency": "EUR"}},
+    ]
+    asked = install_check()
+
+    saved = await _import_run(client, headers, {**_PAYLOAD, "accounts": accounts})
+
+    assert saved.status_code == 200, saved.text
+    assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [(None, 0), (None, 0)]
+
+
+async def test_import_of_an_unsupported_currency_answers_422_before_the_check_is_asked(client):
+    """The file's own mistake is told first, as on the routes that add one record"""
+    headers = _get_auth_header(await _create_user(client))
+    unsupported = {"source": "Main Chequing", "create": {"name": "Main Chequing", "account_type": "checking", "currency": "XXX"}}
+    asked = install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    refused = await _import_run(client, headers, {**_PAYLOAD, "accounts": [unsupported]})
+
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == "Invalid currency code: XXX"
+    assert [request for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == []
+
+
+async def test_import_of_two_budgets_in_another_currency_asks_about_it_once(client):
+    """Two US dollar budgets in one journal import make one ask for US dollars"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    run_path = await _stage_journal_run_with_budgets(client, headers, ["Groceries", "Dining"], budget_currency="USD")
+    asked = install_check()
+
+    requested = await client.post(f"{run_path}/journal/commit", headers=headers)
+    committed = await client.get(f"{run_path}/journal/commit", headers=headers)
+
+    assert requested.status_code == 202, requested.text
+    assert committed.status_code == 200, committed.text
+    assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [(None, 0)]
+
+
+async def test_import_of_a_budget_in_the_main_currency_beside_an_account_in_another_is_refused_and_saves_nothing(client):
+    """A journal import whose account is in US dollars is refused even when its budget is in Canadian dollars"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    run_path = await _stage_journal_run_with_budgets(client, headers, ["Groceries"], account_currency="USD")
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    requested = await client.post(f"{run_path}/journal/commit", headers=headers)
+    refused = await client.get(f"{run_path}/journal/commit", headers=headers)
+
+    assert requested.status_code == 202, requested.text
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == ALLOWANCE_REASON
+    assert await _account_names(client, headers) == []
+    assert await _list_transactions(client, headers) == []
+    assert (await client.get("/base-budgets", headers=headers)).json() == []

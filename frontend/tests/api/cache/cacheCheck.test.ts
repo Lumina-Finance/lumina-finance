@@ -25,6 +25,7 @@ const ANSWER: CheckAnswer = {
   personalChangedAt: '2026-09-30T08:00:00.000Z',
   sharedChangedAt: '2026-09-01T00:00:00.000Z',
   calculationDateToken: 'token-1',
+  foreignCurrenciesToken: null,
   serverVersion: '1.0.0',
 }
 
@@ -32,6 +33,7 @@ const STATUS: CacheStatus = {
   changed_at: '2026-09-30T08:00:00Z',
   current_date: '2026-10-01',
   calculation_date_token: 'token-1',
+  foreign_currencies_token: null,
   next_calculation_boundary_at: '2026-10-02T04:00:00Z',
   personal: { changed_at: '2026-09-30T08:00:00Z', last_change_from_current_session: false },
   groups: {},
@@ -72,11 +74,17 @@ describe('which answers differ', () => {
     expect(Object.keys(answer)).not.toContain('groups')
   })
 
+  it('takes the token of the answer about other currencies as it is, null included', () => {
+    expect(toCheckAnswer({ ...STATUS, foreign_currencies_token: 'refused-1' }).foreignCurrenciesToken).toBe('refused-1')
+    expect(toCheckAnswer(STATUS).foreignCurrenciesToken).toBeNull()
+  })
+
   it.each([
     ['personal change time', { personalChangedAt: '2026-09-30T08:00:01.000Z' }],
     ['shared change time', { sharedChangedAt: null }],
     ['calculation date together with the server version', { calculationDateToken: 'token-2', serverVersion: '1.0.1' }],
     ['server version', { serverVersion: '1.0.1' }],
+    ['token of the answer about other currencies', { foreignCurrenciesToken: 'refused-1' }],
   ])('invalidates the app data when only the %s differs, and records the answer as seen now', (_name, change) => {
     setCheckRecord(RECORD, { notify: false })
     const client = cacheOf({ accounts: { key: ['accounts'], at: OBSERVED_AT + 1 } })
@@ -153,6 +161,7 @@ describe('a new day', () => {
     ['personal change time', { personalChangedAt: '2026-10-02T00:00:00.000Z' }],
     ['shared change time', { sharedChangedAt: '2026-10-02T00:00:00.000Z' }],
     ['server version', { serverVersion: '1.0.1' }],
+    ['token of the answer about other currencies', { foreignCurrenciesToken: 'refused-1' }],
   ])('invalidates everything when the %s changes with it, as before', (_name, change) => {
     setCheckRecord(RECORD, { notify: false })
     const client = dayCache()

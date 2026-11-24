@@ -78,6 +78,10 @@ export const COVERED_QUERIES: readonly CoveredQuery[] = [
   // A saved range stores how it is anchored, and the screen works the dates out
   { queryKey: insightsKeys.savedRanges(), dependsOnDate: false },
 
+  // The profile as GET /me answers it, with the sentence given when other currencies are refused,
+  // which the check's currencies token follows
+  { queryKey: userKeys.profile(), dependsOnDate: false },
+
   // Only the account selection and the status thresholds
   { queryKey: userKeys.runwayAccounts(), dependsOnDate: false },
   { queryKey: userKeys.runwaySettings(), dependsOnDate: false },

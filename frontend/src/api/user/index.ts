@@ -12,6 +12,7 @@ export type {
   RunwaySettingsUpdate,
   RunwayThresholds,
   UpdateProfilePayload,
+  UserProfile,
 } from '@/api/user/types'
 
 export {
@@ -23,6 +24,7 @@ export {
   fetchDataExport,
   fetchFeatureGrants,
   fetchProfile,
+  fetchUserProfile,
   fetchRatesStatus,
   fetchRunway,
   fetchRunwayAccounts,
@@ -37,6 +39,7 @@ export {
   useChangePassword,
   useDataExport,
   useFeatureGrants,
+  useForeignCurrenciesRefusal,
   useRequestEmailChange,
   useRunway,
   useRunwayAccounts,

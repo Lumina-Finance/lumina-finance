@@ -66,7 +66,7 @@ async def create_tax_advantaged_category(
         HTTPException: Tax treatment, group scope, or currency is invalid, the owner row cannot be read,
             or its stored timezone is not a zone the app recognizes
     """
-    tax_advantaged_category = await create_tax_advantaged_category_with_metrics(db, user.id, data)
+    tax_advantaged_category = await create_tax_advantaged_category_with_metrics(db, user, data)
     return tax_advantaged_category
 
 

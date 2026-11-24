@@ -1,11 +1,10 @@
 """TAC category creation helpers"""
 
-import uuid
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.allowance_hook import AllowanceKind
 from app.models.account import TaxAdvantagedCategory
+from app.models.user import User
 from app.routes.tax_advantaged_categories.tac_category_helpers import (
     build_tac_category,
     validate_tax_advantaged_category_currency,
@@ -13,6 +12,7 @@ from app.routes.tax_advantaged_categories.tac_category_helpers import (
     validate_tax_advantaged_category_tax_treatment,
 )
 from app.schemas.tax_advantaged_category import CreateTaxAdvantagedCategoryRequest
+from app.services.allowance.currency import require_currency
 from app.services.allowance.require import require_allowance
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.tax_advantaged_categories import attach_tax_advantaged_category_metrics, get_category_owner_timezones
@@ -20,14 +20,14 @@ from app.services.tax_advantaged_categories import attach_tax_advantaged_categor
 
 async def create_tax_advantaged_category_with_metrics(
     db: AsyncSession,
-    owner_id: uuid.UUID,
+    user: User,
     data: CreateTaxAdvantagedCategoryRequest,
 ) -> TaxAdvantagedCategory:
     """Create a tax-advantaged category with current-year metrics attached
 
     Args:
         db: Active database session
-        owner_id: Authenticated owner identifier
+        user: Authenticated owner
         data: Tax-advantaged category creation payload
 
     Returns:
@@ -38,14 +38,15 @@ async def create_tax_advantaged_category_with_metrics(
             read, or its stored timezone is not a zone the app recognizes
     """
     validate_tax_advantaged_category_tax_treatment(data.tax_treatment)
-    await validate_tax_advantaged_category_group_scope(db, data.group_id, owner_id)
+    await validate_tax_advantaged_category_group_scope(db, data.group_id, user.id)
     await validate_tax_advantaged_category_currency(db, data.currency)
-    await require_allowance(db, owner_id, AllowanceKind.TAX_ADVANTAGED_CATEGORY, group_id=data.group_id)
+    await require_currency(user.id, user.base_currency, data.currency, group_id=data.group_id)
+    await require_allowance(db, user.id, AllowanceKind.TAX_ADVANTAGED_CATEGORY, group_id=data.group_id)
 
     # Built before the zone is fetched so the lookup is keyed by the same owner the metrics read it
     # back under, and resolved before anything is written, since the response metrics are read after
     # the commit and a refusal there would leave the category created and the request failed
-    tax_advantaged_category = build_tac_category(owner_id, data)
+    tax_advantaged_category = build_tac_category(user.id, data)
     owner_timezones = await get_category_owner_timezones(db, {tax_advantaged_category.category_owner_user_id})
 
     db.add(tax_advantaged_category)

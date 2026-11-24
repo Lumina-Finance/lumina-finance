@@ -51,7 +51,18 @@ HELD_QUERIES: dict[AllowanceKind, Callable[[uuid.UUID], Select]] = {
 
 
 # The feature kinds, each asked about before the feature is used rather than before a record is added
-FEATURES: tuple[AllowanceKind, ...] = (AllowanceKind.BANK_SYNC, AllowanceKind.INSIGHTS)
+FEATURES: tuple[AllowanceKind, ...] = (AllowanceKind.BANK_SYNC, AllowanceKind.INSIGHTS, AllowanceKind.FOREIGN_CURRENCIES)
+
+
+def is_asked_about(group_id: uuid.UUID | None) -> bool:
+    """Return whether a record is asked about, which a record owned through a group never is
+
+    The one place a group-owned record is left out of every ask
+
+    Args:
+        group_id: The group the record would belong to, or None for a record the user owns alone
+    """
+    return group_id is None
 
 
 def _refuse(refusal: Refusal) -> HTTPException:
@@ -113,8 +124,7 @@ async def require_allowance(
     Raises:
         HTTPException 403: The installed check refused, with its reason as the detail
     """
-    # The one place a group-owned record is left out of every ask
-    if group_id is not None or not is_allowance_check_installed():
+    if not is_asked_about(group_id) or not is_allowance_check_installed():
         return
 
     digest = hashlib.blake2b(_ALLOWANCE_LOCK_NAMESPACE + user_id.bytes + kind.value.encode(), digest_size=8).digest()

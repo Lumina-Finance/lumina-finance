@@ -1,16 +1,8 @@
 import pytest
 
-from app.models.currency import Currency
-from tests.conftest import TestSession
+from app.allowance_hook import AllowanceKind
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header
-
-
-async def _seed_usd():
-    """Insert the USD currency row for currency-change tests"""
-    async with TestSession() as session:
-        session.add(Currency(id="USD", name="US Dollar", symbol="$", minor_unit_exponent=2))
-        await session.commit()
-
+from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check, seed_usd_currency
 
 # --- GET /me ---
 
@@ -96,12 +88,84 @@ async def test_patch_updates_base_currency(client):
     """PATCH /me updates base_currency when the new currency exists."""
     signup_resp = await _create_user(client)
     headers = _get_auth_header(signup_resp)
-    await _seed_usd()
+    await seed_usd_currency()
 
     resp = await client.patch("/me", json={"base_currency": "USD"}, headers=headers)
 
     assert resp.status_code == 200
     assert resp.json()["base_currency"] == "USD"
+
+
+@pytest.mark.parametrize(
+    ("refused", "new_currency", "status_code", "detail", "saved_currency", "asks"),
+    [
+        pytest.param({AllowanceKind.MAIN_CURRENCY_CHANGE}, "USD", 403, ALLOWANCE_REASON, "CAD", 1, id="refused"),
+        pytest.param(set(), "USD", 200, None, "USD", 1, id="allowed"),
+        pytest.param({AllowanceKind.MAIN_CURRENCY_CHANGE}, "CAD", 200, None, "CAD", 0, id="same-currency-never-asked"),
+    ],
+)
+async def test_patch_base_currency_asks_the_check_only_for_a_different_currency(
+    client, refused, new_currency, status_code, detail, saved_currency, asks
+):
+    """A refused change answers with the check's sentence and keeps the main currency, and the currency already held is not asked about"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    user_id = (await client.get("/me", headers=headers)).json()["id"]
+    asked = install_check(refused=refused)
+
+    resp = await client.patch("/me", json={"base_currency": new_currency}, headers=headers)
+
+    assert resp.status_code == status_code, resp.text
+    assert resp.json().get("detail") == detail
+    assert (await client.get("/me", headers=headers)).json()["base_currency"] == saved_currency
+    assert [
+        (str(request.user_id), request.held, request.adding) for request in asked if request.kind == AllowanceKind.MAIN_CURRENCY_CHANGE
+    ] == [(user_id, None, 0)] * asks
+
+
+async def test_patch_refused_main_currency_change_keeps_every_other_field_and_the_cache_time(client):
+    """A refused change of main currency saves none of the fields sent with it and marks no change for the cache check"""
+    headers = _get_auth_header(await _create_user(client))
+    await seed_usd_currency()
+    before = (await client.get("/me/cache-status", headers=headers)).json()["personal"]["changed_at"]
+    install_check(refused={AllowanceKind.MAIN_CURRENCY_CHANGE})
+
+    refused = await client.patch("/me", json={"first_name": "Updated", "base_currency": "USD"}, headers=headers)
+
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == ALLOWANCE_REASON
+    profile = (await client.get("/me", headers=headers)).json()
+    assert (profile["first_name"], profile["base_currency"]) == (SIGNUP_PAYLOAD["first_name"], "CAD")
+    assert (await client.get("/me/cache-status", headers=headers)).json()["personal"]["changed_at"] == before
+
+
+async def test_patch_unknown_base_currency_is_not_asked_about(client):
+    """A currency that does not exist answers 422 before the check is asked, so the user fixes the code first"""
+    headers = _get_auth_header(await _create_user(client))
+    asked = install_check(refused={AllowanceKind.MAIN_CURRENCY_CHANGE})
+
+    resp = await client.patch("/me", json={"base_currency": "XXX"}, headers=headers)
+
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"] == "Invalid currency code"
+    assert asked == []
+
+
+async def test_get_me_says_the_checks_sentence_when_it_refuses_other_currencies(client):
+    """The profile carries the check's sentence for refused other currencies, and null with no check or when allowed"""
+    headers = _get_auth_header(await _create_user(client))
+
+    without_check = (await client.get("/me", headers=headers)).json()["foreign_currencies_refusal"]
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+    refused = await client.get("/me", headers=headers)
+    patched = await client.patch("/me", json={"first_name": "Updated"}, headers=headers)
+    install_check()
+    allowed = (await client.get("/me", headers=headers)).json()["foreign_currencies_refusal"]
+
+    assert without_check is None
+    assert refused.json()["foreign_currencies_refusal"] == ALLOWANCE_REASON
+    assert patched.json()["foreign_currencies_refusal"] == ALLOWANCE_REASON
+    assert allowed is None
 
 
 async def test_patch_updates_multiple_fields(client):

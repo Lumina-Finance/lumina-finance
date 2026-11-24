@@ -1,4 +1,5 @@
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser'
+import type { User } from '@/api/auth/types'
 import type { FxStatus } from '@/api/shared/fx'
 import type { StepUpPayload } from '@/api/two-factor/types'
 import type { DateFormatSetting } from '@/utils/dateFormat'
@@ -35,6 +36,15 @@ export interface RequestEmailChangePayload {
   step_up?: StepUpPayload
 }
 
+/**
+ * What GET /me answers. Sign-in and renewal responses carry a User without the sentence, so the
+ * sentence is read only through the profile query and never held on the signed-in user
+ */
+export type UserProfile = User & {
+  /** The sentence the server gives when it refuses records in a currency other than base_currency, null while it allows them */
+  foreign_currencies_refusal: string | null
+}
+
 export interface CacheScopeStatus {
   changed_at: string | null
   last_change_from_current_session: boolean
@@ -44,6 +54,8 @@ export interface CacheStatus {
   changed_at: string | null
   current_date: string
   calculation_date_token: string
+  /** A short digest of the sentence the server gives when it refuses other currencies, null while it allows them */
+  foreign_currencies_token: string | null
   next_calculation_boundary_at: string
   personal: CacheScopeStatus
   groups: Record<string, CacheScopeStatus>
@@ -59,7 +71,7 @@ export interface RatesStatus {
 }
 
 /** A feature the server grants a user or not, as the server names it */
-export type GrantableFeature = 'bank_sync' | 'insights'
+export type GrantableFeature = 'bank_sync' | 'insights' | 'foreign_currencies'
 
 /** The features the signed-in user is granted */
 export type FeatureGrants = {
