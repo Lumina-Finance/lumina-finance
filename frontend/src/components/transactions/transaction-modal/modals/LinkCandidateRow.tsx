@@ -5,9 +5,10 @@ import type { RefundLinkCandidate } from '@/api/transactions'
 import TransactionRow from '@/components/transactions/Row'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 
-// A picked row takes the accent fill and an accent border. The others keep a clear border so it eases in and out
+// A picked row takes the accent fill and an accent border. The others keep a clear border so it eases in and out. The
+// row inside takes the same corners, so its hover fill and focus ring match a picked row and a row with a line under it
 const ROW_CLASS_NAME =
-  'scroll-mt-44 rounded-lg transition-[background-color,box-shadow,outline-color] motion-reduce:transition-none'
+  'scroll-mt-44 rounded-lg [&_.app-transaction-row]:rounded-lg transition-[background-color,box-shadow,outline-color] motion-reduce:transition-none'
 const RESTING_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px transparent' }
 const PICKED_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
 
