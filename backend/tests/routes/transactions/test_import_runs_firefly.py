@@ -20,6 +20,7 @@ from tests.routes.transactions._import_helpers import (
     _SHORT_OF_ABANDONMENT,
     _age_run,
     _chequing_mapping,
+    _commit_run,
     _firefly_batch,
     _firefly_row,
     _open_run,
@@ -146,8 +147,8 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
     )
     await _put(client, headers, run_id, "archive", {"account_sources": ["US Dollar Savings"]})
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
-    assert resp.status_code == 201, resp.text
+    resp = await _commit_run(client, headers, run_id, "firefly")
+    assert resp.status_code == 200, resp.text
     summary = resp.json()
     assert {
         key: summary[key]
@@ -191,8 +192,8 @@ async def test_a_firefly_run_commits_rows_budgets_and_archiving_from_every_batch
     # A commit whose response was lost is answered from the first, writing nothing again
     before = await _snapshot(client, headers)
     with client.expecting_no_change():
-        repeat = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
-    assert repeat.status_code == 201
+        repeat = await _commit_run(client, headers, run_id, "firefly")
+    assert repeat.status_code == 200
     assert repeat.json() == summary
     assert await _snapshot(client, headers) == before
 
@@ -205,8 +206,8 @@ async def test_a_firefly_run_commits_more_rows_than_one_batch_carries(client):
     await _stage(client, headers, run_id, 0, [_firefly_row(journal_id=str(index)) for index in range(5000)])
     await _stage(client, headers, run_id, 5000, [_firefly_row(journal_id="5000")])
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
-    assert resp.status_code == 201, resp.text
+    resp = await _commit_run(client, headers, run_id, "firefly")
+    assert resp.status_code == 200, resp.text
     assert (resp.json()["rows_imported"], resp.json()["transactions_created"]) == (5001, 5001)
 
 
@@ -229,8 +230,8 @@ async def test_a_firefly_run_commits_every_part_of_its_budgets_and_a_part_sent_a
         resp = await _put_budgets(client, headers, run_id, start_index, names)
         assert resp.status_code == 204, resp.text
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
-    assert resp.status_code == 201, resp.text
+    resp = await _commit_run(client, headers, run_id, "firefly")
+    assert resp.status_code == 200, resp.text
     assert [budget["name"] for budget in resp.json()["budgets"]] == ["Food", "Fuel", "Gifts", "Home", "Rent"]
 
 
@@ -312,13 +313,13 @@ async def test_a_firefly_run_failing_at_any_stage_saves_nothing(client, case, de
     }.get(case, [])
     await _put(client, headers, run_id, "archive", {"account_sources": archive})
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
+    resp = await _commit_run(client, headers, run_id, "firefly")
     assert resp.status_code == 422
     assert resp.json()["detail"].startswith(detail)
     assert await _snapshot(client, headers) == before
 
     # Still open, so the same commit answers the same way rather than from a stored summary
-    again = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
+    again = await _commit_run(client, headers, run_id, "firefly")
     assert (again.status_code, again.json()["detail"]) == (422, resp.json()["detail"])
 
 
@@ -343,9 +344,10 @@ async def test_another_users_firefly_run_is_out_of_reach(client):
         await client.put(f"{base}/budgets", json={"categories": [_GROCERIES], "budgets": [_budget()]}, headers=other_headers),
         await client.put(f"{base}/archive", json={"account_sources": ["Everyday Chequing"]}, headers=other_headers),
         await client.post(f"{base}/journal/commit", headers=other_headers),
+        await client.get(f"{base}/journal/commit", headers=other_headers),
     ]
 
-    assert [(resp.status_code, resp.json()["detail"]) for resp in responses] == [(404, "Import run not found")] * 4
+    assert [(resp.status_code, resp.json()["detail"]) for resp in responses] == [(404, "Import run not found")] * 5
 
 
 async def test_a_firefly_run_refuses_an_outside_account_when_staged_and_takes_the_corrected_answer(client):
@@ -371,8 +373,8 @@ async def test_a_firefly_run_refuses_an_outside_account_when_staged_and_takes_th
 
     brokerage = {"source": "Brokerage elsewhere", "create": {"name": "Brokerage", "account_type": "checking", "currency": "CAD"}}
     await _stage(client, headers, run_id, 0, [brokerage_row], accounts=[brokerage])
-    committed = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
-    assert committed.status_code == 201, committed.text
+    committed = await _commit_run(client, headers, run_id, "firefly")
+    assert committed.status_code == 200, committed.text
     assert committed.json()["transactions_created"] == 1
 
 
@@ -430,7 +432,7 @@ async def test_an_abandoned_run_outlasts_new_imports_and_sign_ins_and_is_still_r
     signup = await _create_user(client)
     headers = _get_auth_header(signup)
     committed = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
-    summary = (await client.post(f"/transactions/import/runs/{committed}/journal/commit", headers=headers)).json()
+    summary = (await _commit_run(client, headers, committed, "firefly")).json()
     before = await _snapshot(client, headers)
     run_id = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
     recent = await _open_staged_run(client, headers, _firefly_batch(1), "firefly")
@@ -446,12 +448,12 @@ async def test_an_abandoned_run_outlasts_new_imports_and_sign_ins_and_is_still_r
     assert (await client.post("/auth/refresh")).status_code == 200
     assert await _count_run_rows(run_id) == (1, 1), "the run is left to the scheduled cleanup"
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/journal/commit", headers=headers)
+    resp = await _commit_run(client, headers, run_id, "firefly")
 
     assert (resp.status_code, resp.json()["detail"]) == (422, "This import expired before it was saved")
     assert await _snapshot(client, headers) == before, "the refused run writes nothing"
     with client.expecting_no_change():
-        replayed = await client.post(f"/transactions/import/runs/{committed}/journal/commit", headers=headers)
-    assert (replayed.status_code, replayed.json()) == (201, summary), "a saved run still answers its commit"
-    fresh = await client.post(f"/transactions/import/runs/{recent}/journal/commit", headers=headers)
-    assert fresh.status_code == 201, fresh.text
+        replayed = await _commit_run(client, headers, committed, "firefly")
+    assert (replayed.status_code, replayed.json()) == (200, summary), "a saved run still answers its commit"
+    fresh = await _commit_run(client, headers, recent, "firefly")
+    assert fresh.status_code == 200, fresh.text

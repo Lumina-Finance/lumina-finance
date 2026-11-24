@@ -28,6 +28,14 @@ export function explainRequestFailure(error: unknown): unknown {
   return new TypeError(SERVER_UNREACHABLE_MESSAGE, { cause: error })
 }
 
+/**
+ * Builds the failure a request ends with once it has gone unanswered too long, for a caller that
+ * waits on the server across several requests and applies the same words to its own limit
+ */
+export function createTimeoutError(): DOMException {
+  return new DOMException(REQUEST_TIMEOUT_MESSAGE, 'TimeoutError')
+}
+
 export type ServerRequestInit = RequestInit & {
   /** How long this request may go unanswered, in milliseconds, when it differs from the shared limit */
   timeoutMs?: number
@@ -46,7 +54,7 @@ export function fetchFromServer(
 ): Promise<Response> {
   const controller = new AbortController()
   setTimeout(() => {
-    controller.abort(new DOMException(REQUEST_TIMEOUT_MESSAGE, 'TimeoutError'))
+    controller.abort(createTimeoutError())
   }, timeoutMs)
 
   if (signal?.aborted) {

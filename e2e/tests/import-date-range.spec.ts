@@ -180,7 +180,7 @@ test('imports the dates on screen when Commit import is activated with a bare cl
   await typeDate(page, 'Start date', '2025-03-01')
   await typeDate(page, 'End date', '2025-03-31')
 
-  expect((await commitImport(page, { via: 'event' })).status()).toBe(201)
+  expect((await commitImport(page, { via: 'event' })).status()).toBe(200)
   const stored = await request.get(`${API_BASE_URL}/transactions?account_id=${account.id}`, { headers: asUser(user) })
   const dates = (await stored.json() as { dt: string }[]).map((row) => row.dt).sort()
   expect(dates).toEqual(['2025-03-01', '2025-03-15', '2025-03-31'])
@@ -193,7 +193,7 @@ test('imports the dates on screen when Commit import is pressed from a date fiel
   await typeDate(page, 'Start date', '2025-03-01')
   await typeDate(page, 'End date', '2025-03-31')
 
-  expect((await commitImport(page, { via: 'keyboard' })).status()).toBe(201)
+  expect((await commitImport(page, { via: 'keyboard' })).status()).toBe(200)
   const stored = await request.get(`${API_BASE_URL}/transactions?account_id=${account.id}`, { headers: asUser(user) })
   const dates = (await stored.json() as { dt: string }[]).map((row) => row.dt).sort()
   expect(dates).toEqual(['2025-03-01', '2025-03-15', '2025-03-31'])

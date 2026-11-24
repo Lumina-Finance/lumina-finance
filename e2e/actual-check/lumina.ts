@@ -18,10 +18,12 @@ interface BudgetsBody {
 /**
  * Pairs Lumina's records with Actual's: the commit names the Lumina account and category each
  * uploaded source became, and the budgets request names the one category source each budget
- * tracks, which is its Actual category's id, and whose Lumina id the commit gives by name
+ * tracks. That source is its Actual category's id, and the commit gives its Lumina id by name.
+ * The summary comes with the answer that finds the save done, and a later request for it may be that
  */
 export function readImportMappings(uploads: CapturedUpload[]): ImportMappings {
-  const commits = uploads.filter((upload) => upload.method === 'POST' && upload.path.endsWith('/journal/commit') && upload.response)
+  const commits = uploads.filter((upload) => upload.path.endsWith('/journal/commit')
+    && typeof upload.response === 'object' && upload.response !== null && 'account_source_ids' in upload.response)
   if (commits.length !== 1) throw new Error(`The import run answered ${commits.length} commits`)
   const commit = commits[0].response as CommitResponse
 

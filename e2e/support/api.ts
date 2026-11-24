@@ -5,7 +5,7 @@
 
 import { createHmac } from 'node:crypto'
 
-import type { APIRequestContext } from '@playwright/test'
+import { expect, type APIRequestContext } from '@playwright/test'
 
 import { tokenFromLink, waitForConfirmationLink } from './mail'
 import { API_BASE_URL } from './target'
@@ -554,6 +554,29 @@ export async function createMonthlyBudget(
 
   const body = (await response.json()) as { id: string }
   return body.id
+}
+
+/**
+ * Saves a staged import run and waits for the save to be done. The server answers the request to save
+ * at once, so this then asks how it is going until it is
+ *
+ * @param request - Playwright request context
+ * @param headers - Headers that sign the request in as the run's owner
+ * @param runId - Staged run to save
+ * @param path - What follows the run's address to reach its save, the generic one by default
+ * @throws When the save does not finish with the summary
+ */
+export async function saveStagedRun(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+  runId: string,
+  path = 'commit',
+): Promise<void> {
+  const url = `${API_BASE_URL}/transactions/import/runs/${runId}/${path}`
+  const asked = await request.post(url, { headers })
+  if (asked.status() === 200) return
+  expect(asked.status()).toBe(202)
+  await expect.poll(async () => (await request.get(url, { headers })).status()).toBe(200)
 }
 
 /**

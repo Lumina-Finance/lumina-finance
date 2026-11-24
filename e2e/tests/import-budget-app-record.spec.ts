@@ -60,7 +60,7 @@ async function expectAllLocked(dropdowns: Locator) {
 /** Finishes the staged import and keeps the page, which the overlay gives back through reviewing what it left out */
 async function finishImport(page: Page) {
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   const overlay = page.getByRole('dialog')
   await expect(overlay.getByText('Import complete', { exact: true })).toBeVisible()
   await overlay.getByRole('button', { name: 'Review skipped rows', exact: true }).click()
@@ -133,7 +133,7 @@ test('keeps a finished Firefly III import as its record until another export is 
   expect(await readAnswers(accountAnswers(page))).not.toEqual(accountsBefore)
 
   const second = await commitImport(page)
-  expect(second.status()).toBe(201)
+  expect(second.status()).toBe(200)
   const { transactions_created: secondCreated } = await second.json() as { transactions_created: number }
   expect(secondCreated).toBeGreaterThan(0)
   expect(secondCreated).toBeLessThan(first.transactions_created)
@@ -191,7 +191,7 @@ test('writes only the rows of a second Actual Budget export imported after the f
   await expect(upload).toBeEnabled()
   await upload.setInputFiles(ACTUAL_YEN)
   const second = await commitImport(page)
-  expect(second.status()).toBe(201)
+  expect(second.status()).toBe(200)
   expect((await second.json() as { transactions_created: number }).transactions_created).toBe(YEN_ROW_COUNT)
   expect(await countLedgerTransactions(request, user)).toBe(ledgerAfterFirst + YEN_ROW_COUNT)
 })

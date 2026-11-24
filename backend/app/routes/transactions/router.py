@@ -20,6 +20,7 @@ from app.schemas.import_run import (
     HeldBankTransactionsResponse,
     ImportRunArchiveRequest,
     ImportRunBudgetsRequest,
+    ImportRunSaveResponse,
     ImportUndoResponse,
     JournalImportRunResponse,
     JournalImportStageRequest,
@@ -44,8 +45,6 @@ from app.schemas.transaction import (
 )
 from app.services.csv_export import CSV_MEDIA_TYPE, download_response
 from app.services.importers import (
-    commit_import_run,
-    commit_journal_run,
     delete_import_run,
     find_held_import_rows,
     get_last_import,
@@ -53,6 +52,10 @@ from app.services.importers import (
     list_import_layouts,
     list_import_sources,
     open_import_run,
+    read_import_run_save,
+    read_journal_run_save,
+    request_import_run_save,
+    request_journal_run_save,
     stage_import_archive,
     stage_import_batch,
     stage_import_budgets,
@@ -422,27 +425,51 @@ async def stage_transaction_import_rows(
     await stage_import_batch(db, user, run_id, data)
 
 
-@router.post("/import/runs/{run_id}/commit", response_model=TransactionImportResponse, status_code=status.HTTP_201_CREATED)
-async def commit_transaction_import_run(
+# A save is answered at once with 202 while it goes, and its outcome is read from the GET route of the same path
+_SAVE_ANSWERS = {status.HTTP_202_ACCEPTED: {"model": ImportRunSaveResponse, "description": "The save is going"}}
+
+
+@router.post("/import/runs/{run_id}/commit", response_model=TransactionImportResponse, responses=_SAVE_ANSWERS)
+async def request_transaction_import_run_save(
     run_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Write a staged run into the ledger
+    """Ask for a staged run to be written into the ledger
 
-    The route delegates row resolution, creation, cache invalidation and affected
-    snapshot recomputation to the import service, all inside one transaction
+    The write runs after this answers, in one transaction with row resolution, creation, cache
+    invalidation and affected snapshot recomputation. Its outcome is read from the GET route
 
     Args:
-        run_id: Run to commit
+        run_id: Run to save
+        user: Authenticated user running the import
+        db: Active database session
+
+    Returns:
+        The summary of a run already saved, or a 202 answer that its save is going
+    """
+    return await request_import_run_save(db, user, run_id)
+
+
+@router.get("/import/runs/{run_id}/commit", response_model=TransactionImportResponse, responses=_SAVE_ANSWERS)
+async def get_transaction_import_run_save(
+    run_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return how the save of a staged run went
+
+    Args:
+        run_id: Run whose save is read
         user: Authenticated user running the import
         db: Active database session
 
     Returns:
         Import summary containing the transactions written and the accounts, categories, merchants
-        and tags the import created or reused
+        and tags the import created or reused, or a 202 answer while the save is going. A refused
+        save answers with the status and detail it was refused with
     """
-    return await commit_import_run(db, user, run_id)
+    return await read_import_run_save(db, run_id)
 
 
 @router.post("/import/runs/{run_id}/journal/rows", status_code=status.HTTP_204_NO_CONTENT)
@@ -499,27 +526,45 @@ async def stage_import_run_archive(
     await stage_import_archive(db, run_id, data)
 
 
-@router.post(
-    "/import/runs/{run_id}/journal/commit",
-    response_model=JournalImportRunResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def commit_journal_import_run(
+@router.post("/import/runs/{run_id}/journal/commit", response_model=JournalImportRunResponse, responses=_SAVE_ANSWERS)
+async def request_journal_import_run_save(
     run_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Write a staged Firefly III or Actual Budget journal, its budgets and its archiving in one transaction
+    """Ask for a staged Firefly III or Actual Budget journal, its budgets and its archiving to be written
+
+    The write runs after this answers, in one transaction. Its outcome is read from the GET route
 
     Args:
-        run_id: Run to commit
+        run_id: Run to save
         user: Authenticated user running the import
         db: Active database session
 
     Returns:
-        Summary of everything the commit wrote
+        The summary of a run already saved, or a 202 answer that its save is going
     """
-    return await commit_journal_run(db, user, run_id)
+    return await request_journal_run_save(db, user, run_id)
+
+
+@router.get("/import/runs/{run_id}/journal/commit", response_model=JournalImportRunResponse, responses=_SAVE_ANSWERS)
+async def get_journal_import_run_save(
+    run_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return how the save of a staged journal went
+
+    Args:
+        run_id: Run whose save is read
+        user: Authenticated user running the import
+        db: Active database session
+
+    Returns:
+        Summary of everything the save wrote, or a 202 answer while the save is going. A refused save
+        answers with the status and detail it was refused with
+    """
+    return await read_journal_run_save(db, run_id)
 
 
 @router.delete("/import/runs/{run_id}", status_code=status.HTTP_204_NO_CONTENT)

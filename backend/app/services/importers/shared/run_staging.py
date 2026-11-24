@@ -184,6 +184,21 @@ def is_run_abandoned(run: ImportRun) -> bool:
     return run.committed_at is None and run.created_at < datetime.now(UTC) - ABANDONED_RUN_AGE
 
 
+def require_run_not_abandoned(run: ImportRun) -> None:
+    """Refuse to save a run left uncommitted for so long that it can no longer be saved
+
+    Raises:
+        HTTPException: Raised with 422 when the run was abandoned before it was committed
+    """
+    # Refused rather than written, so an import its user has since brought in again cannot land a
+    # second time. The page reads the refusal as nothing written, and that is true
+    if is_run_abandoned(run):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="This import expired before it was saved",
+        )
+
+
 async def delete_expired_import_runs(db: AsyncSession) -> None:
     """Delete every user's runs that were abandoned before being committed or can no longer be undone
 

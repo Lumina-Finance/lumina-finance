@@ -74,7 +74,7 @@ test('sends each tag answer, including a corrected name typed on a row nobody an
 
   const staged = page.waitForRequest((sent) => sent.method() === 'POST' && /\/transactions\/import\/runs\/[^/]+\/rows$/.test(sent.url()))
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
 
   // Only the answers differing from what the commit does unasked are sent: the matched name is not
   const { tags } = (await staged).postDataJSON() as StagedBatch
@@ -152,7 +152,7 @@ test('lists a row whose tag is over 64 characters as one that will not import, a
   await expect(preview).not.toContainText('x'.repeat(201))
 
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   const transactions = await request.get(`${API_BASE_URL}/transactions`, { headers: asUser(user) })
   expect(await transactions.json()).toHaveLength(3)
 })

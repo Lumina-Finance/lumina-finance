@@ -13,9 +13,13 @@ const { authenticatedFetchMock } = vi.hoisted(() => ({
   authenticatedFetchMock: vi.fn(),
 }))
 
-vi.mock('@/api/client', () => ({
-  authenticatedFetch: authenticatedFetchMock,
-}))
+vi.mock('@/api/client', async () => {
+  const { answerAsResponse } = await import('./fixtures')
+  return {
+    authenticatedFetch: authenticatedFetchMock,
+    authenticatedRequest: answerAsResponse(authenticatedFetchMock),
+  }
+})
 
 import { runJournalImport } from '@/api/provider-imports'
 import { ImportRunError } from '@/api/import-runs'
@@ -88,7 +92,7 @@ describe('runJournalImport', () => {
 
     await expect(
       runJournalImport({ source: 'firefly', payload: PAYLOAD, budgets: BUDGETS, archiveAccountSources: ['account-1'] }),
-    ).resolves.toBe(summary)
+    ).resolves.toEqual(summary)
 
     expect(getRequests()).toEqual([
       'POST /transactions/import/runs',

@@ -23,10 +23,12 @@ _BUDGETS = {
     [
         ("generic", "post", "journal/rows", _firefly_batch(1), "This import run is a CSV import"),
         ("generic", "post", "journal/commit", None, "This import run is a CSV import"),
+        ("generic", "get", "journal/commit", None, "This import run is a CSV import"),
         ("generic", "put", "budgets", _BUDGETS, "A CSV import has no budgets"),
         ("generic", "put", "archive", {"account_sources": ["Main Chequing"]}, "A CSV import archives no accounts"),
         ("firefly", "post", "rows", _csv_batch(["-1.00"]), "This import run is a Firefly III import"),
         ("firefly", "post", "commit", None, "This import run is a Firefly III import"),
+        ("firefly", "get", "commit", None, "This import run is a Firefly III import"),
         ("actual_budget", "post", "rows", _csv_batch(["-1.00"]), "This import run is an Actual Budget import"),
         ("actual_budget", "post", "commit", None, "This import run is an Actual Budget import"),
         ("ofx", "post", "journal/rows", _firefly_batch(1), "This import run is an OFX import"),
@@ -55,7 +57,7 @@ async def test_an_ofx_run_saves_through_the_csv_endpoints_and_is_named_by_the_la
 
     committed = await _import_run(client, headers, _csv_batch(["-4.50", "12.00"]), source="ofx", file_name="statement.ofx")
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert committed.json()["transactions_created"] == 2
     last = (await client.get("/transactions/import/last", headers=headers)).json()
     assert (last["source"], last["file_name"], last["transaction_count"]) == ("ofx", "statement.ofx", 2)
@@ -67,7 +69,7 @@ async def test_a_qif_run_saves_through_the_csv_endpoints_and_is_named_by_the_las
 
     committed = await _import_run(client, headers, _csv_batch(["-4.50", "12.00"]), source="qif", file_name="checking.qif")
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert committed.json()["transactions_created"] == 2
     last = (await client.get("/transactions/import/last", headers=headers)).json()
     assert (last["source"], last["file_name"], last["transaction_count"]) == ("qif", "checking.qif", 2)

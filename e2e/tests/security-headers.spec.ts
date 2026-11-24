@@ -258,7 +258,7 @@ test('reads a CSV, an OFX, a QIF and a Firefly III file with no policy violation
 
   await test.step('Firefly III', async () => {
     await stageFireflyExport(page)
-    expect((await commitImport(page)).status()).toBe(201)
+    expect((await commitImport(page)).status()).toBe(200)
   })
 
   expect(violations).toEqual([])
@@ -275,7 +275,7 @@ test('imports an Actual Budget export with no policy violation', async ({ page, 
   await upload.setInputFiles(ACTUAL_EXPORT)
 
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   expect(((await response.json()) as { transactions_created: number }).transactions_created).toBe(ACTUAL_MANIFEST.rows.length)
   expect(violations).toEqual([])
 })

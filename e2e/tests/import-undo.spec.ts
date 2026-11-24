@@ -21,7 +21,7 @@ test('undoes the last import, deleting everything it added and keeping the accou
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name: 'undo-test.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
 
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
 
   // Opened afresh, as a user coming back to undo a test import would
   await openPage(page, `/settings/imports?account=${account.id}`)
@@ -65,7 +65,7 @@ test('ends the last import card where the data source dropdown ends at 1280px', 
   const upload = page.locator('input[type="file"][accept=".csv,text/csv"]')
   await expect(upload).toBeEnabled()
   await upload.setInputFiles({ name: 'align-test.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
 
   await openPage(page, `/settings/imports?account=${account.id}`)
   await expect(page.getByRole('region', { name: 'Last import' })).toContainText('Can be undone until')
@@ -127,7 +127,7 @@ test('gives the importer back with its files and answers when the import it ran 
   await expect(page.getByRole('region', { name: 'Last import' })).toBeHidden()
 
   // And it imports again, from the answers on screen
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
 })
 
 /**

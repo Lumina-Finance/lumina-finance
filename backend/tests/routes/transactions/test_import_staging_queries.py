@@ -24,7 +24,7 @@ from tests.routes.transactions._helpers import (
     _get_system_category_id,
     _setup_user_with_deps,
 )
-from tests.routes.transactions._import_helpers import _build_reference_batch, _open_run
+from tests.routes.transactions._import_helpers import _build_reference_batch, _commit_run, _open_run
 
 # Includes authentication and the run read, while remaining independent of declaration count
 STAGING_SELECT_LIMIT = 16
@@ -58,11 +58,16 @@ async def test_staging_reference_selects_are_bounded_and_replay_keeps_exact_rows
     assert first.status_code == 204, first.text
     assert replay.status_code == 204, replay.text
     async with TestSession() as session:
-
         # Inspect durable staging after replay rather than trusting a successful empty response
-        rows = (await session.execute(
-            select(ImportStagedRow).where(ImportStagedRow.import_run_id == uuid.UUID(run_id)).order_by(ImportStagedRow.row_index),
-        )).scalars().all()
+        rows = (
+            (
+                await session.execute(
+                    select(ImportStagedRow).where(ImportStagedRow.import_run_id == uuid.UUID(run_id)).order_by(ImportStagedRow.row_index),
+                )
+            )
+            .scalars()
+            .all()
+        )
 
         # Every declaration must remain available for later commit resolution
         run = (await session.execute(select(ImportRun).where(ImportRun.id == uuid.UUID(run_id)))).scalar_one()
@@ -85,26 +90,31 @@ async def test_staging_group_alias_reads_are_bounded_and_read_grant_does_not_aut
         "start_row_index": 0,
         "accounts": [{"source": f"Account {i}", "account_id": account_id} for i in range(count)],
         "categories": [{"source": f"Category {i}", "category_id": category_id} for i in range(count)],
-        "rows": [{"account_source": f"Account {i}", "category_source": f"Category {i}",
-                  "dt": "2026-04-10", "amount": "-1.23", "tag_names": []} for i in range(count)],
+        "rows": [
+            {"account_source": f"Account {i}", "category_source": f"Category {i}", "dt": "2026-04-10", "amount": "-1.23", "tag_names": []}
+            for i in range(count)
+        ],
     }
     run_id = await _open_run(client, member, count)
     staged, selects = await _stage_with_select_count(client, member, run_id, batch)
     assert staged.status_code == 204, staged.text
-    committed = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=member)
+    committed = await _commit_run(client, member, run_id)
     assert committed.status_code == 403
     assert committed.json()["detail"] == "Insufficient permissions"
     assert (await client.get("/transactions", headers=member)).json() == []
     assert selects <= STAGING_SELECT_LIMIT, {"selects": selects}
 
 
-@pytest.mark.parametrize("case, status_code, detail", [
-    ("account_first", 404, "Account not found"),
-    ("currency_first", 422, "Invalid currency code: ZZZ"),
-    ("institution_first", 422, "Institution not found"),
-    ("category_first", 422, "Category not found"),
-    ("merchant_first", 422, "Merchant not found"),
-])
+@pytest.mark.parametrize(
+    "case, status_code, detail",
+    [
+        ("account_first", 404, "Account not found"),
+        ("currency_first", 422, "Invalid currency code: ZZZ"),
+        ("institution_first", 422, "Institution not found"),
+        ("category_first", 422, "Category not found"),
+        ("merchant_first", 422, "Merchant not found"),
+    ],
+)
 async def test_staging_reports_errors_in_declaration_order_without_partial_rows(client, case, status_code, detail):
     """Preloading reference facts must not move a later refusal ahead of the existing first error"""
     headers, batch = await _build_reference_batch(client, 1, "aliases")
@@ -117,9 +127,18 @@ async def test_staging_reports_errors_in_declaration_order_without_partial_rows(
         batch["accounts"].insert(0, invalid_create)
         batch["accounts"][1]["account_id"] = missing
     elif case == "institution_first":
-        batch["accounts"].insert(0, {"source": "Invalid", "create": {
-            "name": "Invalid", "account_type": "checking", "currency": "CAD", "institution_id": missing,
-        }})
+        batch["accounts"].insert(
+            0,
+            {
+                "source": "Invalid",
+                "create": {
+                    "name": "Invalid",
+                    "account_type": "checking",
+                    "currency": "CAD",
+                    "institution_id": missing,
+                },
+            },
+        )
     if case in {"account_first", "currency_first", "institution_first", "category_first"}:
         batch["categories"][0]["category_id"] = missing
     batch["merchants"][0]["merchant_id"] = missing
@@ -128,11 +147,14 @@ async def test_staging_reports_errors_in_declaration_order_without_partial_rows(
     assert response.status_code == status_code, response.text
     assert response.json()["detail"] == detail
     async with TestSession() as session:
-
         # A refused declaration cannot persist either rows or earlier accepted mappings
-        assert (await session.execute(select(ImportStagedRow.id).where(
-            ImportStagedRow.import_run_id == uuid.UUID(run_id),
-        ))).scalars().all() == []
+        assert (
+            await session.execute(
+                select(ImportStagedRow.id).where(
+                    ImportStagedRow.import_run_id == uuid.UUID(run_id),
+                )
+            )
+        ).scalars().all() == []
         run = (await session.execute(select(ImportRun).where(ImportRun.id == uuid.UUID(run_id)))).scalar_one()
         assert run.account_mappings == run.category_mappings == run.merchant_mappings == {}
 
@@ -165,8 +187,16 @@ async def test_staging_keeps_category_and_merchant_visibility_distinct(client, s
         "accounts": [{"source": "Holding", "account_id": account_id}],
         "categories": [{"source": "Category", "category_id": category_id}],
         "merchants": [{"source": "Merchant", "merchant_id": merchant_id}],
-        "rows": [{"account_source": "Holding", "category_source": "Category", "merchant_name": "Merchant",
-                  "dt": "2026-04-10", "amount": "-1.23", "tag_names": []}],
+        "rows": [
+            {
+                "account_source": "Holding",
+                "category_source": "Category",
+                "merchant_name": "Merchant",
+                "dt": "2026-04-10",
+                "amount": "-1.23",
+                "tag_names": [],
+            }
+        ],
     }
     run_id = await _open_run(client, member, 1)
     response, _selects = await _stage_with_select_count(client, member, run_id, batch)
@@ -193,7 +223,6 @@ async def test_staging_trimmed_source_replay_preserves_one_mapping_per_source(cl
     replay, _replay_count = await _stage_with_select_count(client, headers, run_id, batch)
     assert replay.status_code == 204, replay.text
     async with TestSession() as session:
-
         # Whitespace variants must merge to the same durable source declarations
         run = (await session.execute(select(ImportRun).where(ImportRun.id == uuid.UUID(run_id)))).scalar_one()
         assert set(run.account_mappings) == {"Account 0"}
@@ -205,23 +234,19 @@ async def test_account_access_lookup_rejects_another_user_and_does_not_refetch_m
     """Caller-local facts cannot authorize another identity or silently reread an omitted account"""
     _headers, account_id, _category_id = await _setup_user_with_deps(client)
     async with TestSession() as session:
-
         # Use the actual synthetic account owner when stamping the runtime session identity
         owner_id = (await session.execute(select(Account.owner_id).where(Account.id == uuid.UUID(account_id)))).scalar_one()
     token = current_user_id_ctx.set(owner_id)
     try:
         async with ScopedSession() as session:
             lookup = await load_account_access_lookup(session, {uuid.UUID(account_id)}, owner_id)
-            account = await check_account_access(session, uuid.UUID(account_id), owner_id, PermissionLevel.READ,
-                                                 access_lookup=lookup)
+            account = await check_account_access(session, uuid.UUID(account_id), owner_id, PermissionLevel.READ, access_lookup=lookup)
             assert account.id == uuid.UUID(account_id)
             with pytest.raises(ValueError, match="belongs to another user"):
-                await check_account_access(session, uuid.UUID(account_id), uuid.uuid4(), PermissionLevel.READ,
-                                           access_lookup=lookup)
+                await check_account_access(session, uuid.UUID(account_id), uuid.uuid4(), PermissionLevel.READ, access_lookup=lookup)
             empty = await load_account_access_lookup(session, set(), owner_id)
             with pytest.raises(HTTPException) as error:
-                await check_account_access(session, uuid.UUID(account_id), owner_id, PermissionLevel.READ,
-                                           access_lookup=empty)
+                await check_account_access(session, uuid.UUID(account_id), owner_id, PermissionLevel.READ, access_lookup=empty)
             assert error.value.status_code == 404
             assert error.value.detail == "Account not found"
     finally:
@@ -231,14 +256,13 @@ async def test_account_access_lookup_rejects_another_user_and_does_not_refetch_m
 async def test_staging_facts_do_not_survive_permission_revocation_before_commit(client):
     """Each new request uses current authorization rather than facts from successful staging"""
     admin, member, member_id, _group_id, account_id, category_id, _merchant_id = await _setup_group_with_shared_account(client)
-    permission = await client.post(f"/accounts/{account_id}/permissions", headers=admin,
-                                   json={"user_id": member_id, "level": "write"})
+    permission = await client.post(f"/accounts/{account_id}/permissions", headers=admin, json={"user_id": member_id, "level": "write"})
     assert permission.status_code == 201, permission.text
     batch = {
-        "start_row_index": 0, "accounts": [{"source": "Holding", "account_id": account_id}],
+        "start_row_index": 0,
+        "accounts": [{"source": "Holding", "account_id": account_id}],
         "categories": [{"source": "Category", "category_id": category_id}],
-        "rows": [{"account_source": "Holding", "category_source": "Category", "dt": "2026-04-10",
-                  "amount": "-1.23", "tag_names": []}],
+        "rows": [{"account_source": "Holding", "category_source": "Category", "dt": "2026-04-10", "amount": "-1.23", "tag_names": []}],
     }
     run_id = await _open_run(client, member, 1)
     first, _first_count = await _stage_with_select_count(client, member, run_id, batch)
@@ -248,7 +272,7 @@ async def test_staging_facts_do_not_survive_permission_revocation_before_commit(
     replay, _replay_count = await _stage_with_select_count(client, member, run_id, batch)
     assert replay.status_code == 404
     assert replay.json()["detail"] == "Account not found"
-    commit = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=member)
+    commit = await _commit_run(client, member, run_id)
     assert commit.status_code == 404
     assert commit.json()["detail"] == "Account not found"
     assert (await client.get("/transactions", headers=admin)).json() == []
@@ -264,12 +288,15 @@ async def test_account_access_lookup_preserves_duplicate_grant_cardinality_error
     added = await client.post(f"/groups/{second_group_id}/members", headers=admin, json={"user_id": member_id})
     assert added.status_code == 201, added.text
     async with TestSession() as session:
-
         # The schema allows a second group's grant for the same account, so preserve the old refusal
-        session.add(AccountPermission(
-            group_id=uuid.UUID(second_group_id), user_id=uuid.UUID(member_id),
-            account_id=uuid.UUID(account_id), level=PermissionLevel.READ,
-        ))
+        session.add(
+            AccountPermission(
+                group_id=uuid.UUID(second_group_id),
+                user_id=uuid.UUID(member_id),
+                account_id=uuid.UUID(account_id),
+                level=PermissionLevel.READ,
+            )
+        )
         await session.commit()
     token = current_user_id_ctx.set(uuid.UUID(member_id))
     try:
@@ -278,7 +305,6 @@ async def test_account_access_lookup_preserves_duplicate_grant_cardinality_error
             assert len(lookup.permissions[uuid.UUID(account_id)]) == 2
             for facts in [None, lookup]:
                 with pytest.raises(MultipleResultsFound):
-                    await check_account_access(session, uuid.UUID(account_id), uuid.UUID(member_id), PermissionLevel.READ,
-                                               access_lookup=facts)
+                    await check_account_access(session, uuid.UUID(account_id), uuid.UUID(member_id), PermissionLevel.READ, access_lookup=facts)
     finally:
         current_user_id_ctx.reset(token)

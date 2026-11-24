@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -33,6 +34,7 @@ from app.services.importers.journal.budgets import JournalBudgetImport, write_jo
 from app.services.importers.journal.constants import JOURNAL_RUN_SOURCES
 from app.services.importers.journal.service import JournalWriteResult, write_journal_transactions
 from app.services.importers.shared.run_commit import commit_run
+from app.services.importers.shared.run_save import read_run_save, request_run_save
 from app.services.importers.shared.run_staging import (
     describe_run_source,
     load_staging_references,
@@ -204,6 +206,45 @@ async def commit_journal_run(db: AsyncSession, user: User, run_id: uuid.UUID) ->
         JournalImportRunResponse,
         lambda run, staged_rows: _write_run(db, user, run, staged_rows),
     )
+
+
+async def request_journal_run_save(db: AsyncSession, user: User, run_id: uuid.UUID) -> JournalImportRunResponse | JSONResponse:
+    """Ask for a staged journal export to be written, answering at once that its save is going
+
+    The save is commit_journal_run, and the app runs it after answering. A run already saved answers
+    with the summary it returned the first time
+
+    Args:
+        db: Active database session
+        user: Authenticated user running the import
+        run_id: Run to save
+
+    Returns:
+        The summary of a run already saved, or the 202 answer that its save is going
+
+    Raises:
+        HTTPException: Raised with 404 for a run that is absent or not the caller's, and 422 when a
+            non-journal importer opened the run or it was abandoned before it was saved
+    """
+    return await request_run_save(db, user, run_id, JOURNAL_RUN_SOURCES, JournalImportRunResponse)
+
+
+async def read_journal_run_save(db: AsyncSession, run_id: uuid.UUID) -> JournalImportRunResponse | JSONResponse:
+    """Say how the save of a staged journal export is going
+
+    Args:
+        db: Active database session
+        run_id: Run whose save is read
+
+    Returns:
+        The summary of a saved run, or the 202 answer that its save is going
+
+    Raises:
+        HTTPException: Raised with 404 for a run that is absent or not the caller's, 409 for a run no
+            save was requested for, 422 when a non-journal importer opened the run, and the status
+            and detail commit_journal_run refused the save with
+    """
+    return await read_run_save(db, run_id, JOURNAL_RUN_SOURCES, JournalImportRunResponse)
 
 
 async def _write_run(

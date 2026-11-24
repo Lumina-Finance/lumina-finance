@@ -50,7 +50,7 @@ async function importWithLostAnswer(page: Page, request: APIRequestContext) {
     markFirstSaveHeld()
     await firstSaveReleased
     const landed = await route.fetch()
-    expect(landed.status()).toBe(201)
+    expect(landed.status()).toBe(202)
     await route.abort('connectionfailed')
   })
 
@@ -70,6 +70,8 @@ async function importWithLostAnswer(page: Page, request: APIRequestContext) {
 
   await expect(overlay.getByText('Save interrupted', { exact: true })).toBeVisible()
   await expect(overlay.getByRole('strong')).toHaveText('stay on the import page')
+  // The save carries on in the background after the answer is lost
+  await expect.poll(() => countLedgerTransactions(request, user)).toBe(3)
   const ledgerAfterFirstSave = await countLedgerTransactions(request, user)
   expect(ledgerAfterFirstSave).toBe(3)
 
@@ -118,7 +120,7 @@ test('imports nothing twice when a file is added after an OFX save that landed b
 
   await page.route(COMMIT_URL, async (route) => {
     const landed = await route.fetch()
-    expect(landed.status()).toBe(201)
+    expect(landed.status()).toBe(202)
     await route.abort('connectionfailed')
   })
   const firstSaveDropped = page.waitForEvent('requestfailed', (sent) => COMMIT_URL.test(sent.url()))
@@ -128,6 +130,8 @@ test('imports nothing twice when a file is added after an OFX save that landed b
   await expect(overlay.getByText('Save interrupted', { exact: true })).toBeVisible()
   await overlay.getByRole('button', { name: 'Back to import', exact: true }).click()
   await expect(page.getByText('Save interrupted. Please try again.', { exact: true })).toBeVisible()
+  // The save carries on in the background after the answer is lost
+  await expect.poll(() => countLedgerTransactions(request, user)).toBe(1)
   const ledgerAfterFirstSave = await countLedgerTransactions(request, user)
   expect(ledgerAfterFirstSave).toBe(1)
   await page.unroute(COMMIT_URL)

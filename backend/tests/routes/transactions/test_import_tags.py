@@ -23,7 +23,7 @@ async def test_an_imported_tag_differing_only_in_capitals_is_filed_under_the_exi
 
     resp = await _import_rows(client, headers, account_id, category_id, [{"tag_names": ["travel"]}])
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 0
     assert resp.json()["tags_reused"] == 1
     assert resp.json()["created_tag_ids"] == []
@@ -44,7 +44,7 @@ async def test_two_spellings_of_one_tag_in_a_file_make_one_tag(client):
         [{"tag_names": ["Travel"]}, {"tag_names": ["TRAVEL"], "amount": "-2.00"}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 1
     assert await _list_tag_names(client, headers) == ["Travel"]
     transactions = (await client.get("/transactions", headers=headers)).json()
@@ -57,7 +57,7 @@ async def test_a_row_naming_one_tag_in_two_spellings_carries_it_once(client):
 
     resp = await _import_rows(client, headers, account_id, category_id, [{"tag_names": ["Travel", "travel", "Food"]}])
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 2
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert sorted(tag["name"] for tag in transaction["tags"]) == ["Food", "Travel"]
@@ -71,7 +71,7 @@ async def test_an_imported_tag_does_not_match_another_users_tag(client):
 
     resp = await _import_rows(client, headers, account_id, category_id, [{"tag_names": ["Travel"]}])
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 1
     assert resp.json()["created_tag_ids"] != [other_tag["id"]]
     assert await _list_tag_names(client, headers) == ["Travel"]
@@ -85,7 +85,7 @@ async def test_an_imported_tag_does_not_match_a_group_tag(client):
 
     resp = await _import_rows(client, headers, account_id, category_id, [{"tag_names": ["travel"]}])
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 1
     assert resp.json()["created_tag_ids"] != [group_tag["id"]]
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
@@ -112,7 +112,7 @@ async def test_a_tag_name_pointed_at_an_existing_tag_files_its_rows_under_it(cli
         tags=[{"source": "Trip", "tag_id": chosen["id"]}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 0
     assert await _list_tag_names(client, headers) == ["Holiday"]
     assert await _tag_names_on_transactions(client, headers) == [["Holiday"]]
@@ -131,7 +131,7 @@ async def test_a_tag_name_corrected_is_created_under_the_name_given(client):
         tags=[{"source": "trvl", "create": {"name": "Travel"}}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 1
     assert await _list_tag_names(client, headers) == ["Travel"]
     assert await _tag_names_on_transactions(client, headers) == [["Travel"], ["Travel"]]
@@ -150,7 +150,7 @@ async def test_two_tag_names_corrected_to_one_name_make_one_tag(client):
         tags=[{"source": "trvl", "create": {"name": "Travel"}}, {"source": "trip", "create": {"name": "TRAVEL"}}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 1
     assert await _list_tag_names(client, headers) == ["Travel"]
     assert await _tag_names_on_transactions(client, headers) == [["Travel"], ["Travel"]]
@@ -170,7 +170,7 @@ async def test_a_tag_name_corrected_to_an_existing_tag_reuses_it(client):
         tags=[{"source": "trvl", "create": {"name": "TRAVEL"}}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 0
     assert await _list_tag_names(client, headers) == ["Travel"]
     assert await _tag_names_on_transactions(client, headers) == [["Travel"]]
@@ -189,7 +189,7 @@ async def test_a_skipped_tag_name_leaves_its_rows_without_that_tag_only(client):
         tags=[{"source": "JUNK", "skip": True}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 1
     assert await _list_tag_names(client, headers) == ["Food"]
     assert await _tag_names_on_transactions(client, headers) == [["Food"]]
@@ -209,7 +209,7 @@ async def test_a_tag_name_answered_in_other_capitals_still_answers_its_rows(clie
         tags=[{"source": "trip", "tag_id": chosen["id"]}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert await _tag_names_on_transactions(client, headers) == [["Holiday"]]
 
 
@@ -227,7 +227,7 @@ async def test_a_tag_name_left_unanswered_keeps_matching_and_creating_by_name(cl
         tags=[{"source": "Fun", "skip": True}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["tags_created"] == 1
     assert await _list_tag_names(client, headers) == ["Food", "Trip"]
 
@@ -374,7 +374,7 @@ async def test_a_corrected_tag_name_of_the_longest_length_a_tag_can_have_is_acce
         tags=[{"source": "Trip", "create": {"name": name}}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert await _list_tag_names(client, headers) == [name]
 
 

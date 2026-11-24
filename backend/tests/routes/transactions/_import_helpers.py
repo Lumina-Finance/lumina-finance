@@ -42,8 +42,16 @@ async def _stage_batch(client, headers, run_id, batch, source="generic"):
 
 
 async def _commit_run(client, headers, run_id, source="generic"):
-    """Commit a run through the endpoint its importer uses, and return the response"""
-    return await client.post(_run_endpoint(run_id, source, "commit"), headers=headers)
+    """Save a run through the endpoint its importer uses, and return how the save went
+
+    The save runs as the request for it ends, so the answer read afterwards is its outcome. A request
+    answered with anything but 202 is returned as it is, since no save was started
+    """
+    path = _run_endpoint(run_id, source, "commit")
+    requested = await client.post(path, headers=headers)
+    if requested.status_code != 202:
+        return requested
+    return await client.get(path, headers=headers)
 
 
 async def _open_staged_run(client, headers, payload, source="generic"):

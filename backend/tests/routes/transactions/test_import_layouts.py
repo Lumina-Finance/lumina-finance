@@ -77,7 +77,7 @@ async def test_a_completed_import_into_one_account_saves_how_its_file_was_read(c
 
     run_id, committed = await _import(client, headers, _into(account_id, category_id), _WEB_EXPORT)
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert await _list_layouts(client, headers) == [_saved(account_id, _WEB_EXPORT)]
     assert await _stored_layouts() == [(account_id, _WEB_EXPORT["headers"], "dayFirst", run_id)]
 
@@ -89,7 +89,7 @@ async def test_a_file_with_other_headers_is_saved_beside_the_first_and_keeps_its
 
     mobile_run_id, committed = await _import(client, headers, _into(account_id, category_id), _MOBILE_EXPORT)
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert await _list_layouts(client, headers) == [_saved(account_id, _MOBILE_EXPORT), _saved(account_id, _WEB_EXPORT)]
 
     # Only the last import can be undone, though the earlier run stays for the undo window
@@ -107,7 +107,7 @@ async def test_changed_settings_for_the_same_headers_replace_the_saved_ones(clie
 
     _run_id, committed = await _import(client, headers, _into(account_id, category_id), corrected)
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert await _list_layouts(client, headers) == [_saved(account_id, corrected)]
 
 
@@ -144,10 +144,10 @@ async def test_a_commit_failing_after_the_save_leaves_no_layout(client, monkeypa
         await db.execute(text("SELECT 1 / 0"))
 
     monkeypatch.setattr(run_commit_module, "mark_user_cache_changed", fail_in_the_database)
-    with pytest.raises(Exception, match="division by zero"):
-        await _import(client, headers, _into(account_id, category_id), _WEB_EXPORT)
+    _run_id, committed = await _import(client, headers, _into(account_id, category_id), _WEB_EXPORT)
     monkeypatch.undo()
 
+    assert (committed.status_code, committed.json()["detail"]) == (500, "The import couldn't be saved")
     assert await _list_layouts(client, headers) == []
     assert (await client.get("/transactions", headers=headers)).json() == []
 
@@ -163,7 +163,7 @@ async def test_a_repeated_commit_answers_without_saving_again(client):
     with client.expecting_no_change():
         repeated = await _commit_run(client, headers, run_id)
 
-    assert repeated.status_code == 201, repeated.text
+    assert repeated.status_code == 200, repeated.text
     assert [layout["date_format"] for layout in await _list_layouts(client, headers)] == ["iso"]
 
 
@@ -202,7 +202,7 @@ async def test_an_import_writing_rows_to_two_accounts_saves_nothing(client):
 
     _run_id, committed = await _import(client, headers, batch, _WEB_EXPORT)
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert await _list_layouts(client, headers) == []
 
 
@@ -221,7 +221,7 @@ async def test_a_transfer_counterparty_does_not_count_as_a_second_account(client
 
     _run_id, committed = await _import(client, headers, batch, _WEB_EXPORT)
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert await _list_layouts(client, headers) == [_saved(checking_id, _WEB_EXPORT)]
 
 
@@ -232,7 +232,7 @@ async def test_an_import_into_a_shared_group_account_saves_nothing_for_anyone(cl
 
     _run_id, committed = await _import(client, member, _into(account_id, category_id), _WEB_EXPORT)
 
-    assert committed.status_code == 201, committed.text
+    assert committed.status_code == 200, committed.text
     assert await _stored_layouts() == []
     assert await _list_layouts(client, member) == []
     assert await _list_layouts(client, admin) == []

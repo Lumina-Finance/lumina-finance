@@ -53,6 +53,8 @@ UNMARKED_WRITE_ROUTES: dict[str, str] = {
     "DELETE /transactions/import/runs/{run_id}": "Drops a run's staged rows, which no screen shows.",
     "POST /transactions/import/runs/{run_id}/rows": "Stages rows in an open run that no screen shows until the run commits.",
     "POST /transactions/import/runs/{run_id}/journal/rows": "Stages journal rows in an open run that no screen shows until the run commits.",
+    "POST /transactions/import/runs/{run_id}/commit": "Asks for the save, whose commit marks, and repeats its summary.",
+    "POST /transactions/import/runs/{run_id}/journal/commit": "Asks for the save, whose commit marks, and repeats its summary.",
     # Bank sign-in. Nothing shows until the connection is linked
     "POST /bank-sync/authorizations": "Starts signing in at the bank. Linking the connection afterwards marks.",
     # Lookups made with POST so the request can carry a body

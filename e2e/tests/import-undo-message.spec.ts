@@ -133,7 +133,7 @@ for (const size of UNDO_SIZES) {
     // Polled while the message shows, since it moves out of the way over a moment
     await expect.poll(isClearOfMessage(page, commit)).toBe(true)
     await expect(message).toBeVisible()
-    expect((await commitImport(page)).status()).toBe(201)
+    expect((await commitImport(page)).status()).toBe(200)
   })
 
   test(`keeps Commit import clear of the Import undone message at ${size.width}x${size.height}, for a keyboard`, async ({ page, request }) => {
@@ -153,6 +153,6 @@ for (const size of UNDO_SIZES) {
     await expect(commit).toBeFocused()
 
     await expect.poll(isClearOfMessage(page, commit)).toBe(true)
-    expect((await commitImport(page, { via: 'keyboard' })).status()).toBe(201)
+    expect((await commitImport(page, { via: 'keyboard' })).status()).toBe(200)
   })
 }

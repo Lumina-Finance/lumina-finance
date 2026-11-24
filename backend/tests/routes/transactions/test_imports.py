@@ -27,7 +27,7 @@ from tests.routes.transactions._helpers import (
     _seed_institution,
     _setup_user_with_deps,
 )
-from tests.routes.transactions._import_helpers import _csv_batch, _import_rows, _import_run, _open_run
+from tests.routes.transactions._import_helpers import _commit_run, _csv_batch, _import_rows, _import_run, _open_run
 
 # --- Staging a run and committing it ---
 
@@ -73,7 +73,7 @@ async def test_import_transactions_creates_records_and_recomputes_snapshots(clie
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert data["transactions_created"] == 1
     assert data["accounts_created"] == 1
@@ -178,7 +178,7 @@ async def test_import_transactions_reuses_existing_records(client):
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert data["transactions_created"] == 1
     assert data["accounts_reused"] == 1
@@ -235,7 +235,7 @@ async def test_import_transactions_records_the_counterparty_account_on_a_transfe
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     transactions_resp = await client.get("/transactions", headers=headers)
     transactions_by_amount = {transaction["amount"]: transaction for transaction in transactions_resp.json()}
     assert transactions_by_amount[-50000]["counterparty_account_id"] == savings_id
@@ -276,7 +276,7 @@ async def test_import_transactions_records_an_account_it_creates_as_the_counterp
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert data["accounts_created"] == 1
 
@@ -311,7 +311,7 @@ async def test_import_transactions_records_a_transfer_leaving_the_tracked_accoun
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["accounts_created"] == 0
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert transaction["counterparty_account_id"] is None
@@ -645,7 +645,7 @@ async def test_import_transactions_stores_a_normalized_amount(client):
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert transaction["amount"] == -10099
 
@@ -707,7 +707,7 @@ async def test_import_transactions_records_an_archived_account_as_the_counterpar
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     transactions_resp = await client.get("/transactions", headers=headers)
     transaction = transactions_resp.json()[0]
     assert transaction["counterparty_account_id"] == savings_id
@@ -806,10 +806,10 @@ async def test_staging_a_batch_twice_stages_its_rows_once(client):
 
     first = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
     second = await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
-    commit = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+    commit = await _commit_run(client, headers, run_id)
 
     assert (first.status_code, second.status_code) == (204, 204)
-    assert commit.status_code == 201
+    assert commit.status_code == 200
     assert commit.json()["transactions_created"] == 2
     assert len((await client.get("/transactions", headers=headers)).json()) == 2
 
@@ -855,7 +855,7 @@ async def test_committing_a_run_missing_rows_is_refused(client):
     run_id = await _open_run(client, headers, 3)
     await client.post(f"/transactions/import/runs/{run_id}/rows", json=_batch(account_id, category_id, ["-1.00"]), headers=headers)
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+    resp = await _commit_run(client, headers, run_id)
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "This import has 1 of its 3 rows staged"
@@ -869,7 +869,7 @@ async def test_a_row_stating_no_merchant_is_stamped_with_the_unknown_merchant(cl
 
     resp = await _import_rows(client, headers, account_id, category_id, [{}])
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert transaction["merchant_id"] == unknown_merchant_id
     assert transaction["merchant_name"] == UNKNOWN_MERCHANT_NAME
@@ -899,7 +899,7 @@ async def test_a_transfer_stating_no_merchant_is_stamped_with_the_self_merchant(
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert transaction["merchant_id"] == self_merchant_id
 
@@ -910,7 +910,7 @@ async def test_a_stamped_merchant_counts_as_neither_created_nor_reused(client):
 
     resp = await _import_rows(client, headers, account_id, category_id, [{}, {}])
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 0
     assert resp.json()["merchants_reused"] == 0
     assert resp.json()["created_merchant_ids"] == []
@@ -935,7 +935,7 @@ async def test_a_merchant_name_matching_a_shared_merchant_reuses_it(client):
 
     resp = await _import_rows(client, headers, account_id, category_id, [{"merchant_name": "Myself"}])
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 0
     assert resp.json()["merchants_reused"] == 1
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
@@ -949,7 +949,7 @@ async def test_a_merchant_name_spelled_differently_from_an_existing_merchant_reu
 
     resp = await _import_rows(client, headers, account_id, category_id, [{"merchant_name": "CORNER CAFE"}])
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 0
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert transaction["merchant_id"] == created.json()["id"]
@@ -974,7 +974,7 @@ async def test_a_merchant_name_matching_a_personal_and_a_shared_merchant_resolve
         ],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 0
     transactions = (await client.get("/transactions", headers=headers)).json()
     # Both rows land on the merchant that ships with the app rather than the personal one
@@ -1004,7 +1004,7 @@ async def test_a_category_source_creating_a_name_the_user_already_has_reuses_it(
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert (resp.json()["categories_created"], resp.json()["categories_reused"]) == (0, 1)
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert transaction["category_id"] == existing.json()["id"]
@@ -1078,7 +1078,7 @@ async def test_a_merchant_name_answered_with_an_existing_merchant_is_filed_under
         merchants=[{"source": "SQ *COFFEE 4471 TORONTO", "merchant_id": chosen["id"]}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 0
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert transaction["merchant_id"] == chosen["id"]
@@ -1097,7 +1097,7 @@ async def test_a_merchant_name_answered_with_a_corrected_name_is_created_under_t
         merchants=[{"source": "SQ *COFFEE 4471 TORONTO", "create": {"name": "Coffee Bar"}}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 1
     merchants = (await client.get("/merchants", headers=headers)).json()
     assert [merchant["name"] for merchant in merchants if not merchant["is_system"]] == ["Coffee Bar"]
@@ -1121,7 +1121,7 @@ async def test_two_merchant_names_corrected_to_one_name_make_one_merchant(client
         ],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 1
     transactions = (await client.get("/transactions", headers=headers)).json()
     assert len({transaction["merchant_id"] for transaction in transactions}) == 1
@@ -1141,7 +1141,7 @@ async def test_a_merchant_name_answered_skip_is_filed_under_the_shared_merchant(
         merchants=[{"source": "SQ *COFFEE 4471 TORONTO", "skip": True}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     # Neither created nor reused, since a stamped merchant matched nothing the file stated
     assert (resp.json()["merchants_created"], resp.json()["merchants_reused"]) == (0, 0)
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
@@ -1222,7 +1222,7 @@ async def test_a_merchant_name_answered_with_a_name_that_ships_with_the_app_reus
         merchants=[{"source": "TFR TO SAVINGS 0012", "create": {"name": SELF_MERCHANT_NAME.lower()}}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 0
     assert [merchant["name"] for merchant in (await client.get("/merchants", headers=headers)).json() if not merchant["is_system"]] == []
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
@@ -1243,7 +1243,7 @@ async def test_a_merchant_name_answered_with_a_name_the_user_already_has_reuses_
         merchants=[{"source": "SQ *COFFEE 4471", "create": {"name": "CORNER CAFE"}}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 0
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
     assert transaction["merchant_id"] == existing["id"]
@@ -1266,7 +1266,7 @@ async def test_answering_a_merchant_name_like_a_shared_merchant_leaves_the_stamp
         merchants=[{"source": UNKNOWN_MERCHANT_NAME, "merchant_id": chosen["id"]}],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     transactions = (await client.get("/transactions", headers=headers)).json()
     merchants_by_amount = {transaction["amount"]: transaction["merchant_id"] for transaction in transactions}
 
@@ -1294,7 +1294,7 @@ async def test_a_merchant_name_pointed_at_a_merchant_does_not_take_another_names
         ],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 1
     transactions = (await client.get("/transactions", headers=headers)).json()
     merchants_by_amount = {transaction["amount"]: transaction["merchant_name"] for transaction in transactions}
@@ -1351,7 +1351,7 @@ async def test_two_spellings_of_one_merchant_name_in_a_file_make_one_merchant(cl
         ],
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 1
     merchants = (await client.get("/merchants", headers=headers)).json()
     assert [merchant["name"] for merchant in merchants if not merchant["is_system"]] == ["Bakery"]
@@ -1445,11 +1445,11 @@ async def test_committing_twice_answers_from_the_first_commit(client):
     run_id = await _open_run(client, headers, 1)
     await client.post(f"/transactions/import/runs/{run_id}/rows", json=_batch(account_id, category_id, ["-1.00"]), headers=headers)
 
-    first = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+    first = await _commit_run(client, headers, run_id)
     with client.expecting_no_change():
-        second = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+        second = await _commit_run(client, headers, run_id)
 
-    assert (first.status_code, second.status_code) == (201, 201)
+    assert (first.status_code, second.status_code) == (200, 200)
     assert second.json() == first.json()
     assert len((await client.get("/transactions", headers=headers)).json()) == 1
 
@@ -1461,7 +1461,7 @@ async def test_a_row_the_mappings_cannot_satisfy_leaves_nothing_written(client):
     batch = _batch(account_id, category_id, ["-1.00", "$2.00"])
     await client.post(f"/transactions/import/runs/{run_id}/rows", json=batch, headers=headers)
 
-    resp = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+    resp = await _commit_run(client, headers, run_id)
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "Invalid amount: $2.00"
@@ -1475,7 +1475,7 @@ async def test_deleting_a_run_drops_what_it_staged(client):
     await client.post(f"/transactions/import/runs/{run_id}/rows", json=_batch(account_id, category_id, ["-1.00"]), headers=headers)
 
     deleted = await client.delete(f"/transactions/import/runs/{run_id}", headers=headers)
-    commit = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+    commit = await _commit_run(client, headers, run_id)
 
     assert deleted.status_code == 204
     assert commit.status_code == 404
@@ -1487,7 +1487,7 @@ async def test_deleting_a_committed_run_is_refused(client):
     headers, account_id, category_id = await _setup_user_with_deps(client)
     run_id = await _open_run(client, headers, 1)
     await client.post(f"/transactions/import/runs/{run_id}/rows", json=_batch(account_id, category_id, ["-1.00"]), headers=headers)
-    await client.post(f"/transactions/import/runs/{run_id}/commit", headers=headers)
+    await _commit_run(client, headers, run_id)
 
     resp = await client.delete(f"/transactions/import/runs/{run_id}", headers=headers)
 
@@ -1507,7 +1507,7 @@ async def test_another_users_run_is_out_of_reach(client):
         json=_batch(account_id, category_id, ["-1.00"]),
         headers=other_headers,
     )
-    committed = await client.post(f"/transactions/import/runs/{run_id}/commit", headers=other_headers)
+    committed = await _commit_run(client, other_headers, run_id)
     deleted = await client.delete(f"/transactions/import/runs/{run_id}", headers=other_headers)
 
     assert (staged.status_code, committed.status_code, deleted.status_code) == (404, 404, 404)
@@ -1544,7 +1544,7 @@ async def test_reuse_counts_leave_out_records_the_import_created(client):
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert (data["merchants_created"], data["merchants_reused"]) == (1, 0)
     assert (data["tags_created"], data["tags_reused"]) == (1, 0)
@@ -1621,7 +1621,7 @@ async def test_an_import_across_two_accounts_recomputes_each_from_its_own_earlie
         },
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["affected_account_ids"] == sorted([chequing_id, savings_id])
 
     chequing_snapshots = (await client.get(f"/accounts/{chequing_id}/snapshots", headers=headers)).json()

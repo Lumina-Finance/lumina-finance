@@ -44,7 +44,7 @@ test('imports several files as one import and undoes them together', async ({ pa
   for (const name of ['2024-03.csv', '2024-04.csv', '2024-05.csv']) {
     await expect(page.getByRole('button', { name: `Remove ${name}`, exact: true })).toBeVisible()
   }
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
   await expect(page.getByRole('dialog').getByText('6 transactions imported · 0 accounts created · 0 categories created', { exact: true })).toBeVisible()
   expect(await countLedgerTransactions(request, user)).toBe(6)
 
@@ -206,7 +206,7 @@ test('applies a chosen date range across the files', async ({ page, request }) =
   await typeDate(page, 'Start date', '2024-03-10')
   await typeDate(page, 'End date', '2024-04-10')
 
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
   const stored = await request.get(`${API_BASE_URL}/transactions?account_id=${account.id}`, { headers: asUser(user) })
   const dates = (await stored.json() as { dt: string }[]).map((row) => row.dt.slice(0, 10)).sort()
   expect(dates).toEqual(['2024-03-20', '2024-04-05'])
@@ -227,7 +227,7 @@ test('opens several files at once with the settings saved by an earlier import',
   await expect(dateFormat).toHaveText('Choose the date format')
   await dateFormat.click()
   await page.getByRole('option', { name: /^Day first \(30\/04\/2026\)/ }).click()
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
   await expect(page.getByRole('dialog').getByText('2 transactions imported · 0 accounts created · 0 categories created', { exact: true })).toBeVisible()
 
   await openPage(page, `/settings/imports?account=${account.id}`)

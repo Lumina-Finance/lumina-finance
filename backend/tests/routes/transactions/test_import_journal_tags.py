@@ -59,7 +59,7 @@ async def test_tag_names_differing_only_in_capitals_make_one_tag_that_both_rows_
 
     resp = await _import_run(client, headers, build([["Travel"], ["TRAVEL"]]), source=source)
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert resp.json()["tags_created"] == 1
     tags = (await client.get("/tags", headers=headers)).json()
     assert [tag["name"] for tag in tags] == ["Travel"]
@@ -78,7 +78,7 @@ async def test_tag_name_of_exactly_64_characters_is_accepted(client, source, bui
 
     resp = await _import_run(client, headers, build([[name]]), source=source)
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert [tag["name"] for tag in (await client.get("/tags", headers=headers)).json()] == [name]
 
 
@@ -133,7 +133,7 @@ async def test_a_tag_answered_skip_is_left_off_its_rows_and_the_rows_still_impor
         source=source,
     )
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert resp.json()["tags_created"] == 1
     assert [tag["name"] for tag in (await client.get("/tags", headers=headers)).json()] == ["Food"]
     transactions = (await client.get("/transactions", headers=headers)).json()
@@ -155,7 +155,7 @@ async def test_a_tag_answered_with_a_corrected_name_is_created_under_it(client, 
         source=source,
     )
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert [tag["name"] for tag in (await client.get("/tags", headers=headers)).json()] == ["Holiday trip"]
     transactions = (await client.get("/transactions", headers=headers)).json()
     assert [[tag["name"] for tag in transaction["tags"]] for transaction in transactions] == [["Holiday trip"]]
@@ -177,7 +177,7 @@ async def test_a_tag_pointed_at_an_existing_tag_files_its_rows_under_it(client, 
         source=source,
     )
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert resp.json()["tags_created"] == 0
     assert [tag["name"] for tag in (await client.get("/tags", headers=headers)).json()] == ["Holiday"]
     transactions = (await client.get("/transactions", headers=headers)).json()

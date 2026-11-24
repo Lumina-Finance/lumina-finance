@@ -56,7 +56,7 @@ async def test_import_refused_a_kind_it_creates_saves_nothing_at_all(client, kin
     install_check()
     saved = await _import_run(client, headers, _PAYLOAD)
 
-    assert saved.status_code == 201, saved.text
+    assert saved.status_code == 200, saved.text
     assert await _account_names(client, headers) == ["Main Chequing"]
 
 
@@ -106,7 +106,7 @@ async def test_import_asks_each_kind_once_with_how_many_it_adds_and_how_many_the
 
     imported = await _import_run(client, headers, payload)
 
-    assert imported.status_code == 201, imported.text
+    assert imported.status_code == 200, imported.text
     assert {request.kind: (request.held, request.adding) for request in asked} == {
         AllowanceKind.ACCOUNT: (1, 1),
         AllowanceKind.CATEGORY: (1, 2),
@@ -120,13 +120,13 @@ async def test_import_reusing_everything_it_names_never_asks_the_check(client):
     """A second import of the same names reuses the user's account, category, merchant and tag, so it adds nothing to ask about"""
     headers = _get_auth_header(await _create_user(client))
     first = await _import_run(client, headers, _PAYLOAD)
-    assert first.status_code == 201, first.text
+    assert first.status_code == 200, first.text
     asked = install_check()
     reused_account = {"accounts": [{"source": "Main Chequing", "account_id": (await client.get("/accounts", headers=headers)).json()[0]["id"]}]}
 
     again = await _import_run(client, headers, {**_PAYLOAD, **reused_account})
 
-    assert again.status_code == 201, again.text
+    assert again.status_code == 200, again.text
     assert asked == [], "an import adding no account, category, merchant or tag asked the check"
 
 
@@ -183,9 +183,11 @@ async def test_import_of_two_budgets_asks_once_with_the_one_the_user_already_hol
     run_path = await _stage_journal_run_with_budgets(client, headers, ["Groceries", "Dining"])
     asked = install_check()
 
-    committed = await client.post(f"{run_path}/journal/commit", headers=headers)
+    requested = await client.post(f"{run_path}/journal/commit", headers=headers)
+    committed = await client.get(f"{run_path}/journal/commit", headers=headers)
 
-    assert committed.status_code == 201, committed.text
+    assert requested.status_code == 202, requested.text
+    assert committed.status_code == 200, committed.text
     assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.BUDGET] == [(1, 2)]
 
 
@@ -195,8 +197,10 @@ async def test_import_of_budgets_refused_saves_nothing_at_all(client):
     run_path = await _stage_journal_run_with_budgets(client, headers, ["Groceries"])
     asked = install_check(refused={AllowanceKind.BUDGET})
 
-    refused = await client.post(f"{run_path}/journal/commit", headers=headers)
+    requested = await client.post(f"{run_path}/journal/commit", headers=headers)
+    refused = await client.get(f"{run_path}/journal/commit", headers=headers)
 
+    assert requested.status_code == 202, requested.text
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == ALLOWANCE_REASON
     assert await _account_names(client, headers) == [], "the account of a refused import was saved"

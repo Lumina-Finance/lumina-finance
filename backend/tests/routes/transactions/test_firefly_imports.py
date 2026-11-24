@@ -40,7 +40,7 @@ async def test_firefly_import_creates_expense_and_income_rows(client):
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert data["rows_imported"] == 2
     assert data["transactions_created"] == 2
@@ -90,7 +90,7 @@ async def test_firefly_import_converts_transfers_into_two_legs(client):
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert data["rows_imported"] == 1
     assert data["transactions_created"] == 2
@@ -145,7 +145,7 @@ async def test_firefly_import_records_accounts_it_creates_as_each_other_s_other_
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     chequing_id = data["account_source_ids"]["Everyday Chequing"]
     savings_id = data["account_source_ids"]["High Interest Savings"]
@@ -179,7 +179,7 @@ async def test_firefly_import_lists_affected_accounts_in_the_csv_import_s_sorted
         source="firefly",
     )
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     assert resp.json()["affected_account_ids"] == sorted([chequing_id, savings_id])
 
 
@@ -213,7 +213,7 @@ async def test_firefly_transfer_legs_are_stamped_with_the_self_merchant(client):
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     self_merchant_id = await _get_system_merchant_id(client, headers, SELF_MERCHANT_NAME)
     transactions = (await client.get("/transactions", headers=headers)).json()
     assert [transaction["merchant_id"] for transaction in transactions] == [self_merchant_id] * 2
@@ -237,7 +237,7 @@ async def test_firefly_import_records_a_one_sided_transfer_row_as_leaving_the_ac
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["transactions_created"] == 1
 
     transaction = (await client.get("/transactions", headers=headers)).json()[0]
@@ -300,7 +300,7 @@ async def test_firefly_imported_internal_transfer_is_left_out_of_the_limit_total
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["transactions_created"] == 2
 
     # The category treats its own accounts as one pot by default, and both legs now say the money
@@ -382,7 +382,7 @@ async def test_firefly_import_uses_foreign_amount_for_cross_currency_transfers(c
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert data["transactions_created"] == 2
 
@@ -423,7 +423,7 @@ async def test_firefly_import_converts_liability_withdrawals_to_transfers(client
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert data["transactions_created"] == 2
 
@@ -482,7 +482,7 @@ async def test_firefly_import_keeps_same_named_asset_and_loan_apart(client):
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert data["rows_imported"] == 3
     assert data["accounts_created"] == 2
@@ -542,7 +542,7 @@ async def test_firefly_import_applies_opening_balance_direction(client):
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert data["transactions_created"] == 2
 
@@ -701,7 +701,7 @@ async def test_firefly_import_maps_uncategorized_rows_via_placeholder(client):
         {"source": "(no category)", "create": {"name": "Imported Uncategorized", "kind": "expense"}},
     ]
     resp = await _import_run(client, headers, payload, source="firefly")
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     data = resp.json()
     assert data["transactions_created"] == 1
     assert data["categories_created"] == 1
@@ -734,7 +734,7 @@ async def test_firefly_import_files_a_merchant_name_under_a_merchant_the_databas
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 0
     transactions = (await client.get("/transactions", headers=headers)).json()
     assert [transaction["merchant_id"] for transaction in transactions] == [existing.json()["id"]] * 2
@@ -759,7 +759,7 @@ async def test_firefly_import_creates_one_merchant_for_names_the_database_lowerc
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     assert resp.json()["merchants_created"] == 1
     transactions = (await client.get("/transactions", headers=headers)).json()
     assert len({transaction["merchant_id"] for transaction in transactions}) == 1
@@ -822,7 +822,7 @@ async def test_firefly_import_takes_a_row_at_its_field_limits(client):
         source="firefly",
     )
 
-    assert resp.status_code == 201
+    assert resp.status_code == 200
     transactions = (await client.get("/transactions", headers=headers)).json()
     assert [transaction["notes"] for transaction in transactions] == ["d" * 1024]
 

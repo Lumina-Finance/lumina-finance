@@ -46,7 +46,7 @@ test('imports a statement where the browser withholds crypto.subtle and crypto.r
 
   const response = await commitImport(page)
 
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   expect(await countLedgerTransactions(request, user)).toBe(2)
 })
 
@@ -66,7 +66,7 @@ test('imports a statement into a new account, leaving out a transaction with no 
 
   const opened = page.waitForRequest((sent) => sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url()))
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   expect((await opened).postDataJSON()).toMatchObject({ file_name: 'statement.ofx', source: 'ofx' })
 
   expect(await countLedgerTransactions(request, user)).toBe(2)
@@ -93,7 +93,7 @@ test('imports a bank and a credit card statement of one file in one run', async 
     if (sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url())) runs += 1
   })
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
   expect(runs).toBe(1)
 
   expect(await countLedgerTransactions(request, user)).toBe(3)
@@ -137,7 +137,7 @@ test('imports a loan statement into a new loan account without a notice', async 
   await expect(page.getByText('Statements left out', { exact: true })).toBeHidden()
 
   const response = await commitImport(page)
-  expect(response.status()).toBe(201)
+  expect(response.status()).toBe(200)
 
   expect(await countLedgerTransactions(request, user)).toBe(2)
   const accounts = await request.get(`${API_BASE_URL}/accounts`, { headers: asUser(user) })
@@ -259,7 +259,7 @@ test('imports the statements of several files as one import, skipping a transact
     if (sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url())) runs += 1
   })
   const opened = page.waitForRequest((sent) => sent.method() === 'POST' && /\/transactions\/import\/runs$/.test(sent.url()))
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
   expect((await opened).postDataJSON()).toMatchObject({ file_name: '2024-01.qfx, 2024-02.qfx, 2024-03.qfx', source: 'ofx' })
   expect(runs).toBe(1)
 
@@ -342,7 +342,7 @@ test('flags a transaction the account already holds in the preview, and the save
   const user = await signUpUser(request)
   const hardware = { posted: '20240201120000', amount: '-20.00', name: 'Hardware' }
   await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [PAYROLL, { ...hardware, fitId: 'H1' }])]))
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
   expect(await countLedgerTransactions(request, user)).toBe(2)
 
   await openPage(page, '/settings/imports')
@@ -358,7 +358,7 @@ test('flags a transaction the account already holds in the preview, and the save
   await expect(page.getByText(`This transaction is already in ${ACCOUNT_LABEL}.`, { exact: true })).toBeVisible()
   await expect(page.getByText('Payroll', { exact: true }).first()).toBeVisible()
 
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
   const overlay = page.getByRole('dialog')
   await expect(overlay.getByText('1 transaction imported · 0 accounts created · 0 categories created · 1 skipped', { exact: true })).toBeVisible()
   expect(await countLedgerTransactions(request, user)).toBe(3)
@@ -370,7 +370,7 @@ test('keeps Commit import off while the held-rows check runs or has failed, unti
   const user = await signUpUser(request)
   const hardware = { posted: '20240201120000', amount: '-20.00', name: 'Hardware' }
   await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [PAYROLL, { ...hardware, fitId: 'H1' }])]))
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
 
   let runs = 0
   page.on('request', (sent) => {
@@ -412,7 +412,7 @@ test('keeps Commit import off while the held-rows check runs or has failed, unti
 
   // The presses while it was off started nothing, and the first import that does start leaves the held row out
   expect(runs).toBe(0)
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
   expect(await countLedgerTransactions(request, user)).toBe(3)
 })
 
@@ -422,7 +422,7 @@ test('keeps the finished import as saved, and asks again once its undo reopens t
   const user = await signUpUser(request)
   const hardware = { posted: '20240201120000', amount: '-20.00', name: 'Hardware' }
   await uploadStatement(page, user, buildFile([buildBankMessageSet('CAD', [PAYROLL, { ...hardware, fitId: 'H1' }])]))
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
 
   await openPage(page, '/settings/imports')
   await chooseFromDropdown(page.locator('body'), 'Data source', 'OFX/QFX')
@@ -438,7 +438,7 @@ test('keeps the finished import as saved, and asks again once its undo reopens t
   await expect(figures).toHaveText(['Rows', '2', 'Will create', '1', 'New accounts', '0', 'New categories', '0'])
   expect(heldChecks).toBe(1)
 
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
   await page.getByRole('dialog').getByRole('button', { name: 'Review skipped rows', exact: true }).click()
 
   // The last import card reading the saved import is a fence: the refresh that brought it in would have
@@ -472,7 +472,7 @@ test('previews a statement\'s transaction under the merchant the user already ha
   await expect(preview).toContainText('CORNER CAFE')
   await expect(preview).not.toContainText('Corner Cafe')
 
-  expect((await commitImport(page)).status()).toBe(201)
+  expect((await commitImport(page)).status()).toBe(200)
   const transactions = await request.get(`${API_BASE_URL}/transactions`, { headers: asUser(user) })
   const filedUnder = (await transactions.json() as { merchant_name: string }[]).map((transaction) => transaction.merchant_name)
   expect(filedUnder).toContain('CORNER CAFE')

@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { asUser, createAccount, signUpUser, type TestUser } from '../support/api'
+import { asUser, createAccount, saveStagedRun, signUpUser, type TestUser } from '../support/api'
 import { commitImport, logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -43,8 +43,7 @@ async function seedWebLayout(request: APIRequestContext, user: TestUser, account
     },
   })
   expect(staged.status()).toBe(204)
-  const committed = await request.post(`${API_BASE_URL}/transactions/import/runs/${runId}/commit`, { headers })
-  expect(committed.status()).toBe(201)
+  await saveStagedRun(request, headers, runId)
 }
 
 async function listLayouts(request: APIRequestContext, user: TestUser) {

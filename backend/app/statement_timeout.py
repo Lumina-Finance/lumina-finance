@@ -18,13 +18,18 @@ _QUERY_CANCELED_SQLSTATE = "57014"
 STATEMENT_TIMEOUT_DETAIL = "Oops, the server took too long to answer. Please try again"
 
 
+def is_statement_timeout(exc: DBAPIError) -> bool:
+    """Whether the database cancelled the statement for running too long"""
+    return getattr(exc.orig, "sqlstate", None) == _QUERY_CANCELED_SQLSTATE
+
+
 async def handle_statement_timeout(request: Request, exc: DBAPIError) -> JSONResponse:
     """Answer 503 with a readable reason for a cancelled statement, leaving any other database error a server fault
 
     Raises:
         DBAPIError: The error is not a cancelled statement
     """
-    if getattr(exc.orig, "sqlstate", None) != _QUERY_CANCELED_SQLSTATE:
+    if not is_statement_timeout(exc):
         raise exc
 
     # The database rolled the transaction back and released its locks. Which statement ran too long is

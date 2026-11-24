@@ -205,7 +205,7 @@ async def test_an_account_delete_overlapping_an_import_undo_still_deletes_the_ac
     payload = _csv_payload(["-4.50"])
     payload["accounts"] = [{"source": "Everyday", "account_id": account_id}]
     imported = await _import_run(client, headers, payload, file_name="everyday-test.csv")
-    assert imported.status_code == 201, imported.text
+    assert imported.status_code == 200, imported.text
     run_id = (await client.get("/transactions/import/last", headers=headers)).json()["id"]
     held, release, entered = asyncio.Event(), asyncio.Event(), asyncio.Event()
     pids = []

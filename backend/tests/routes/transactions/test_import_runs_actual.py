@@ -177,7 +177,7 @@ async def test_an_actual_run_commits_a_journal_with_a_categorized_loan_payment_a
         archive={"account_sources": ["Old Savings"]},
     )
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     summary = resp.json()
     assert {
         key: summary[key]
@@ -373,7 +373,7 @@ async def test_an_actual_categorized_transfer_files_its_budget_leg_as_an_expense
         source="actual_budget",
     )
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     summary = resp.json()
     checking_id = summary["account_source_ids"]["Checking"]
     loan_id = summary["account_source_ids"]["Car Loan"]
@@ -418,7 +418,7 @@ async def test_an_actual_categorized_transfer_can_name_its_destination_leg(clien
         source="actual_budget",
     )
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     summary = resp.json()
     categories_by_account = {
         transaction["account_id"]: transaction["category_id"] for transaction in (await client.get("/transactions", headers=headers)).json()
@@ -446,7 +446,7 @@ async def test_an_actual_transfer_naming_both_legs_files_each_under_its_transfer
         source="actual_budget",
     )
 
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 200, resp.text
     accounts = resp.json()["account_source_ids"]
     legs = {
         transaction["account_id"]: (transaction["category_id"], transaction["counterparty_account_id"])

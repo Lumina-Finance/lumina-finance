@@ -10,6 +10,9 @@ from app.dependencies import get_current_user
 from app.main import app
 from app.models.user import User
 from app.services.email import contract as email_contract
+from app.services.importers.background_save import run_import_save
+from app.services.importers.shared import run_save
+from app.services.importers.shared.run_save import set_import_save_starter
 from tests.conftest import ScopedSession
 from tests.routes.support.clock_helpers import _FixedClock
 from tests.routes.support.mailbox import mailbox
@@ -62,6 +65,21 @@ def captured_email(monkeypatch):
     mailbox.sent.clear()
     monkeypatch.setattr(email_contract, "_active_sender", mailbox)
     return mailbox
+
+
+@pytest.fixture(autouse=True)
+def save_imports_inline(monkeypatch) -> None:
+    """Run each import's save as the request for it ends, so a test reads its outcome without waiting
+
+    The save runs on the test database as the app role, as the app's own runner does in production
+    """
+
+    async def start_save(run_id, owner_id) -> None:
+        await run_import_save(run_id, owner_id, ScopedSession)
+
+    # Put back whatever starter a test installs
+    monkeypatch.setattr(run_save, "_custom_starter", None)
+    set_import_save_starter(start_save)
 
 
 @pytest.fixture

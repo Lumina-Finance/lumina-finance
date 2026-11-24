@@ -44,6 +44,7 @@ from app.services.bank_sync.providers.contract import REFUSED_FIELDS_HEADER
 from app.services.bank_sync.providers.registry import run_startup_checks
 from app.services.email import build_email_sender, is_email_sender_installed, set_email_sender
 from app.services.fx.lookup_budget import FxLookupBudgetMiddleware
+from app.services.importers.background_save import run_in_app_saves
 from app.services.maintenance.expired_records import run_cleanup_timer
 from app.startup import sync_sign_in_providers
 from app.statement_timeout import handle_statement_timeout
@@ -62,9 +63,10 @@ _LOGGING_BACKEND_WARNING = (
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """Verify the runtime, its database keys and each bank provider's settings, seed OIDC providers, then prune expired records while serving
+    """Verify the runtime, its database keys and each bank provider's settings, seed OIDC providers, then serve
 
-    Code outside the app can turn the cleanup timer off, as the cleanup module says
+    While serving, the app prunes expired records and saves imports. Code outside the app can turn the cleanup
+    timer off, as the cleanup module says, and take over saving imports by installing its own starter
     """
     await verify_app_role_is_unprivileged()
     await verify_database_keys()
@@ -72,7 +74,7 @@ async def _lifespan(_app: FastAPI):
     run_startup_checks()
 
     # The cache's pool lives as long as the app, and a server without ValKey starts as usual
-    async with use_valkey(), run_cleanup_timer():
+    async with use_valkey(), run_cleanup_timer(), run_in_app_saves():
         yield
 
 

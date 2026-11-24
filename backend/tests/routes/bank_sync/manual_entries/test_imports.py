@@ -120,7 +120,7 @@ async def test_a_file_import_outside_the_range_saves(client):
 
     imported = await _import_run(client, ledger.headers, _csv_import(ledger, *OUTSIDE))
 
-    assert imported.status_code == 201, imported.text
+    assert imported.status_code == 200, imported.text
     assert await _dates_in(ledger.everyday_id) == OUTSIDE
 
 
@@ -132,14 +132,14 @@ async def test_a_statement_import_leaves_out_a_row_already_held_inside_the_range
     """
     ledger = await _ledger(client)
     first = await _import_run(client, ledger.headers, _ofx_import(ledger, ("A1", date(2026, 7, 12))), source="ofx")
-    assert first.status_code == 201, first.text
+    assert first.status_code == 200, first.text
     await _commit_link(ledger, ledger.everyday_id)
 
     imported = await _import_run(
         client, ledger.headers, _ofx_import(ledger, ("A1", date(2026, 7, 12)), ("B1", date(2026, 5, 31))), source="ofx"
     )
 
-    assert imported.status_code == 201, imported.text
+    assert imported.status_code == 200, imported.text
     assert await _dates_in(ledger.everyday_id) == [date(2026, 5, 31), date(2026, 7, 12)]
 
 
@@ -193,7 +193,7 @@ async def test_a_journal_import_outside_the_range_saves(client):
         client, ledger.headers, _journal_import(ledger, *rows, _journal_transfer("9", date(2026, 5, 31))), source="firefly"
     )
 
-    assert imported.status_code == 201, imported.text
+    assert imported.status_code == 200, imported.text
     assert await _dates_in(ledger.everyday_id) == [date(2026, 5, 31), *OUTSIDE]
 
 
@@ -206,6 +206,6 @@ async def test_imports_inside_the_range_save_after_unlinking(client):
     file_import = await _import_run(client, ledger.headers, _csv_import(ledger, date(2026, 7, 14)))
     journal = await _import_run(client, ledger.headers, _journal_import(ledger, _journal_row("1", date(2026, 7, 15))), source="firefly")
 
-    assert file_import.status_code == 201, file_import.text
-    assert journal.status_code == 201, journal.text
+    assert file_import.status_code == 200, file_import.text
+    assert journal.status_code == 200, journal.text
     assert await _dates_in(ledger.everyday_id) == [date(2026, 7, 14), date(2026, 7, 15)]
