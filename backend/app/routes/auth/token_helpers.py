@@ -684,11 +684,12 @@ async def issue_and_store_tokens(
         the saved copy key for a browser
 
     Raises:
-        HTTPException 401: The user asked to delete their profile
+        HTTPException 401: The user asked to delete their profile, and its due time has passed or was never set
     """
     # Every sign-in and renewal issues its tokens here, so this one check keeps out a profile being
-    # deleted. It answers as wrong credentials do, so it never says the address has a profile
-    if user.deletion_requested_at is not None:
+    # deleted. A profile still waiting for its due time gets in, and the session it makes reaches only the
+    # route that cancels. The refusal answers as wrong credentials do, so it never says the address has a profile
+    if user.deletion_requested_at is not None and not user.is_waiting_to_be_deleted:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if refresh_in_body is None:

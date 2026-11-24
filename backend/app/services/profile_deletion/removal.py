@@ -6,15 +6,17 @@ one statement runs past the statement time limit. The tables come from the model
 later is covered without a change here. The user row goes last, and its foreign keys delete anything a
 batch missed
 
-The cleanup's passes finish any profile a restart left part-way, so a deletion never stops for good
+A profile with a due time is left alone until it has passed, and a run only starts once it has. The
+cleanup's passes finish any profile a restart left part-way, so a deletion never stops for good
 """
 
 import logging
 import uuid
 from datetime import UTC, datetime
 from functools import cache
+from typing import NamedTuple
 
-from sqlalchemy import ColumnElement, Table, bindparam, delete, or_, select, text, tuple_
+from sqlalchemy import ColumnElement, Table, bindparam, delete, func, or_, select, text, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import acting_as
@@ -23,8 +25,10 @@ from app.models import import_all_models
 from app.models.base import Base
 from app.models.user import User
 from app.profile_deletion_hook import ProfileDeletion, notify_profile_deletion
+from app.services.auth.sessions import delete_all_user_auth_sessions
 from app.services.bank_sync.links import disconnect_every_connection
 from app.services.bank_sync.release import release_stored_credentials
+from app.services.profile_deletion.emails import send_done_email
 
 logger = logging.getLogger(__name__)
 
@@ -55,31 +59,50 @@ async def delete_profile(session_factory: async_sessionmaker[AsyncSession], user
 
     Two passes over one profile can run at once, such as the one a request starts and the cleanup's.
     Each batch locks the user row first, so they take turns, and only the pass whose delete returned
-    the user row tells the observers
+    the user row tells the observers. A profile waits for its due time, so nothing is deleted before
+    it, and a profile that had one is emailed once it is gone
 
     Args:
         session_factory: Opens the sessions the deletion runs in
-        user_id: The user whose profile goes. Nothing happens unless the user is marked
+        user_id: The user whose profile goes. Nothing happens unless the user is marked and any due time has passed
     """
     try:
         with acting_as(user_id):
-            deleted_at = await _delete_profile(session_factory, user_id)
+            deleted = await _delete_profile(session_factory, user_id)
     except Exception:
         # Best-effort: the profile stays marked, so its owner still can't sign in, and the next cleanup pass
         # carries on from what this one deleted
         logger.warning("A profile could not be deleted yet", exc_info=True)
         return
-    if deleted_at is not None:
-        notify_profile_deletion(ProfileDeletion(user_id=user_id, deleted_at=deleted_at))
+    if deleted is not None:
+        notify_profile_deletion(ProfileDeletion(user_id=user_id, deleted_at=deleted.at))
+        if deleted.had_due_time:
+            await send_done_email(deleted.email)
 
 
-async def _delete_profile(session_factory: async_sessionmaker[AsyncSession], user_id: uuid.UUID) -> datetime | None:
-    """Delete the profile acting as its user, returning when the user row went, or None when another pass took it"""
-    # A connection still here would be deleted by the user row's foreign keys without its credential
-    # going back to the provider, so any left go the way the request ends them first
+class _Deleted(NamedTuple):
+    """A profile this pass deleted"""
+
+    at: datetime
+
+    # The address the user had, read before the user row went
+    email: str
+
+    # Whether the profile had a due time, since only then is its owner emailed
+    had_due_time: bool
+
+
+async def _delete_profile(session_factory: async_sessionmaker[AsyncSession], user_id: uuid.UUID) -> _Deleted | None:
+    """Delete the profile acting as its user, returning what went, or None when it isn't due or another pass took it"""
+    # Every session ends before the first batch, since one made during the wait could still be signed in,
+    # and a connection still here would be deleted by the user row's foreign keys without its credential
+    # going back to the provider, so any left go the way a request without a wait ends them first
     async with session_factory() as db:
-        if not await _lock_marked_user(db, user_id):
+        user = await _lock_due_user(db, user_id)
+        if user is None:
             return None
+        email, due_at = user
+        await delete_all_user_auth_sessions(db, user_id)
         credentials = await disconnect_every_connection(db, user_id)
         await db.commit()
     await release_stored_credentials(credentials)
@@ -90,14 +113,15 @@ async def _delete_profile(session_factory: async_sessionmaker[AsyncSession], use
         )
         while True:
             async with session_factory() as db:
-                if not await _lock_marked_user(db, user_id):
+                if await _lock_due_user(db, user_id) is None:
                     return None
                 deleted = (await db.execute(statement, {"user_id": user_id})).rowcount
                 await db.commit()
             if deleted < DELETION_BATCH_SIZE:
                 break
 
-    return await _delete_user_row(session_factory, user_id)
+    deleted_at = await _delete_user_row(session_factory, user_id)
+    return _Deleted(at=deleted_at, email=email, had_due_time=due_at is not None) if deleted_at is not None else None
 
 
 async def _delete_user_row(session_factory: async_sessionmaker[AsyncSession], user_id: uuid.UUID) -> datetime | None:
@@ -108,10 +132,25 @@ async def _delete_user_row(session_factory: async_sessionmaker[AsyncSession], us
     return datetime.now(UTC) if gone is not None else None
 
 
-async def _lock_marked_user(db: AsyncSession, user_id: uuid.UUID) -> bool:
-    """Lock the user row until the caller commits, returning whether it is still there and still marked"""
-    locked = await db.scalar(select(User.id).where(User.id == user_id, User.deletion_requested_at.is_not(None)).with_for_update())
-    return locked is not None
+async def _lock_due_user(db: AsyncSession, user_id: uuid.UUID) -> tuple[str, datetime | None] | None:
+    """Lock the user row until the caller commits, returning its address and due time
+
+    Returns None unless the row is still there, still marked, and its due time is empty or has passed.
+    The time is the database's own clock, as cancelling uses, so a cancel and this lock never both
+    find the due time on their side of it
+    """
+    row = (
+        await db.execute(
+            select(User.email, User.deletion_due_at)
+            .where(
+                User.id == user_id,
+                User.deletion_requested_at.is_not(None),
+                or_(User.deletion_due_at.is_(None), User.deletion_due_at <= func.clock_timestamp()),
+            )
+            .with_for_update()
+        )
+    ).first()
+    return None if row is None else (row.email, row.deletion_due_at)
 
 
 @cache

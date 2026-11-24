@@ -6,12 +6,12 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, stat
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import get_db, get_session_factory
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_user_who_may_cancel_deletion
 from app.models.user import User
 from app.routes.auth.cookie_helpers import clear_refresh_cookie, read_oidc_reauth_stepup_cookie
 from app.routes.auth.token_helpers import authorize_sensitive_action
-from app.schemas.auth import StepUpRequest
-from app.services.profile_deletion import request_profile_deletion
+from app.schemas.auth import StepUpRequest, UserInfo
+from app.services.profile_deletion import cancel_profile_deletion, request_profile_deletion
 
 router = APIRouter(prefix="/profile", tags=["auth"])
 
@@ -31,7 +31,8 @@ async def delete_profile_route(
 
     An account with a password steps up with it and any current second factor. A passwordless account
     instead presents the proof from a fresh provider reauth. Once the step-up passes, the user is
-    signed out everywhere, the refresh cookie goes, and the data is deleted after the response
+    signed out everywhere, the refresh cookie goes, and the data is deleted after the response, or once
+    the waiting period set for deletions has passed
 
     Args:
         request: FastAPI request object
@@ -56,3 +57,27 @@ async def delete_profile_route(
         lambda: request_profile_deletion(db, user, background_tasks, session_factory),
     )
     clear_refresh_cookie(request, response)
+
+
+@router.post("/delete/cancel", response_model=UserInfo)
+async def cancel_profile_deletion_route(
+    user: Annotated[User, Depends(get_user_who_may_cancel_deletion)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Cancel the deletion of the authenticated user's profile while it is still waiting
+
+    The only route a profile waiting to be deleted can reach. It needs no new password, since a session
+    of a waiting profile can only come from a sign-in made after the deletion was requested
+
+    Args:
+        user: Authenticated user, let through while the profile waits to be deleted
+        db: Active database session
+
+    Returns:
+        The user's info, with no deletion due
+
+    Raises:
+        HTTPException 403: The deletion's due time has passed
+        HTTPException 409: The profile is not waiting to be deleted
+    """
+    return await cancel_profile_deletion(db, user)

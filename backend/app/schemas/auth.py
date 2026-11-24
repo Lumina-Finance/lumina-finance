@@ -158,6 +158,7 @@ class UserInfo(ProfilePreferences):
     base_currency: str
     created_at: datetime
     second_factor_reenrollment_required: bool  # true holds the client to the forced re-enrolment screen
+    deletion_due_at: datetime | None  # set while the profile waits to be deleted, so the client shows only the cancel screen
 
 
 class AuthResponse(BaseModel):
@@ -463,6 +464,10 @@ class OidcIdentitiesResponse(BaseModel):
 
     identities: list[OidcIdentitySummary]
     has_password: bool
+
+    # Whole days a confirmed profile deletion waits before the data goes, 0 when it goes at once. The delete
+    # profile dialogue reads it to show the date the deletion would be due
+    profile_deletion_wait_days: int = 0
 
 
 class PasskeyRegisterResponse(BaseModel):
