@@ -324,8 +324,8 @@ def prepare_as_admin() -> None:
 
     # The key the bank transaction hashes of OFX imports are made with, generated and persisted beside
     # the encryption key when absent. A database that already has a key refuses here rather than
-    # starting under a new one none of its hashes match, and the app refuses at start when the key set
-    # is not the one recorded. The migrations need it to hash transactions saved before
+    # starting under a new one none of its hashes match, and the migrations and the app refuse to run
+    # when the key set is not the one recorded. The migrations need it to hash transactions saved before
     run(sys.executable, "-m", "app.db.bank_transaction_key", "ensure-key")
 
     # The first of the two set-up jobs creates the migrator and app roles and hands them schema ownership

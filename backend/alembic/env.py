@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from app.config.database import migration_database_url
+from app.db.bank_transaction_key import verify_key_matches_hashes
 
 from app.models import import_all_models
 from app.models.base import Base
@@ -56,6 +57,12 @@ async def run_async_migrations() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
+
+    # A migration that hashes saved data under another key than the one the database recorded leaves
+    # hashes nothing matches and drops what they were made from, so no migration starts under it.
+    # Checked on a connection of its own, so its read leaves no transaction open for the migrations
+    async with connectable.connect() as connection:
+        await verify_key_matches_hashes(connection)
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

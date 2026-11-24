@@ -14,8 +14,10 @@ import pytest
 from cryptography.fernet import Fernet
 from sqlalchemy import text
 
+from app.bank_transaction_key import KEY_ENV_VAR, KEY_FILE, generate_key, key_fingerprint
 from app.config.database import APP_DB_USER, MIGRATOR_DB_USER
 from app.db import provision, seeds
+from app.db.bank_transaction_key import RESET_COMMAND
 from app.db.jobs import SETUP_LOCK_ID, run_bootstrap, run_migrate
 from app.services.categories.defaults import SYSTEM_CATEGORY_DEFAULTS
 from app.services.currencies.defaults import CURRENCIES
@@ -32,6 +34,12 @@ from tests.db.support import (
     query,
     run_job,
     run_module,
+)
+from tests.migrations.support import (
+    BANK_SYNC_IDS,
+    BANK_SYNC_SEED,
+    BEFORE_BANK_SYNC_ID_HASH_REVISION,
+    expected_bank_sync_hash,
 )
 
 # Seconds the tests give a job to notice another run, and to finish once it may go on
@@ -54,6 +62,21 @@ _SNAPSHOT = """
         )
     )::text
 """
+
+# What a migration hashing saved bank sync IDs would change, in one value: the revision, the bank's own
+# IDs and the record of the key. The hash replaces those IDs
+_BANK_ID_STATE = """
+    SELECT jsonb_build_object(
+        'revisions', (SELECT jsonb_agg(version_num) FROM alembic_version),
+        'ids', (SELECT jsonb_agg(external_transaction_id ORDER BY external_transaction_id) FROM bank_transactions),
+        'fingerprint', (SELECT fingerprint FROM bank_transaction_key_fingerprint)
+    )::text
+"""
+
+# The steps that migrate, each a module and its command: the migrate job alone, as a deployment runs it,
+# and the image's start. The image first takes the step that provisions the hash key
+_MIGRATE_JOB = (("app.db.jobs", "migrate"),)
+_IMAGE_START = (("app.db.bank_transaction_key", "ensure-key"), ("app.db.jobs", "migrate"))
 
 # Everything a run of bootstrap sets, in one value: the two roles, their settings and memberships, the
 # owners of the schema's objects, and the database's and schema's grants. It holds no password, since
@@ -88,6 +111,11 @@ _BOOTSTRAP_SNAPSHOT = """
         )
     )::text
 """
+
+
+async def _bank_id_state(target: Target) -> str:
+    """Return the revision, the saved bank sync IDs and the recorded hash key, in one value"""
+    return await query(target.superuser(), _BANK_ID_STATE)
 
 
 async def _snapshot(target: Target) -> str:
@@ -144,6 +172,9 @@ async def test_migrate_runs_with_only_the_migrators_password_and_the_keys_and_a_
             "every system merchant was seeded"
         )
         assert await query(target.superuser(), "SELECT count(*) FROM encryption_key_fingerprint") == 1, "the key was recorded"
+        assert await query(target.superuser(), "SELECT fingerprint FROM bank_transaction_key_fingerprint") == key_fingerprint(
+            bytes.fromhex(environment["BANK_TRANSACTION_HASH_KEY"])
+        ), "a database recording no hash key yet records the one given"
         app_engine = target.engine(APP_DB_USER, APP_PASSWORD)
         assert await query(app_engine, "SELECT count(*) FROM currencies") == len(CURRENCIES), "the app role was granted its access"
         after_first = await _snapshot(target)
@@ -267,6 +298,52 @@ async def test_migrate_with_another_encryption_key_refuses_before_it_seeds_anyth
         assert run.returncode != 0, "the job failed"
         assert "different key" in run.stderr, "and said the key is not the one the secrets are under"
         assert await query(target.superuser(), "SELECT count(*) FROM currencies") == len(CURRENCIES) - 1, "no seed ran"
+
+
+@pytest.mark.parametrize("steps", [_MIGRATE_JOB, _IMAGE_START], ids=["migrate job", "image"])
+async def test_migrating_under_another_hash_key_than_the_recorded_one_stops_before_any_saved_bank_id_is_hashed(provision_into, steps):
+    """A migration under the wrong key would hash every saved bank sync ID under it and drop the IDs, past undoing"""
+    async with provision_into(SUPERUSER_LOGIN) as target:
+        await run_bootstrap()
+        recorded_key, other_key = generate_key(), generate_key()
+        environment = {**migrate_environment(target), "BANK_TRANSACTION_HASH_KEY": recorded_key}
+        built = await asyncio.to_thread(run_module, "alembic", "upgrade", BEFORE_BANK_SYNC_ID_HASH_REVISION, environment=environment)
+        assert built.returncode == 0, built.stdout + built.stderr
+        superuser = target.superuser()
+        async with superuser.connect() as connection:
+            for statement in BANK_SYNC_SEED:
+                await connection.execute(text(statement), BANK_SYNC_IDS)
+        await superuser.dispose()
+        before = await _bank_id_state(target)
+        assert json.loads(before) == {
+            "revisions": [BEFORE_BANK_SYNC_ID_HASH_REVISION],
+            "ids": ["TRN-coffee", "TRN-refund"],
+            "fingerprint": key_fingerprint(bytes.fromhex(recorded_key)),
+        }, "the database records its key and still holds the bank's own IDs"
+
+        environments = {
+            "migrate": {**environment, "BANK_TRANSACTION_HASH_KEY": other_key},
+            "ensure-key": bootstrap_environment(target, BANK_TRANSACTION_HASH_KEY=other_key),
+        }
+        for module, command in steps:
+            run = await asyncio.to_thread(run_module, module, command, environment=environments[command])
+            if run.returncode != 0:
+                break
+
+        assert run.returncode != 0, "the run stopped"
+        assert "different key" in run.stderr, "and said the key is not the one the database recorded"
+        for place in (KEY_ENV_VAR, str(KEY_FILE), RESET_COMMAND):
+            assert place in run.stderr, f"and named {place}, where a key is read from or how to start over"
+        assert await _bank_id_state(target) == before, "no migration ran, and the bank's IDs and the record are as they were"
+
+        migrated = await run_job("migrate", environment)
+
+        assert migrated.returncode == 0, migrated.stdout + migrated.stderr
+        key = bytes.fromhex(recorded_key)
+        assert (
+            await query(target.superuser(), "SELECT string_agg(external_transaction_hash, ',' ORDER BY disposition) FROM bank_transactions")
+            == f"{expected_bank_sync_hash(key, 'ACT-1', 'TRN-coffee')},{expected_bank_sync_hash(key, 'ACT-1', 'TRN-refund')}"
+        ), "under the recorded key the migration runs and hashes each ID with it"
 
 
 @pytest.mark.parametrize(
