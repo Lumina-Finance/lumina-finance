@@ -3,9 +3,10 @@ import type { FxStatus } from '@/api/shared/fx'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
 import { getBudgetUtilizationFxStatusMessage } from '@/pages/budgets/utils/fxTooltipMessages'
 
-// A budget that leaves spending out tracks less than its categories hold. Its badge turns red and gives this sentence
-const WITHHELD_MESSAGE = 'This budget counts only spending from accounts in its own currency'
-// A read-only budget's grey badge gives only this sentence, since its Read-only pill gives the reason
+// A budget that leaves spending out tracks less than its categories hold. Its badge turns red and gives these sentences
+const WITHHELD_MESSAGE =
+  "Spending in other currencies is not counted. Your account doesn't have access to FX conversions"
+// A read-only budget's grey badge gives this sentence. Neither badge repeats the Read-only pill's reason
 const READ_ONLY_WITHHELD_MESSAGE = "Spending in other currencies isn't counted in this budget"
 
 /**
@@ -44,7 +45,7 @@ export default function BudgetFxStatusBadge({
         getMessage={getMessage}
         withheldTone={readOnly ? 'gray' : 'red'}
         withheldMessage={readOnly ? READ_ONLY_WITHHELD_MESSAGE : WITHHELD_MESSAGE}
-        hidesWithheldReason={readOnly}
+        hidesWithheldReason
       />
     </span>
   )
