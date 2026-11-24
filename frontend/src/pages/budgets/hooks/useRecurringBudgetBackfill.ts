@@ -32,6 +32,9 @@ export function useRecurringBudgetBackfill({
 
         // Archiving pauses period generation on the backend, so the client must not recreate the skipped periods
         if (baseBudget.is_archived) return []
+
+        // A read-only budget takes no new period, so the client leaves its schedule where it stopped
+        if (baseBudget.read_only_reason) return []
         return missingRecurringPeriodStarts(baseBudget, latestPeriod, today).map((periodStart) => ({
           key: `${baseBudget.id}:${periodStart}`,
           baseBudgetId: baseBudget.id,

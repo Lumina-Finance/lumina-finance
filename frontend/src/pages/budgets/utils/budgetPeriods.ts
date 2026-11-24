@@ -169,8 +169,8 @@ export function nextRecurringPeriodStart(baseBudget: BaseBudget, periodStart: st
  * Returns the next two recurrence ranges shown on budget cards
  */
 export function nextBudgetPeriods(baseBudget: BaseBudget, latestPeriod: Budget | undefined) {
-  // Archived budgets stop generating periods, so there is nothing upcoming to preview
-  if (!baseBudget.recurs || !latestPeriod || baseBudget.is_archived) return []
+  // Archived and read-only budgets start no new period, so there is nothing upcoming to preview
+  if (!baseBudget.recurs || !latestPeriod || baseBudget.is_archived || baseBudget.read_only_reason) return []
 
   // A stored start that is not a real date previews nothing, rather than previewing dates stepped
   // from a day the calendar rolled forward

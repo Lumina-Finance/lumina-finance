@@ -1,7 +1,7 @@
 """What the budget routes do with a budget the installed check keeps read-only, as its currency is another than the user's main one
 
-Each budget says why it is read-only. Nothing on it changes, while a recurring one keeps starting its
-periods on schedule and every one can be archived or deleted
+Each budget says why it is read-only. Nothing on it changes and no new period starts, while every one
+can be archived, unarchived or deleted
 """
 
 import importlib
@@ -132,108 +132,34 @@ async def test_delete_period_of_a_read_only_budget_is_refused_and_keeps_it(clien
     assert await _periods() == [("2026-04-01", 100_000), ("2026-05-01", 100_000)]
 
 
-async def test_read_only_budget_still_starts_its_scheduled_period(client):
-    """May hasn't been started yet, so starting it with April's limit goes through as the schedule would"""
+async def test_read_only_budget_refuses_its_scheduled_period(client):
+    """May hasn't been started yet, and even the period the schedule starts next, at April's limit, is refused"""
     headers = await _sign_up_holding_usd(client)
     budget_id = await _new_budget(client, headers)
     await _remove_periods(client, headers, "2026-05-01")
     refuse_other_currencies()
 
     response = await _create_budget_instance(client, headers, budget_id, period_start="2026-05-01", overall_limit=100_000)
-
-    assert response.status_code == 201, response.text
-    assert response.json()["base_budget"]["read_only_reason"] == ALLOWANCE_REASON
-    assert await _periods() == [("2026-04-01", 100_000), ("2026-05-01", 100_000)]
-
-
-async def test_read_only_budget_starts_a_period_beginning_today(client, freeze_now):
-    """At 1am on 1 June in the user's Toronto, June has begun, so the schedule starts it"""
-    _freeze(freeze_now, datetime(2026, 6, 1, 5, 0, tzinfo=UTC))
-    headers = await _sign_up_holding_usd(client)
-    budget_id = await _new_budget(client, headers)
-    await _remove_periods(client, headers, "2026-06-01")
-    refuse_other_currencies()
-
-    response = await _create_budget_instance(client, headers, budget_id, period_start="2026-06-01", overall_limit=100_000)
-
-    assert response.status_code == 201, response.text
-    assert await _periods() == [("2026-04-01", 100_000), ("2026-05-01", 100_000), ("2026-06-01", 100_000)]
-
-
-async def test_read_only_budget_counts_today_in_the_users_timezone(client, freeze_now):
-    """At 11pm on 31 May in the user's Toronto it is already 1 June in UTC, yet June hasn't begun for the user"""
-    _freeze(freeze_now, datetime(2026, 6, 1, 3, 0, tzinfo=UTC))
-    headers = await _sign_up_holding_usd(client)
-    budget_id = await _new_budget(client, headers)
-    refuse_other_currencies()
-
-    response = await _create_budget_instance(client, headers, budget_id, period_start="2026-06-01", overall_limit=100_000)
-
-    assert response.status_code == 403, response.text
-    assert response.json()["detail"] == ALLOWANCE_REASON
-    assert await _periods() == [("2026-04-01", 100_000), ("2026-05-01", 100_000)]
-
-
-@pytest.mark.parametrize(
-    ("period_start", "overall_limit"),
-    [
-        pytest.param("2026-05-01", 120_000, id="new-limit"),
-        pytest.param("2026-06-01", 100_000, id="not-begun"),
-    ],
-)
-async def test_read_only_budget_refuses_a_period_its_schedule_wouldnt_start(client, period_start, overall_limit):
-    """A period with a limit of the user's own, or one that hasn't begun, is a change the user makes, so nothing is added"""
-    headers = await _sign_up_holding_usd(client)
-    budget_id = await _new_budget(client, headers)
-    await _remove_periods(client, headers, "2026-05-01")
-    refuse_other_currencies()
-
-    response = await _create_budget_instance(client, headers, budget_id, period_start=period_start, overall_limit=overall_limit)
 
     assert response.status_code == 403, response.text
     assert response.json()["detail"] == ALLOWANCE_REASON
     assert await _periods() == [("2026-04-01", 100_000)]
 
 
-async def test_read_only_budget_refuses_a_period_overlapping_its_latest(client):
-    """May is already started, so a second May is no period the schedule starts"""
+async def test_unarchiving_a_read_only_budget_starts_no_period(client, freeze_now):
+    """Unarchived on 4 June, the budget comes back with April and May only, while a writable one would start June"""
     headers = await _sign_up_holding_usd(client)
     budget_id = await _new_budget(client, headers)
     refuse_other_currencies()
-
-    response = await _create_budget_instance(client, headers, budget_id, period_start="2026-05-01", overall_limit=100_000)
-
-    assert response.status_code == 403, response.text
-    assert response.json()["detail"] == ALLOWANCE_REASON
-    assert await _periods() == [("2026-04-01", 100_000), ("2026-05-01", 100_000)]
-
-
-async def test_read_only_budget_refuses_a_period_past_a_gap(client, freeze_now):
-    """On 4 June, with May and June removed, the schedule starts May next, so June is the user's own choice"""
+    archived = await client.patch(f"/base-budgets/{budget_id}", json={"is_archived": True}, headers=headers)
+    assert archived.status_code == 200, archived.text
     _freeze(freeze_now, datetime(2026, 6, 4, 16, 0, tzinfo=UTC))
-    headers = await _sign_up_holding_usd(client)
-    budget_id = await _new_budget(client, headers)
-    await _remove_periods(client, headers, "2026-05-01", "2026-06-01")
-    refuse_other_currencies()
 
-    response = await _create_budget_instance(client, headers, budget_id, period_start="2026-06-01", overall_limit=100_000)
+    response = await client.patch(f"/base-budgets/{budget_id}", json={"is_archived": False}, headers=headers)
 
-    assert response.status_code == 403, response.text
-    assert response.json()["detail"] == ALLOWANCE_REASON
-    assert await _periods() == [("2026-04-01", 100_000)]
-
-
-async def test_read_only_one_off_budget_refuses_a_further_period(client):
-    """A one-off budget has no schedule, so May after its single April period is the user's own addition"""
-    headers = await _sign_up_holding_usd(client)
-    budget_id = await _new_budget(client, headers, recurs=False)
-    refuse_other_currencies()
-
-    response = await _create_budget_instance(client, headers, budget_id, period_start="2026-05-01", overall_limit=100_000)
-
-    assert response.status_code == 403, response.text
-    assert response.json()["detail"] == ALLOWANCE_REASON
-    assert await _periods() == [("2026-04-01", 100_000)]
+    assert response.status_code == 200, response.text
+    assert response.json()["is_archived"] is False
+    assert await _periods() == [("2026-04-01", 100_000), ("2026-05-01", 100_000)]
 
 
 async def test_archive_and_delete_read_only_budget_go_through(client):

@@ -192,8 +192,7 @@ async def create_budget_instance(
         Created budget instance response
 
     Raises:
-        HTTPException: User lacks admin access, the budget is read-only and the period isn't its
-            scheduled next one, period start is invalid, or period overlaps
+        HTTPException: User lacks admin access, the budget is read-only, period start is invalid,
+            or period overlaps
     """
-    today = datetime.now(resolve_timezone(user.tz)).date()
-    return await create_budget_instance_and_get_response(db, user, base_budget_id, data, today)
+    return await create_budget_instance_and_get_response(db, user, base_budget_id, data)

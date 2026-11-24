@@ -13,7 +13,7 @@ from app.routes.base_budgets.category_helpers import update_tracked_category_lin
 from app.routes.base_budgets.instance_helpers import resume_budget_generation_at_current_period
 from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.schemas.budget import BaseBudgetResponse, UpdateBaseBudgetRequest
-from app.services.allowance.currency import require_writable_record
+from app.services.allowance.currency import find_read_only_reason, require_writable_record
 from app.services.budgets.limits import ensure_one_off_budget_can_repeat
 from app.services.cache_state import mark_cache_changed_for_scope
 
@@ -82,8 +82,9 @@ async def update_base_budget_and_get_response(
             today,
         )
 
-    # Resume generation only after the archived flag is cleared so the guard permits the current period
-    if is_unarchiving:
+    # Resume generation only after the archived flag is cleared so the guard permits the current period.
+    # A read-only budget takes no new period, so unarchiving one only brings it back
+    if is_unarchiving and await find_read_only_reason(db, user, base_budget) is None:
         await resume_budget_generation_at_current_period(db, base_budget, today)
 
     await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)

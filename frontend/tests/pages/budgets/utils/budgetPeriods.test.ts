@@ -208,6 +208,13 @@ describe('budget period helpers', () => {
     expect(nextBudgetPeriods(baseBudget, latestPeriod)).toEqual([])
   })
 
+  it('returns no upcoming periods for a read-only recurring budget', () => {
+    const baseBudget = createBaseBudget({ read_only_reason: 'Records in USD are read-only' })
+    const latestPeriod = createBudget(baseBudget)
+
+    expect(nextBudgetPeriods(baseBudget, latestPeriod)).toEqual([])
+  })
+
   it('lists a monthly series anchored on the 31st through February and stops before a start after today', () => {
     const baseBudget = createBaseBudget({ recurrence_dom: 31 })
     const latestPeriod = createBudget(baseBudget, { period_start: '2025-12-31' })
