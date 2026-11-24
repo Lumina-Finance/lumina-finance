@@ -37,8 +37,9 @@ const PICKABLE_LINE_CLASS_NAME = [
   'has-[button:focus-visible]:[&_.likely-chip]:bg-[var(--app-hover-on-surface-soft)]',
 ].join(' ')
 
-// The line under the row starts where the row's merchant name does
-const LINE_CLASS_NAME = 'flex flex-wrap gap-1.5 pb-2.5 pl-[3.75rem] pr-3 -mt-1'
+// The line under the row starts where the row's merchant name does: past the row's 0.75rem padding, its 2.125rem icon
+// column and the 0.625rem gap after it
+const LINE_CLASS_NAME = 'flex flex-wrap gap-1.5 pb-2.5 pl-14 pr-3 -mt-1'
 
 /** Says why a candidate is a likely match, in a line under its row */
 export function LikelyMatchChips({ sameMerchant, exactAmount }: { sameMerchant: boolean; exactAmount: boolean }) {
