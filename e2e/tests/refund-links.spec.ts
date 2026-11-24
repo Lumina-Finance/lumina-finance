@@ -359,8 +359,8 @@ test('links an existing refund to an expense from the picker', async ({ page, re
   await expect(linkIcon(page, expenseId)).toBeVisible()
 })
 
-// The exact amount comes first and the nearest after it, a row is picked by pressing it and unpicked by
-// pressing it again, and the Link button is live only while one is picked
+// The exact amount comes first among the likely matches and the nearest follow it, a row is picked by pressing it and
+// unpicked by pressing it again, and the Link button is live only while one is picked
 test('lists the closest amounts first and links the row that is picked', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -377,20 +377,21 @@ test('lists the closest amounts first and links the row that is picked', async (
   const rows = picker.getByTestId('link-candidate')
   const linkButton = picker.getByRole('button', { name: 'Link', exact: true })
 
-  // The exact amount leads even though it is the oldest, then the nearer 4900 and 4800. 9000 is more than the whole
-  // expense, so it is listed greyed out
-  await expect(rows).toHaveCount(4)
-  await expect(rows.getByTestId('transaction-amount')).toHaveText(['+$50.00', '+$49.00', '+$48.00', '+$90.00'])
-  await expect(picker.locator('[data-refused=true]')).toHaveCount(1)
+  // The exact amount leads as a likely match even though it is the oldest, then the nearer 4900 and 4800. 9000 is more
+  // than the whole expense, so it folds into the row of what can't be linked
+  const folded = picker.getByRole('button', { name: /can't be linked/ })
+  await expect(rows).toHaveCount(3)
+  await expect(rows.getByTestId('transaction-amount')).toHaveText(['+$50.00', '+$49.00', '+$48.00'])
+  await expect(folded).toHaveText("1 can't be linked, more than what's left")
   await expect(linkButton).toBeDisabled()
 
   // Pressing a row picks it. Pressing it again clears the pick
   const picked = picker.locator('[data-picked=true]')
   await rows.nth(1).getByRole('button').click()
 
-  // The $49.00 pick leaves $1.00, which fits none of the others, so they stay listed greyed out
-  await expect(rows).toHaveCount(4)
-  await expect(picker.locator('[data-refused=true]')).toHaveCount(3)
+  // The $49.00 pick leaves $1.00. None of the others fit that, so they fold away with the $90.00
+  await expect(rows).toHaveCount(1)
+  await expect(folded).toHaveText("3 can't be linked, each more than what's left")
   await expect(picked.getByRole('button')).toHaveAttribute('aria-pressed', 'true')
   await expect(linkButton).toBeEnabled()
 
@@ -413,8 +414,8 @@ test('lists the closest amounts first and links the row that is picked', async (
   }).toBeLessThanOrEqual(0.5)
   await filtersButton.click()
   await picked.getByRole('button').click()
-  await expect(rows).toHaveCount(4)
-  await expect(picker.locator('[data-refused=true]')).toHaveCount(1)
+  await expect(rows).toHaveCount(3)
+  await expect(folded).toHaveText("1 can't be linked, more than what's left")
   await expect(rows.nth(1).getByRole('button')).toHaveAttribute('aria-pressed', 'false')
   await expect(linkButton).toBeDisabled()
 
@@ -436,7 +437,7 @@ test('lists the closest amounts first and links the row that is picked', async (
   await expect(linkIcon(page, expenseId)).toBeVisible()
 })
 
-// The explanation, search field and Filters button stay put while only the candidate rows scroll under them
+// The search field and Filters button stay put while only the candidate rows scroll under them
 test('keeps the picker header in place while its rows scroll', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday' })
@@ -502,8 +503,7 @@ test('narrows the picker with the filter sheet on a phone', async ({ page, reque
   await expect(picker.getByTestId('link-candidate')).toHaveCount(1)
 })
 
-// Opening and closing Filters moves only the list area: the explanation, the search field and the Filters button
-// keep their places in the dialog before, during and after, at a desktop, a laptop and a phone size
+// Opening and closing Filters moves only the list area: the search field and the Filters button keep their places in the dialogue before, during and after, at a desktop, a laptop and a phone size
 for (const size of [
   { width: 1920, height: 1080 },
   { width: 1280, height: 800 },
@@ -527,7 +527,6 @@ for (const size of [
 
     const phone = size.width < 750
     const header = [
-      picker.getByText(/^Pick money that comes in/),
       picker.getByPlaceholder('Merchant or note…'),
       phone ? picker.getByRole('button', { name: /^Filters/ }) : picker.getByRole('button', { name: 'Transaction filters' }),
     ]
@@ -536,12 +535,11 @@ for (const size of [
     const tops = () =>
       picker.evaluate((dialog, isPhone) => {
         const dialogTop = dialog.getBoundingClientRect().top
-        const explanation = [...dialog.querySelectorAll('p')].find((p) => p.textContent?.startsWith('Pick money that comes in'))
         const filters = isPhone
           ? [...dialog.querySelectorAll('button')].find((button) => /^Filters/.test(button.textContent ?? ''))
           : dialog.querySelector('button[aria-label="Transaction filters"]')
         const search = dialog.querySelector('input[placeholder="Merchant or note…"]')
-        return [explanation, search, filters].map((node) => node!.getBoundingClientRect().top - dialogTop)
+        return [search, filters].map((node) => node!.getBoundingClientRect().top - dialogTop)
       }, phone)
     // Read once the dialogue has finished opening and everything moving in it has come to rest, including an
     // animation the app cancels on the way, as its entrance animation leaves these a fraction of a pixel off
@@ -565,8 +563,8 @@ for (const size of [
       return samples
     }
 
-    const opening = await watch(() => header[2].click())
-    const closing = await watch(() => (phone ? page.keyboard.press('Escape') : header[2].click()))
+    const opening = await watch(() => header[1].click())
+    const closing = await watch(() => (phone ? page.keyboard.press('Escape') : header[1].click()))
     for (const sample of [...opening, ...closing]) {
       sample.forEach((top, index) => expect(Math.abs(top - resting[index])).toBeLessThanOrEqual(0.5))
     }

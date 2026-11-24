@@ -3,7 +3,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openModal, openPage, readSettledBox } from '../support/app'
+import { logInViaApi, openModal, openPage } from '../support/app'
 import { faintestText } from '../support/contrast'
 import { API_BASE_URL } from '../support/target'
 
@@ -21,28 +21,22 @@ async function openRow(page: Page, id: string) {
 // The reason the Refunds section shows in place of "Link an existing refund" while no row fits what is left
 const noRefundFits = (left: string) => `No money that comes in fits the ${left} left to refund.`
 
-// Every refund stays listed, in the picker's order. Those that don't fit what is left of the expense after the picks
-// are marked refused and aria-disabled, and every other row is not, so a row is never refused that a press could take
-async function expectOnlyPickableRows(picker: Locator, amounts: string[], remainingCents: number) {
-  const rows = picker.getByTestId('link-candidate')
-  await expect(rows.getByTestId('transaction-amount')).toHaveText(amounts)
-  await expect.poll(async () => {
-    const shown = await rows.evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        picked: node.getAttribute('data-picked') === 'true',
-        refused: node.getAttribute('data-refused') === 'true',
-        disabled: node.querySelector('button')!.getAttribute('aria-disabled') === 'true',
-        cents: Math.round(Number(node.querySelector('[data-testid="transaction-amount"]')!.textContent!.replace(/[^\d.]/g, '')) * 100),
-      })),
-    )
-    return shown.length === amounts.length && shown.every((row) => {
-      const shouldRefuse = !row.picked && row.cents > remainingCents
-      return row.refused === shouldRefuse && row.disabled === shouldRefuse
-    })
-  }).toBe(true)
+// The folded row at the end of the list that holds the refunds that can't be linked now
+function foldedRow(picker: Locator) {
+  return picker.getByRole('button', { name: /can't be linked/ })
 }
 
-// The button of the picker row with this amount. Matched by the amount shown, as a greyed row also holds its reason as text
+// The refunds listed in the picker's order, every one pickable, and how many fold into the row at the end because they
+// don't fit what is left of the expense after the picks
+async function expectRows(picker: Locator, listed: string[], folded: number) {
+  const rows = picker.locator('[data-testid^="link-group-"]').getByTestId('link-candidate')
+  await expect(rows.getByTestId('transaction-amount')).toHaveText(listed)
+  await expect(rows.locator('button[aria-disabled="true"]')).toHaveCount(0)
+  if (folded === 0) await expect(foldedRow(picker)).toHaveCount(0)
+  else await expect(foldedRow(picker)).toHaveText(new RegExp(`^${folded} can't be linked`))
+}
+
+// The button of the picker row with this amount. Matched by the amount shown, as a folded row also holds its reason as text
 function pressRow(picker: Locator, amount: string) {
   const amountText = picker.page().getByTestId('transaction-amount').filter({ hasText: amount })
   return picker.getByTestId('link-candidate').filter({ has: amountText }).getByRole('button')
@@ -51,12 +45,11 @@ function pressRow(picker: Locator, amount: string) {
 // The reason a refund bigger than the whole $37.13 expense gives, in the sentence form of the greyed opening button's
 const OVER_THE_EXPENSE = 'This refund is more than the $37.13 left to refund'
 
-const ALL_ROWS = ['+$37.19', '+$20.00', '+$15.00', '+$12.00']
-
-// The picker keeps every refund listed and greys out the ones that don't fit what is left of the expense, with their
-// reason in the tooltip. A refund over the whole expense is greyed from the start, a pick lowers what is left for the
-// others and unpicking gives it back, with the mouse and the keyboard
-test('greys out the refunds that no longer fit and updates them as rows are picked and unpicked', async ({ page, request }) => {
+// The picker folds the refunds that don't fit what is left of the expense into one row at the end. Opening it lists
+// them greyed out with their reason in text. A refund over the whole expense is folded from the start, a pick lowers
+// what is left for the others and folds away what no longer fits, and unpicking brings it back, with the mouse and
+// the keyboard
+test('folds away the refunds that no longer fit and brings them back as rows are picked and unpicked', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
   const row = { accountId: account.id, categoryName: 'Groceries' }
@@ -73,78 +66,66 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   const press = (amount: string) => pressRow(picker, amount)
   const linkButton = picker.getByRole('button', { name: 'Link', exact: true })
 
-  // $37.19 is more than the whole expense, so it is listed greyed out from the start. Its reason is the shared tooltip's
-  // on hover and on keyboard focus, and its description for a screen reader, and pressing it picks nothing
-  await expectOnlyPickableRows(picker, ALL_ROWS, 3713)
+  // $37.19 is more than the whole expense, so it is folded away from the start. Opening the row lists it greyed out
+  // with its reason written under it. The reason also describes its button for a screen reader, and pressing it picks
+  // nothing
+  await expectRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1)
+  await expect(foldedRow(picker)).toHaveText("1 can't be linked, more than what's left")
   await expect(linkButton).toBeDisabled()
-  const tooltip = page.getByTestId('disabled-reason-tooltip').filter({ hasText: /\S/ })
-  await press('$37.19').hover()
-  await expect(tooltip).toHaveText(OVER_THE_EXPENSE)
-  await expect(tooltip).toHaveCSS('opacity', '1')
-  // The title is described by what the row shows beside it, starting with the amount, then by the reason
+  await foldedRow(picker).click()
+  await expect(foldedRow(picker)).toHaveAttribute('aria-expanded', 'true')
+  const greyed = picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
+  await expect(greyed).toHaveCount(1)
+  await expect(greyed).toContainText(OVER_THE_EXPENSE)
   await expect(press('$37.19')).toHaveAccessibleDescription(
     new RegExp(`^\\+\\$37\\.19 .*${OVER_THE_EXPENSE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
   )
-  // The greyed look eases in and out rather than snapping, at the app's disabled strength
-  // The row's whole content fades, its amount and category cells with its title. The row itself and the
-  // title button stay at full strength, and the row draws the keyboard focus ring
-  const greyed = picker.getByTestId('link-candidate').first()
+  // The row's whole content fades to the app's disabled strength, its amount and category cells with its title. The row
+  // itself and the title button stay at full strength, and the row draws the keyboard focus ring
   const content = greyed.locator('[data-row-content]')
-  await expect(content).toHaveCSS('transition-property', 'opacity')
   await expect(content).toHaveCSS('opacity', '0.5')
-  await expect(content.getByText('+$37.19').first()).toBeVisible()
   await expect(greyed.locator('button')).toHaveCSS('opacity', '1')
-  await expect(greyed.locator('> div')).toHaveCSS('opacity', '1')
   await press('$37.19').click({ force: true })
   await expect(press('$37.19')).toHaveAttribute('aria-pressed', 'false')
   await expect(linkButton).toBeDisabled()
-  await picker.getByRole('button', { name: 'Cancel', exact: true }).hover()
   await press('$37.19').focus()
   await page.keyboard.press('Enter')
   await expect(press('$37.19')).toHaveAttribute('aria-pressed', 'false')
-  // Keyboard focus sets the reason beside the whole row, clear of the category and account the title sits over
-  await press('$20.00').focus()
-  await page.keyboard.press('Shift+Tab')
-  await expect(press('$37.19')).toBeFocused()
-  await expect(tooltip).toHaveCSS('opacity', '1')
-  // Read once the reason stops gliding from where the earlier hover showed it
-  const reasonBox = await readSettledBox(tooltip)
-  const rowBox = (await content.boundingBox())!
-  const isClearOfRow = reasonBox.y >= rowBox.y + rowBox.height || reasonBox.y + reasonBox.height <= rowBox.y
-    || reasonBox.x >= rowBox.x + rowBox.width || reasonBox.x + reasonBox.width <= rowBox.x
-  expect(isClearOfRow, `reason ${JSON.stringify(reasonBox)} clear of row ${JSON.stringify(rowBox)}`).toBe(true)
 
   // Two rows can be picked together. The $20.00 pick leaves $17.13, the $15.00 pick $2.13, which fits nothing else
   await press('$20.00').click()
-  await expectOnlyPickableRows(picker, ALL_ROWS, 1713)
+  await expectRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1)
   await press('$15.00').click()
-  await expectOnlyPickableRows(picker, ALL_ROWS, 213)
+  await expectRows(picker, ['+$20.00', '+$15.00'], 2)
+  await expect(foldedRow(picker)).toHaveText("2 can't be linked, each more than what's left")
+  await expect(greyed).toHaveCount(2)
+  await expect(greyed.nth(1)).toContainText('This refund is more than the $2.13 left to refund')
   await expect(press('$20.00')).toHaveAttribute('aria-pressed', 'true')
   await expect(press('$15.00')).toHaveAttribute('aria-pressed', 'true')
   await expect(linkButton).toBeEnabled()
 
-  // Pressing a picked row again gives its amount back
+  // Pressing a picked row again gives its amount back, and the $12.00 comes back to the list
   await press('$20.00').click()
-  await expectOnlyPickableRows(picker, ALL_ROWS, 2213)
+  await expectRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1)
   await expect(press('$20.00')).toHaveAttribute('aria-pressed', 'false')
 
   // The keyboard picks and unpicks the same way, with Enter and with Space
   await press('$12.00').focus()
   await page.keyboard.press('Enter')
-  await expectOnlyPickableRows(picker, ALL_ROWS, 1013)
+  await expectRows(picker, ['+$15.00', '+$12.00'], 2)
   await expect(press('$12.00')).toHaveAttribute('aria-pressed', 'true')
   await press('$12.00').focus()
   await page.keyboard.press('Space')
-  await expectOnlyPickableRows(picker, ALL_ROWS, 2213)
+  await expectRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1)
   await press('$15.00').focus()
   await page.keyboard.press('Enter')
-  await expectOnlyPickableRows(picker, ALL_ROWS, 3713)
+  await expectRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1)
   await expect(linkButton).toBeDisabled()
   await press('$20.00').focus()
   await page.keyboard.press('Space')
-  await expectOnlyPickableRows(picker, ALL_ROWS, 1713)
+  await expectRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1)
   await page.keyboard.press('Space')
-  await expectOnlyPickableRows(picker, ALL_ROWS, 3713)
+  await expectRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1)
   await expect(linkButton).toBeDisabled()
 
   // Both picks are held by Link, and the window tags them as unsaved
@@ -199,7 +180,7 @@ test('shows the reason in place of the link button while no refund fits', async 
   await expect(open).toBeVisible()
   await expect(open).not.toHaveAttribute('aria-disabled', 'true')
   await open.click()
-  await expectOnlyPickableRows(picker, ['+$31.00', '+$12.00'], 3000)
+  await expectRows(picker, ['+$12.00'], 1)
   await pressRow(picker, '$12.00').click()
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
 
@@ -390,7 +371,9 @@ test('gives an unlinked refund its amount back to the picker before Save', async
   await expect(open).not.toHaveAttribute('aria-disabled', 'true')
   await open.click()
   const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
-  await expectOnlyPickableRows(picker, ['+$37.13', '+$37.19', '+$20.00', '+$15.00'], 3713)
+  // The freed refund is exactly what is left again, so it leads as a likely match
+  await expectRows(picker, ['+$37.13', '+$20.00', '+$15.00'], 1)
+  await expect(picker.getByTestId('link-group-likely').getByTestId('transaction-amount')).toHaveText(['+$37.13'])
 })
 
 // Escape closes the topmost layer only: the open filter panel (the full-screen sheet on a phone) first, and the
@@ -447,11 +430,11 @@ test('keeps the second instalment listed when the first is picked', async ({ pag
   const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
   const press = (amount: string) => pressRow(picker, amount)
 
-  await expectOnlyPickableRows(picker, ['+$40.00', '+$30.00', '+$20.00'], 5000)
+  await expectRows(picker, ['+$40.00', '+$30.00', '+$20.00'], 0)
   await press('$20.00').click()
-  await expectOnlyPickableRows(picker, ['+$40.00', '+$30.00', '+$20.00'], 3000)
+  await expectRows(picker, ['+$30.00', '+$20.00'], 1)
   await press('$30.00').click()
-  await expectOnlyPickableRows(picker, ['+$40.00', '+$30.00', '+$20.00'], 0)
+  await expectRows(picker, ['+$30.00', '+$20.00'], 1)
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(2)
 })
@@ -509,9 +492,9 @@ for (const [anchor, size] of [
   })
 }
 
-// Tab goes from the Filters button into the rows, a greyed row takes the focus ring at full strength with its reason
-// in the tooltip, and the text of a picked row reads at 4.5 to 1 against the picked fill it sits on, at rest and
-// under the pointer
+// Tab goes from the Filters button into the rows, then to the folded row of what can't be linked and, once that is
+// open, to its greyed row. That row takes the focus ring at full strength with its reason written under it. The text
+// of a picked row reads at 4.5 to 1 against the picked fill it sits on, at rest and under the pointer
 test('reaches the rows from Filters with Tab and keeps the focus ring of a greyed row at full strength', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
@@ -526,23 +509,16 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   const expense = await openRow(page, expenseId)
   await expense.getByTestId('link-existing').click()
   const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
-  await expectOnlyPickableRows(picker, ['+$37.19', '+$20.00', '+$15.00'], 3713)
-  const rows = picker.getByTestId('link-candidate')
+  await expectRows(picker, ['+$20.00', '+$15.00'], 1)
+  const rows = picker.locator('[data-testid^="link-group-"]').getByTestId('link-candidate')
 
-  // The greyed $37.19 row is first. Tab from Filters lands on it, with its ring drawn and its reason shown.
-  // The picker puts focus on its search field a frame after it opens, so that comes first, or it can take
-  // focus back from Filters on a busy host
+  // Tab from Filters lands on the first row, $20.00, with its ring drawn. The picker puts focus on its search field a
+  // frame after it opens, so that comes first, or it can take focus back from Filters on a busy host
   await expect(picker.getByPlaceholder('Merchant or note…')).toBeFocused()
   await picker.getByRole('button', { name: 'Transaction filters' }).focus()
   await page.keyboard.press('Tab')
-  const greyed = rows.first().getByRole('button')
-  await expect(greyed).toBeFocused()
-  const ringed = rows.first().locator('.app-transaction-row')
-  await expect(ringed).toHaveCSS('outline-style', 'solid')
-  await expect(ringed).not.toHaveCSS('outline-color', 'rgba(0, 0, 0, 0)')
-  await expect(ringed).toHaveCSS('opacity', '1')
-  await expect(greyed).toHaveCSS('opacity', '1')
-  await expect(page.getByTestId('disabled-reason-tooltip').filter({ hasText: OVER_THE_EXPENSE })).toHaveCSS('opacity', '1')
+  await expect(rows.first().getByRole('button')).toBeFocused()
+  await expect(rows.first().locator('.app-transaction-row')).toHaveCSS('outline-style', 'solid')
   await page.keyboard.press('Tab')
   await expect(rows.nth(1).getByRole('button')).toBeFocused()
 
@@ -593,6 +569,24 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   await expect(rows.nth(1)).toHaveCSS('background-color', await fillColour(page, '--app-accent-chosen-hover-fill'))
   const faintest = await faintestText(rows.nth(1))
   expect(faintest.contrast, `"${faintest.text}" on a picked row under the pointer`).toBeGreaterThanOrEqual(4.5)
+
+  // After the rows, Tab reaches the folded row, Enter opens it, and Tab lands on the greyed $37.19 row. Its ring is
+  // drawn at full strength while its content fades, and its reason is written under it
+  await rows.nth(1).getByRole('button').focus()
+  await page.keyboard.press('Tab')
+  await expect(foldedRow(picker)).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(foldedRow(picker)).toHaveAttribute('aria-expanded', 'true')
+  await page.keyboard.press('Tab')
+  const greyedRow = picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
+  const greyed = greyedRow.getByRole('button')
+  await expect(greyed).toBeFocused()
+  const ringed = greyedRow.locator('.app-transaction-row')
+  await expect(ringed).toHaveCSS('outline-style', 'solid')
+  await expect(ringed).not.toHaveCSS('outline-color', 'rgba(0, 0, 0, 0)')
+  await expect(ringed).toHaveCSS('opacity', '1')
+  await expect(greyed).toHaveCSS('opacity', '1')
+  await expect(greyedRow.getByText(OVER_THE_EXPENSE)).toBeVisible()
 })
 
 /** The colour a fill token computes to on the page, for waiting until a row's fill has eased into it */
@@ -626,7 +620,7 @@ test('leaves out refunds in another currency and shows the reason when only thos
   const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
 
   // Only the $20.00 refund in the expense's own currency is listed, with nothing for the euro one
-  await expectOnlyPickableRows(picker, ['+$20.00'], 5000)
+  await expectRows(picker, ['+$20.00'], 0)
   await pressRow(picker, '$20.00').click()
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
   await expect(picker).toBeHidden()
