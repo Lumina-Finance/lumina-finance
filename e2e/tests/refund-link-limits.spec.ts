@@ -160,9 +160,16 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await expect(expense.getByTestId('unsaved-label')).toHaveCount(1)
   await expect(held.nth(0)).toHaveCSS('border-bottom-width', '0px')
   await expect(held.nth(1)).toHaveCSS('border-top-width', '0px')
+  // Each part of the border stays inside the row that clips it as it grows in
+  const heldRows = expense.getByTestId('linked-row').filter({ has: page.locator('[data-not-saved]') })
   await expect(async () => {
     const [upper, lower] = [await held.nth(0).boundingBox(), await held.nth(1).boundingBox()]
     expect(lower!.y - (upper!.y + upper!.height)).toBeCloseTo(0, 0)
+    for (const index of [0, 1]) {
+      const [part, row] = [await held.nth(index).boundingBox(), await heldRows.nth(index).boundingBox()]
+      expect(part!.y).toBeGreaterThanOrEqual(row!.y)
+      expect(part!.y + part!.height).toBeLessThanOrEqual(row!.y + row!.height)
+    }
   }).toPass()
   await saveButton(expense).click()
   await expect(expense).toBeHidden()
