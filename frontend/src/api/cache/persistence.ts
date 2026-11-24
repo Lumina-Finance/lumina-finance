@@ -43,9 +43,9 @@ const TIMED_SAVE_INTERVAL_MS = 1000
 // adds the provider, its name, and the bank's note and merchant to every bank hold. Version 10 lists only
 // each budget's latest period, and keeps categories in a budget's spending history for its latest 12
 // periods only. Version 11 adds the reason every FX status and transaction row gives for amounts left out
-// of a total because converting them is refused. Version 12 adds the profile deletion wait every linked
-// sign-in list carries. Version 13 gives that wait in seconds, not days
-const PERSISTED_CACHE_SHAPE = '13'
+// of a total because converting them is refused
+// Version 12 adds the profile deletion wait, in seconds, every linked sign-in list carries
+const PERSISTED_CACHE_SHAPE = '12'
 
 /**
  * What local storage holds: the saved cache sealed under the user's key, and in plain text only what
