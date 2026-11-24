@@ -1,5 +1,7 @@
 import { useAccounts } from '@/api/accounts'
-import { useBankProviders } from '@/api/bank-sync'
+import { useBankConnections, useBankProviders } from '@/api/bank-sync'
+import { DeleteProfileCard } from '@/pages/settings/components/DeleteProfileCard'
+import { DeleteProfileDialogue } from '@/pages/settings/components/DeleteProfileDialogue'
 import { useOidcIdentities } from '@/api/oidc'
 import { FeatureCover } from '@/components/feature-cover/Cover'
 import { useFeatureCover } from '@/components/feature-cover/useFeatureCover'
@@ -15,6 +17,7 @@ import SecuritySection from '@/pages/settings/components/security-section/Sectio
 import { SettingsDesktopSectionSidebar, SettingsMobileSectionMenu } from '@/pages/settings/components/SectionNavigation'
 import { SettingsPaneActions } from '@/pages/settings/components/PaneActions'
 import TaxAdvantagedCategoriesSection from '@/pages/settings/components/tax-advantaged/tax-advantaged-categories-section/Section'
+import { useDeleteProfile } from '@/pages/settings/hooks/useDeleteProfile'
 import { useExportAllData } from '@/pages/settings/hooks/useExportAllData'
 import { useProfileSettingsForm } from '@/pages/settings/hooks/useProfileSettingsForm'
 import { useRunwaySettingsForm } from '@/pages/settings/hooks/useRunwaySettingsForm'
@@ -91,6 +94,10 @@ export default function SettingsPage() {
   const sectionNavigation = useSettingsSectionNavigation(sections)
   const showBankConnections = sections.some((section) => section.id === 'bank-connections')
   const { exportAllData, isExporting } = useExportAllData()
+  const deleteProfile = useDeleteProfile(hasPassword)
+  // Delete profile's dialogue warns about the bank sync provider's charges for anyone who still has a connection,
+  // even where new banks can't be linked, so it asks for the connections whenever it opens
+  const { data: bankConnections } = useBankConnections({ enabled: showBankConnections || deleteProfile.dialogueOpen })
 
   const profileActions = (
     <SettingsPaneActions
@@ -239,6 +246,41 @@ export default function SettingsPage() {
             accounts={accounts ?? []}
             userBaseCurrency={user?.base_currency}
             userTimezone={user?.tz}
+          />
+
+          <DeleteProfileCard
+            onDelete={deleteProfile.open}
+            blockedReason={deleteProfile.blockedReason}
+            leaving={deleteProfile.leaving}
+            resuming={deleteProfile.resuming}
+            error={deleteProfile.error}
+          />
+          <DeleteProfileDialogue
+            key={deleteProfile.dialogueKey}
+            open={deleteProfile.dialogueOpen}
+            hasBankConnections={(bankConnections?.length ?? 0) > 0}
+            exporting={isExporting}
+            onExport={exportAllData}
+            onConfirm={deleteProfile.confirmTyped}
+            onCancel={deleteProfile.cancel}
+          />
+          <StepUpModal
+            open={deleteProfile.stepUpOpen}
+            title="Delete profile"
+            description="Please confirm it's you to delete your profile and all your data."
+            requirePassword
+            confirmLabel="Delete profile"
+            danger
+            allowPasskey
+            onClose={deleteProfile.closeStepUp}
+            onVerify={deleteProfile.verify}
+          />
+          <ProviderReauthModal
+            open={deleteProfile.reauth.chooserOpen}
+            providers={deleteProfile.reauth.linkedProviders}
+            busySlug={deleteProfile.reauth.busySlug}
+            onChoose={deleteProfile.reauth.chooseProvider}
+            onClose={deleteProfile.reauth.closeChooser}
           />
         </div>
       </div>

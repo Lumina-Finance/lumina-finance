@@ -43,6 +43,7 @@ PRUNE_FINISHED_BANK_SYNC_JOBS = "public.prune_finished_bank_sync_jobs"
 PRUNE_EXPIRED_BANK_AUTHORIZATIONS = "public.prune_expired_bank_authorizations"
 MIGRATION_REVISIONS = "public.migration_revisions"
 ROTATE_SAVED_COPY_KEY = "public.rotate_saved_copy_key"
+LIST_PROFILES_TO_DELETE = "public.list_profiles_to_delete"
 
 # The worker functions see across users. Only the worker, connecting with no request
 # identity, may do that. Refusing a call made under an identity keeps a request from reaching them
@@ -557,6 +558,26 @@ _HELPERS: tuple[_Helper, ...] = (
     $$
     """,
         f"{ROTATE_SAVED_COPY_KEY}(uuid)",
+    ),
+    # The users who asked to delete their profile, by id only, for the cleanup that finishes a deletion a
+    # restart cut short. Only the cleanup, connecting with no request identity, may see across users, so a
+    # call made under an identity is refused. Written in plpgsql so creating it does not check the column
+    # exists, since migrations that predate it create every current helper
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {LIST_PROFILES_TO_DELETE}() RETURNS SETOF uuid
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+    BEGIN
+        IF {CURRENT_USER_ID}() IS NOT NULL THEN
+            RAISE EXCEPTION 'Only the cleanup may list the profiles to delete'
+                USING ERRCODE = 'insufficient_privilege';
+        END IF;
+
+        RETURN QUERY SELECT u.id FROM public.users u WHERE u.deletion_requested_at IS NOT NULL ORDER BY u.deletion_requested_at;
+    END
+    $$
+    """,
+        f"{LIST_PROFILES_TO_DELETE}()",
     ),
     # The revisions the database is migrated to. The worker compares them with the head it
     # ships before it starts. The app role can't read the migration history itself, and the

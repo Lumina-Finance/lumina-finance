@@ -9,6 +9,7 @@ export type OidcReauthAction =
   | { kind: 'unlink'; identityId: string }
   | { kind: 'end-other-sessions' }
   | { kind: 'change-email'; email: string }
+  | { kind: 'delete-profile' }
 
 /**
  * The settings navigation state that tells the matching control to finish an action after its reauth,
@@ -26,6 +27,8 @@ export function getReauthResumeState(action: OidcReauthAction) {
       return { resumeEndOtherSessions: true }
     case 'change-email':
       return { resumeChangeEmail: action.email }
+    case 'delete-profile':
+      return { resumeDeleteProfile: true }
   }
 }
 

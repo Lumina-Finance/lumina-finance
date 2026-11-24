@@ -680,7 +680,15 @@ async def issue_and_store_tokens(
     Returns:
         Auth response with user info and access token, plus the refresh token for a native app and
         the saved copy key for a browser
+
+    Raises:
+        HTTPException 401: The user asked to delete their profile
     """
+    # Every sign-in and renewal issues its tokens here, so this one check keeps out a profile being
+    # deleted. It answers as wrong credentials do, so it never says the address has a profile
+    if user.deletion_requested_at is not None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
     if refresh_in_body is None:
         refresh_in_body = request_is_native_client(request)
 

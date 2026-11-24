@@ -19,6 +19,8 @@ SUPPORTED_POINTS: dict[str, str] = {
     "RequestRecord": "app.request_hook:RequestRecord",
     "observe_email_changes": "app.email_change_hook:observe_email_changes",
     "EmailChange": "app.email_change_hook:EmailChange",
+    "observe_profile_deletions": "app.profile_deletion_hook:observe_profile_deletions",
+    "ProfileDeletion": "app.profile_deletion_hook:ProfileDeletion",
     "get_authenticated_user": "app.dependencies:get_authenticated_user",
     "set_email_sender": "app.services.email.contract:set_email_sender",
     "EmailSender": "app.services.email.contract:EmailSender",

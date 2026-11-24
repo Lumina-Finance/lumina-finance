@@ -6,6 +6,7 @@ with its connection, so a provider that can't be reached is no reason to fail wh
 
 import asyncio
 import logging
+from collections.abc import Sequence
 
 from app.encryption import decrypt
 from app.services.bank_sync.availability import adapter_for
@@ -45,3 +46,12 @@ async def release_stored_credential(provider_id: str, encrypted: str) -> None:
         logger.warning("Could not read a stored credential to release it to the %s provider", provider_id, exc_info=True)
         return
     await release_credential(adapter, credential)
+
+
+async def release_stored_credentials(credentials: Sequence[tuple[str, str]]) -> None:
+    """Give back several stored credentials at once, so the wait is one provider's time limit rather than the sum
+
+    Args:
+        credentials: Each connection's provider and its credential as stored
+    """
+    await asyncio.gather(*(release_stored_credential(provider, encrypted) for provider, encrypted in credentials))

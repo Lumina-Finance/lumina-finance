@@ -62,7 +62,7 @@ class Merchant(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
 
     # Null on system merchants. Indexed so the read rule finds a user's merchants without reading everyone's
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(VARCHAR(256), nullable=False)
 

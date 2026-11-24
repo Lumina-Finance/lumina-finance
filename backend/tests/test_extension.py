@@ -58,6 +58,8 @@ EXPECTED_SHAPES: dict[str, str] = {
     "RequestRecord": "RequestRecord(scope: Mapping[str, Any], method: str, route: str, status: int, duration_seconds: float)",
     "observe_email_changes": "observe_email_changes(observer: Callable[[EmailChange], None]) -> None",
     "EmailChange": "EmailChange(user_id: UUID, old_email: str, new_email: str)",
+    "observe_profile_deletions": "observe_profile_deletions(observer: Callable[[ProfileDeletion], None]) -> None",
+    "ProfileDeletion": "ProfileDeletion(user_id: UUID, deleted_at: datetime)",
     "get_authenticated_user": "async get_authenticated_user(credentials: HTTPAuthorizationCredentials, db: AsyncSession) -> User",
     "set_email_sender": "set_email_sender(sender: EmailSender) -> None",
     "EmailSender": "async EmailSender.send(self, recipient: str, message: RenderedEmail) -> None",

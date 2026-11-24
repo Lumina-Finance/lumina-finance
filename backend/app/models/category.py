@@ -63,7 +63,7 @@ class Category(Base):
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"))
 
     # Indexed so the read rule finds a user's categories without reading everyone's
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), index=True)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     kind: Mapped[CategoryKind] = mapped_column(nullable=False)
     icon: Mapped[str | None] = mapped_column(Text)  # Emoji glyph rendered by the client
