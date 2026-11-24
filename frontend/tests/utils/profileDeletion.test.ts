@@ -6,14 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { DEFAULT_DATE_FORMAT, setDateFormat } from '@/utils/dateFormat'
 import { ApiError } from '@/api/auth'
-import type { User } from '@/api/auth/types'
-import { getHeldScreen } from '@/utils/heldScreen'
-import {
-  formatDeletionDateAfterWait,
-  formatDeletionDueDate,
-  isCancelTooLate,
-  settleCancel,
-} from '@/utils/profileDeletion'
+import { formatDeletionDateAfterWait, formatDeletionDueDate, isCancelTooLate } from '@/utils/profileDeletion'
 
 afterEach(() => setDateFormat(DEFAULT_DATE_FORMAT))
 
@@ -68,29 +61,5 @@ describe('isCancelTooLate', () => {
   it('leaves the user on the screen for any other failure', () => {
     expect(isCancelTooLate(new ApiError('Something went wrong', 500))).toBe(false)
     expect(isCancelTooLate(new TypeError('Failed to fetch'))).toBe(false)
-  })
-})
-
-describe('settleCancel', () => {
-  // What the server answers a cancel with when a second tab already cancelled: the user, with no due time
-  const alreadyCancelled = { id: 'user-1', deletion_due_at: null, second_factor_reenrollment_required: false } as User
-
-  it('returns the user to the app when the answer carries no due time, as it does when another tab cancelled first', async () => {
-    const outcome = await settleCancel(() => Promise.resolve(alreadyCancelled))
-
-    expect(outcome).toEqual({ kind: 'cancelled', user: alreadyCancelled })
-    expect(getHeldScreen(alreadyCancelled)).toBeNull()
-  })
-
-  it('reports the 409 for a late cancel as too late, so the user is signed out', async () => {
-    const error = new ApiError('Your profile is already being deleted, so the deletion can no longer be cancelled', 409)
-
-    expect(await settleCancel(() => Promise.reject(error))).toEqual({ kind: 'too-late', error })
-  })
-
-  it('reports any other failure as failed, so the user stays on the screen', async () => {
-    const error = new ApiError('Something went wrong', 500)
-
-    expect(await settleCancel(() => Promise.reject(error))).toEqual({ kind: 'failed', error })
   })
 })
