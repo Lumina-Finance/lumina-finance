@@ -62,6 +62,7 @@ EXPECTED_SHAPES: dict[str, str] = {
     "ProfileDeletion": "ProfileDeletion(user_id: UUID, deleted_at: datetime)",
     "list_users": "async list_users(after: UUID | None = ..., session_factory: async_sessionmaker[AsyncSession] = ...) -> list[UserSummary]",
     "UserSummary": "UserSummary(user_id: UUID, email: str, signed_up_at: datetime, last_signed_in_at: datetime | None)",
+    "delete_user": "async delete_user(user_id: UUID, session_factory: async_sessionmaker[AsyncSession] = ...) -> bool",
     "get_authenticated_user": "async get_authenticated_user(credentials: HTTPAuthorizationCredentials, db: AsyncSession) -> User",
     "set_email_sender": "set_email_sender(sender: EmailSender) -> None",
     "EmailSender": "async EmailSender.send(self, recipient: str, message: RenderedEmail) -> None",

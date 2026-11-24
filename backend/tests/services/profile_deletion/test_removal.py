@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, date, datetime
 
 import pytest
-from sqlalchemy import func, select, text
+from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.db.rls.functions import LIST_PROFILES_TO_DELETE
@@ -30,6 +30,7 @@ from tests.routes.support.bank_sync_helpers import (
     _build_ledger_transaction,
     _build_user,
 )
+from tests.routes.support.deletion_helpers import _row_counts
 from tests.routes.support.identity_helpers import _act_as
 
 # Enough transactions that a batch of two takes several rounds
@@ -70,12 +71,6 @@ async def _seed_ledger(user: User) -> None:
             ]
         )
         await session.commit()
-
-
-async def _row_counts() -> dict[str, int]:
-    """Every table's row count"""
-    async with TestSession() as session:
-        return {table.name: await session.scalar(select(func.count()).select_from(table)) for table in Base.metadata.sorted_tables}
 
 
 async def _mark(user_id: uuid.UUID) -> None:
