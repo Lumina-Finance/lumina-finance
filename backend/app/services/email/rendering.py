@@ -182,7 +182,7 @@ def _plain_date(moment: datetime, tz: str | None) -> str:
     """
     try:
         zone = ZoneInfo(tz) if tz else UTC
-    except (ZoneInfoNotFoundError, ValueError):
+    except ZoneInfoNotFoundError, ValueError:
         zone = UTC
     local = moment.astimezone(zone)
     return f"{local.day} {_MONTH_NAMES[local.month - 1]} {local.year}"
