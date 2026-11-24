@@ -1,11 +1,13 @@
 """Email template rendering"""
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.config.email import DEFAULT_EMAIL_SENDER_NAME
+from app.config.profile_deletion import DELETION_REMINDER_LEAD
 from app.services.email.contract import RenderedEmail
 from app.services.service_name import resolve_service_name
 
@@ -14,6 +16,22 @@ _RESET_SUBJECT = "Reset your password"
 _SIGNUP_CONFIRMATION_SUBJECT = "Confirm your email"
 _EMAIL_CHANGE_SUBJECT = "Confirm your new email"
 _EMAIL_CHANGE_NOTICE_SUBJECT = "Your email was changed"
+
+# English month names, so a date reads the same whatever locale the server runs in
+_MONTH_NAMES = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
 
 # Autoescaping guards the HTML parts while leaving plain-text templates untouched
 _environment = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)), autoescape=select_autoescape(["html"]))
@@ -105,3 +123,54 @@ def render_action_needed_email(subject: str, lead: str, accounts: Sequence[str],
     html_body = _environment.get_template("bank_sync_action_needed.html").render(context)
     text_body = _environment.get_template("bank_sync_action_needed.txt").render(context)
     return RenderedEmail(subject=subject, text_body=text_body, html_body=html_body)
+
+
+def render_profile_deletion_scheduled_email(due_at: datetime) -> RenderedEmail:
+    """Render the email telling a user their profile will be deleted on a date, and that signing in before it cancels
+
+    Args:
+        due_at: When the deletion is due. Only its date in UTC is shown
+
+    Returns:
+        The rendered subject and both body parts
+    """
+    due_date = _plain_date(due_at)
+    context = {"app_name": email_service_name(), "due_date": due_date}
+    html_body = _environment.get_template("profile_deletion_scheduled.html").render(context)
+    text_body = _environment.get_template("profile_deletion_scheduled.txt").render(context)
+    return RenderedEmail(subject=f"Your profile will be deleted on {due_date}", text_body=text_body, html_body=html_body)
+
+
+def render_profile_deletion_reminder_email(due_at: datetime) -> RenderedEmail:
+    """Render the reminder that a profile's deletion is only days away, and that signing in before it cancels
+
+    Args:
+        due_at: When the deletion is due. Only its date in UTC is shown
+
+    Returns:
+        The rendered subject and both body parts
+    """
+    due_date = _plain_date(due_at)
+    days_left = DELETION_REMINDER_LEAD.days
+    context = {"app_name": email_service_name(), "due_date": due_date, "days_left": days_left}
+    html_body = _environment.get_template("profile_deletion_reminder.html").render(context)
+    text_body = _environment.get_template("profile_deletion_reminder.txt").render(context)
+    return RenderedEmail(subject=f"Your profile will be deleted in {days_left} days or less", text_body=text_body, html_body=html_body)
+
+
+def render_profile_deletion_done_email() -> RenderedEmail:
+    """Render the email confirming a profile and its data have been deleted
+
+    Returns:
+        The rendered subject and both body parts
+    """
+    context = {"app_name": email_service_name()}
+    html_body = _environment.get_template("profile_deletion_done.html").render(context)
+    text_body = _environment.get_template("profile_deletion_done.txt").render(context)
+    return RenderedEmail(subject="Your profile was deleted", text_body=text_body, html_body=html_body)
+
+
+def _plain_date(moment: datetime) -> str:
+    """Write the date of an instant in UTC as a day, a month name and a year, such as 3 December 2026"""
+    utc = moment.astimezone(UTC)
+    return f"{utc.day} {_MONTH_NAMES[utc.month - 1]} {utc.year}"

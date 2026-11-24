@@ -6,7 +6,7 @@ import ipaddress
 import logging
 import ssl
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 import aiosmtplib
 import pytest
@@ -24,6 +24,9 @@ from app.services.email import (
     render_action_needed_email,
     render_email_change_email,
     render_email_change_notice_email,
+    render_profile_deletion_done_email,
+    render_profile_deletion_reminder_email,
+    render_profile_deletion_scheduled_email,
     render_reset_email,
     render_signup_confirmation_email,
     set_email_sender,
@@ -354,12 +357,18 @@ def test_render_reset_email_says_nothing_of_sign_in_providers():
 
 _FIXED_NAME = "Lumina Finance (Self-Hosted)"
 
+# Late on 31 December in Toronto and already 1 January in UTC
+_DELETION_DUE_AT = datetime(2026, 12, 31, 20, 0, tzinfo=timezone(timedelta(hours=-5)))
+
 _RENDERERS = {
     "reset": lambda: render_reset_email("https://app.example.com/reset-password?token=abc123", 15),
     "sign-up confirmation": lambda: render_signup_confirmation_email("https://app.example.com/confirm-email?token=abc123", 24),
     "action needed": lambda: render_action_needed_email("Subject", "Lead", ["Everyday"], "Closing"),
     "email change": lambda: render_email_change_email("https://app.example.com/confirm-email-change?token=abc123", 30),
     "email change notice": lambda: render_email_change_notice_email("new@example.com"),
+    "profile deletion scheduled": lambda: render_profile_deletion_scheduled_email(_DELETION_DUE_AT),
+    "profile deletion reminder": lambda: render_profile_deletion_reminder_email(_DELETION_DUE_AT),
+    "profile deletion done": render_profile_deletion_done_email,
 }
 
 
@@ -401,6 +410,26 @@ def test_email_change_sentences_name_the_fixed_name_until_code_names_the_service
     for message, name in ((before, _FIXED_NAME), (after, "Acme")):
         assert sentence.format(name) in message.text_body
         assert sentence.format(name) in message.html_body
+
+
+def test_profile_deletion_emails_name_the_date_in_utc_and_what_to_do_in_both_parts():
+    """The scheduled and reminder emails show the due date as a UTC day, tell the user to sign in to cancel, and the reminder counts the days"""
+    scheduled = render_profile_deletion_scheduled_email(_DELETION_DUE_AT)
+    reminder = render_profile_deletion_reminder_email(_DELETION_DUE_AT)
+    done = render_profile_deletion_done_email()
+
+    assert scheduled.subject == "Your profile will be deleted on 1 January 2027"
+    assert reminder.subject == "Your profile will be deleted in 3 days or less"
+    assert done.subject == "Your profile was deleted"
+    for message in (scheduled, reminder):
+        for body in (message.text_body, message.html_body):
+            assert "will be deleted on 1 January 2027" in body
+            assert "sign in before then to cancel" in body.lower()
+    assert "in 3 days or less" in reminder.text_body
+    assert "has been deleted" not in scheduled.text_body
+    for body in (done.text_body, done.html_body):
+        assert "profile and all its data have been deleted" in body
+        assert "cancel" not in body
 
 
 def test_render_action_needed_email_lists_the_accounts_in_both_parts_escaping_them_in_html():
