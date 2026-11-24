@@ -33,6 +33,7 @@ import {
   createIdentityFormValues,
   getIdentityFieldErrors,
   getIdentityUpdatePayload,
+  getReadOnlySaveReason,
   type IdentityFormValues,
 } from '@/pages/accounts/detail/utils/identityForm'
 import { AccountArchiveSection } from './sections/ArchiveSection'
@@ -139,6 +140,7 @@ export default function EditAccountIdentityModal({
     EDIT_ACCOUNT_IDENTITY_FIELDS,
     EDIT_ACCOUNT_IDENTITY_CONTROL_IDS,
   )
+  const readOnlySaveReason = getReadOnlySaveReason(account, form)
   const canDelete = deleteNameInput === account.name
   const deleteRefusal = useRefusedSubmit(
     { deleteName: canDelete ? undefined : DELETE_ACCOUNT_NAME_MISMATCH_MESSAGE },
@@ -215,7 +217,7 @@ export default function EditAccountIdentityModal({
    */
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (account.read_only_reason || isBusy || deleteStage !== 'idle' || !refusal.guard()) return
+    if (readOnlySaveReason || isBusy || deleteStage !== 'idle' || !refusal.guard()) return
 
     setSubmitError(null)
     setSaveDelayPending(true)
@@ -450,7 +452,7 @@ export default function EditAccountIdentityModal({
             deleteStage={deleteStage}
             isBusy={isBusy}
             saveLoading={saveLoading}
-            saveBlockedReason={account.read_only_reason ?? refusal.blockedReason}
+            saveBlockedReason={readOnlySaveReason ?? refusal.blockedReason}
             onCancel={requestClose}
             onStartDelete={handleStartDeleteAccount}
             keepsToastClear={showsBankLinkSection}

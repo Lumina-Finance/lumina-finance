@@ -9,6 +9,7 @@ import {
   createIdentityFormValues,
   getIdentityFieldErrors,
   getIdentityUpdatePayload,
+  getReadOnlySaveReason,
 } from '@/pages/accounts/detail/utils/identityForm'
 
 const currencies: Currency[] = [{ id: 'USD', name: 'US Dollar', symbol: '$', minor_unit_exponent: 2 }]
@@ -166,5 +167,30 @@ describe('identity form helpers', () => {
       notes: null,
       is_archived: false,
     })
+  })
+})
+
+describe('Save changes on a read-only account', () => {
+  const REASON = 'Records in USD are read-only. They can be archived or deleted'
+
+  it('is held back with the reason until the archive switch changes', () => {
+    const account = createAccount({ read_only_reason: REASON })
+    const form = createIdentityFormValues(account, currencies)
+
+    expect(getReadOnlySaveReason(account, form)).toBe(REASON)
+    expect(getReadOnlySaveReason(account, { ...form, is_archived: true })).toBeNull()
+  })
+
+  it('saves bringing an archived one back', () => {
+    const account = createAccount({ read_only_reason: REASON, is_archived: true })
+    const form = createIdentityFormValues(account, currencies)
+
+    expect(getReadOnlySaveReason(account, { ...form, is_archived: false })).toBeNull()
+  })
+
+  it('is never held back on an account that takes writes', () => {
+    const account = createAccount()
+
+    expect(getReadOnlySaveReason(account, createIdentityFormValues(account, currencies))).toBeNull()
   })
 })
