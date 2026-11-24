@@ -1,9 +1,10 @@
 """Auth session service helpers"""
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import ColumnElement, and_, delete, or_, select, text, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func as sa_func
 
@@ -12,7 +13,7 @@ from app.db.rls.functions import ROTATE_SAVED_COPY_KEY
 from app.models.auth_session import AuthSession
 from app.models.auth_token import AuthToken
 from app.models.base import AuthTokenKind
-from app.models.user import User
+from app.models.user import User, UserLastSignIn
 
 # The most rotated refresh tokens one token issue removes, so a backlog never slows a sign-in. Each
 # refresh leaves one and every refresh issues tokens, so ordinary traffic clears them all as they end
@@ -329,3 +330,18 @@ def create_auth_token(
         refresh_grace_expires_at=refresh_grace_expires_at,
     )
     return auth_token
+
+
+async def record_sign_in(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Store now as the user's last sign-in or session renewal
+
+    Call it as the last write before the commit that issues the tokens, so its row is the last lock
+    the transaction takes and it never waits on another lock while holding this one
+
+    Args:
+        db: Active database session, acting as the user
+        user_id: User who just signed in or renewed a session
+    """
+    signed_in_at = datetime.now(UTC)
+    statement = insert(UserLastSignIn).values(user_id=user_id, last_signed_in_at=signed_in_at)
+    await db.execute(statement.on_conflict_do_update(index_elements=[UserLastSignIn.user_id], set_={"last_signed_in_at": signed_in_at}))
