@@ -3,6 +3,7 @@ import pytest
 from app import dependencies
 from app.routes.auth import token_helpers
 from app.services.auth import discovery, registration, reset_send_limit, send_backoff, signup, tokens
+from tests.routes.support.oidc_helpers import provider_protocol  # noqa: F401  (a fixture the auth tests take by name)
 
 
 @pytest.fixture(autouse=True)
