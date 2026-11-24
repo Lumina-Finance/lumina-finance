@@ -131,6 +131,7 @@ def build_transaction_response(
     refund_of_transaction_id: uuid.UUID | None = None,
     refund_transaction_ids: list[uuid.UUID] | None = None,
     bank_source: TransactionBankSource | None = None,
+    withheld_reason: str | None = None,
 ) -> TransactionResponse:
     """Build a transaction response from a transaction row and related data
 
@@ -144,6 +145,7 @@ def build_transaction_response(
         refund_of_transaction_id: Expense this transaction refunds, when linked
         refund_transaction_ids: Refunds linked to this transaction
         bank_source: Where a bank-imported transaction came from, None on a manual one
+        withheld_reason: The check's sentence when an amount above was left unconverted because the check refused it
 
     Returns:
         Transaction response containing the transaction row plus related display data
@@ -151,6 +153,7 @@ def build_transaction_response(
     data = TransactionResponse.model_validate(txn)
     data.account_amount = account_amount
     data.base_currency_amount = base_currency_amount
+    data.withheld_reason = withheld_reason
     data.refund_of_transaction_id = refund_of_transaction_id
     data.refund_transaction_ids = refund_transaction_ids or []
     data.tag_ids = tag_ids

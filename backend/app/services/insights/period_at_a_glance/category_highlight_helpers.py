@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.base import CategoryKind
 from app.schemas.fx import FxStatus
-from app.services.fx import FxConverter
+from app.services.fx import build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 from app.services.insights.period_at_a_glance.biggest_category_change_helpers import (
     get_period_at_a_glance_biggest_category_change,
@@ -64,7 +64,7 @@ async def get_period_at_a_glance_category_highlights(
         db,
         {base_currency, *(account.currency for account in accounts)},
     )
-    top_category_converter = FxConverter(currency_exponents=currency_exponents)
+    top_category_converter = build_user_fx_converter(db, currency_exponents)
     current_top_category_net_totals = await get_period_at_a_glance_category_net_totals(
         db,
         accounts,
@@ -73,7 +73,7 @@ async def get_period_at_a_glance_category_highlights(
         to_date,
         top_category_converter,
     )
-    biggest_change_converter = FxConverter(currency_exponents=currency_exponents)
+    biggest_change_converter = build_user_fx_converter(db, currency_exponents)
     current_category_net_totals = await get_period_at_a_glance_category_net_totals(
         db,
         accounts,

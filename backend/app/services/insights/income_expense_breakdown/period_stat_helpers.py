@@ -12,7 +12,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
-from app.services.fx import FxConverter
+from app.services.fx import FxConverter, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
@@ -69,6 +69,7 @@ async def get_income_expense_breakdown_period_stats(
             Transaction.account_id,
             Transaction.dt.label("date"),
             Account.currency.label("account_currency"),
+            Account.group_id,
             func.sum(Transaction.amount).label("total"),
             func.count(Transaction.id).label("transaction_count"),
         )
@@ -80,14 +81,20 @@ async def get_income_expense_breakdown_period_stats(
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
-        .group_by(Category.id, Category.name, Category.kind, Transaction.account_id, Transaction.dt, Account.currency),
+        .group_by(
+            Category.id,
+            Category.name,
+            Category.kind,
+            Transaction.account_id,
+            Transaction.dt,
+            Account.currency,
+            Account.group_id,
+        ),
     )
     rows = result.all()
-    converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
+    converter = build_user_fx_converter(
+        db,
+        await get_currency_exponents(db, {base_currency, *(account.currency for account in accounts)}),
     )
     await _prefetch_breakdown_rates(
         converter,
@@ -104,6 +111,7 @@ async def get_income_expense_breakdown_period_stats(
             base=row.account_currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=row.group_id,
         )
         if converted_total is None:
             continue

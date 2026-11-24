@@ -29,7 +29,13 @@ async def test_dashboard_spending_savings_and_activity_include_archived_accounts
 
     visible_income = await _create_transaction(client, headers, visible_account_id, income_id, dt="2026-03-15", amount=500_000)
     visible_expense = await _create_transaction(
-        client, headers, visible_account_id, expense_id, dt="2026-03-16", amount=-200_000, merchant_id=merchant_id,
+        client,
+        headers,
+        visible_account_id,
+        expense_id,
+        dt="2026-03-16",
+        amount=-200_000,
+        merchant_id=merchant_id,
     )
     async with TestSession() as session:
         archived_income = Transaction(
@@ -80,8 +86,8 @@ async def test_dashboard_spending_savings_and_activity_include_archived_accounts
     assert breakdown_resp.status_code == 200
     breakdown_data = breakdown_resp.json()
     assert breakdown_data["expense"][0]["amount"] == 500_000
-    assert breakdown_data["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert breakdown_data["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
     assert comparison_resp.status_code == 200
     comparison_data = comparison_resp.json()
     assert comparison_data["current"][-1] == 500_000
-    assert comparison_data["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert comparison_data["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}

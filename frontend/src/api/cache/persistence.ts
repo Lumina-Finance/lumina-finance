@@ -42,8 +42,9 @@ const TIMED_SAVE_INTERVAL_MS = 1000
 // adds the bank's note and merchant to the bank values every review item and bank source carries. Version 9
 // adds the provider, its name, and the bank's note and merchant to every bank hold. Version 10 lists only
 // each budget's latest period, and keeps categories in a budget's spending history for its latest 12
-// periods only
-const PERSISTED_CACHE_SHAPE = '10'
+// periods only. Version 11 adds the reason every FX status and transaction row gives for amounts left out
+// of a total because converting them is refused
+const PERSISTED_CACHE_SHAPE = '11'
 
 /**
  * What local storage holds: the saved cache sealed under the user's key, and in plain text only what

@@ -32,6 +32,7 @@ def build_insufficient_history_runway_response(
     account_balances: list[RunwayAccountBalance],
     thresholds: RunwayThresholds,
     fx_status: FxStatus,
+    expenses_withheld: bool = False,
 ) -> RunwayResponse:
     """Build a runway response when expense history is insufficient
 
@@ -41,6 +42,7 @@ def build_insufficient_history_runway_response(
         account_balances: Converted selected account balances
         thresholds: Runway status thresholds
         fx_status: FX conversion status
+        expenses_withheld: Whether expenses in another currency were left out of the history
 
     Returns:
         Runway response explaining that history is insufficient
@@ -54,6 +56,7 @@ def build_insufficient_history_runway_response(
         account_balances=account_balances,
         thresholds=thresholds,
         fx_status=fx_status,
+        expenses_withheld=expenses_withheld,
     )
     return response
 

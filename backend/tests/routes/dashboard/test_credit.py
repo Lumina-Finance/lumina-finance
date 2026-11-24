@@ -77,7 +77,7 @@ async def test_dashboard_credit_converts_foreign_currency_accounts(client, monke
     data = resp.json()
     assert data["credit_limit_total"] == 130_000
     assert data["credit_used"] == 37_500
-    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
     assert calls == [("USD", "CAD", today - RATE_LOOKBACK, today)]
 
 
@@ -128,7 +128,7 @@ async def test_dashboard_credit_converts_foreign_cards_on_a_day_with_no_rate_pub
     data = resp.json()
     assert data["credit_limit_total"] == 30_000
     assert data["credit_used"] == 7_500
-    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_dashboard_credit_reports_incomplete_fx_with_missing_pairs(client, monkeypatch):
@@ -216,6 +216,7 @@ async def test_dashboard_credit_reports_incomplete_fx_with_missing_pairs(client,
                 "quote": "CAD",
             },
         ],
+        "withheld_reason": None,
     }
 
 
@@ -273,6 +274,7 @@ async def test_dashboard_credit_reports_unavailable_fx(client, monkeypatch):
                 "quote": "CAD",
             },
         ],
+        "withheld_reason": None,
     }
 
 
@@ -317,4 +319,4 @@ async def test_dashboard_credit_used_ignores_positive_card_balances(client, monk
     data = resp.json()
     assert data["credit_limit_total"] == 1_500_000
     assert data["credit_used"] == 0
-    assert data["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}

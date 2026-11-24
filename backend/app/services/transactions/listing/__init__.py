@@ -126,7 +126,11 @@ async def list_transaction_responses(
     )
     bank_sources_by_transaction_id = await build_bank_sources(db, rows)
 
-    account_amounts_by_transaction_id, base_amounts_by_transaction_id = await get_transaction_listing_converted_amounts(
+    (
+        account_amounts_by_transaction_id,
+        base_amounts_by_transaction_id,
+        withheld_reasons_by_transaction_id,
+    ) = await get_transaction_listing_converted_amounts(
         db,
         transactions,
         base_currency=user.base_currency,
@@ -140,6 +144,7 @@ async def list_transaction_responses(
             tag_summaries_by_transaction_id[transaction.id],
             account_amount=account_amounts_by_transaction_id[transaction.id],
             base_currency_amount=base_amounts_by_transaction_id[transaction.id],
+            withheld_reason=withheld_reasons_by_transaction_id.get(transaction.id),
             refund_of_transaction_id=original_by_refund.get(transaction.id),
             refund_transaction_ids=refunds_by_original.get(transaction.id),
             bank_source=bank_sources_by_transaction_id.get(transaction.id),

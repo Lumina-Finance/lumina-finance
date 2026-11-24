@@ -114,7 +114,7 @@ async def test_dashboard_spending_breakdown_converts_foreign_currency_accounts(c
     ]
     assert data["expense_total"] == 40_000
     assert data["income_total"] == 62_500
-    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
     assert calls == [("USD", "CAD", date(2026, 2, 22), date(2026, 3, 20))]
 
 
@@ -212,6 +212,7 @@ async def test_dashboard_spending_breakdown_reports_incomplete_fx_with_missing_p
                 "quote": "CAD",
             },
         ],
+        "withheld_reason": None,
     }
 
 
@@ -259,4 +260,5 @@ async def test_dashboard_spending_breakdown_reports_unavailable_fx(client, monke
                 "quote": "CAD",
             },
         ],
+        "withheld_reason": None,
     }

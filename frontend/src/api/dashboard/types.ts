@@ -14,6 +14,9 @@ export interface CreditWidgetResponse {
   credit_limit_total: number
   credit_used: number
   fx_status: FxStatus
+
+  // Whether a limit in another currency was left out of the total because converting it is refused
+  limit_withheld?: boolean
 }
 
 export type CreditUtilizationAccount = {

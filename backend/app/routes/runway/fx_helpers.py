@@ -1,4 +1,5 @@
 """Runway FX route helpers"""
+
 import uuid
 from datetime import date, timedelta
 from typing import Any
@@ -9,7 +10,7 @@ from app.models.account import Account
 from app.models.user import User
 from app.schemas.user import RunwayAccountBalance
 from app.services.accounts.snapshots import get_current_balances
-from app.services.fx import FxConverter
+from app.services.fx import FxConverter, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
@@ -35,7 +36,7 @@ async def get_runway_fx_converter(
     expense_currencies = {account_by_id[row.account_id].currency for row in expense_rows}
     selected_currencies = {account.currency for account in selected_accounts}
     currency_exponents = await get_currency_exponents(db, {user.base_currency, *expense_currencies, *selected_currencies})
-    converter = FxConverter(currency_exponents=currency_exponents)
+    converter = build_user_fx_converter(db, currency_exponents)
     return converter
 
 
@@ -107,6 +108,7 @@ async def get_converted_runway_account_balances(
             base=account.currency,
             quote=user.base_currency,
             rate_date=today,
+            group_id=account.group_id,
         )
         if converted_balance is None:
             continue
@@ -145,6 +147,7 @@ async def get_runway_category_month_totals(
             base=account_by_id[row.account_id].currency,
             quote=user.base_currency,
             rate_date=row.dt,
+            group_id=account_by_id[row.account_id].group_id,
         )
         if converted_total is None:
             continue

@@ -10,7 +10,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
-from app.services.fx import FxConverter
+from app.services.fx import FxConverter, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 DailyCashFlowTotalsByDate = dict[date, tuple[int, int]]
@@ -50,6 +50,7 @@ async def get_cash_flow_daily_totals(
             Transaction.dt.label("date"),
             Transaction.account_id,
             Account.currency.label("account_currency"),
+            Account.group_id,
             func.coalesce(
                 func.sum(case((Transaction.amount > 0, Transaction.amount), else_=0)),
                 0,
@@ -67,21 +68,16 @@ async def get_cash_flow_daily_totals(
             Transaction.dt <= to_date,
             or_(
                 Category.kind.in_((CategoryKind.INCOME, CategoryKind.EXPENSE)),
-                (
-                    (Category.kind == CategoryKind.TRANSFER)
-                    & (Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME)
-                ),
+                ((Category.kind == CategoryKind.TRANSFER) & (Category.name != _BALANCE_ADJUSTMENT_CATEGORY_NAME)),
             ),
         )
-        .group_by(Transaction.dt, Transaction.account_id, Account.currency)
+        .group_by(Transaction.dt, Transaction.account_id, Account.currency, Account.group_id)
         .order_by(Transaction.dt),
     )
     rows = result.all()
-    converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
+    converter = build_user_fx_converter(
+        db,
+        await get_currency_exponents(db, {base_currency, *(account.currency for account in accounts)}),
     )
     await _prefetch_cash_flow_rates(
         converter,
@@ -98,12 +94,14 @@ async def get_cash_flow_daily_totals(
             base=row.account_currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=row.group_id,
         )
         converted_outflow = await converter.convert_minor_units(
             int(row.outflow or 0),
             base=row.account_currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=row.group_id,
         )
         if converted_inflow is None and converted_outflow is None:
             continue

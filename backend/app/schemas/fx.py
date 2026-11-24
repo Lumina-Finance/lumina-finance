@@ -20,3 +20,6 @@ class FxStatus(BaseModel):
 
     state: FxState = "none"
     missing_pairs: list[FxRateIssue] = Field(default_factory=list)
+
+    # The installed check's sentence when amounts in another currency were left out of the total rather than converted
+    withheld_reason: str | None = None

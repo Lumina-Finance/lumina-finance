@@ -1,5 +1,6 @@
 import type { AccountKind, AccountsOverview } from '@/api/accounts'
 import type { FxStatus } from '@/api/shared/fx'
+import { combineFxStatuses } from '@/utils/fxStatus'
 
 export type AccountSections = {
   totalAssets: number
@@ -28,28 +29,7 @@ function isDebtAccount(account: AccountsOverview) {
  * Combines per-account FX statuses into the single status shown beside net worth
  */
 export function getCombinedAccountFxStatus(accounts: AccountsOverview[]): FxStatus {
-  const statuses = accounts
-    .map((account) => account.current_balance_fx_status)
-    .filter((status) => status.state !== 'none')
-
-  if (statuses.length === 0) return { state: 'none', missing_pairs: [] }
-
-  const missingPairKeys = new Set<string>()
-  const missingPairs = statuses
-    .flatMap((status) => status.missing_pairs)
-    .filter((pair) => {
-      const key = `${pair.base}/${pair.quote}`
-      if (missingPairKeys.has(key)) return false
-      missingPairKeys.add(key)
-      return true
-    })
-
-  if (missingPairs.length === 0) return { state: 'complete', missing_pairs: [] }
-
-  return {
-    state: statuses.every((status) => status.state === 'unavailable') ? 'unavailable' : 'incomplete',
-    missing_pairs: missingPairs,
-  }
+  return combineFxStatuses(accounts.map((account) => account.current_balance_fx_status))
 }
 
 /**

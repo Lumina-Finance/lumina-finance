@@ -1,11 +1,13 @@
 """Account balance conversion service"""
+
+import uuid
 from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.schemas.fx import FxRateIssue, FxStatus
-from app.services.fx import FxConverter, FxRateKey
+from app.services.fx import FxConverter, FxRateKey, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
@@ -26,11 +28,9 @@ async def attach_base_currency_current_balances(
     if not accounts:
         return
 
-    converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
+    converter = build_user_fx_converter(
+        db,
+        await get_currency_exponents(db, {base_currency, *(account.currency for account in accounts)}),
     )
 
     for account in accounts:
@@ -42,6 +42,7 @@ async def attach_base_currency_current_balances(
             base=account.currency,
             quote=base_currency,
             rate_date=rate_date,
+            group_id=account.group_id,
         )
         account.base_currency_current_balance = converted_balance if converted_balance is not None else 0
         account.current_balance_fx_status = _get_current_balance_fx_status(
@@ -51,6 +52,7 @@ async def attach_base_currency_current_balances(
             quote=normalized_quote,
             converted=converted_balance,
             amount=current_balance,
+            group_id=account.group_id,
         )
 
 
@@ -62,6 +64,7 @@ def _get_current_balance_fx_status(
     quote: str,
     converted: int | None,
     amount: int,
+    group_id: uuid.UUID | None,
 ) -> FxStatus:
     """Return FX status for one converted account balance
 
@@ -72,12 +75,15 @@ def _get_current_balance_fx_status(
         quote: Target currency code
         converted: Converted balance, or None when conversion failed
         amount: Source balance amount in minor units
+        group_id: The group owning the account, or None for one the user owns alone
 
     Returns:
         FX status for the balance conversion
     """
     if base == quote or amount == 0:
         return FxStatus()
+    if converter.withholds(group_id):
+        return FxStatus(withheld_reason=converter.withheld_reason)
     if converted is not None:
         return FxStatus(state="complete")
 

@@ -13,7 +13,7 @@ from app.services.dashboard_widgets.spending_comparison.daily_expense_query_help
     query_spending_comparison_daily_expense_totals,
 )
 from app.services.dashboard_widgets.spending_comparison.range_helpers import DateSlotRange
-from app.services.fx import FxConverter
+from app.services.fx import FxConverter, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 
@@ -80,11 +80,9 @@ async def _build_converter(
     base_currency: str,
 ) -> FxConverter:
     """Return a request-scoped FX converter for the base currency and the accounts' currencies"""
-    converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts_by_id.values())},
-        ),
+    converter = build_user_fx_converter(
+        db,
+        await get_currency_exponents(db, {base_currency, *(account.currency for account in accounts_by_id.values())}),
     )
     return converter
 
@@ -213,6 +211,7 @@ async def _get_converted_daily_expenses(
             base=accounts_by_id[daily_expense_total.account_id].currency,
             quote=base_currency,
             rate_date=daily_expense_total.transaction_date,
+            group_id=accounts_by_id[daily_expense_total.account_id].group_id,
         )
         if converted_total is None:
             continue

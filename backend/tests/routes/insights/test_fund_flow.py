@@ -129,7 +129,7 @@ async def test_fund_flow_returns_all_base_currency_entries(client):
         "expense_inflows": [],
         "income_source_count": 6,
         "expense_category_count": 7,
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -189,7 +189,7 @@ async def test_fund_flow_converts_foreign_entries_by_transaction_date(client, mo
         "expense_inflows": [],
         "income_source_count": 1,
         "expense_category_count": 1,
-        "fx_status": {"state": "complete", "missing_pairs": []},
+        "fx_status": {"state": "complete", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -240,6 +240,7 @@ async def test_fund_flow_reports_incomplete_fx_with_missing_pairs(client, monkey
         "fx_status": {
             "state": "incomplete",
             "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+            "withheld_reason": None,
         },
     }
 
@@ -285,7 +286,7 @@ async def test_fund_flow_reclassifies_categories_by_net_sign(client):
         "expense_inflows": [["Over-refunded", 20_000]],
         "income_source_count": 2,
         "expense_category_count": 2,
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -323,7 +324,7 @@ async def test_fund_flow_shows_negative_capital_gains_as_expense(client):
         "expense_inflows": [],
         "income_source_count": 1,
         "expense_category_count": 1,
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -346,7 +347,7 @@ async def test_fund_flow_returns_empty_payload_without_accounts(client):
         "expense_inflows": [],
         "income_source_count": 0,
         "expense_category_count": 0,
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -381,7 +382,7 @@ async def test_fund_flow_handles_single_sided_period(client):
         "expense_inflows": [],
         "income_source_count": 1,
         "expense_category_count": 0,
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -480,3 +481,48 @@ async def test_fund_flow_requires_auth(client):
     )
 
     assert resp.status_code == 401
+
+
+async def test_fund_flow_leaves_out_an_account_in_another_currency_the_check_refuses_converting(client):
+    """A personal US account's spending is left out of the flows and the status says why"""
+    from app.allowance_hook import AllowanceKind
+    from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    food_id, food = _category(user_id, "Food", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all(
+            [
+                salary,
+                food,
+                _transaction(user_id, cad_account_id, salary_id, date(2026, 6, 1), 100_000),
+                _transaction(user_id, usd_account_id, food_id, date(2026, 6, 2), -70_000, "USD"),
+            ]
+        )
+        await session.commit()
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    resp = await client.get(
+        "/insights/fund-flow",
+        params={"from_date": "2026-06-01", "to_date": "2026-06-30"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {
+        "income_sources": [["Salary", 100_000]],
+        "expense_categories": [],
+        "income_outflows": [],
+        "expense_inflows": [],
+        "income_source_count": 1,
+        "expense_category_count": 0,
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON},
+    }

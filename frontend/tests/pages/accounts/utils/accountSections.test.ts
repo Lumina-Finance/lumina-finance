@@ -72,4 +72,24 @@ describe('account section helpers', () => {
       ],
     })
   })
+
+  it('keeps the reason an account gives for leaving its balance out of the total', () => {
+    const rows = [
+      createAccount({ id: 'cad' }),
+      createAccount({
+        id: 'usd',
+        current_balance_fx_status: {
+          state: 'none',
+          missing_pairs: [],
+          withheld_reason: 'This server allows no more of these',
+        },
+      }),
+    ]
+
+    expect(getCombinedAccountFxStatus(rows)).toEqual({
+      state: 'none',
+      missing_pairs: [],
+      withheld_reason: 'This server allows no more of these',
+    })
+  })
 })

@@ -90,7 +90,7 @@ async def test_net_worth_returns_compact_daily_signed_group_series(client):
         ["2026-05-02", "2026-05-02", [9_150_000, -50_000]],
         ["2026-05-03", "2026-05-03", [9_150_000, -80_000]],
     ]
-    assert data["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_net_worth_groups_tax_advantaged_assets_by_account_type(client):
@@ -140,7 +140,7 @@ async def test_net_worth_groups_tax_advantaged_assets_by_account_type(client):
         ],
         "baseline": [0, 0],
         "points": [["2026-05-01", "2026-05-01", [25_000, 175_000]]],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -214,7 +214,7 @@ async def test_net_worth_converts_foreign_balances_by_bucket_value_date(client, 
             ["2026-05-02", "2026-05-02", [140_000, -8_000]],
             ["2026-05-03", "2026-05-03", [150_000, -20_000]],
         ],
-        "fx_status": {"state": "complete", "missing_pairs": []},
+        "fx_status": {"state": "complete", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -257,6 +257,7 @@ async def test_net_worth_reports_incomplete_fx_with_missing_pairs(client, monkey
         "fx_status": {
             "state": "incomplete",
             "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+            "withheld_reason": None,
         },
     }
 
@@ -403,7 +404,12 @@ async def test_net_worth_omits_zero_only_groups(client):
     )
 
     assert resp.status_code == 200
-    assert resp.json() == {"groups": [], "baseline": [], "points": [], "fx_status": {"state": "none", "missing_pairs": []}}
+    assert resp.json() == {
+        "groups": [],
+        "baseline": [],
+        "points": [],
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
+    }
 
 
 async def test_net_worth_rejects_invalid_date_range(client):
@@ -428,3 +434,47 @@ async def test_net_worth_requires_auth(client):
     )
 
     assert resp.status_code == 401
+
+
+async def test_net_worth_leaves_out_an_account_in_another_currency_the_check_refuses_converting(client):
+    """A personal US account's balance is left out of the points and the baseline before them, and the status says why"""
+    from app.allowance_hook import AllowanceKind
+    from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+
+    signup_resp = await _create_user(client)
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+
+    async with TestSession() as session:
+        await session.execute(
+            update(AccountBalanceSnapshot)
+            .where(AccountBalanceSnapshot.account_id.in_([cad_account_id, usd_account_id]))
+            .values(balance=0, dt=date(2026, 4, 29)),
+        )
+        session.add_all(
+            [
+                _snapshot(cad_account_id, date(2026, 4, 30), 40_000),
+                _snapshot(usd_account_id, date(2026, 4, 30), 30_000),
+                _snapshot(cad_account_id, date(2026, 5, 1), 100_000),
+                _snapshot(usd_account_id, date(2026, 5, 1), 70_000),
+            ]
+        )
+        await session.commit()
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    resp = await client.get(
+        "/insights/net-worth",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-01"},
+        headers=headers,
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {
+        "groups": [["cash", "Cash", "asset"]],
+        "baseline": [40_000],
+        "points": [["2026-05-01", "2026-05-01", [100_000]]],
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON},
+    }

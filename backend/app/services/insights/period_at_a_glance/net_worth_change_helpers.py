@@ -66,12 +66,14 @@ async def get_period_at_a_glance_net_worth_change(
             base=account.currency,
             quote=base_currency,
             rate_date=baseline_date,
+            group_id=account.group_id,
         )
         converted_end = await converter.convert_minor_units(
             end_amount,
             base=account.currency,
             quote=base_currency,
             rate_date=to_date,
+            group_id=account.group_id,
         )
         if converted_start is None or converted_end is None:
             continue

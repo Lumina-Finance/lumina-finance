@@ -65,6 +65,58 @@ describe('account metric display helpers', () => {
     expect(getSavingsRateDisplay(savingsRate, 'USD', testCurrencies).value).toBe(expected)
   })
 
+  it('gives the reason credit limits were left out when converting them is refused', () => {
+    const creditUsage: AccountsMetricsViewModel['creditUsage'] = {
+      hasCreditAccounts: true,
+      hasCreditLimits: true,
+      hasCreditData: false,
+      isLoading: false,
+      utilization: 0,
+      totalUsed: 0,
+      totalLimit: 0,
+      color: 'var(--app-text-subtle)',
+      barColor: 'var(--app-text-subtle)',
+      fxStatus: { state: 'none', missing_pairs: [], withheld_reason: 'This server allows no more of these' },
+      isLimitWithheld: true,
+    }
+    const sentence = 'Amounts in your own accounts in other currencies stay out of this total.'
+
+    expect(getCreditUsageDisplay(creditUsage, 'USD', testCurrencies)).toEqual({ value: 'N/A', caption: sentence })
+
+    // A limit that was not left out, as with a US card with no limit, keeps the usual caption
+    expect(getCreditUsageDisplay({ ...creditUsage, isLimitWithheld: false }, 'USD', testCurrencies).caption).toBe(
+      'No credit limits set',
+    )
+
+    // A missing rate comes first and the reason after it
+    expect(
+      getCreditUsageDisplay(
+        {
+          ...creditUsage,
+          fxStatus: {
+            state: 'incomplete',
+            missing_pairs: [{ base: 'EUR', quote: 'CAD' }],
+            withheld_reason: 'This server allows no more of these',
+          },
+        },
+        'USD',
+        testCurrencies,
+      ).caption,
+    ).toBe(`FX unavailable. ${sentence}`)
+
+    // A group's card that converted fine leaves the state complete, so the reason stands alone
+    expect(
+      getCreditUsageDisplay(
+        {
+          ...creditUsage,
+          fxStatus: { state: 'complete', missing_pairs: [], withheld_reason: 'This server allows no more of these' },
+        },
+        'USD',
+        testCurrencies,
+      ).caption,
+    ).toBe(sentence)
+  })
+
   it('explains credit usage gaps caused by unavailable FX conversion', () => {
     const creditUsage: AccountsMetricsViewModel['creditUsage'] = {
       hasCreditAccounts: true,

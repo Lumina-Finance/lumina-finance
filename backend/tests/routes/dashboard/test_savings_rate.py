@@ -39,7 +39,7 @@ async def test_dashboard_savings_rate_excludes_transfers(client, monkeypatch):
         "income": 500_000,
         "expenses": 200_000,
     }
-    assert data["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_dashboard_savings_rate_routes_flipped_categories_by_monthly_net(client, monkeypatch):
@@ -136,7 +136,7 @@ async def test_dashboard_savings_rate_converts_foreign_currency_accounts(client,
         "income": 130_000,
         "expenses": 55_000,
     }
-    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
     assert calls == [("USD", "CAD", date(2025, 8, 25), date(2026, 3, 20))]
 
 
@@ -226,6 +226,7 @@ async def test_dashboard_savings_rate_reports_incomplete_fx_with_missing_pairs(c
                 "quote": "CAD",
             },
         ],
+        "withheld_reason": None,
     }
 
 
@@ -276,4 +277,5 @@ async def test_dashboard_savings_rate_reports_unavailable_fx(client, monkeypatch
                 "quote": "CAD",
             },
         ],
+        "withheld_reason": None,
     }

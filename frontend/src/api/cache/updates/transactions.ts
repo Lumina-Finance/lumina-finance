@@ -222,13 +222,19 @@ function withoutLinksTo(transaction: Transaction, removed: Set<string>): Transac
  * the Needs review marker, so the rows update without the lists refetching
  *
  * Only a list works out a row's amount in its account's currency and in the base currency, and its
- * day's total adds them up, so the server's copy comes back without them and each row keeps its own. A
- * caller whose change moves the amount or the date reads the lists again for new ones
+ * day's total adds them up, so the server's copy comes back without them and each row keeps its own,
+ * with the sentence saying why one was left out. A caller whose change moves the amount or the date
+ * reads the lists again for new ones
  */
 export function replaceCachedTransaction(queryClient: QueryClient, transaction: Transaction): void {
   const replace = (item: Transaction): Transaction =>
     item.id === transaction.id
-      ? { ...transaction, account_amount: item.account_amount, base_currency_amount: item.base_currency_amount }
+      ? {
+          ...transaction,
+          account_amount: item.account_amount,
+          base_currency_amount: item.base_currency_amount,
+          withheld_reason: item.withheld_reason,
+        }
       : item
   const transactionQueries = queryClient.getQueriesData<Transaction | Transaction[] | InfiniteData<Transaction[]>>({
     queryKey: transactionKeys.all,

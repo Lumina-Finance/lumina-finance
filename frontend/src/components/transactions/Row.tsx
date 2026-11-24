@@ -17,6 +17,8 @@ import {
   TRANSACTION_ROW_SCROLL_MARGIN,
 } from '@/components/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
+import { NOT_CONVERTED_NOTE } from '@/utils/fxStatus'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
 import { getAmountSign, getColorOnAccentTint } from '@/utils/negativeAmount'
@@ -102,6 +104,8 @@ interface TransactionRowProps {
   readOnlyReason?: string
   // The amount could not be converted into the currency the list totals in, so the day's total leaves it out
   fxNote?: TransactionFxNote
+  // The sentence saying converting this amount is refused. The note shows it instead of its own
+  fxWithheldReason?: string | null
   transaction: Transaction
   // Skips the height collapse on removal so a deletion just fades when the viewer prefers reduced motion
   prefersReducedMotion?: boolean | null
@@ -321,7 +325,40 @@ const FX_NOTES: Record<TransactionFxNote, { text: string; color: string }> = {
  * Says under an amount that it has no exchange rate, and whether that is a failure or only a rate
  * that is not published yet
  */
-function FxNote({ id, note }: { id?: string; note: TransactionFxNote }) {
+export function FxNote({
+  id,
+  note,
+  reason,
+  badgeLabel,
+}: {
+  id?: string
+  note: TransactionFxNote
+  reason?: string | null
+  badgeLabel: string
+}) {
+  // A refused conversion is no failure of the rate, so it takes the muted colour. The check's sentence is
+  // long, so it sits in the badge's tooltip and the row only says the amount was not converted
+  if (reason) {
+    return (
+      // The badge is a control inside a row that opens the transaction, or toggles its selection, when the
+      // row's content is pressed, so a press on it stays here, as it does on the bank marker
+      <span
+        id={id}
+        className="flex items-center justify-end gap-1.5 text-right text-xs font-normal leading-4"
+        style={{ color: FX_NOTES.rateNotPublished.color }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {NOT_CONVERTED_NOTE}
+        <FxStatusBadge
+          label={badgeLabel}
+          fxStatus={{ state: 'none', missing_pairs: [], withheld_reason: reason }}
+          widensHitArea
+          picksSideOnPress
+          clearsStickyBars
+        />
+      </span>
+    )
+  }
   const { text, color } = FX_NOTES[note]
   return (
     <span id={id} className="block text-right text-xs font-normal leading-4" style={{ color }}>
@@ -375,6 +412,7 @@ export function TransactionRowView({
   category,
   readOnlyReason,
   fxNote,
+  fxWithheldReason,
   transaction,
   amountPresentation,
   prefersReducedMotion,
@@ -424,6 +462,8 @@ export function TransactionRowView({
       ? describeTransferCounterparty(transaction, amountPresentation.sign, counterpartyAccountName)
       : null
   const title = transferCounterparty ?? transaction.merchant_name ?? fallbackTitle
+  // Names the badge by its own row, as the day's badge is named by its date, so the list's badges tell apart
+  const fxBadgeLabel = `FX status for ${title}, ${amountPresentation.text}`
   const hasNotes = Boolean(transaction.notes?.trim())
   const tags = [...(transaction.tags ?? [])].sort((a, b) => a.name.localeCompare(b.name))
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS)
@@ -759,7 +799,7 @@ export function TransactionRowView({
               style={{ color: transactionAmountColor }}
             >
               {formattedAmount}
-              {fxNote && <FxNote note={fxNote} />}
+              {fxNote && <FxNote note={fxNote} reason={fxWithheldReason} badgeLabel={fxBadgeLabel} />}
             </span>
           </>
         )}
@@ -804,7 +844,7 @@ export function TransactionRowView({
           {/* In the category line's own row beside it, so the marker never moves the lines in the left column */}
           {fxNote && (
             <span className="col-start-3 row-start-2 ml-2 justify-self-end">
-              <FxNote id={phoneFxNoteId} note={fxNote} />
+              <FxNote id={phoneFxNoteId} note={fxNote} reason={fxWithheldReason} badgeLabel={fxBadgeLabel} />
             </span>
           )}
 

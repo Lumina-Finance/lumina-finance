@@ -77,7 +77,7 @@ async def test_dashboard_spending_comparison_converts_foreign_currency_accounts(
     assert data["current"][-1] == 60_000
     assert data["previous"][14] == 30_000
     assert data["previous"][-1] == 30_000
-    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}
     assert calls == [
         ("USD", "CAD", date(2026, 2, 22), date(2026, 3, 20)),
         ("USD", "CAD", date(2026, 1, 25), date(2026, 2, 28)),
@@ -144,6 +144,7 @@ async def test_dashboard_spending_comparison_reports_incomplete_fx_with_missing_
                 "quote": "CAD",
             },
         ],
+        "withheld_reason": None,
     }
 
 
@@ -190,4 +191,5 @@ async def test_dashboard_spending_comparison_reports_unavailable_fx(client, monk
                 "quote": "CAD",
             },
         ],
+        "withheld_reason": None,
     }

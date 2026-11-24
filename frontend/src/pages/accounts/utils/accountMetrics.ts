@@ -1,23 +1,14 @@
 import type { AccountsOverview } from '@/api/accounts'
-import type {
-  CreditWidgetResponse,
-  SavingsRateWidgetResponse,
-} from '@/api/dashboard'
+import type { CreditWidgetResponse, SavingsRateWidgetResponse } from '@/api/dashboard'
 import type { RunwayResult } from '@/api/user'
 import type { Currency } from '@/api/currency'
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
-import { formatCurrency } from '@/utils/formatCurrency'
+import { getRunwayCaption } from '@/utils/runwayCaption'
 import { getRoundedPercent } from '@/utils/rounding'
 import { getSavingsRate } from '@/utils/savingsRate'
 import { getSavingsRateTier } from '@/utils/savingsRateTier'
 import { getValueMarkColor, type ValueMarkTone } from '@/utils/valueMarkColor'
-import {
-  RUNWAY_BAND_STYLE,
-  RUNWAY_TARGET_MONTHS,
-  formatCompactRunway,
-  formatRunwayBasis,
-  runwayBand,
-} from '@/utils/runway'
+import { RUNWAY_BAND_STYLE, RUNWAY_TARGET_MONTHS, formatCompactRunway, runwayBand } from '@/utils/runway'
 
 // Colour of the figure on a metric tile. A number needs more contrast against the tile than the
 // bar under it does, so the two are not drawn from the same pair
@@ -57,23 +48,10 @@ export function getSavingsRateMetric(
   const net = income - expenses
   const value = getSavingsRate(income, expenses)
   const hasExpenses = expenses > 0
-  const progress =
-    isLoading
-      ? 0
-      : value === null
-        ? hasExpenses ? 100 : 0
-        : value <= 0
-          ? 100
-          : Math.min(value, 100)
+  const progress = isLoading ? 0 : value === null ? (hasExpenses ? 100 : 0) : value <= 0 ? 100 : Math.min(value, 100)
   // A month with no income and no expenses has no rate to show, so the tile stays grey rather than
   // taking the tier a null rate falls in
-  const tone = isLoading
-    ? null
-    : value !== null
-      ? getSavingsRateTier(value)
-      : hasExpenses
-        ? 'negative'
-        : null
+  const tone = isLoading ? null : value !== null ? getSavingsRateTier(value) : hasExpenses ? 'negative' : null
 
   return {
     value,
@@ -102,13 +80,8 @@ export function getCreditUsageMetric(
   const totalLimit = dashboardCredit?.credit_limit_total ?? 0
   const hasCreditData = Boolean(dashboardCredit) && totalLimit > 0
   const utilization = totalLimit > 0 ? getRoundedPercent(totalUsed, totalLimit, 'up') : 0
-  const tone = isLoading || !hasCreditData
-    ? null
-    : utilization <= 30
-      ? 'positive'
-      : utilization <= 70
-        ? 'accent'
-        : 'negative'
+  const tone =
+    isLoading || !hasCreditData ? null : utilization <= 30 ? 'positive' : utilization <= 70 ? 'accent' : 'negative'
 
   return {
     hasCreditAccounts: revolvingAccounts.length > 0,
@@ -121,6 +94,7 @@ export function getCreditUsageMetric(
     color: getMetricTextColor(tone),
     barColor: getMetricBarColor(tone),
     fxStatus: dashboardCredit?.fx_status,
+    isLimitWithheld: dashboardCredit?.limit_withheld ?? false,
   }
 }
 
@@ -137,14 +111,7 @@ export function getRunwayMetric(
   const bandKey = runwayBand(months, runway?.thresholds)
   const style = bandKey ? RUNWAY_BAND_STYLE[bandKey] : null
   const progress = months === null ? 0 : Math.min((months / RUNWAY_TARGET_MONTHS) * 100, 100)
-  const caption =
-    !runway
-      ? ''
-      : runway.reason === 'no_accounts'
-        ? 'Choose accounts in Settings'
-        : runway.reason === 'insufficient_history'
-          ? 'Need 1+ month of net expense data'
-          : `${formatCurrency(runway.avg_monthly_expense, displayCurrency, currencies)}/mth · ${formatRunwayBasis(runway.months_covered)}`
+  const caption = getRunwayCaption(runway, displayCurrency, currencies)
 
   return {
     label: formatCompactRunway(months),

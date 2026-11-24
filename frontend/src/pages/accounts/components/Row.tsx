@@ -79,9 +79,12 @@ export default function AccountRow({
   const metadataLabel =
     meta ?? `${humanizeAccountType(account.account_type)}${account.institution ? ` · ${account.institution.name}` : ''}`
   const fxStatus = account.current_balance_fx_status
-  const showConvertedBalance = fxStatus.state !== 'none'
-  const convertedBalanceText =
-    fxStatus.state === 'complete' && account.base_currency_current_balance !== null
+  // A balance the totals leave out reads "Not in totals", and its badge gives the reason
+  const isLeftOutOfTotals = Boolean(fxStatus.withheld_reason)
+  const showConvertedBalance = fxStatus.state !== 'none' || isLeftOutOfTotals
+  const convertedBalanceText = isLeftOutOfTotals
+    ? 'Not in totals'
+    : fxStatus.state === 'complete' && account.base_currency_current_balance !== null
       ? `≈ ${formatCurrency(account.base_currency_current_balance, displayCurrency)}`
       : 'FX unavailable'
   const availableCredit =
@@ -223,11 +226,19 @@ export default function AccountRow({
               <p
                 id={`${descriptionId}-converted`}
                 className="whitespace-nowrap font-financial text-xs"
-                style={{ color: fxStatus.state === 'complete' ? 'var(--app-text-muted)' : 'var(--app-negative)' }}
+                style={{
+                  color:
+                    fxStatus.state === 'complete' || isLeftOutOfTotals
+                      ? 'var(--app-text-muted)'
+                      : 'var(--app-negative)',
+                }}
               >
                 {convertedBalanceText}
               </p>
-              <span className="relative z-10 inline-flex">
+              {/* Positioned and later than the name's stretched link, so it takes presses over it, with no z-index.
+                  One would make a stacking context that holds the tooltip's own z-40 down under the sticky
+                  institution header, so the sentence would show only below it */}
+              <span className="relative inline-flex">
                 <FxStatusBadge
                   label="Account balance FX status"
                   fxStatus={fxStatus}

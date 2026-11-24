@@ -122,6 +122,9 @@ class CreditWidgetResponse(BaseModel):
     credit_used: int
     fx_status: FxStatus
 
+    # Whether a credit limit in another currency was left out of the total, so a total of nothing can be told from no limits set
+    limit_withheld: bool = False
+
 
 class CreditUtilizationAccount(BaseModel):
     """A credit account the dashboard credit widget can count, and whether the user counts it"""

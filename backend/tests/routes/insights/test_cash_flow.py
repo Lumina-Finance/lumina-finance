@@ -95,7 +95,7 @@ async def test_cash_flow_returns_daily_buckets_and_excludes_non_cash_flow_rows(c
             ["2026-05-06", "2026-05-06", 0, 0],
             ["2026-05-07", "2026-05-07", 0, 0],
         ],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -183,7 +183,7 @@ async def test_cash_flow_converts_foreign_entries_by_transaction_date(client, mo
             ["2026-05-01", "2026-05-01", 17_000, 1_000],
             ["2026-05-02", "2026-05-02", 0, 10_000],
         ],
-        "fx_status": {"state": "complete", "missing_pairs": []},
+        "fx_status": {"state": "complete", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -235,6 +235,7 @@ async def test_cash_flow_reports_incomplete_fx_with_missing_pairs(client, monkey
         "fx_status": {
             "state": "incomplete",
             "missing_pairs": [{"base": "ABC", "quote": "CAD"}],
+            "withheld_reason": None,
         },
     }
 
@@ -276,7 +277,7 @@ async def test_cash_flow_uses_weekly_buckets_for_mid_length_ranges(client):
         ["2026-04-13", "2026-04-19", 0, 0],
         ["2026-04-20", "2026-04-20", 40_000, 0],
     ]
-    assert response.json()["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert response.json()["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_cash_flow_uses_weekly_buckets_through_183_day_ranges(client):
@@ -350,7 +351,7 @@ async def test_cash_flow_uses_monthly_buckets_for_long_ranges(client):
         ["2026-07-01", "2026-07-31", 0, 0],
         ["2026-08-01", "2026-08-01", 0, 0],
     ]
-    assert response.json()["fx_status"] == {"state": "none", "missing_pairs": []}
+    assert response.json()["fx_status"] == {"state": "none", "missing_pairs": [], "withheld_reason": None}
 
 
 async def test_cash_flow_returns_empty_points_without_accounts(client):
@@ -367,7 +368,7 @@ async def test_cash_flow_returns_empty_points_without_accounts(client):
     assert response.status_code == 200
     assert response.json() == {
         "points": [],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -386,7 +387,7 @@ async def test_cash_flow_returns_empty_points_without_activity(client):
     assert response.status_code == 200
     assert response.json() == {
         "points": [],
-        "fx_status": {"state": "none", "missing_pairs": []},
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
     }
 
 
@@ -455,3 +456,46 @@ async def test_cash_flow_requires_auth(client):
     )
 
     assert response.status_code == 401
+
+
+async def test_cash_flow_leaves_out_an_account_in_another_currency_the_check_refuses_converting(client):
+    """A personal US account's spending is left out of the buckets and the status says why"""
+    from app.allowance_hook import AllowanceKind
+    from tests.routes.support.allowance_helpers import ALLOWANCE_REASON, install_check
+
+    signup_resp = await _create_user(client)
+    user_id = UUID(signup_resp.json()["user"]["id"])
+    headers = _get_auth_header(signup_resp)
+    await _seed_currency("USD", "US Dollar", "$")
+
+    cad_account_id = UUID((await _create_account(client, headers, name="CAD Cash")).json()["id"])
+    usd_account_id = UUID((await _create_account(client, headers, name="USD Cash", currency="USD")).json()["id"])
+    salary_id, salary = _category(user_id, "Salary", CategoryKind.INCOME)
+    groceries_id, groceries = _category(user_id, "Groceries", CategoryKind.EXPENSE)
+
+    async with TestSession() as session:
+        session.add_all(
+            [
+                salary,
+                groceries,
+                _transaction(user_id, cad_account_id, salary_id, date(2026, 5, 1), 100_00),
+                _transaction(user_id, usd_account_id, groceries_id, date(2026, 5, 2), -90_00, "USD"),
+            ]
+        )
+        await session.commit()
+    install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
+
+    response = await client.get(
+        "/insights/cash-flow",
+        params={"from_date": "2026-05-01", "to_date": "2026-05-02"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "points": [
+            ["2026-05-01", "2026-05-01", 10_000, 0],
+            ["2026-05-02", "2026-05-02", 0, 0],
+        ],
+        "fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": ALLOWANCE_REASON},
+    }

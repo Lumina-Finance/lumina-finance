@@ -12,7 +12,7 @@ from app.models.base import CategoryKind
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.schemas.fx import FxStatus
-from app.services.fx import FxConverter
+from app.services.fx import FxConverter, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 FundFlowCategoryTotals = dict[uuid.UUID, tuple[str, CategoryKind, int]]
@@ -61,6 +61,7 @@ async def get_converted_fund_flow_category_totals(
             Transaction.account_id,
             Transaction.dt.label("date"),
             Account.currency.label("account_currency"),
+            Account.group_id,
             func.sum(Transaction.amount).label("total"),
         )
         .join(Category, Transaction.category_id == Category.id)
@@ -71,14 +72,20 @@ async def get_converted_fund_flow_category_totals(
             Transaction.dt >= from_date,
             Transaction.dt <= to_date,
         )
-        .group_by(Category.id, Category.name, Category.kind, Transaction.account_id, Transaction.dt, Account.currency),
+        .group_by(
+            Category.id,
+            Category.name,
+            Category.kind,
+            Transaction.account_id,
+            Transaction.dt,
+            Account.currency,
+            Account.group_id,
+        ),
     )
     rows = result.all()
-    converter = FxConverter(
-        currency_exponents=await get_currency_exponents(
-            db,
-            {base_currency, *(account.currency for account in accounts)},
-        ),
+    converter = build_user_fx_converter(
+        db,
+        await get_currency_exponents(db, {base_currency, *(account.currency for account in accounts)}),
     )
     await _prefetch_fund_flow_rates(
         converter,
@@ -158,6 +165,7 @@ async def _get_converted_category_totals(
             base=row.account_currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=row.group_id,
         )
         if converted_total is None:
             continue
@@ -165,9 +173,5 @@ async def _get_converted_category_totals(
         name, kind, current_total = totals.get(row.id, (row.name, row.kind, 0))
         totals[row.id] = (name, kind, current_total + converted_total)
 
-    category_totals = {
-        category_id: (name, kind, amount)
-        for category_id, (name, kind, amount) in totals.items()
-        if amount
-    }
+    category_totals = {category_id: (name, kind, amount) for category_id, (name, kind, amount) in totals.items() if amount}
     return category_totals

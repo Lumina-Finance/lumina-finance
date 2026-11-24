@@ -79,7 +79,7 @@ async def _build_credit_utilization(
     changes the account
     """
     excluded_account_ids = await get_excluded_credit_account_ids(db, user)
-    credit_limit_total, credit_used, fx_status = await get_credit_widget(
+    credit_limit_total, credit_used, fx_status, limit_withheld = await get_credit_widget(
         db,
         accounts,
         excluded_account_ids,
@@ -96,6 +96,7 @@ async def _build_credit_utilization(
         credit_limit_total=credit_limit_total,
         credit_used=credit_used,
         fx_status=fx_status,
+        limit_withheld=limit_withheld,
         accounts=[
             CreditUtilizationAccount(
                 id=account.id,

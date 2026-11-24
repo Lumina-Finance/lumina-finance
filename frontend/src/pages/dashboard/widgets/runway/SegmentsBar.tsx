@@ -1,11 +1,5 @@
-import {
-  type MouseEvent as ReactMouseEvent,
-  type RefObject,
-} from 'react'
-import {
-  ChartTooltipTitle,
-  ChartTooltipValue,
-} from '@/components/charts/TooltipContent'
+import { type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
+import { ChartTooltipTitle, ChartTooltipValue } from '@/components/charts/TooltipContent'
 import CursorTooltipPortal from '@/components/charts/CursorTooltipPortal'
 import type { RunwaySegment } from '@/pages/dashboard/types/dashboard'
 import { useCursorTooltip } from '@/hooks/useCursorTooltip'
@@ -36,12 +30,7 @@ function getRunwaySegmentAtX(runwaySegments: RunwaySegment[], xPct: number) {
 /**
  * Renders the runway account contribution bar and owns its segment tooltip state
  */
-export function RunwaySegmentsBar({
-  segments,
-  caption,
-  displayCurrency,
-  tooltipOriginRef,
-}: RunwaySegmentsBarProps) {
+export function RunwaySegmentsBar({ segments, caption, displayCurrency, tooltipOriginRef }: RunwaySegmentsBarProps) {
   const { formatCurrency } = useMoneyFormatters()
   const {
     tooltipRef,
@@ -89,14 +78,11 @@ export function RunwaySegmentsBar({
           >
             {segments.length > 0 ? (
               segments.map((segment) => (
-                <div
-                  key={segment.id}
-                  style={{ width: `${segment.pct}%`, background: segment.color }}
-                />
+                <div key={segment.id} style={{ width: `${segment.pct}%`, background: segment.color }} />
               ))
             ) : (
               <div
-                className="flex flex-1 items-center justify-center text-sm italic max-[1000px]:text-[0.7875rem]"
+                className="flex flex-1 items-center justify-center px-3 text-center text-sm italic max-[1000px]:text-[0.7875rem]"
                 style={{
                   background: 'var(--app-border)',
                   color: 'var(--app-text-subtle)',
@@ -124,12 +110,8 @@ export function RunwaySegmentsBar({
       >
         {hoveredSegment && (
           <>
-            <ChartTooltipTitle className="truncate font-medium">
-              {hoveredSegment.name}
-            </ChartTooltipTitle>
-            <ChartTooltipValue financial>
-              {formatCurrency(hoveredSegment.amount, displayCurrency)}
-            </ChartTooltipValue>
+            <ChartTooltipTitle className="truncate font-medium">{hoveredSegment.name}</ChartTooltipTitle>
+            <ChartTooltipValue financial>{formatCurrency(hoveredSegment.amount, displayCurrency)}</ChartTooltipValue>
           </>
         )}
       </CursorTooltipPortal>

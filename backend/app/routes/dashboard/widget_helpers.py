@@ -129,7 +129,7 @@ async def get_credit_widget_for_user(
         Credit widget response
     """
     accounts = await get_accessible_accounts(db, user)
-    credit_limit_total, credit_used, fx_status = await get_credit_widget(
+    credit_limit_total, credit_used, fx_status, limit_withheld = await get_credit_widget(
         db,
         accounts,
         set(),
@@ -140,6 +140,7 @@ async def get_credit_widget_for_user(
         credit_limit_total=credit_limit_total,
         credit_used=credit_used,
         fx_status=fx_status,
+        limit_withheld=limit_withheld,
     )
     return response
 

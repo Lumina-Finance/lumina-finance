@@ -1,4 +1,5 @@
 """Runway response route helpers"""
+
 from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,7 +77,9 @@ async def get_runway_response(
         user,
         today,
     )
+    withheld_before_expenses = converter.withheld_count
     category_month_totals = await get_runway_category_month_totals(converter, account_by_id, expense_rows, user)
+    expenses_withheld = converter.withheld_count > withheld_before_expenses
     months_covered, expense_outflow = get_runway_expense_outflow_summary(category_month_totals)
     fx_status = converter.get_status()
 
@@ -87,6 +90,7 @@ async def get_runway_response(
             account_balances,
             thresholds,
             fx_status,
+            expenses_withheld,
         )
         return response
 

@@ -32,12 +32,14 @@ logger = logging.getLogger(__name__)
 CONVERTED_CURRENCY_COLUMNS = (Account.currency, TaxAdvantagedCategory.currency, BaseBudget.currency, Transaction.currency)
 
 
-async def holds_other_currencies(db: AsyncSession, base_currency: str) -> bool:
+async def holds_other_currencies(db: AsyncSession, base_currency: str, *, group_owned_only: bool = False) -> bool:
     """Return whether any row the user can see holds a currency other than their own, counting only recent transactions
 
     Args:
         db: Session scoped to the user by row-level security
         base_currency: The user's own currency
+        group_owned_only: Count only rows a group owns, which convert even while amounts the user
+            owns alone are left out. A transaction counts through its account
 
     Returns:
         True as soon as one such row is found
@@ -49,6 +51,10 @@ async def holds_other_currencies(db: AsyncSession, base_currency: str) -> bool:
             # An older transaction converts at a settled rate the digest never covers, and the date bound
             # keeps the read on the account and date index instead of every transaction the user sees
             query = query.where(Transaction.dt >= window_start)
+            if group_owned_only:
+                query = query.join(Account, Account.id == Transaction.account_id).where(Account.group_id.is_not(None))
+        elif group_owned_only:
+            query = query.where(column.class_.group_id.is_not(None))
         if await db.scalar(select(query.exists())):
             return True
     return False
@@ -108,13 +114,22 @@ def _digest(pair_rates: list[tuple[PairWindow, dict[date, Decimal]]]) -> str:
     return hashlib.sha256("\n".join(lines).encode()).hexdigest()
 
 
-async def get_rates_digest(user_id: UUID, *, holds_other_currencies: bool, provider: FxRateProvider | None = None) -> str | None:
+async def get_rates_digest(
+    user_id: UUID,
+    *,
+    holds_other_currencies: bool,
+    withholds_conversion: bool = False,
+    provider: FxRateProvider | None = None,
+) -> str | None:
     """Return a digest of the unsettled rates for the pairs the server has converted for a user
 
     Args:
         user_id: User whose converted pairs to read
         holds_other_currencies: Whether any row the user sees holds a currency other than their
             own, so their figures need conversions
+        withholds_conversion: Whether every amount in another currency the user sees is theirs
+            alone and left out of their totals, so no rate was looked up for them and no pair
+            recorded. False when a group-owned one remains, since that still converts
         provider: Source of rates the cache lacks, the usual provider when omitted
 
     Returns:
@@ -122,13 +137,15 @@ async def get_rates_digest(user_id: UUID, *, holds_other_currencies: bool, provi
         longer than the budget. The browser treats an unknown digest as changed. A user with no
         recorded pair who holds only their own currency gets the fixed digest of an empty set,
         equal between visits. One who holds others gets None, since their pairs may have expired
-        or failed to record while their saved figures still depend on rates
+        or failed to record while their saved figures still depend on rates. One whose
+        conversions are all withheld gets that same fixed digest, since their figures depend
+        on no rate
     """
     pairs = await get_used_pairs(user_id)
     if pairs is None:
         return None
     if not pairs:
-        return None if holds_other_currencies else _digest([])
+        return None if holds_other_currencies and not withholds_conversion else _digest([])
 
     provider = provider or CachedFxRateProvider(FrankfurterProvider())
     start, end = _get_unsettled_window(datetime.now(UTC).date())

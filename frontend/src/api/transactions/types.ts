@@ -28,6 +28,12 @@ export interface Transaction {
   amount: number
   account_amount: number | null
   base_currency_amount: number | null
+
+  /**
+   * The sentence the server gives when an amount above is null because converting it is refused.
+   * Absent on a response saved before the field existed
+   */
+  withheld_reason?: string | null
   currency: string
   fx_rate: number | null
   notes: string | null

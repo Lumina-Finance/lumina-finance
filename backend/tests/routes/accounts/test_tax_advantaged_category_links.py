@@ -103,7 +103,7 @@ async def test_list_accounts_includes_tax_advantaged_category_id(client):
             "currency": "CAD",
             "current_balance": 0,
             "base_currency_current_balance": 0,
-            "current_balance_fx_status": {"state": "none", "missing_pairs": []},
+            "current_balance_fx_status": {"state": "none", "missing_pairs": [], "withheld_reason": None},
             "credit_limit": None,
             "can_write": True,
             "is_archived": False,

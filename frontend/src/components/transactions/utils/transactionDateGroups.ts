@@ -46,10 +46,7 @@ export function isTransactionAmountUnconverted(transaction: Transaction, fixedAc
  *
  * An amount with no rate is left out of the sum, which the day's FX status says
  */
-export function getTransactionDateGroupTotal(
-  transactions: Transaction[],
-  fixedAccount?: TransactionListAccount,
-) {
+export function getTransactionDateGroupTotal(transactions: Transaction[], fixedAccount?: TransactionListAccount) {
   return transactions.reduce((sum, transaction) => sum + (getDisplayAmount(transaction, fixedAccount) ?? 0), 0)
 }
 
@@ -72,14 +69,17 @@ export function getTransactionDateGroupFxStatus(
   currency: string,
   fixedAccount?: TransactionListAccount,
 ): FxStatus | null {
+  const unconverted = transactions.filter((transaction) => isTransactionAmountUnconverted(transaction, fixedAccount))
+
+  // An amount left out because converting it is refused says why, and is no missing rate
+  const withheldReason = unconverted.find((transaction) => transaction.withheld_reason)?.withheld_reason
   const missingCurrencies = new Set(
-    transactions
-      .filter((transaction) => isTransactionAmountUnconverted(transaction, fixedAccount))
-      .map((transaction) => transaction.currency),
+    unconverted.filter((transaction) => !transaction.withheld_reason).map((transaction) => transaction.currency),
   )
-  if (missingCurrencies.size === 0) return null
+  if (missingCurrencies.size === 0 && !withheldReason) return null
   return {
-    state: 'incomplete',
+    state: missingCurrencies.size === 0 ? 'none' : 'incomplete',
     missing_pairs: Array.from(missingCurrencies, (base) => ({ base, quote: currency })),
+    ...(withheldReason ? { withheld_reason: withheldReason } : {}),
   }
 }

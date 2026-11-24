@@ -1,4 +1,5 @@
 """Transaction overview cash-flow conversion"""
+
 import uuid
 from datetime import date
 
@@ -35,27 +36,26 @@ async def convert_overview_daily_cash_flow(
 
     # Convert account-level cash-flow rows into base-currency daily totals for later chart bucketing
     for row in cash_flow_rows:
-        currency = accounts_by_id[row.account_id].currency
+        account = accounts_by_id[row.account_id]
         row_inflow = int(row.inflow or 0)
         row_outflow = int(row.outflow or 0)
         converted_inflow = await converter.convert_minor_units(
             row_inflow,
-            base=currency,
+            base=account.currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=account.group_id,
         )
         converted_outflow = await converter.convert_minor_units(
             row_outflow,
-            base=currency,
+            base=account.currency,
             quote=base_currency,
             rate_date=row.date,
+            group_id=account.group_id,
         )
 
         # Drop rows only when every non-zero side failed conversion
-        if (
-            (row_inflow == 0 or converted_inflow is None)
-            and (row_outflow == 0 or converted_outflow is None)
-        ):
+        if (row_inflow == 0 or converted_inflow is None) and (row_outflow == 0 or converted_outflow is None):
             continue
 
         # Keep partial rows when one side converts and the other side is zero or unavailable

@@ -87,6 +87,9 @@ class TransactionResponse(BaseModel):
     amount: int
     account_amount: int | None = None
     base_currency_amount: int | None = None
+
+    # The installed check's sentence when the amount above is null because converting it was refused
+    withheld_reason: str | None = None
     currency: str
     fx_rate: float | None
     notes: str | None

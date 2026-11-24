@@ -1,4 +1,5 @@
 """Route tests for budget utilization endpoints."""
+
 from datetime import date
 from decimal import Decimal
 
@@ -30,14 +31,14 @@ async def test_get_budget_utilization_personal_budget_excludes_single_member_gro
 
     personal_account_id = (await _create_account(client, headers)).json()["id"]
     group_id = await _create_group(client, headers)
-    group_account_id = (
-        await _create_account(client, headers, name="Joint", group_id=group_id)
-    ).json()["id"]
+    group_account_id = (await _create_account(client, headers, name="Joint", group_id=group_id)).json()["id"]
 
     groceries = await _create_category(client, headers, name="Test Groceries")
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries],
+        client,
+        headers,
+        category_ids=[groceries],
     )
 
     await _create_transaction(client, headers, personal_account_id, groceries, amount=-5000)
@@ -62,29 +63,35 @@ async def test_get_budget_utilization_personal_budget_aggregates_multiple_person
     headers = _get_auth_header(signup_resp)
 
     chequing_id = (await _create_account(client, headers, name="Chequing")).json()["id"]
-    savings_id = (
-        await _create_account(client, headers, name="Savings", account_type="savings")
-    ).json()["id"]
+    savings_id = (await _create_account(client, headers, name="Savings", account_type="savings")).json()["id"]
     group_id = await _create_group(client, headers)
-    group_account_id = (
-        await _create_account(client, headers, name="Joint", group_id=group_id)
-    ).json()["id"]
+    group_account_id = (await _create_account(client, headers, name="Joint", group_id=group_id)).json()["id"]
 
     groceries = await _create_category(client, headers, name="Test Groceries")
 
     base_id, budget_id = await _create_base_with_instance(
-        client, headers, category_ids=[groceries],
+        client,
+        headers,
+        category_ids=[groceries],
     )
 
     await _create_transaction(client, headers, chequing_id, groceries, amount=-3000)
     await _create_transaction(
-        client, headers, savings_id, groceries,
-        dt="2026-03-20", amount=-2500,
+        client,
+        headers,
+        savings_id,
+        groceries,
+        dt="2026-03-20",
+        amount=-2500,
     )
     # Group-account spend must not leak in
     await _create_transaction(
-        client, headers, group_account_id, groceries,
-        dt="2026-03-22", amount=-9999,
+        client,
+        headers,
+        group_account_id,
+        groceries,
+        dt="2026-03-22",
+        amount=-9999,
     )
 
     data = await _get_budget_utilization_entry(client, headers, base_id, budget_id)
@@ -112,32 +119,38 @@ async def test_get_budget_utilization_three_currency_user_converts_all_account_c
         await session.commit()
 
     cad_account_id = (await _create_account(client, headers)).json()["id"]
-    usd_account_id = (
-        await _create_account(client, headers, name="USD Chequing", currency="USD")
-    ).json()["id"]
-    eur_account_id = (
-        await _create_account(client, headers, name="EUR Chequing", currency="EUR")
-    ).json()["id"]
+    usd_account_id = (await _create_account(client, headers, name="USD Chequing", currency="USD")).json()["id"]
+    eur_account_id = (await _create_account(client, headers, name="EUR Chequing", currency="EUR")).json()["id"]
     groceries = await _create_category(client, headers, name="Test Groceries")
 
     base_id, usd_budget_id = await _create_base_with_instance(
-        client, headers,
+        client,
+        headers,
         category_ids=[groceries],
         base_overrides={"name": "USD Budget", "currency": "USD"},
     )
 
     await _create_transaction(client, headers, cad_account_id, groceries, amount=-4000)
     await _create_transaction(
-        client, headers, usd_account_id, groceries,
-        amount=-7000, currency="USD",
+        client,
+        headers,
+        usd_account_id,
+        groceries,
+        amount=-7000,
+        currency="USD",
     )
     await _create_transaction(
-        client, headers, eur_account_id, groceries,
-        dt="2026-03-20", amount=-3500, currency="EUR",
+        client,
+        headers,
+        eur_account_id,
+        groceries,
+        dt="2026-03-20",
+        amount=-3500,
+        currency="EUR",
     )
 
     data = await _get_budget_utilization_entry(client, headers, base_id, usd_budget_id)
     # 4000 CAD -> 3000 USD, 3500 EUR -> 3850 USD, plus 7000 USD
     assert data["total_spent"] == 13850
     assert data["categories"][0]["spent"] == 13850
-    assert data["fx_status"] == {"state": "complete", "missing_pairs": []}
+    assert data["fx_status"] == {"state": "complete", "missing_pairs": [], "withheld_reason": None}

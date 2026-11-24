@@ -147,13 +147,16 @@ export function SpendingComparisonHeader({
         fxStatus={fxStatus}
         getMessage={getSpendingComparisonFxStatusMessage}
       />
-      {showAverage && (averageFxStatus?.state === 'incomplete' || averageFxStatus?.state === 'unavailable') && (
-        <FxStatusBadge
-          label="Average FX status"
-          fxStatus={averageFxStatus}
-          getMessage={getSpendingAverageFxStatusMessage}
-        />
-      )}
+      {showAverage &&
+        (averageFxStatus?.state === 'incomplete' ||
+          averageFxStatus?.state === 'unavailable' ||
+          averageFxStatus?.withheld_reason) && (
+          <FxStatusBadge
+            label="Average FX status"
+            fxStatus={averageFxStatus}
+            getMessage={getSpendingAverageFxStatusMessage}
+          />
+        )}
       <DashboardRangeSelector
         value={spendingRange}
         options={DASHBOARD_RANGE_SELECT_OPTIONS}

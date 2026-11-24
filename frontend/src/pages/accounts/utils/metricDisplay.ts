@@ -1,6 +1,7 @@
 import type { AccountsMetricsViewModel } from '@/pages/accounts/types/accounts'
 import type { Currency } from '@/api/currency'
 import { formatCurrency, formatMovedCurrency } from '@/utils/formatCurrency'
+import { formatWithheldAmounts } from '@/utils/fxStatus'
 import { formatRatePercent } from '@/utils/negativeAmount'
 
 export type MetricDisplay = {
@@ -41,11 +42,20 @@ export function getCreditUsageDisplay(
     ? 'Loading credit totals'
     : creditUsage.hasCreditData
       ? `${formatCurrency(creditUsage.totalUsed, displayCurrency, currencies)} of ${formatCurrency(creditUsage.totalLimit, displayCurrency, currencies)}`
-      : creditUsage.hasCreditLimits && creditUsage.fxStatus?.state !== 'none'
-        ? 'FX unavailable'
-        : creditUsage.hasCreditAccounts
-          ? 'No credit limits set'
-          : 'No revolving credit accounts'
+      : creditUsage.isLimitWithheld && creditUsage.fxStatus?.withheld_reason
+        ? [
+            creditUsage.fxStatus.state === 'incomplete' || creditUsage.fxStatus.state === 'unavailable'
+              ? 'FX unavailable'
+              : null,
+            formatWithheldAmounts(),
+          ]
+            .filter(Boolean)
+            .join('. ')
+        : creditUsage.hasCreditLimits && creditUsage.fxStatus?.state !== 'none'
+          ? 'FX unavailable'
+          : creditUsage.hasCreditAccounts
+            ? 'No credit limits set'
+            : 'No revolving credit accounts'
 
   return { value, caption }
 }

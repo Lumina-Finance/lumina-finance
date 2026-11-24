@@ -158,6 +158,9 @@ class RunwayResponse(BaseModel):
     thresholds: RunwayThresholds
     fx_status: FxStatus
 
+    # Whether expenses in another currency were left out of the history, so a short history can be told from one made short by that
+    expenses_withheld: bool = False
+
 
 def _is_runway_threshold_step(value: float) -> bool:
     steps = value / RUNWAY_THRESHOLD_STEP_MONTHS

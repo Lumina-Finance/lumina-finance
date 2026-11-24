@@ -195,6 +195,23 @@ describe('transaction date-group helpers', () => {
     })
   })
 
+  it('gives a day with an amount left out by a refused conversion the reason, and no missing pair for it', () => {
+    const reason = 'This server allows no more of these'
+    const withheld = createTransaction({ base_currency_amount: null, currency: 'USD', withheld_reason: reason })
+    const missingEur = createTransaction({ base_currency_amount: null, currency: 'EUR' })
+
+    expect(getTransactionDateGroupFxStatus([withheld], 'CAD')).toEqual({
+      state: 'none',
+      missing_pairs: [],
+      withheld_reason: reason,
+    })
+    expect(getTransactionDateGroupFxStatus([withheld, missingEur], 'CAD')).toEqual({
+      state: 'incomplete',
+      missing_pairs: [{ base: 'EUR', quote: 'CAD' }],
+      withheld_reason: reason,
+    })
+  })
+
   it('reads the account amount for the day status on an account list, quoting the account currency', () => {
     const missingInAccount = createTransaction({ account_amount: null, base_currency_amount: 1200, currency: 'EUR' })
     const missingOnlyInBase = createTransaction({ account_amount: 1000, base_currency_amount: null })

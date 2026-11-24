@@ -1,4 +1,5 @@
 """Transaction listing amount conversion"""
+
 import uuid
 
 from sqlalchemy import select
@@ -6,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.transaction import Transaction
-from app.services.fx import FxConverter
+from app.services.fx import FxConverter, build_user_fx_converter
 from app.services.fx.currency_exponent_helpers import get_currency_exponents
 
 TransactionAmountMap = dict[uuid.UUID, int | None]
@@ -17,7 +18,7 @@ async def get_transaction_listing_converted_amounts(
     transactions: list[Transaction],
     *,
     base_currency: str,
-) -> tuple[TransactionAmountMap, TransactionAmountMap]:
+) -> tuple[TransactionAmountMap, TransactionAmountMap, dict[uuid.UUID, str]]:
     """Return account and base-currency amount maps for a transaction page
 
     The listing response exposes each transaction amount converted into both
@@ -29,14 +30,15 @@ async def get_transaction_listing_converted_amounts(
         base_currency: User base currency used for converted response amounts
 
     Returns:
-        Account-currency amounts and base-currency amounts keyed by transaction ID
+        Account-currency amounts and base-currency amounts keyed by transaction ID, and the check's
+        sentence for each transaction whose amount was left unconverted because the check refused it
     """
     accounts_by_id, currency_exponents = await _get_transaction_listing_conversion_data(
         db,
         transactions,
         extra_currencies={base_currency},
     )
-    converter = FxConverter(currency_exponents=currency_exponents)
+    converter = build_user_fx_converter(db, currency_exponents)
     await _prefetch_transaction_listing_amount_rates(
         converter,
         transactions=transactions,
@@ -46,24 +48,34 @@ async def get_transaction_listing_converted_amounts(
 
     account_amounts_by_transaction_id: TransactionAmountMap = {}
     base_amounts_by_transaction_id: TransactionAmountMap = {}
+    withheld_reasons_by_transaction_id: dict[uuid.UUID, str] = {}
 
     # Convert every row into the two amount fields returned by the transaction listing API
     for transaction in transactions:
-        account_currency = accounts_by_id[transaction.account_id].currency
-        account_amounts_by_transaction_id[transaction.id] = await converter.convert_minor_units(
+        account = accounts_by_id[transaction.account_id]
+        account_amount = await converter.convert_minor_units(
             transaction.amount,
             base=transaction.currency,
-            quote=account_currency,
+            quote=account.currency,
             rate_date=transaction.dt,
+            group_id=account.group_id,
         )
-        base_amounts_by_transaction_id[transaction.id] = await converter.convert_minor_units(
+        base_amount = await converter.convert_minor_units(
             transaction.amount,
             base=transaction.currency,
             quote=base_currency,
             rate_date=transaction.dt,
+            group_id=account.group_id,
         )
+        account_amounts_by_transaction_id[transaction.id] = account_amount
+        base_amounts_by_transaction_id[transaction.id] = base_amount
 
-    return account_amounts_by_transaction_id, base_amounts_by_transaction_id
+        # A missing amount is a withheld one while the converter withholds for this account, since it looks
+        # up no rate for the account's amounts and so no amount goes missing for want of one
+        if (reason := converter.withheld_reason) and converter.withholds(account.group_id) and None in (account_amount, base_amount):
+            withheld_reasons_by_transaction_id[transaction.id] = reason
+
+    return account_amounts_by_transaction_id, base_amounts_by_transaction_id, withheld_reasons_by_transaction_id
 
 
 async def _get_listing_accounts_by_id(db: AsyncSession, account_ids: set[uuid.UUID]) -> dict[uuid.UUID, Account]:
@@ -81,11 +93,7 @@ async def _get_listing_accounts_by_id(db: AsyncSession, account_ids: set[uuid.UU
         Mapping from account ID to account row
     """
     # Fetch transaction parent accounts so account-currency conversions use persisted account currency
-    account_rows = (
-        (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all()
-        if account_ids
-        else []
-    )
+    account_rows = (await db.execute(select(Account).where(Account.id.in_(account_ids)))).scalars().all() if account_ids else []
     return {account.id: account for account in account_rows}
 
 
@@ -108,14 +116,8 @@ async def _get_transaction_listing_conversion_data(
     accounts_by_id = await _get_listing_accounts_by_id(db, {transaction.account_id for transaction in transactions})
 
     # Include original transaction currencies and account currencies because listing converts both directions
-    transaction_currencies = {
-        transaction.currency
-        for transaction in transactions
-    }
-    account_currencies = {
-        account.currency
-        for account in accounts_by_id.values()
-    }
+    transaction_currencies = {transaction.currency for transaction in transactions}
+    account_currencies = {account.currency for account in accounts_by_id.values()}
 
     # Add caller-provided currencies such as the user's base currency for response fields
     currencies = set(transaction_currencies)

@@ -286,6 +286,7 @@ export default function TransactionDateGroupList({
                             : 'unavailable'
                           : undefined
                       }
+                      fxWithheldReason={transaction.withheld_reason}
                       transaction={transaction}
                       prefersReducedMotion={prefersReducedMotion}
                       skipEnterAnimation={skipEnterAnimation}
