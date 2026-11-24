@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from collections.abc import AsyncIterator, Callable, Iterator
@@ -158,15 +159,31 @@ async def _reset_tables() -> None:
     _database_used = False
 
 
+async def _cancel_started_since(earlier: set[asyncio.Task]) -> None:
+    """Cancel the tasks started after the given ones were running, and wait for them to stop
+
+    A test that fails while its requests wait behind a lock leaves them running, and each holds the
+    locks it took until it answers. The reset would then wait behind those locks, or a request would
+    write into the tables as the reset empties them
+    """
+    started = asyncio.all_tasks() - earlier - {asyncio.current_task()}
+    for task in started:
+        task.cancel()
+    await asyncio.gather(*started, return_exceptions=True)
+
+
 @pytest.fixture(autouse=True)
 async def clean_tables():
     """Leave the tables as a new database has them, after any test that used the database
 
     The reset runs after the test rather than before it, so a test that never opens a connection,
     such as a calculation, pays nothing, and every test still starts from the state the first one
-    does. The state before the first test is set up with the schema
+    does. The state before the first test is set up with the schema. The tasks the test left running
+    are cancelled before the reset, because the reset needs every table free of their locks
     """
+    running = asyncio.all_tasks()
     yield
+    await _cancel_started_since(running)
     if _database_used:
         await _reset_tables()
 
