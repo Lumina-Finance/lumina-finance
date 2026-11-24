@@ -305,8 +305,9 @@ async def _merchant(client, headers, name):
 
 
 async def test_an_expenses_likely_refunds_lead_even_past_the_limit(client):
-    """Same merchant and exactly what is left leads, then exactly what is left, then the same merchant,
-    then the nearest, so thirty closer amounts never push a likely match out.
+    """Thirty closer amounts never push a likely refund out of an expense's list.
+
+    Same merchant and exactly what is left leads, then exactly what is left, then the same merchant, then the nearest.
     """
     headers, account_id, category_id = await _setup_user_with_deps(client)
     harbor = await _merchant(client, headers, "Harbor Electronics")
@@ -336,8 +337,10 @@ async def test_an_expenses_likely_refunds_lead_even_past_the_limit(client):
 
 
 async def test_a_refunds_likely_expenses_are_those_with_exactly_its_amount_left_or_its_merchant(client):
-    """A refund is offered first the expenses from its merchant with exactly its amount left to refund,
-    then those with exactly its amount left, then those from its merchant.
+    """A refund is offered its likely expenses first.
+
+    Those from its merchant with exactly its amount left to refund lead, then those with exactly its amount left, then
+    those from its merchant.
     """
     headers, account_id, category_id = await _setup_user_with_deps(client)
     harbor = await _merchant(client, headers, "Harbor Electronics")
