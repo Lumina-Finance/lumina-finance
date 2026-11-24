@@ -107,6 +107,14 @@ describe('the edit dialogue of a read-only account', () => {
     expect(fieldset).toContain('app-dropdown-glass-disabled')
   })
 
+  it('greys out Save changes, described by the reason', () => {
+    const markup = renderDialogue(account)
+    const save = /<button\b[^>]*data-testid="account-submit"[^>]*>/.exec(markup)?.[0] ?? ''
+
+    expect(save).toContain('aria-disabled="true"')
+    expect(save).toMatch(/aria-describedby="[^"]+"/)
+  })
+
   it('leaves archiving and deleting outside the fieldset', () => {
     const { fieldset, after } = splitAtFieldset(renderDialogue(account))
 
@@ -122,5 +130,6 @@ describe('the edit dialogue of a read-only account', () => {
     expect(markup).not.toContain('read-only-reason-pill')
     expect(fieldTag(markup, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name)).not.toContain('disabled=""')
     expect(markup).not.toContain('app-dropdown-glass-disabled')
+    expect(/<button\b[^>]*data-testid="account-submit"[^>]*>/.exec(markup)?.[0]).not.toContain('aria-disabled')
   })
 })

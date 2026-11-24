@@ -215,7 +215,7 @@ export default function EditAccountIdentityModal({
    */
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isBusy || deleteStage !== 'idle' || !refusal.guard()) return
+    if (account.read_only_reason || isBusy || deleteStage !== 'idle' || !refusal.guard()) return
 
     setSubmitError(null)
     setSaveDelayPending(true)
@@ -450,7 +450,7 @@ export default function EditAccountIdentityModal({
             deleteStage={deleteStage}
             isBusy={isBusy}
             saveLoading={saveLoading}
-            saveBlockedReason={refusal.blockedReason}
+            saveBlockedReason={account.read_only_reason ?? refusal.blockedReason}
             onCancel={requestClose}
             onStartDelete={handleStartDeleteAccount}
             keepsToastClear={showsBankLinkSection}
