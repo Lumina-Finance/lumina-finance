@@ -20,7 +20,7 @@ const PICKED_ROW_CLASS_NAME =
 // cells and its title, whereas the row around it draws the keyboard focus ring and stays at full strength
 const DISABLED_CONTENT_CLASS_NAME = '[&_[data-row-content]]:opacity-50'
 
-// A row with a line under it, its reasons or why it can't be linked, moves the row's separator below that line. The
+// A row with a line under it, Exact amount or why it can't be linked, moves the row's separator below that line. The
 // keyboard focus ring goes around the row and its line together, in place of the inner row's ring, so it never cuts
 // through the line
 const HAS_LINE_CLASS_NAME = [
@@ -70,8 +70,9 @@ interface LinkCandidateRowProps {
 }
 
 /**
- * A row of the link picker. A likely match with exactly the amount that fits shows Exact amount under it. A row that can't be linked is greyed out with its
- * reason written under it, never only in a tooltip, and describes the row's button for a screen reader
+ * A row of the link picker. A likely match with exactly the amount that fits shows Exact amount under it. A row that
+ * can't be linked is greyed out with its reason written under it, never only in a tooltip, and describes the row's
+ * button for a screen reader
  */
 export default function LinkCandidateRow({
   transaction,
@@ -128,8 +129,8 @@ export default function LinkCandidateRow({
         </p>
       ) : (
         chips && (
-          // A press on the reasons picks the row as a press on the row does. The keyboard reaches the row's button, and
-          // a screen reader hears the reasons as part of its description
+          // A press on Exact amount picks the row as a press on the row does. The keyboard reaches the row's button, and
+          // a screen reader hears Exact amount as part of its description
           <div id={chipsId} className={`${LINE_CLASS_NAME} cursor-pointer`} onClick={onPick}>
             <ExactAmountChip />
           </div>
