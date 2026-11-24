@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { cancelProfileDeletion } from '@/api/user'
+import { PendingLabel } from '@/components/loading/PendingLabel'
 import { DeletionDate } from '@/components/profile-deletion/DeletionDate'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { getSaveFailureMessage } from '@/utils/createFailure'
 import { formatDeletionDueDate, isCancelTooLate } from '@/utils/profileDeletion'
+
+const CANCEL_LABEL = 'Cancel deletion'
 
 type ScheduledDeletionScreenProps = {
   /** When the profile is deleted, as an ISO time */
@@ -50,15 +53,18 @@ export default function ScheduledDeletionScreen({ dueAt }: ScheduledDeletionScre
           </p>
 
           <div className="space-y-3">
-            <button
-              type="button"
-              onClick={() => void cancelDeletion()}
-              disabled={cancelling}
-              aria-busy={cancelling}
-              className="app-primary-button w-full"
-            >
-              Cancel deletion
-            </button>
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => void cancelDeletion()}
+                disabled={cancelling}
+                className={`app-primary-button ${cancelling ? 'app-primary-button-loading' : 'w-full'}`}
+              >
+                <PendingLabel pending={cancelling} name={CANCEL_LABEL}>
+                  {CANCEL_LABEL}
+                </PendingLabel>
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => void logout()}
