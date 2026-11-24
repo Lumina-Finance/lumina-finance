@@ -47,6 +47,32 @@ export function getRefundRoom(original: Amounted, refunds: readonly Amounted[]):
   return -original.amount - refunds.reduce((total, refund) => total + refund.amount, 0)
 }
 
+export type RefundStatus = 'full' | 'partial'
+
+/**
+ * How much of an expense its refunds give back, for the badge over its refunds. Null while nothing is refunded
+ *
+ * @param original The expense
+ * @param room What is left to refund of it, from `getRefundRoom`
+ */
+export function getRefundStatus(original: Amounted, room: number): RefundStatus | null {
+  if (room >= -original.amount) return null
+  return room <= 0 ? 'full' : 'partial'
+}
+
+/**
+ * The refunds in a chain in date order, oldest first, so the chain reads as the money came back. The server lists
+ * them in the order they were linked, and links made in the window come after them. Until every date is known, the
+ * refunds keep the order given. Refunds on one day keep it too
+ *
+ * @param refunds The refunds, saved, applied and held alike
+ * @param dateOf A refund's date, or undefined while it loads
+ */
+export function orderRefundsByDate<T>(refunds: readonly T[], dateOf: (refund: T) => string | undefined): T[] {
+  if (refunds.some((refund) => dateOf(refund) === undefined)) return [...refunds]
+  return [...refunds].sort((a, b) => (dateOf(a) as string).localeCompare(dateOf(b) as string))
+}
+
 /**
  * The accounts a refund of an expense can go to: those in the expense's currency, individually owned, since the
  * server refuses any other

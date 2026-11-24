@@ -3,10 +3,10 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, signUpUser } from '../support/api'
-import { logInViaApi, openPage, readSettledBox } from '../support/app'
+import { logInViaApi, openPage, readSettledBox, SAVED_QUERY_CACHE_KEY } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
-// The link icon a list row shows on a refund and on the expense it refunds
+// The refund icon a list row shows on a refund and on the expense it refunds
 function linkIcon(page: Page, id: string) {
   return page.getByTestId(`transaction-row-${id}`).getByTestId('transaction-refund-link').filter({ visible: true })
 }
@@ -46,9 +46,9 @@ test('refunds an expense from its modal and shows the link on both rows', async 
   await refund.getByTestId('transaction-submit').click()
   await expect(refund).toBeHidden()
 
-  // The expense's window names the refund as not saved yet, and nothing is created or linked until Save
+  // The expense's window marks the refund as unsaved, and nothing is created or linked until Save
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(1)
-  await expect(expense.getByTestId('linked-transaction')).toContainText('Not saved yet')
+  await expect(expense.getByTestId('linked-transaction')).toContainText('not saved yet')
   await expect(page.getByTestId('transaction-refund-link').filter({ visible: true })).toHaveCount(0)
   await saveButton(expense).click()
   await expect(expense).toBeHidden()
@@ -191,6 +191,136 @@ test('keeps the edit window open with the reason when Save is refused', async ({
   await expect(expense).toBeVisible()
 })
 
+// An expense and its refunds read as one chain from either side, with a badge for how much came back and what is
+// left to refund. Both follow a link removed in the window before Save
+test('shows an expense and its refunds as one chain with what is left to refund', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 100000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const link = (refundId: string, expenseId: string) =>
+    request.post(`${API_BASE_URL}/transactions/${refundId}/refund-link`, {
+      headers: asUser(user),
+      data: { original_transaction_id: expenseId },
+    })
+  const orderId = await createTransaction(request, user, { ...row, amount: -64000, date: daysFromTodayInTestTimezone(-20) })
+  const refundIds: string[] = []
+  // Linked newest first, so the chain has to put them in date order itself
+  for (const [amount, days] of [[12000, -5], [32000, -15], [20000, -10]]) {
+    const refundId = await createTransaction(request, user, { ...row, amount, date: daysFromTodayInTestTimezone(days) })
+    expect((await link(refundId, orderId)).status()).toBe(204)
+    refundIds.push(refundId)
+  }
+  // Money in, linked to nothing and dated before every refund, so the picker offers it as an older refund
+  await createTransaction(request, user, { ...row, amount: 12000, date: daysFromTodayInTestTimezone(-18), notes: 'Store credit' })
+  const lampId = await createTransaction(request, user, { ...row, amount: -18000, date: daysFromTodayInTestTimezone(-12) })
+  const lampRefundId = await createTransaction(request, user, { ...row, amount: 4500, date: daysFromTodayInTestTimezone(-3) })
+  expect((await link(lampRefundId, lampId)).status()).toBe(204)
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+
+  await test.step('an expense refunded in full by three refunds', async () => {
+    const order = await openRow(page, orderId)
+    await expect(order.getByTestId('linked-transaction')).toContainText(['+$320.00', '+$200.00', '+$120.00'])
+    await expect(order.getByTestId('refund-count')).toHaveText('· 3, 3 linked')
+    await expect(order.getByTestId('refund-status')).toHaveText('Refunded in full')
+    await expect(order.getByTestId('refund-room')).toHaveText('$0.00')
+
+    // The first refund sits twice as far from the expense as the refunds sit from each other, read again until the
+    // rows have finished growing in
+    await expect(async () => {
+      const [expenseBox, firstBox, secondBox] = await Promise.all([
+        order.getByTestId('refund-chain-expense').boundingBox(),
+        order.getByTestId('linked-transaction').nth(0).boundingBox(),
+        order.getByTestId('linked-transaction').nth(1).boundingBox(),
+      ])
+      const leadGap = firstBox!.y - (expenseBox!.y + expenseBox!.height)
+      const refundGap = secondBox!.y - (firstBox!.y + firstBox!.height)
+      expect(refundGap).toBeGreaterThan(0)
+      expect(leadGap).toBeCloseTo(refundGap * 2, 0)
+    }).toPass()
+
+    // Unlinking the newest refund is held until Save, and gives its amount back at once
+    await order.getByRole('button', { name: /^Unlink / }).last().click()
+    await expect(order.getByTestId('linked-transaction')).toHaveCount(2)
+    await expect(order.getByTestId('refund-count')).toHaveText('· 2, 2 linked')
+    await expect(order.getByTestId('refund-status')).toHaveText('Partly refunded')
+    await expect(order.getByTestId('refund-room')).toHaveText('$120.00')
+
+    // An older refund linked from the picker is held until Save, and takes its place by date above the saved ones
+    await order.getByRole('button', { name: 'Link an existing refund', exact: true }).click()
+    const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+    await picker.getByPlaceholder('Merchant or note…').fill('Store credit')
+    await expect(picker.getByTestId('link-candidate')).toHaveCount(1)
+    await picker.getByTestId('link-candidate').getByRole('button').click()
+    await picker.getByRole('button', { name: 'Link', exact: true }).click()
+    await expect(picker).toBeHidden()
+    await expect(order.getByTestId('linked-transaction')).toContainText(['+$120.00', '+$320.00', '+$200.00'])
+    // Only the held link sits in the dashed border, and a screen reader hears that it is not saved yet
+    const held = order.locator('[data-not-saved]')
+    await expect(held).toHaveCount(1)
+    await expect(order.getByTestId('linked-transaction').first()).toHaveAttribute('data-not-saved', 'true')
+    await expect(held).toContainText('not saved yet')
+    await expect(held).toHaveCSS('border-top-style', 'dashed')
+
+    // The border draws past the row's text on every side, and the row that grows it into place clips, so the whole
+    // border has to sit inside that row to show its edges once the row has finished growing in
+    await expect(async () => {
+      const [heldBox, heldRowBox] = await Promise.all([
+        held.boundingBox(),
+        order.getByTestId('linked-row').filter({ has: page.locator('[data-not-saved]') }).boundingBox(),
+      ])
+      expect(heldBox!.x).toBeGreaterThanOrEqual(heldRowBox!.x)
+      expect(heldBox!.y).toBeGreaterThanOrEqual(heldRowBox!.y)
+      expect(heldBox!.x + heldBox!.width).toBeLessThanOrEqual(heldRowBox!.x + heldRowBox!.width)
+      expect(heldBox!.y + heldBox!.height).toBeLessThanOrEqual(heldRowBox!.y + heldRowBox!.height)
+    }).toPass()
+    await expect(order.getByTestId('refund-room')).toHaveText('$0.00')
+    await order.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(order).toBeHidden()
+  })
+
+  await test.step('a refund shows its expense with every refund of it', async () => {
+    const refund = await openRow(page, refundIds[1])
+    await expect(refund.getByTestId('linked-transaction')).toContainText('−$640.00')
+    await expect(refund.getByTestId('refund-chain-sibling')).toHaveCount(2)
+    await expect(refund.getByTestId('refund-chain-self')).toContainText('This refund')
+    // The Refund of heading carries no count
+    await expect(refund.getByTestId('refund-count')).toHaveCount(0)
+    await expect(refund.getByTestId('refund-status')).toHaveText('Refunded in full')
+    await expect(refund.getByTestId('refund-room')).toHaveText('$0.00')
+    await refund.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(refund).toBeHidden()
+  })
+
+  await test.step('an expense refunded in part', async () => {
+    const lamp = await openRow(page, lampId)
+    await expect(lamp.getByTestId('refund-count')).toHaveText('· 1, 1 linked')
+    await expect(lamp.getByTestId('refund-status')).toHaveText('Partly refunded')
+    await expect(lamp.getByTestId('refund-room')).toHaveText('$135.00')
+  })
+
+  await test.step('a refund that fails to load leaves what is left to refund unsaid, and still offers the link', async () => {
+    const failing: string[] = []
+    await page.route(
+      (url) => url.pathname.endsWith(`/transactions/${lampRefundId}`),
+      (route) => {
+        failing.push(route.request().url())
+        return route.fulfill({ status: 500 })
+      },
+    )
+    // The app restores its saved cache on load, the refund included, so the next load starts without it
+    await page.addInitScript((key) => localStorage.removeItem(key), SAVED_QUERY_CACHE_KEY)
+    await page.reload()
+    const lamp = await openRow(page, lampId)
+    await expect.poll(() => failing.length).toBeGreaterThan(0)
+    await expect(lamp.getByRole('alert')).toContainText('something went wrong loading the linked transaction')
+    await expect(lamp.getByTestId('refund-room')).toHaveCount(0)
+    await expect(lamp.getByText('Loading…', { exact: true })).toHaveCount(0)
+    await expect(lamp.getByTestId('link-existing')).toBeVisible()
+  })
+})
+
 // The picker lists only what linking would accept, so an expense is offered money that came in and a
 // search narrows it
 test('links an existing refund to an expense from the picker', async ({ page, request }) => {
@@ -216,10 +346,10 @@ test('links an existing refund to an expense from the picker', async ({ page, re
   await picker.getByTestId('link-candidate').getByRole('button').click()
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
 
-  // The picker closes and the edit window stays, naming the refund as not saved yet, and the rows show no link
+  // The picker closes and the edit window stays, marking the refund as unsaved, and the rows show no link
   await expect(picker).toBeHidden()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(1)
-  await expect(expense.getByTestId('linked-transaction')).toContainText('Not saved yet')
+  await expect(expense.getByTestId('linked-transaction')).toContainText('not saved yet')
   await expect(linkIcon(page, refundId)).toHaveCount(0)
 
   // Save makes the link, and both rows show it
@@ -325,15 +455,16 @@ test('keeps the picker header in place while its rows scroll', async ({ page, re
 
   const search = picker.getByPlaceholder('Merchant or note…')
 
-  // The rows ease in, so measuring waits until two reads in a row agree
-  let lastTop = -1
+  // The picker and its rows ease in, so measuring waits until no animation runs and three reads in a row agree. Two
+  // reads could agree while a busy run held a frame back mid-ease
+  const reads: number[] = []
   await expect
     .poll(async () => {
-      const top = (await search.boundingBox())!.y
-      const settled = top === lastTop
-      lastTop = top
-      return settled
-    }, { intervals: [200] })
+      const moving = await page.evaluate(() => document.getAnimations().some((animation) => animation.playState === 'running' && animation.effect?.getComputedTiming().endTime !== Infinity))
+      reads.push(moving ? -1 : (await search.boundingBox())!.y)
+      const last = reads.slice(-3)
+      return last.length === 3 && last.every((top) => top >= 0 && top === last[0])
+    }, { intervals: [250] })
     .toBe(true)
   // The last row starts below the dialog's visible body, and scrolling it into view leaves the header where it was
   const searchBefore = await search.boundingBox()
@@ -396,7 +527,7 @@ for (const size of [
 
     const phone = size.width < 750
     const header = [
-      picker.getByText(/^Pick money that came in/),
+      picker.getByText(/^Pick money that comes in/),
       picker.getByPlaceholder('Merchant or note…'),
       phone ? picker.getByRole('button', { name: /^Filters/ }) : picker.getByRole('button', { name: 'Transaction filters' }),
     ]
@@ -405,7 +536,7 @@ for (const size of [
     const tops = () =>
       picker.evaluate((dialog, isPhone) => {
         const dialogTop = dialog.getBoundingClientRect().top
-        const explanation = [...dialog.querySelectorAll('p')].find((p) => p.textContent?.startsWith('Pick money that came in'))
+        const explanation = [...dialog.querySelectorAll('p')].find((p) => p.textContent?.startsWith('Pick money that comes in'))
         const filters = isPhone
           ? [...dialog.querySelectorAll('button')].find((button) => /^Filters/.test(button.textContent ?? ''))
           : dialog.querySelector('button[aria-label="Transaction filters"]')
@@ -457,7 +588,7 @@ async function expectPointerLandsOn(icon: Locator) {
   await icon.hover({ timeout: 2000 })
 }
 
-// A refunded expense's link icon keeps its "Refunded once" hint in a list at a wide and a phone width
+// A refunded expense's refund icon keeps its "Refunded once" hint in a list at a wide and a phone width
 for (const width of [1280, 390]) {
   test(`shows the refund link hint on a list row at ${width}px wide`, async ({ page, request }) => {
     await page.setViewportSize({ width, height: 844 })

@@ -11,8 +11,10 @@ import {
   getLinkedTransactionIds,
   getRefundAccounts,
   getRefundRoom,
+  getRefundStatus,
   getRefusedRooms,
   isRefundable,
+  orderRefundsByDate,
 } from '@/components/transactions/transaction-modal/utils/refund'
 import { createAccount, createCategory, createTransaction, currencies } from './fixtures'
 
@@ -137,6 +139,25 @@ describe('refund room', () => {
   it('leaves what the refunds have not given back', () => {
     expect(getRefundRoom(expense, [])).toBe(5000)
     expect(getRefundRoom(expense, [{ amount: 1500 }, { amount: 1000 }])).toBe(2500)
+  })
+
+  it('calls an expense refunded in full only once nothing is left, and partly refunded while any refund counts', () => {
+    expect(getRefundStatus(expense, 5000)).toBeNull()
+    expect(getRefundStatus(expense, 4999)).toBe('partial')
+    expect(getRefundStatus(expense, 1)).toBe('partial')
+    expect(getRefundStatus(expense, 0)).toBe('full')
+  })
+
+  it('puts refunds oldest first once all have loaded, and keeps the linked order while any is loading', () => {
+    const refunds: { id: string; dt?: string }[] = [
+      { id: 'late', dt: '2026-11-18' },
+      { id: 'early', dt: '2026-10-22' },
+      { id: 'middle', dt: '2026-11-01' },
+    ]
+    const dateOf = (refund: { dt?: string }) => refund.dt
+    expect(orderRefundsByDate(refunds, dateOf).map(({ id }) => id)).toEqual(['early', 'middle', 'late'])
+    const loading = [refunds[0], { id: 'early' }, refunds[2]]
+    expect(orderRefundsByDate(loading, dateOf)).toEqual(loading)
   })
 })
 

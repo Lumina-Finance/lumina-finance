@@ -18,8 +18,8 @@ async function openRow(page: Page, id: string) {
   return dialog
 }
 
-// The reason "Link an existing refund" gives while no row fits
-const NO_REFUND_FITS = 'No money that came in fits what is left to refund'
+// The reason the Refunds section shows in place of "Link an existing refund" while no row fits what is left
+const noRefundFits = (left: string) => `No money that comes in fits the ${left} left to refund.`
 
 // Every refund stays listed, in the picker's order. Those that don't fit what is left of the expense after the picks
 // are marked refused and aria-disabled, and every other row is not, so a row is never refused that a press could take
@@ -147,13 +147,30 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await expectOnlyPickableRows(picker, ALL_ROWS, 3713)
   await expect(linkButton).toBeDisabled()
 
-  // Both picks are held by Link, and the window names them as not saved yet
+  // Both picks are held by Link, and the window tags them as unsaved
   await press('$20.00').click()
   await press('$15.00').click()
   await linkButton.click()
   await expect(picker).toBeHidden()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(2)
-  await expect(expense.getByTestId('linked-transaction')).toContainText(['Not saved yet', 'Not saved yet'])
+  await expect(expense.getByTestId('linked-transaction')).toContainText(['not saved yet', 'not saved yet'])
+  // Two unsaved refunds in a row share one border with one label: the upper drops its bottom edge, the lower its top
+  // edge, and their sides meet, read again until the rows have finished growing in
+  const held = expense.locator('[data-not-saved]')
+  await expect(expense.getByTestId('unsaved-label')).toHaveCount(1)
+  await expect(held.nth(0)).toHaveCSS('border-bottom-width', '0px')
+  await expect(held.nth(1)).toHaveCSS('border-top-width', '0px')
+  // Each part of the border stays inside the row that clips it as it grows in
+  const heldRows = expense.getByTestId('linked-row').filter({ has: page.locator('[data-not-saved]') })
+  await expect(async () => {
+    const [upper, lower] = [await held.nth(0).boundingBox(), await held.nth(1).boundingBox()]
+    expect(lower!.y - (upper!.y + upper!.height)).toBeCloseTo(0, 0)
+    for (const index of [0, 1]) {
+      const [part, row] = [await held.nth(index).boundingBox(), await heldRows.nth(index).boundingBox()]
+      expect(part!.y).toBeGreaterThanOrEqual(row!.y)
+      expect(part!.y + part!.height).toBeLessThanOrEqual(row!.y + row!.height)
+    }
+  }).toPass()
   await saveButton(expense).click()
   await expect(expense).toBeHidden()
   await page.reload()
@@ -161,9 +178,9 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await expect(reopened.getByTestId('linked-transaction')).toHaveCount(2)
 })
 
-// While no row fits what is left, the button that opens the picker is greyed out with its reason, and a refund
-// made from the window is held to what is left too
-test('greys out the link button with its reason while no refund fits', async ({ page, request }) => {
+// While no row fits what is left, the reason shows in place of the button that opens the picker, focus moves from
+// the picker to the new refund's Unlink, and a refund made from the window is held to what is left too
+test('shows the reason in place of the link button while no refund fits', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
   const row = { accountId: account.id, categoryName: 'Groceries' }
@@ -179,23 +196,19 @@ test('greys out the link button with its reason while no refund fits', async ({ 
   const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
 
   // $12.00 fits and $31.00 never does, so the button is live
+  await expect(open).toBeVisible()
   await expect(open).not.toHaveAttribute('aria-disabled', 'true')
   await open.click()
   await expectOnlyPickableRows(picker, ['+$31.00', '+$12.00'], 3000)
   await pressRow(picker, '$12.00').click()
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
 
-  // The only row left is $31.00, which does not fit the $18.00 left, so the button is greyed out and a press does nothing
-  await expect(open).toHaveAttribute('aria-disabled', 'true')
-  await expect(open).toHaveAccessibleDescription(NO_REFUND_FITS)
-  await open.click({ force: true })
-  await open.focus()
-  await page.keyboard.press('Enter')
-  await expect(picker).toHaveCount(0)
-
-  // The reason shows beside the pointer
-  await open.hover()
-  await expect(page.getByTestId('disabled-reason-tooltip').filter({ hasText: NO_REFUND_FITS })).toHaveCSS('opacity', '1')
+  // The only row left is $31.00 and only $18.00 is left, so the reason replaces the sentence and the button. Focus
+  // lands on Unlink of the $12.00 refund rather than on the page
+  // The prompt's row eases out as the reason's eases in, so the reason is read once the button has gone
+  await expect(open).toHaveCount(0)
+  await expect(expense.getByTestId('link-prompt')).toHaveText(noRefundFits('$18.00'))
+  await expect(expense.getByRole('button', { name: /^Unlink / })).toBeFocused()
 
   // A refund made from the window can't pass what is left either
   await expense.getByTestId('transaction-refund').click()
@@ -347,7 +360,7 @@ test('offers expenses again to a refund unlinked in the window', async ({ page, 
 })
 
 // Unlinking a refund in the window, before Save, gives its amount back at once: an expense that was fully refunded
-// has its link button greyed out, then live again with the refunds that fit, and never the ones that don't
+// offers no link, then offers one again with the refunds that fit, and never the ones that don't
 test('gives an unlinked refund its amount back to the picker before Save', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
@@ -366,10 +379,14 @@ test('gives an unlinked refund its amount back to the picker before Save', async
   await openPage(page, `/accounts/${account.id}`)
   const expense = await openRow(page, expenseId)
   const open = expense.getByTestId('link-existing')
-  await expect(open).toHaveAttribute('aria-disabled', 'true')
-  await expect(open).toHaveAccessibleDescription(NO_REFUND_FITS)
+
+  // Refunded in full, the section offers no link at all
+  await expect(expense.getByTestId('refund-status')).toHaveText('Refunded in full')
+  await expect(expense.getByTestId('link-prompt')).toHaveCount(0)
+  await expect(open).toHaveCount(0)
 
   await expense.getByRole('button', { name: /^Unlink / }).click()
+  await expect(open).toBeVisible()
   await expect(open).not.toHaveAttribute('aria-disabled', 'true')
   await open.click()
   const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
@@ -591,8 +608,8 @@ async function fillColour(page: Page, token: string): Promise<string> {
 }
 
 // A refund in another currency is not offered at all, not even greyed out, and counts as nothing that fits when the
-// opening button decides whether to grey out
-test('leaves out refunds in another currency and greys the opening button when only those are left', async ({ page, request }) => {
+// section decides whether to offer the opening button or the reason
+test('leaves out refunds in another currency and shows the reason when only those are left', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
   const foreign = await createAccount(request, user, { name: 'Euro account', currency: 'EUR', startingBalance: 50000 })
@@ -615,8 +632,123 @@ test('leaves out refunds in another currency and greys the opening button when o
   await expect(picker).toBeHidden()
 
   // The euro refund is all that is left, which counts as nothing that fits
-  await expect(open).toHaveAttribute('aria-disabled', 'true')
-  await expect(open).toHaveAccessibleDescription(NO_REFUND_FITS)
+  await expect(open).toHaveCount(0)
+  await expect(expense.getByTestId('link-prompt')).toHaveText(noRefundFits('$30.00'))
+})
+
+// An expense refunded in full through the picker drops its link prompt, and keyboard focus moves from the picker to
+// Unlink on the refund just linked. Until then the prompt stays, with focus back on its button
+test('drops the link prompt once a picked refund fills the expense, moving focus to its Unlink', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -3000, date: daysFromTodayInTestTimezone(-5) })
+  for (const [amount, daysAgo] of [[1200, 1], [1800, 3]] as const) {
+    await createTransaction(request, user, { ...row, amount, date: daysFromTodayInTestTimezone(-daysAgo) })
+  }
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const expense = await openRow(page, expenseId)
+  const open = expense.getByTestId('link-existing')
+  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+  // Opened from the keyboard, so focus starts on the button. The row and Link take a press, as the picker moves focus
+  // to its own first control as it opens
+  const linkWithKeyboard = async (amount: string) => {
+    await open.focus()
+    await page.keyboard.press('Enter')
+    await pressRow(picker, amount).click()
+    await picker.getByRole('button', { name: 'Link', exact: true }).click()
+    await expect(picker).toHaveCount(0)
+  }
+
+  // $12.00 leaves $18.00 and the $18.00 refund still fits, so the button stays and takes focus back
+  await linkWithKeyboard('$12.00')
+  await expect(expense.getByTestId('refund-status')).toHaveText('Partly refunded')
+  await expect(open).toBeFocused()
+
+  // $18.00 fills the expense, so the sentence and button go and focus moves to Unlink on the $18.00 row
+  await linkWithKeyboard('$18.00')
+  await expect(expense.getByTestId('refund-status')).toHaveText('Refunded in full')
+  await expect(expense.getByTestId('link-prompt')).toHaveCount(0)
+  await expect(open).toHaveCount(0)
+  const added = expense.getByTestId('linked-transaction').filter({ hasText: '+$18.00' })
+  await expect(added.getByRole('button', { name: /^Unlink / })).toBeFocused()
+})
+
+// A refund with no expense that has room for it shows "No expense has room for this refund." in place of "Link to an
+// expense". A refund with such an expense links through the picker, with focus moving to Unlink on its own row
+test('shows why a refund has no expense to link to, and moves focus to its Unlink once linked', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  await createTransaction(request, user, { ...row, amount: -2000, date: daysFromTodayInTestTimezone(-6) })
+  const bigRefundId = await createTransaction(request, user, { ...row, amount: 4000, date: daysFromTodayInTestTimezone(-2) })
+  const smallRefundId = await createTransaction(request, user, { ...row, amount: 1500, date: daysFromTodayInTestTimezone(-1) })
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+
+  // $40.00 is more than the $20.00 expense, the only one there is
+  const big = await openRow(page, bigRefundId)
+  // The section shows the reason once the list of expenses has loaded
+  await expect(big.getByTestId('link-prompt')).toHaveText('No expense has room for this refund.')
+  await expect(big.getByTestId('link-existing')).toHaveCount(0)
+  await big.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(big).toBeHidden()
+
+  // $15.00 fits it
+  const small = await openRow(page, smallRefundId)
+  await small.getByTestId('link-existing').focus()
+  await page.keyboard.press('Enter')
+  const picker = page.getByRole('dialog', { name: 'Link to an expense', exact: true })
+  await pressRow(picker, '$20.00').click()
+  await picker.getByRole('button', { name: 'Link', exact: true }).click()
+  await expect(picker).toHaveCount(0)
+  await expect(small.getByTestId('refund-chain-self').getByRole('button', { name: /^Unlink / })).toBeFocused()
+})
+
+// Unlinking the only refund of an expense refunded in full asks for the list again. The old list has nothing in it, and
+// while the new one loads the section offers the link, never saying that nothing fits
+test('offers the link at once when an unlink frees the only refund, while the list loads again', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const expenseId = await createTransaction(request, user, { ...row, amount: -4000, date: daysFromTodayInTestTimezone(-5) })
+  const refundId = await createTransaction(request, user, { ...row, amount: 4000, date: daysFromTodayInTestTimezone(-2) })
+  await request.post(`${API_BASE_URL}/transactions/${refundId}/refund-link`, {
+    headers: asUser(user),
+    data: { original_transaction_id: expenseId },
+  })
+
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await page.route(
+    (url) => url.pathname.endsWith('/refund-link-candidates') && url.searchParams.has('unlinked_id'),
+    async (route) => {
+      await held
+      await route.continue()
+    },
+  )
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const expense = await openRow(page, expenseId)
+  const open = expense.getByTestId('link-existing')
+  await expect(expense.getByTestId('refund-status')).toHaveText('Refunded in full')
+  await expect(open).toHaveCount(0)
+
+  const refetch = page.waitForRequest((req) => new URL(req.url()).searchParams.has('unlinked_id'))
+  await expense.getByRole('button', { name: /^Unlink / }).click()
+  await refetch
+  await expect(open).toBeVisible()
+  await expect(expense.getByTestId('link-prompt')).toHaveText(/you can link them here/)
+
+  const landed = page.waitForResponse((res) => new URL(res.url()).searchParams.has('unlinked_id'))
+  release()
+  await landed
+  await expect(open).toBeVisible()
+  await expect(expense.getByTestId('link-prompt')).toHaveText(/you can link them here/)
 })
 
 // Save applies each held link one at a time and the window then closes. The linked section must hold its height, and
@@ -656,7 +788,11 @@ for (const [name, anchor, saved, pick] of [
     if (saved) await expect(dialog.getByTestId('linked-transaction')).toHaveCount(1)
     if (pick) await linkOne(dialog, saved ? 'last' : 'first')
     await expect(dialog.getByTestId('linked-transaction')).toHaveCount(saved && pick ? 2 : 1)
-    await page.waitForTimeout(800)
+    // Waits for a picked row to finish growing in, however slow a busy run makes it, so Save starts from settled rows
+    await expect.poll(() => dialog.evaluate((node) => Math.max(0, ...[...node.querySelectorAll<HTMLElement>('[data-testid="linked-row"]')].map((wrapper) => {
+      const inner = wrapper.querySelector('[data-testid="linked-transaction"]')
+      return inner ? inner.getBoundingClientRect().bottom - wrapper.getBoundingClientRect().bottom : 0
+    })))).toBeLessThanOrEqual(0.5)
 
     // Per frame: the linked rows' total layout height, how many rows there are, and the most any row's bottom edge
     // reaches past the bottom of its own reveal wrapper, which is what clips it

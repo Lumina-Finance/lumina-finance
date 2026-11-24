@@ -53,6 +53,7 @@ export {
   useRefundLinkCandidates,
   useTransaction,
   useTransactionsById,
+  useTransactionsLoadFailed,
   useTransactions,
   useTransactionsOverview,
   useUnlinkRefund,

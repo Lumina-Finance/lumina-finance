@@ -7,6 +7,8 @@ interface CreateModalSectionFrameProps {
   title?: string
   // Sits after the heading on its line
   titleAccessory?: ReactNode
+  // Sits at the far end of the heading's line, such as a status badge
+  titleEnd?: ReactNode
 }
 
 /**
@@ -18,7 +20,17 @@ export default function CreateModalSectionFrame({
   step,
   title,
   titleAccessory,
+  titleEnd,
 }: CreateModalSectionFrameProps) {
+  const heading = title && (
+    <p
+      className="relative flex h-4 w-fit max-w-full items-center text-base font-bold leading-none"
+      style={{ color: 'var(--app-accent)' }}
+    >
+      {title}
+      {titleAccessory}
+    </p>
+  )
   return (
     <section className="grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2 min-[1050px]:gap-x-3">
       <div className="flex min-h-0 flex-col items-center">
@@ -34,13 +46,14 @@ export default function CreateModalSectionFrame({
 
       {title ? (
         <div className="min-w-0 space-y-3">
-          <p
-            className="relative flex h-4 w-fit max-w-full items-center text-base font-bold leading-none"
-            style={{ color: 'var(--app-accent)' }}
-          >
-            {title}
-            {titleAccessory}
-          </p>
+          {titleEnd ? (
+            <div className="flex h-4 items-center justify-between gap-3">
+              {heading}
+              {titleEnd}
+            </div>
+          ) : (
+            heading
+          )}
           {children}
         </div>
       ) : (

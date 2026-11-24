@@ -176,6 +176,9 @@
        text colour, which clears 4.5:1 on every one of them */
     --app-positive-on-accent-tint: color-mix(in srgb, var(--app-positive) 80%, var(--app-text));
     --app-positive-soft: #3a78501a;
+    /* Small positive text on the positive tint, such as the Refunded in full badge, where the plain green reads under
+       4.5:1. Drawn a third of the way toward the page text colour, as the warning tint's text is darkened */
+    --app-positive-text: color-mix(in srgb, var(--app-positive) 67%, var(--app-text));
     --app-chart-positive: #5d8f6d;
     --app-chart-negative: #ab5e56;
     --app-warning: #d6b400;
@@ -317,6 +320,7 @@
     --app-positive: #72a781;
     --app-positive-on-accent-tint: var(--app-positive);
     --app-positive-soft: #72a78124;
+    --app-positive-text: var(--app-positive);
     --app-chart-positive: #5d8f6d;
     --app-chart-negative: #ab5e56;
     --app-warning: #f5d547;

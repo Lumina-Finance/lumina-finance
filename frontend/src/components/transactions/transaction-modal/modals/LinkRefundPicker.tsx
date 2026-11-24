@@ -206,7 +206,7 @@ export default function TransactionModalLinkRefundPicker({
       >
         <p className="text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
           {picksRefund
-            ? 'Pick money that came in to link as a refund of this expense. Linking changes no amount or total.'
+            ? 'Pick money that comes in to link as a refund of this expense. Linking changes no amount or total.'
             : 'Pick the expense this refund gives money back for. Linking changes no amount or total.'}
         </p>
         <div ref={watchSearchRowWidth} className="flex items-start gap-3">
@@ -242,7 +242,7 @@ export default function TransactionModalLinkRefundPicker({
               {hasNarrowing
                 ? `Nothing matches ${sentSearch === '' ? 'those filters' : Object.keys(filters).length === 0 ? 'that search' : 'that search or those filters'}.`
                 : picksRefund
-                  ? 'No money that came in is free to link as a refund.'
+                  ? 'No money that comes in is free to link as a refund.'
                   : 'No expense is free to link this refund to.'}
             </p>
           ) : (
