@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { Fragment, useId } from 'react'
 import type { Category } from '@/api/categories'
 import type { Institution } from '@/api/institutions'
 import type { RefundLinkCandidate } from '@/api/transactions'
@@ -40,15 +40,18 @@ const LINE_CLASS_NAME = 'flex flex-wrap gap-1.5 pb-2.5 pl-[3.75rem] pr-3 -mt-1'
 export function LikelyMatchChips({ sameMerchant, exactAmount }: { sameMerchant: boolean; exactAmount: boolean }) {
   return (
     <>
-      {[sameMerchant && 'Same merchant', exactAmount && 'Exact amount'].filter(Boolean).map((label) => (
-        <span
-          key={label as string}
-          className="rounded-full px-2 text-xs font-medium leading-5"
-          style={{ background: 'var(--app-surface-soft)', color: 'var(--app-text-muted)' }}
-          data-testid="likely-chip"
-        >
-          {label}
-        </span>
+      {[sameMerchant && 'Same merchant', exactAmount && 'Exact amount'].filter(Boolean).map((label, index) => (
+        <Fragment key={label as string}>
+          {/* Keeps the reasons apart for a screen reader, which may join a row of spans into one word */}
+          {index > 0 && <span className="sr-only">, </span>}
+          <span
+            className="rounded-full px-2 text-xs font-medium leading-5"
+            style={{ background: 'var(--app-surface-soft)', color: 'var(--app-text-muted)' }}
+            data-testid="likely-chip"
+          >
+            {label}
+          </span>
+        </Fragment>
       ))}
     </>
   )
