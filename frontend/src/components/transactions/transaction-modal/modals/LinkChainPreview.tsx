@@ -77,59 +77,73 @@ export default function LinkChainPreview({
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement}
       </p>
-      {!expense ? (
-        <RefundChainBox>
-          <RefundChainRow
-            icon={iconOf(transaction)}
-            merchantName={transaction.merchant_name ?? NO_MERCHANT}
-            kind="Refund"
-            dt={transaction.dt}
-            amount={transaction.amount}
-            currency={transaction.currency}
-            isNew
-          />
-        </RefundChainBox>
-      ) : (
-        <RefundChainBox>
-          <RefundChainRow
-            icon={iconOf(expense)}
-            merchantName={expense.merchant_name ?? NO_MERCHANT}
-            kind={kindOf(expense)}
-            dt={expense.dt}
-            amount={expense.amount}
-            currency={expense.currency}
-            lineBelow
-          />
-          {alreadyLinked > 0 && (
-            <RefundChainNote lineBelow={refunds.length > 0}>{describeLinkedRefunds(alreadyLinked)}</RefundChainNote>
-          )}
-          {refunds.length > 0 && alreadyLinked === 0 && <RefundChainLead />}
-          {/* A long run of picks scrolls in its own box, so it never pushes the list off a phone's screen. Each pick
-              eases in and out as a row of the Refunds section does */}
-          <div className="max-h-[9.5rem] overflow-y-auto overscroll-contain">
-            <AnimatePresence initial={false}>
-              {refunds.map((refund, index) => (
-                <RevealRow key={refund.id} spacingClassName="">
-                  <RefundChainGap place="above" />
-                  <RefundChainRow
-                    icon={iconOf(expense)}
-                    merchantName={refund.merchant_name ?? NO_MERCHANT}
-                    kind="Refund"
-                    dt={refund.dt}
-                    amount={refund.amount}
-                    currency={refund.currency}
-                    isNew
-                    lineAbove
-                    lineBelow={index < refunds.length - 1}
-                  />
-                  <RefundChainGap place="below" drawn={index < refunds.length - 1} />
-                </RevealRow>
-              ))}
-            </AnimatePresence>
-          </div>
-          <RefundChainFooter room={room} currency={expense.currency} keepsUnlinkRoom={false} status={status} />
-        </RefundChainBox>
-      )}
+      {/* The refund alone and the chain a pick makes are rows of their own, so one eases out as the other eases in */}
+      <AnimatePresence initial={false}>
+        {!expense ? (
+          <RevealRow key="alone" spacingClassName="">
+            <RefundChainBox>
+              <RefundChainRow
+                icon={iconOf(transaction)}
+                merchantName={transaction.merchant_name ?? NO_MERCHANT}
+                kind="Refund"
+                dt={transaction.dt}
+                amount={transaction.amount}
+                currency={transaction.currency}
+                isNew
+              />
+            </RefundChainBox>
+          </RevealRow>
+        ) : (
+          <RevealRow key={expense.id} spacingClassName="">
+            <RefundChainBox>
+              <RefundChainRow
+                icon={iconOf(expense)}
+                merchantName={expense.merchant_name ?? NO_MERCHANT}
+                kind={kindOf(expense)}
+                dt={expense.dt}
+                amount={expense.amount}
+                currency={expense.currency}
+                lineBelow
+              />
+              {alreadyLinked > 0 && (
+                <RefundChainNote lineBelow={refunds.length > 0}>{describeLinkedRefunds(alreadyLinked)}</RefundChainNote>
+              )}
+              {/* The lead eases with the first pick, so the chain's height never snaps beside an easing row */}
+              <AnimatePresence initial={false}>
+                {refunds.length > 0 && alreadyLinked === 0 && (
+                  <RevealRow key="lead" spacingClassName="">
+                    <RefundChainLead />
+                  </RevealRow>
+                )}
+              </AnimatePresence>
+              {/* A long run of picks scrolls in its own box, so it never pushes the list off a phone's screen. Each pick
+                  eases in and out as a row of the Refunds section does */}
+              <div className="max-h-[9.5rem] overflow-y-auto overscroll-contain">
+                <AnimatePresence initial={false}>
+                  {refunds.map((refund, index) => (
+                    <RevealRow key={refund.id} spacingClassName="">
+                      <RefundChainGap place="above" />
+                      <RefundChainRow
+                        icon={iconOf(expense)}
+                        merchantName={refund.merchant_name ?? NO_MERCHANT}
+                        kind="Refund"
+                        dt={refund.dt}
+                        amount={refund.amount}
+                        currency={refund.currency}
+                        isNew
+                        lineAbove
+                        lineBelow={index < refunds.length - 1}
+                      />
+                      <RefundChainGap place="below" drawn={index < refunds.length - 1} />
+                    </RevealRow>
+                  ))}
+                </AnimatePresence>
+              </div>
+              <RefundChainFooter room={room} currency={expense.currency} keepsUnlinkRoom={false} status={status} />
+            </RefundChainBox>
+          </RevealRow>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
