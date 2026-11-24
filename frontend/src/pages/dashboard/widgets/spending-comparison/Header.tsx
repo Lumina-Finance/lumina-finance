@@ -21,6 +21,11 @@ type SpendingComparisonHeaderProps = {
   onRangeChange: (range: SpendingRange) => void
 }
 
+const FX_BADGE_LABEL = 'Spending comparison FX status'
+
+// The badge's measured width. The title's fit counts it while the badge has not arrived
+const FX_BADGE_WIDTH_PX = 21
+
 const ROW_GAP_PX = 8
 const MEASURED_ATTRIBUTE = 'data-title-measure'
 
@@ -70,6 +75,9 @@ function useAverageTitle(
         (child) => !child.hasAttribute(MEASURED_ATTRIBUTE) && getComputedStyle(child).display !== 'none',
       )
       const widths = others.map((child) => child.getBoundingClientRect().width)
+      // The FX badge comes after the card's data, so a row without it is laid out as if it were there, and the title
+      // is the same form before and after it arrives
+      if (!row.querySelector(`[aria-label="${FX_BADGE_LABEL}"]`)) widths.splice(2, 0, FX_BADGE_WIDTH_PX)
       const withTitle = (titleWidth: number) => widths.map((width, index) => (index === 1 ? titleWidth : width))
       const rowWidth = row.clientWidth
       // A form is used only where the title does not push the controls onto a row they would not take with no title
@@ -108,59 +116,63 @@ export function SpendingComparisonHeader({
   // word would push the selector onto its own row
   const hasFullWord = averageTitle === 'full'
   const averageWord = hasFullWord ? 'average' : 'avg.'
+  // The desktop tabs show only where the row holds the icon (32px), the widest title (200.3px for a quarter, the same
+  // whether it says "last" or "avg."), the FX badge (21px) and the tabs (174px) with three 8px gaps, 451.3px measured,
+  // rounded up to 452px. The badge is counted whether or not it has arrived, so its late arrival never wraps the row.
+  // The threshold is one for every range, so choosing a range never swaps the selector under the pointer
   return (
-    <div ref={rowRef} className="relative flex flex-wrap items-center gap-2 mb-3">
-      <DashboardWidgetHeaderIcon icon={BarChart3} />
-      {/* Hidden copies of the title that only give its widths, in the same type as the title */}
-      <span
-        {...{ [MEASURED_ATTRIBUTE]: '' }}
-        ref={fullRef}
-        aria-hidden
-        className="app-label pointer-events-none invisible absolute whitespace-nowrap"
-      >
-        Spending vs.&nbsp;average&nbsp;{periodLabel}
-      </span>
-      <span
-        {...{ [MEASURED_ATTRIBUTE]: '' }}
-        ref={shortRef}
-        aria-hidden
-        className="app-label pointer-events-none invisible absolute whitespace-nowrap"
-      >
-        Spending vs.&nbsp;<span style={{ letterSpacing: '-0.04em' }}>avg.</span>&nbsp;{periodLabel}
-      </span>
-      <span
-        className="app-label inline-flex items-baseline whitespace-nowrap"
-        style={showAverage && averageTitle === 'tight' ? { letterSpacing: '-0.04em' } : undefined}
-      >
-        Spending vs.&nbsp;
-        {/* "avg." is wider than "last", and the range selector shares the row with the title to the pixel at 1280,
+    <div data-testid="spending-comparison-header" className="@container mb-3">
+      <div ref={rowRef} className="relative flex flex-wrap items-center gap-2">
+        <DashboardWidgetHeaderIcon icon={BarChart3} />
+        {/* Hidden copies of the title that only give its widths, in the same type as the title */}
+        <span
+          {...{ [MEASURED_ATTRIBUTE]: '' }}
+          ref={fullRef}
+          aria-hidden
+          className="app-label pointer-events-none invisible absolute whitespace-nowrap"
+        >
+          Spending vs.&nbsp;average&nbsp;{periodLabel}
+        </span>
+        <span
+          {...{ [MEASURED_ATTRIBUTE]: '' }}
+          ref={shortRef}
+          aria-hidden
+          className="app-label pointer-events-none invisible absolute whitespace-nowrap"
+        >
+          Spending vs.&nbsp;<span style={{ letterSpacing: '-0.04em' }}>avg.</span>&nbsp;{periodLabel}
+        </span>
+        <span
+          className="app-label inline-flex items-baseline whitespace-nowrap"
+          style={showAverage && averageTitle === 'tight' ? { letterSpacing: '-0.04em' } : undefined}
+        >
+          Spending vs.&nbsp;
+          {/* "avg." is wider than "last", and the range selector shares the row with the title to the pixel at 1280,
             so its letters sit a little closer to keep the selector where it was */}
-        <AppSlotMachineText
-          text={showAverage ? averageWord : 'last'}
-          style={showAverage && !hasFullWord ? { letterSpacing: '-0.04em' } : undefined}
+          <AppSlotMachineText
+            text={showAverage ? averageWord : 'last'}
+            style={showAverage && !hasFullWord ? { letterSpacing: '-0.04em' } : undefined}
+          />
+          &nbsp;
+          <AppSlotMachineText text={periodLabel} />
+        </span>
+        <FxStatusBadge label={FX_BADGE_LABEL} fxStatus={fxStatus} getMessage={getSpendingComparisonFxStatusMessage} />
+        {showAverage && (averageFxStatus?.state === 'incomplete' || averageFxStatus?.state === 'unavailable') && (
+          <FxStatusBadge
+            label="Average FX status"
+            fxStatus={averageFxStatus}
+            getMessage={getSpendingAverageFxStatusMessage}
+          />
+        )}
+        <DashboardRangeSelector
+          value={spendingRange}
+          options={DASHBOARD_RANGE_SELECT_OPTIONS}
+          onChange={onRangeChange}
+          ariaLabel="Spending range"
+          sheetTitle="Spending range"
+          desktopClassName="ml-auto hidden @[452px]:inline-flex"
+          mobileClassName="w-full @[452px]:hidden"
         />
-        &nbsp;
-        <AppSlotMachineText text={periodLabel} />
-      </span>
-      <FxStatusBadge
-        label="Spending comparison FX status"
-        fxStatus={fxStatus}
-        getMessage={getSpendingComparisonFxStatusMessage}
-      />
-      {showAverage && (averageFxStatus?.state === 'incomplete' || averageFxStatus?.state === 'unavailable') && (
-        <FxStatusBadge
-          label="Average FX status"
-          fxStatus={averageFxStatus}
-          getMessage={getSpendingAverageFxStatusMessage}
-        />
-      )}
-      <DashboardRangeSelector
-        value={spendingRange}
-        options={DASHBOARD_RANGE_SELECT_OPTIONS}
-        onChange={onRangeChange}
-        ariaLabel="Spending range"
-        sheetTitle="Spending range"
-      />
+      </div>
     </div>
   )
 }
