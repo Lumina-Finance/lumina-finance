@@ -34,12 +34,12 @@ Please do not:
 
 This policy applies to security vulnerabilities in the Lumina Finance codebase and related project infrastructure controlled by Lumina Finance.
 
-For self-hosted deployments, users are responsible for securing their own servers, databases, networks, credentials, backups, environment variables, and third-party integrations.
+Anyone running the app is responsible for securing their own servers, databases, networks, credentials, backups, environment variables, and third-party integrations.
 
-Issues caused by misconfigured self-hosted environments, exposed services, weak credentials, outdated dependencies, or insecure infrastructure outside of the Lumina Finance codebase may be outside the scope of this policy.
+Issues caused by misconfigured environments, exposed services, weak credentials, outdated dependencies, or insecure infrastructure outside of the Lumina Finance codebase may be outside the scope of this policy.
 
 ## Supported Versions
 
 Lumina Finance is currently early-stage software. Security fixes will generally be applied to the latest available version of the project.
 
-Users are encouraged to keep their deployments up to date and regularly review release notes for security-related updates.
+Users are encouraged to keep their installations up to date and regularly review release notes for security-related updates.
