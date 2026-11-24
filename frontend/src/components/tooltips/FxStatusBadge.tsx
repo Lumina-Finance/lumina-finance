@@ -12,9 +12,10 @@ type FxStatusBadgeProps = {
   tone?: IconTooltipFxTone
 
   // The tone of a total whose only gap is amounts left out because converting them is refused, and a
-  // sentence saying what the total left out, shown before the reason
+  // sentence saying what the total left out, shown before the reason unless the reason is left out too
   withheldTone?: IconTooltipFxTone
   withheldMessage?: string
+  hidesWithheldReason?: boolean
 
   // For a badge inside a row that does something else on a press, as the icon tooltip describes them
   widensHitArea?: boolean
@@ -35,6 +36,7 @@ export function FxStatusBadge({
   tone,
   withheldTone = 'gray',
   withheldMessage,
+  hidesWithheldReason = false,
   widensHitArea,
   picksSideOnPress,
   clearsStickyBars,
@@ -50,7 +52,8 @@ export function FxStatusBadge({
     ? (withheldMessage ?? withheldReason)
     : (getMessage(fxStatus) ?? FX_STATUS_FALLBACK_MESSAGE)
   const fxTone = isOnlyWithheld ? withheldTone : (tone ?? getFxStatusTone(fxStatus))
-  const showsReasonAfter = Boolean(withheldReason) && (!isOnlyWithheld || withheldMessage !== undefined)
+  const showsReasonAfter =
+    Boolean(withheldReason) && !hidesWithheldReason && (!isOnlyWithheld || withheldMessage !== undefined)
 
   return (
     <IconTooltip

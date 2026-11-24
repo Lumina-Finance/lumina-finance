@@ -5,6 +5,8 @@ import { getBudgetUtilizationFxStatusMessage } from '@/pages/budgets/utils/fxToo
 
 // A budget that leaves spending out tracks less than its categories hold. Its badge turns red and gives this sentence
 const WITHHELD_MESSAGE = 'This budget counts only spending from accounts in its own currency'
+// A read-only budget's grey badge gives only this sentence, since its Read-only pill gives the reason
+const READ_ONLY_WITHHELD_MESSAGE = "Spending in other currencies isn't counted in this budget"
 
 /**
  * Renders the budget FX status badge while preserving optional card event boundaries
@@ -22,7 +24,7 @@ export default function BudgetFxStatusBadge({
   placement?: 'top' | 'bottom'
   stopPropagation?: boolean
   getMessage?: (fxStatus: FxStatus) => string
-  // A read-only budget tracks nothing new, so its badge stays grey and gives only the reason
+  // A read-only budget tracks nothing new, so its badge stays grey
   readOnly?: boolean
 }) {
   if (!fxStatus) return null
@@ -41,7 +43,8 @@ export default function BudgetFxStatusBadge({
         placement={placement}
         getMessage={getMessage}
         withheldTone={readOnly ? 'gray' : 'red'}
-        withheldMessage={readOnly ? undefined : WITHHELD_MESSAGE}
+        withheldMessage={readOnly ? READ_ONLY_WITHHELD_MESSAGE : WITHHELD_MESSAGE}
+        hidesWithheldReason={readOnly}
       />
     </span>
   )
