@@ -29,7 +29,7 @@ from app.services.accounts.access import own_personal_account_condition
 from app.services.bank_sync import rule_fills
 from app.services.bank_sync.review_state import AWAITING_REVIEW
 from app.services.bank_sync.rule_fills import candidate_of, fill_items, fill_to_saved, load_rule_fill_context
-from app.services.cache_state import mark_user_cache_changed
+from app.services.cache_state import mark_user_status_changed
 
 
 async def _read_waiting_ids(db: AsyncSession, user_id: uuid.UUID) -> list[uuid.UUID]:
@@ -80,8 +80,10 @@ async def _apply_to_chunk(db: AsyncSession, user_id: uuid.UUID, ids: Sequence[uu
             .values(rules_version=context.version)
             .execution_options(synchronize_session=False)
         )
-    if changed:
-        await mark_user_cache_changed(db, user_id)
+    # A new digest alone changes what the list says about the rules, so it refreshes the list too. The
+    # press changes none of the ledger, so the data mark an import's undo compares with stays where it was
+    if changed or digest_only:
+        await mark_user_status_changed(db, user_id)
     await db.commit()
     return changed
 
