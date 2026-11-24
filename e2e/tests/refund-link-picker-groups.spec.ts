@@ -201,6 +201,8 @@ test('groups a refund picker by fit and previews the picked expense chain', asyn
   // Before a pick the preview shows this refund alone, marked New, and its live region is already there to read the
   // first pick's result
   await expect(preview(picker).getByTestId('refund-chain-new')).toHaveCount(1)
+  await expect(preview(picker)).toContainText('Harbor Electronics')
+  await expect(preview(picker)).not.toContainText('Pick the expense')
   await expect(preview(picker).getByTestId('refund-room')).toHaveCount(0)
   const totals = preview(picker).locator('[aria-live="polite"]')
   await expect(totals).toHaveText('')
