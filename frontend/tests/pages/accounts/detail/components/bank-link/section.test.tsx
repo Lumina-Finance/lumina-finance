@@ -814,13 +814,15 @@ describe('the bank link of a read-only account', () => {
   const REASON = 'Records in USD are read-only. They can be archived or deleted'
   const readOnly = () => createAccount({ currency: 'USD', read_only_reason: REASON })
 
-  it('refuses a first link, saying why under the button', () => {
+  it("refuses a first link, with the reason in the button's tooltip rather than lasting text", () => {
     const markup = renderSection(readOnly())
     const button = getButton(markup, 'Link bank account')
     const reasonId = button.match(/aria-describedby="([^"]+)"/)?.[1]
 
     expect(button).toContain('aria-disabled="true"')
-    expect(markup).toContain(`<p id="${reasonId}" class="text-sm" style="color:var(--app-text-muted)">${REASON}</p>`)
+    // The button's own hidden description reads the reason, and nothing prints it under the button
+    expect(markup).toMatch(new RegExp(`id="${reasonId}"[^>]*hidden=""[^>]*>${REASON}<`))
+    expect(markup).not.toContain(`<p id="${reasonId}"`)
     expect(markup).not.toContain('Open bank connections')
   })
 

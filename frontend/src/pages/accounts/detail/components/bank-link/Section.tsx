@@ -409,12 +409,14 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
   const link = status?.link ?? null
   const previous = status?.previous_link ?? null
   const linkingPaused = isBankSyncNotSetUp(providers)
-  // Both reasons last, so the one that holds the button back is printed under it, with the tooltip
-  // and the button's description pointing at that text
+  // Archiving and paused bank sync last, so either one holding the button back is printed under it, with
+  // the tooltip and the button's description pointing at that text. A read-only account's reason only
+  // needs learning once, so it stays in the button's own tooltip
   const blockReasonId = useId()
   const linkBlockReason = account.is_archived
     ? ARCHIVED_REASON
     : (account.read_only_reason ?? (linkingPaused ? BANK_SYNC_NOT_SET_UP_REASON : undefined))
+  const linkBlockReasonShown = account.is_archived || (linkingPaused && !account.read_only_reason)
 
   const openLinkFlow = () => {
     setLinkFlowKey((key) => key + 1)
@@ -506,13 +508,13 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
                     {...ACTION_PROPS}
                     {...initialFocus}
                     disabledReason={linkBlockReason}
-                    reasonShownById={linkBlockReason ? blockReasonId : undefined}
+                    reasonShownById={linkBlockReasonShown ? blockReasonId : undefined}
                     onClick={openLinkFlow}
                   >
                     <Link2 size={16} aria-hidden />
                     {previous ? 'Reconnect bank account' : 'Link bank account'}
                   </DisabledReasonButton>
-                  {account.is_archived || account.read_only_reason ? (
+                  {account.is_archived ? (
                     <p id={blockReasonId} className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                       {linkBlockReason}
                     </p>
