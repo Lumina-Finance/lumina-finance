@@ -232,7 +232,7 @@ export function RefundChainRow({
           {isNew && (
             <span
               className="ml-1 inline-block rounded-full px-1.5 align-[1px] text-[0.625rem] font-semibold uppercase leading-4 tracking-wider"
-              style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
+              style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent-on-page-tint)' }}
               data-testid="refund-chain-new"
             >
               <span className="sr-only">, </span>New
