@@ -113,6 +113,11 @@ test('keeps the chooser its height while a search matches no card', async ({ pag
   await expect(dialog.getByRole('checkbox', { name: 'Card C' })).toBeVisible()
   // The layout height, which the dialog's entrance scaling does not change
   const heightOf = () => dialog.evaluate((panel) => (panel as HTMLElement).offsetHeight)
+  // The chooser holds the height of its full list once the page has drawn the list. A search sent before
+  // that shrinks the list with nothing yet held. A person cannot type fast enough to do that, so the search
+  // waits for the hold. Without the hold in the app this wait is the step that times out
+  const listBox = dialog.locator('[style*="min-height"]')
+  await expect.poll(() => listBox.evaluate((box) => parseFloat((box as HTMLElement).style.minHeight) >= (box as HTMLElement).offsetHeight)).toBe(true)
   const full = await heightOf()
   expect(full).toBeGreaterThan(300)
 
