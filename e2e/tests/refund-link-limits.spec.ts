@@ -78,10 +78,6 @@ test('folds away the refunds that no longer fit and brings them back as rows are
   await expect(linkButton).toBeDisabled()
   await foldedRow(picker).click()
   await expect(foldedRow(picker)).toHaveAttribute('aria-expanded', 'true')
-  // The forced press below skips Playwright's wait for a still element, so the list has to finish easing open first,
-  // or the press can land on the folded row's header and close it
-  const foldedList = picker.locator(`[id="${await foldedRow(picker).getAttribute('aria-controls')}"]`)
-  await expect(foldedList).toHaveCSS('overflow', 'visible')
   const greyed = picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
   await expect(greyed).toHaveCount(1)
   await expect(greyed).toContainText(OVER_THE_EXPENSE)
@@ -93,7 +89,9 @@ test('folds away the refunds that no longer fit and brings them back as rows are
   const content = greyed.locator('[data-row-content]')
   await expect(content).toHaveCSS('opacity', '0.5')
   await expect(greyed.locator('button')).toHaveCSS('opacity', '1')
-  await press('$37.19').click({ force: true })
+  // The click goes to the greyed button itself, not to a point on screen, so the list moving under the pointer as it
+  // settles can't send it to the folded row's header
+  await press('$37.19').dispatchEvent('click')
   await expect(press('$37.19')).toHaveAttribute('aria-pressed', 'false')
   await expect(linkButton).toBeDisabled()
   await press('$37.19').focus()
