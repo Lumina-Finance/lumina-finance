@@ -6,6 +6,7 @@ answering ends either one while the browser still waits, with a reason the scree
 
 import asyncio
 import json
+from collections.abc import Callable
 
 import httpx
 import pytest
@@ -40,10 +41,10 @@ class _StallingApi(httpx.AsyncBaseTransport):
         return await self._api.transport.handle_async_request(request)
 
 
-@pytest.fixture(autouse=True)
-def short_budget(monkeypatch) -> None:
-    """Give each request the tests' short budget"""
-    monkeypatch.setattr(outbound, "WAITED_REQUEST_BUDGET_SECONDS", _BUDGET_SECONDS)
+@pytest.fixture
+def shorten_budget(monkeypatch) -> Callable[[], None]:
+    """Return the call that gives each later request the tests' short budget, made once setup is done so setup keeps the production one"""
+    return lambda: monkeypatch.setattr(outbound, "WAITED_REQUEST_BUDGET_SECONDS", _BUDGET_SECONDS)
 
 
 @pytest.fixture
@@ -67,9 +68,10 @@ async def _start(client, headers):
     )
 
 
-async def test_start_when_enable_banking_stalls_answers_within_the_budget(client, stalling: _StallingApi):
+async def test_start_when_enable_banking_stalls_answers_within_the_budget(client, stalling: _StallingApi, shorten_budget):
     """The sign-in request gets no answer, so the start stops at its budget and says Lumina Finance couldn't reach Enable Banking"""
     headers, _ = await _sign_up(client)
+    shorten_budget()
     stalling.stalled_path = "/auth"
 
     async with asyncio.timeout(_GIVE_UP_SECONDS):
@@ -81,7 +83,7 @@ async def test_start_when_enable_banking_stalls_answers_within_the_budget(client
 
 
 async def test_finish_when_enable_banking_stalls_answers_within_the_budget_and_saves_nothing(
-    client, api: EnableBankingApi, stalling: _StallingApi
+    client, api: EnableBankingApi, stalling: _StallingApi, shorten_budget
 ):
     """The bank sent the user back, but the session request gets no answer, so the finish stops at its budget and says to connect again"""
     headers, _ = await _sign_up(client)
@@ -89,6 +91,7 @@ async def test_finish_when_enable_banking_stalls_answers_within_the_budget_and_s
     assert started.status_code == 201, started.text
     [sign_in] = [request for request in api.requests if request.url.path == "/auth"]
     state = json.loads(sign_in.content)["state"]
+    shorten_budget()
     stalling.stalled_path = "/sessions"
 
     async with asyncio.timeout(_GIVE_UP_SECONDS):
