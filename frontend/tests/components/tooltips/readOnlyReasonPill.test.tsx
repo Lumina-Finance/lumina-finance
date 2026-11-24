@@ -1,8 +1,8 @@
 /**
- * Guards the pill a read-only record shows its reason in. The pill stays one line, cutting a long reason
- * short, so the whole sentence has to reach the reader another way: the pill's own text holds all of it
- * for a screen reader, and the tooltip it carries shows all of it on hover, tap or, where the pill is a
- * stop of its own, keyboard focus. A row's pill takes no stop, so the row keeps one
+ * Guards the pill a read-only record shows. The pill shows only the short "Read-only" label, so the
+ * reason has to reach the reader another way: screen-reader-only text after the label holds all of it,
+ * and the tooltip the pill carries shows all of it on hover, tap or, where the pill is a stop of its own,
+ * keyboard focus. A row's pill takes no stop, so the row keeps one
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -11,15 +11,23 @@ import { textOf } from '@tests/components/transactions/bank-review/fixtures'
 
 const REASON = 'Records in other currencies are read-only. They can be archived or deleted'
 
-describe('ReadOnlyReasonPill', () => {
-  it('holds the whole reason in its text', () => {
-    const markup = renderToStaticMarkup(<ReadOnlyReasonPill id="row-read-only" reason={REASON} />)
-    // The pill's own text, read up to the closed tooltip it carries
-    const pill = markup
-      .slice(markup.indexOf('<span id="row-read-only"'))
-      .split('<div data-testid="disabled-reason-tooltip"')[0]
+/** The pill's own markup, read up to the closed tooltip it carries */
+function pillOf(markup: string) {
+  return markup.slice(markup.indexOf('<span id="row-read-only"')).split('<div data-testid="disabled-reason-tooltip"')[0]
+}
 
-    expect(textOf(pill)).toBe(REASON)
+describe('ReadOnlyReasonPill', () => {
+  it('shows only the short label', () => {
+    const pill = pillOf(renderToStaticMarkup(<ReadOnlyReasonPill id="row-read-only" reason={REASON} />))
+    const shown = pill.replace(/<span class="sr-only">[\s\S]*?<\/span>/, '')
+
+    expect(textOf(shown)).toBe('Read-only')
+  })
+
+  it('holds the whole reason after the label for a screen reader', () => {
+    const pill = pillOf(renderToStaticMarkup(<ReadOnlyReasonPill id="row-read-only" reason={REASON} />))
+
+    expect(textOf(pill)).toBe(`Read-only. ${REASON}`)
   })
 
   it('carries a tooltip with the reason, closed until a hover or a tap opens it', () => {

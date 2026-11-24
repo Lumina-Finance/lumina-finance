@@ -227,7 +227,7 @@ export default function AccountRow({
                 </span>
               )}
             </p>
-            {/* Positioned and later than the name's stretched link, so a tap on the pill shows its whole reason */}
+            {/* Positioned and later than the name's stretched link, so a tap on the pill shows its reason */}
             {readOnlyReason && (
               <span className="relative inline-flex min-w-0 max-w-full shrink">
                 <ReadOnlyReasonPill id={`${descriptionId}-read-only`} reason={readOnlyReason} />

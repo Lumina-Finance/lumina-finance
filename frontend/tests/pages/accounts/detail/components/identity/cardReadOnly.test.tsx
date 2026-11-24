@@ -63,12 +63,14 @@ function buttonTag(markup: string, label: string): string {
 }
 
 describe('the identity card of a read-only account', () => {
-  it('fades the card and shows the reason in a pill, leaving the edit button open', () => {
+  it('fades the card and marks the account read-only in a pill, leaving the edit button open', () => {
     const markup = renderCard(createAccount({ currency: 'USD', read_only_reason: REASON }))
 
     expect(markup).toMatch(/^<section class="app-card[^"]*" style="[^"]+"/)
     expect(markup).toMatch(
-      new RegExp(`data-testid="read-only-reason-pill"[^>]*><span class="min-w-0 truncate">${REASON}`),
+      new RegExp(
+        `data-testid="read-only-reason-pill"[^>]*><span class="min-w-0 truncate">Read-only</span><span class="sr-only">\\. ${REASON}`,
+      ),
     )
     expect(buttonTag(markup, 'Edit account')).not.toContain('aria-disabled')
   })

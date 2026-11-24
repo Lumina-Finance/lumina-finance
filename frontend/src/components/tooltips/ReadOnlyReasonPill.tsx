@@ -14,15 +14,18 @@ type ReadOnlyReasonPillProps = {
   focusable?: boolean
 }
 
+/** The pill's short label, beside main's "Archived · Read-only" and "Read-only access" */
+const READ_ONLY_LABEL = 'Read-only'
+
 /**
- * Why a record can't change, in a pill on one line that cuts the reason short where it runs out of room
+ * Marks a record that can't change with a short "Read-only" pill, and shows why in its tooltip
  *
  * The pill is positioned, so it sits above a row's press layer and takes the hover and tap itself
  *
- * The whole reason shows in a tooltip under the pointer, or beside the pill after a tap, where it stays
- * until the next tap elsewhere. A focusable pill also shows the whole reason beside itself on keyboard
- * focus, as an `IconTooltip` trigger does. The pill holds the whole reason in its text, so a screen
- * reader reads it all, and the tooltip adds no second copy
+ * The reason shows in a tooltip under the pointer, or beside the pill after a tap, where it stays until
+ * the next tap elsewhere. A focusable pill also shows the reason beside itself on keyboard focus, as an
+ * `IconTooltip` trigger does. The pill holds the reason after its label in screen-reader-only text, so a
+ * screen reader reads both, and the tooltip adds no second copy
  */
 export function ReadOnlyReasonPill({ id, reason, focusable = false }: ReadOnlyReasonPillProps) {
   const ownId = useId()
@@ -43,7 +46,8 @@ export function ReadOnlyReasonPill({ id, reason, focusable = false }: ReadOnlyRe
         onBlur={focusable ? controlProps.onBlur : undefined}
         onClick={handleBlockedClick}
       >
-        <span className="min-w-0 truncate">{reason}</span>
+        <span className="min-w-0 truncate">{READ_ONLY_LABEL}</span>
+        <span className="sr-only">. {reason}</span>
       </span>
       {tooltip}
     </>

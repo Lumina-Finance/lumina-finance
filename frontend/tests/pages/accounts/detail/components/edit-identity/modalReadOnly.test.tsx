@@ -77,12 +77,14 @@ function splitAtFieldset(markup: string): { fieldset: string; opening: string; a
 describe('the edit dialogue of a read-only account', () => {
   const account = createAccount({ currency: 'USD', read_only_reason: REASON })
 
-  it('shows the reason in a pill and disables the fieldset holding the name and details', () => {
+  it('marks the account read-only in a pill and disables the fieldset holding the name and details', () => {
     const markup = renderDialogue(account)
     const { opening, fieldset } = splitAtFieldset(markup)
 
     expect(markup).toMatch(
-      new RegExp(`data-testid="read-only-reason-pill"[^>]*><span class="min-w-0 truncate">${REASON}`),
+      new RegExp(
+        `data-testid="read-only-reason-pill"[^>]*><span class="min-w-0 truncate">Read-only</span><span class="sr-only">\\. ${REASON}`,
+      ),
     )
     expect(opening).toContain('disabled=""')
     expect(fieldset).toContain('Everyday')

@@ -11,7 +11,7 @@ import { useDisabledReason } from '@/hooks/useDisabledReason'
  * budget card and a category row hold the pill inside them, so their content already reads the reason
  *
  * @param reason - The reason, or nothing while the record can change or another reason holds the control
- * @param pillId - The id of the pill showing the same reason on the row
+ * @param pillId - The id of the pill holding the same reason on the row
  */
 export function useReadOnlyReasonOnFocus(reason: string | null | undefined, pillId: string) {
   const { controlProps, tooltip } = useDisabledReason(reason, pillId)

@@ -107,7 +107,9 @@ describe('account row', () => {
 
     expect(row?.[1]).toContain('--app-text:var(--app-text-muted)')
     expect(markup).toContain('data-testid="read-only-reason-pill"')
-    expect(describedTexts(markup, 1024)).toEqual(['Checking', reason, '50000', 'FX unavailable'])
+    // The pill shows "Read-only" and holds the reason after it for a screen reader. The helper reads each
+    // part apart, with a space between
+    expect(describedTexts(markup, 1024)).toEqual(['Checking', `Read-only . ${reason}`, '50000', 'FX unavailable'])
     // The link is the row's one stop. The pill takes none, and the link shows the reason on focus instead
     expect(markup).not.toMatch(/data-testid="read-only-reason-pill"[^>]*tabindex/)
     expect(markup).toMatch(/<a\b[^>]*data-reason-beside="\[data-account-row\]"/)
