@@ -1,4 +1,5 @@
 import { LogOut } from 'lucide-react'
+import { UserRowLine } from '@/slots/userRowLine'
 
 interface NavigationUserProfileProps {
   displayName: string
@@ -26,7 +27,7 @@ export function NavigationUserProfile({ displayName, initials, logout }: Navigat
           {displayName}
         </p>
         <p className="truncate text-[0.6875rem]" style={{ color: 'var(--app-text-subtle)' }}>
-          Premium plan
+          <UserRowLine />
         </p>
       </div>
       <button
