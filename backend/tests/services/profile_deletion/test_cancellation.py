@@ -93,7 +93,7 @@ async def test_a_cancel_and_a_run_at_once_after_the_due_time_leave_a_deleted_pro
     results = await asyncio.gather(_cancel(user.id), delete_profile(ScopedSession, user.id), return_exceptions=True)
 
     assert isinstance(results[0], HTTPException) and results[0].status_code == 409
-    assert results[0].detail in {_ALREADY_UNDER_WAY, "Your profile is not waiting to be deleted"}, "told it has begun or is over"
+    assert results[0].detail == _ALREADY_UNDER_WAY
     assert await _stored_marks(user) is None
     assert await _accounts(user.id) == 0
     assert [deletion.user_id for deletion in profile_deletions] == [user.id]

@@ -73,7 +73,7 @@ async def cancel_profile_deletion_route(
     The only route a profile waiting to be deleted can reach. It needs no new password, since a session
     of a waiting profile can only come from a sign-in made after the deletion was requested. A session
     that outlives the due time reaches it too, and is told why the cancel came too late. A profile with
-    no mark, such as one a second tab already cancelled, is answered with the user and left as it is
+    no mark is answered with the user and left as it is
 
     Args:
         user: Authenticated user, let through when the profile is marked with a due time
@@ -84,6 +84,6 @@ async def cancel_profile_deletion_route(
 
     Raises:
         HTTPException 403: The profile is marked with no due time, so it goes at once
-        HTTPException 409: The profile's due time has passed, or the profile is gone
+        HTTPException 409: The deletion has begun, so it can no longer be cancelled
     """
     return await cancel_profile_deletion(db, user)

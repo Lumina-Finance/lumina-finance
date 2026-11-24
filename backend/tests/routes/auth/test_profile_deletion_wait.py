@@ -263,7 +263,7 @@ async def test_cancel_works_for_a_user_whose_second_factor_re_enrolment_is_requi
 
 
 async def test_cancel_for_a_profile_that_is_not_marked_answers_with_the_user_and_changes_nothing(client):
-    """A second tab cancelling after the first has cancelled finds nothing to cancel and is told so with the user"""
+    """A profile with no mark has nothing to cancel, so the cancel answers with the user and changes nothing"""
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
     headers = _get_auth_header(signup)
