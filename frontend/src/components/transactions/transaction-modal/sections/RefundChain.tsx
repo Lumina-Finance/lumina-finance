@@ -5,6 +5,9 @@ import type { RefundStatus } from '@/components/transactions/transaction-modal/u
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDateLabel } from '@/utils/date'
 
+/** Named in a chain's row for a transaction with no merchant */
+export const NO_MERCHANT = 'No merchant'
+
 const STATUS_BADGES: Record<RefundStatus, { label: string; background: string; color: string }> = {
   full: { label: 'Refunded in full', background: 'var(--app-positive-soft)', color: 'var(--app-positive-text)' },
   partial: { label: 'Partly refunded', background: 'var(--app-warning-soft)', color: 'var(--app-warning-text)' },
@@ -85,6 +88,21 @@ export function RefundChainLead() {
   )
 }
 
+/** A short muted line on the dashed line, standing for rows the chain folds away, such as "2 refunds linked" */
+export function RefundChainNote({ children, lineBelow = true }: { children: ReactNode; lineBelow?: boolean }) {
+  return (
+    <div className="flex gap-3">
+      <span className="flex w-9 shrink-0 flex-col items-center self-stretch">
+        <ChainSegment drawn />
+        <ChainSegment drawn={lineBelow} below />
+      </span>
+      <p className="py-1 text-xs leading-4" style={{ color: 'var(--app-text-muted)' }} data-testid="refund-chain-note">
+        {children}
+      </p>
+    </div>
+  )
+}
+
 /** Follows the Refunds heading with how many refunds the chain holds */
 export function RefundCount({ count }: { count: number }) {
   return (
@@ -112,6 +130,9 @@ interface RefundChainRowProps {
 
   /** Marks a link that Save has yet to make */
   notSaved?: boolean
+
+  /** Marks the row a link picker would add, in a preview of the chain linking makes */
+  isNew?: boolean
 
   /** Joins an unsaved row's border to the unsaved row above or below it, so a run of them shares one border */
   joinsAbove?: boolean
@@ -141,6 +162,7 @@ export function RefundChainRow({
   amount,
   currency,
   notSaved = false,
+  isNew = false,
   joinsAbove = false,
   joinsBelow = false,
   unlink,
@@ -205,6 +227,16 @@ export function RefundChainRow({
         <p className="break-words text-sm font-medium leading-5" style={{ color: 'var(--app-text)' }}>
           {merchantName}
           {notSaved && <span className="sr-only">, not saved yet</span>}
+          {/* Sits after the name, 4px off it, as a word a screen reader hears in its place */}
+          {isNew && (
+            <span
+              className="ml-1 inline-block rounded-full px-1.5 align-[1px] text-[0.625rem] font-semibold uppercase leading-4 tracking-wider"
+              style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent)' }}
+              data-testid="refund-chain-new"
+            >
+              <span className="sr-only">, </span>New
+            </span>
+          )}
         </p>
         {/* Wraps between whole phrases on a narrow screen rather than cutting the date off. Each phrase draws its
             dot in front, and the negative margin pushes the dot of a phrase starting a line out of the clipped box.
@@ -263,19 +295,34 @@ interface RefundChainFooterProps {
 
   /** Keeps Unlink's room after the total, so it ends on the same edge as the amounts above it */
   keepsUnlinkRoom: boolean
+
+  /** Shown before the total in a preview. A preview has no section heading to carry the badge */
+  status?: RefundStatus | null
+
+  /** Has a screen reader read the whole line out again when the total changes, as a preview's picks change it */
+  announcesChanges?: boolean
 }
 
 /** Closes the chain with what is left to refund of the expense, held at its height while that is worked out */
-export function RefundChainFooter({ room, currency, keepsUnlinkRoom }: RefundChainFooterProps) {
+export function RefundChainFooter({
+  room,
+  currency,
+  keepsUnlinkRoom,
+  status,
+  announcesChanges = false,
+}: RefundChainFooterProps) {
   const { formatCurrency } = useMoneyFormatters()
   return (
     <div
       className="mt-2 flex items-center gap-3 border-t pt-2.5 text-sm leading-5"
       style={{ borderColor: 'var(--app-border)' }}
+      aria-live={announcesChanges ? 'polite' : undefined}
+      aria-atomic={announcesChanges ? true : undefined}
     >
       <span className="flex-1" style={{ color: 'var(--app-text-muted)' }}>
         Left to refund
       </span>
+      {status && room !== undefined && <RefundStatusBadge status={status} />}
       {room === undefined ? (
         <span role="status" style={{ color: 'var(--app-text-muted)' }}>
           Loading…

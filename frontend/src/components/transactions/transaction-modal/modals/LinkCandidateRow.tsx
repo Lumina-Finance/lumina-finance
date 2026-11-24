@@ -1,6 +1,7 @@
+import { useId } from 'react'
 import type { Category } from '@/api/categories'
 import type { Institution } from '@/api/institutions'
-import type { Transaction } from '@/api/transactions'
+import type { RefundLinkCandidate } from '@/api/transactions'
 import TransactionRow from '@/components/transactions/Row'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 
@@ -14,28 +15,52 @@ const PICKED_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
 const PICKED_ROW_CLASS_NAME =
   'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-chosen-hover-fill)] [&_.app-transaction-row]:bg-transparent!'
 
-// A row that can't be picked wears the app's standard disabled strength, and eases to and from it as picks change. The
-// whole of the row's content fades, its cells and its title, whereas the row around it draws the keyboard focus
-// ring and stays at full strength
-const CONTENT_CLASS_NAME =
-  '[&_[data-row-content]]:transition-opacity motion-reduce:[&_[data-row-content]]:transition-none'
+// A row that can't be picked wears the app's standard disabled strength. The whole of the row's content fades, its
+// cells and its title, whereas the row around it draws the keyboard focus ring and stays at full strength
 const DISABLED_CONTENT_CLASS_NAME = '[&_[data-row-content]]:opacity-50'
 
+// A row with a line under it, its reasons or why it can't be linked, moves the row's separator below that line
+const HAS_LINE_CLASS_NAME = '[&_.app-transaction-row]:[border-bottom-color:transparent]!'
+
+// The line under the row starts where the row's merchant name does
+const LINE_CLASS_NAME = 'flex flex-wrap gap-1.5 pb-2.5 pl-[3.75rem] pr-3 -mt-1'
+
+/** Says why a candidate is a likely match, in a line under its row */
+export function LikelyMatchChips({ sameMerchant, exactAmount }: { sameMerchant: boolean; exactAmount: boolean }) {
+  return (
+    <>
+      {[sameMerchant && 'Same merchant', exactAmount && 'Exact amount'].filter(Boolean).map((label) => (
+        <span
+          key={label as string}
+          className="rounded-full px-2 text-xs font-medium leading-5"
+          style={{ background: 'var(--app-surface-soft)', color: 'var(--app-text-muted)' }}
+          data-testid="likely-chip"
+        >
+          {label}
+        </span>
+      ))}
+    </>
+  )
+}
+
 interface LinkCandidateRowProps {
-  transaction: Transaction
+  transaction: RefundLinkCandidate
   category: Category | undefined
   accountName: string | undefined
   accountInstitution: Institution | null | undefined
   isPicked: boolean
 
-  /** Why the row can't be picked now, shown in the shared tooltip like a greyed out button's. Null when it can be */
+  /** Shows why the row is a likely match under it */
+  showsChips: boolean
+
+  /** Why the row can't be linked now, written under it. Null when it can be */
   refusal: string | null
   onPick: () => void
 }
 
 /**
- * A row of the link picker. A row that can't be picked is greyed out, and its reason is given by the tooltip on
- * hover, keyboard focus and tap and by its description for a screen reader, never written into the row
+ * A row of the link picker. A likely match says why under it. A row that can't be linked is greyed out with its
+ * reason written under it, never only in a tooltip, and describes the row's button for a screen reader
  */
 export default function LinkCandidateRow({
   transaction,
@@ -43,19 +68,28 @@ export default function LinkCandidateRow({
   accountName,
   accountInstitution,
   isPicked,
+  showsChips,
   refusal,
   onPick,
 }: LinkCandidateRowProps) {
-  const reason = useDisabledReason(refusal)
+  const reasonId = useId()
+  const reason = useDisabledReason(refusal, reasonId)
+  const chips = showsChips && (transaction.same_merchant || transaction.exact_amount)
+  const hasLine = Boolean(refusal) || chips
   return (
     <div
-      className={isPicked ? `${ROW_CLASS_NAME} ${PICKED_ROW_CLASS_NAME}` : ROW_CLASS_NAME}
-      style={isPicked ? PICKED_ROW_STYLE : RESTING_ROW_STYLE}
+      className={[ROW_CLASS_NAME, isPicked && PICKED_ROW_CLASS_NAME, hasLine && HAS_LINE_CLASS_NAME]
+        .filter(Boolean)
+        .join(' ')}
+      style={{
+        ...(isPicked ? PICKED_ROW_STYLE : RESTING_ROW_STYLE),
+        ...(hasLine && { borderBottom: '1px solid var(--app-border)' }),
+      }}
       data-testid="link-candidate"
       data-picked={isPicked ? 'true' : undefined}
       data-refused={refusal ? 'true' : undefined}
     >
-      <div className={refusal ? `${CONTENT_CLASS_NAME} ${DISABLED_CONTENT_CLASS_NAME}` : CONTENT_CLASS_NAME}>
+      <div className={refusal ? DISABLED_CONTENT_CLASS_NAME : undefined}>
         <TransactionRow
           transaction={transaction}
           currency={transaction.currency}
@@ -69,7 +103,18 @@ export default function LinkCandidateRow({
           onOpen={onPick}
         />
       </div>
-      {reason.tooltip}
+      {refusal ? (
+        <p id={reasonId} className={`${LINE_CLASS_NAME} text-xs`} style={{ color: 'var(--app-text-muted)' }}>
+          {refusal}
+        </p>
+      ) : (
+        chips && (
+          // A press on the reasons picks the row as a press on the row does. The keyboard reaches the row's button
+          <div className={`${LINE_CLASS_NAME} cursor-pointer`} onClick={onPick}>
+            <LikelyMatchChips sameMerchant={transaction.same_merchant} exactAmount={transaction.exact_amount} />
+          </div>
+        )
+      )}
     </div>
   )
 }

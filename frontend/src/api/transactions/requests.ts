@@ -9,6 +9,7 @@ import type {
   ExportTransactionsFilters,
   LinkCandidateFilters,
   OverviewFilters,
+  RefundLinkCandidate,
   Transaction,
   TransactionFilters,
   TransactionsOverview,
@@ -153,8 +154,8 @@ export function linkRefund(refundId: string, originalTransactionId: string) {
  * Fetches the transactions one can be linked to: the money that came in for an expense, the
  * expenses for a refund. The server applies the rules, so every one returned would be accepted
  *
- * The list comes with the exact amount first, then the nearest amounts, and takes the transaction list's
- * filters to narrow it
+ * The list comes with the likely matches first, each saying why, then the nearest amounts, and takes the
+ * transaction list's filters to narrow it
  *
  * @param filters - The transaction list's filters, narrowing the candidates the way they narrow the list
  * @param signal - Aborts the request when the search that asked for it is replaced
@@ -165,7 +166,7 @@ export function fetchRefundLinkCandidates(
   filters: LinkCandidateFilters = {},
   signal?: AbortSignal,
 ) {
-  return authenticatedFetch<Transaction[]>(
+  return authenticatedFetch<RefundLinkCandidate[]>(
     `/transactions/${transactionId}/refund-link-candidates` +
       buildQueryString({ ...filters, q: searchText || undefined } as Record<string, QueryStringValue>),
     { signal },

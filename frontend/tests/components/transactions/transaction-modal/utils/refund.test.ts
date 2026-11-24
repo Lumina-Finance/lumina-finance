@@ -2,18 +2,22 @@
  * Tests what the refund flow decides in the browser: when the Refund button is offered, what a refund
  * starts as, what it is saved with, and which transactions deleting a linked one can take with it
  */
+import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { buildInitialTransactionForm } from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildCreateTransactionPayload } from '@/components/transactions/transaction-modal/utils/payloads'
 import {
   buildRefundNote,
   canLinkAsRefund,
+  describeLinkedRefunds,
+  describeUnlinkable,
   getLinkedTransactionIds,
   getRefundAccounts,
   getRefundRoom,
   getRefundStatus,
   getRefusedRooms,
   getSelectableAccounts,
+  groupLinkCandidates,
   isRefundable,
   orderRefundsByDate,
 } from '@/components/transactions/transaction-modal/utils/refund'
@@ -235,5 +239,96 @@ describe('getRefusedRooms', () => {
       createTransaction({ id: 'full', amount: -2500, currency: 'USD', refunded_amount: 2500 }),
     ]
     expect(Object.fromEntries(getRefusedRooms(money, expenses, undefined, []))).toEqual({ short: 1500, full: 0 })
+  })
+})
+
+describe('groupLinkCandidates', () => {
+  // An expense of $420.00 with $135.00 left after two refunds
+  const expense = createTransaction({ amount: -42000, currency: 'USD' })
+  const candidate = (id: string, amount: number, same_merchant: boolean, exact_amount: boolean) => ({
+    ...createTransaction({ id, amount, currency: 'USD' }),
+    same_merchant,
+    exact_amount,
+  })
+  const candidates = [
+    candidate('harbor-refund', 13500, true, true),
+    candidate('harbor-credit', 6000, true, false),
+    candidate('northwind', 13500, false, false),
+    candidate('payroll', 320000, false, false),
+    candidate('over', 14000, false, false),
+  ]
+  const ids = (rows: { id: string }[]) => rows.map(({ id }) => id)
+  const grouped = (picked: string[]) => {
+    const groups = groupLinkCandidates(candidates, getRefusedRooms(expense, candidates, 13500, picked))
+    return {
+      likely: ids(groups.likely),
+      other: ids(groups.other),
+      unlinkable: ids(groups.unlinkable.map((u) => u.candidate)),
+    }
+  }
+
+  it('puts likely matches first and folds away what is more than is left', () => {
+    expect(grouped([])).toEqual({
+      likely: ['harbor-refund', 'harbor-credit'],
+      other: ['northwind'],
+      unlinkable: ['payroll', 'over'],
+    })
+  })
+
+  it('folds the rows a pick leaves no room for, and brings them back when it is undone', () => {
+    const unpicked = grouped([])
+
+    expect(grouped(['harbor-credit'])).toEqual({
+      likely: ['harbor-credit'],
+      other: [],
+      unlinkable: ['harbor-refund', 'northwind', 'payroll', 'over'],
+    })
+    expect(grouped([])).toEqual(unpicked)
+  })
+
+  it('puts every candidate in exactly one group, and a picked one never among those that cannot be linked', () => {
+    const rows = fc.uniqueArray(
+      fc.record({
+        id: fc.uuid(),
+        amount: fc.integer({ min: 1, max: 50000 }),
+        same_merchant: fc.boolean(),
+        exact_amount: fc.boolean(),
+      }),
+      { selector: (row) => row.id, maxLength: 12 },
+    )
+    fc.assert(
+      fc.property(rows, fc.integer({ min: 0, max: 60000 }), fc.array(fc.nat()), (rows, room, picks) => {
+        const offered = rows.map((row) => ({ ...createTransaction({ ...row, currency: 'USD' }), ...row }))
+        const pickedIds = rows.length === 0 ? [] : picks.map((pick) => rows[pick % rows.length].id)
+        const refused = getRefusedRooms(expense, offered, room, pickedIds)
+        const groups = groupLinkCandidates(offered, refused)
+        const placed = [...ids(groups.likely), ...ids(groups.other), ...ids(groups.unlinkable.map((u) => u.candidate))]
+
+        expect(placed.toSorted()).toEqual(ids(offered).toSorted())
+        expect(groups.unlinkable.every(({ candidate }) => !pickedIds.includes(candidate.id))).toBe(true)
+        expect(groups.likely.every((row) => row.same_merchant || row.exact_amount)).toBe(true)
+      }),
+    )
+  })
+})
+
+describe('describeUnlinkable', () => {
+  it('says why the refunds an expense cannot take are held back', () => {
+    expect(describeUnlinkable(true, [13500, 13500])).toBe("2 can't be linked, each more than what's left")
+    expect(describeUnlinkable(true, [7500])).toBe("1 can't be linked, more than what's left")
+    expect(describeUnlinkable(true, [0, 0, 0])).toBe("3 can't be linked, nothing is left to refund")
+  })
+
+  it('says why the expenses a refund cannot go to are held back, and only the count when they differ', () => {
+    expect(describeUnlinkable(false, [1500, 200])).toBe("2 can't be linked, each with less than this refund left")
+    expect(describeUnlinkable(false, [0])).toBe("1 can't be linked, already refunded in full")
+    expect(describeUnlinkable(false, [1500, 0])).toBe("2 can't be linked")
+  })
+})
+
+describe('describeLinkedRefunds', () => {
+  it('counts the refunds a chain already holds', () => {
+    expect(describeLinkedRefunds(1)).toBe('1 refund linked')
+    expect(describeLinkedRefunds(2)).toBe('2 refunds linked')
   })
 })

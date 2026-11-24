@@ -140,6 +140,18 @@ export type ExportTransactionsRequest = { transactionIds: string[] } | { filters
 export type LinkCandidateFilters = Omit<TransactionFilters, 'q' | 'sort_by' | 'sort_order' | 'limit' | 'offset'> & {
   /** Refunds whose link the open edit window will remove on Save, offered as if already unlinked */
   unlinked_id?: string[]
+
+  /** What an expense's open edit window shows it has left to refund, counting the links it holds */
+  left_to_refund?: number
+}
+
+/** A transaction offered for a refund link, saying why it is a likely match */
+export type RefundLinkCandidate = Transaction & {
+  /** Paid to or from the open transaction's own merchant, never a merchant the app ships such as Myself */
+  same_merchant: boolean
+
+  /** For exactly what is left to refund, on the expense's side or the refund's */
+  exact_amount: boolean
 }
 
 export interface OverviewFilters {

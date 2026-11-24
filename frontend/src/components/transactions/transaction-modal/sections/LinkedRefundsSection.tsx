@@ -4,6 +4,7 @@ import { useCategories } from '@/api/categories'
 import TransactionModalLinkRefundPicker from '@/components/transactions/transaction-modal/modals/LinkRefundPicker'
 import RevealRow from '@/components/transactions/transaction-modal/sections/RevealRow'
 import {
+  NO_MERCHANT,
   RefundChainBox,
   RefundChainFooter,
   RefundChainGap,
@@ -35,7 +36,6 @@ import {
 // Shown in place of the button that opens the picker while nothing in it could be picked
 const NO_EXPENSE_FITS = 'No expense has room for this refund.'
 
-const NO_MERCHANT = 'No merchant'
 const LOAD_FAILED = 'Oops, something went wrong loading the linked transaction. Please reopen this transaction.'
 
 /** Where a refund row sits in the chain: whether it ends the line, and which unsaved neighbours share its border */
@@ -180,13 +180,16 @@ export default function TransactionModalLinkedRefundsSection({
   const originalRoom =
     original && siblingsLoaded ? getRefundRoom(original, [...(siblings as Transaction[]), current]) : undefined
 
+  // The server counts an expense's saved refunds when it puts the likely matches first. Links and refunds the window
+  // holds are counted only when it is told what the window shows is left
+  const leftToRefund = !isRefund && (pending.links.length > 0 || pending.refunds.length > 0) ? refundRoom : undefined
+
   // The button that opens the picker is held off while nothing in the unfiltered list could be picked. The query is
   // the picker's own with nothing searched or filtered, so the two share one request
-  const candidates = useRefundLinkCandidates(
-    canLinkRefund || canLinkExpense ? current.id : null,
-    '',
-    pending.unlinkedRefundIds.length > 0 ? { unlinked_id: pending.unlinkedRefundIds } : {},
-  )
+  const candidates = useRefundLinkCandidates(canLinkRefund || canLinkExpense ? current.id : null, '', {
+    ...(pending.unlinkedRefundIds.length > 0 && { unlinked_id: pending.unlinkedRefundIds }),
+    ...(leftToRefund !== undefined && { left_to_refund: leftToRefund }),
+  })
   const unheld = candidates.data?.filter((candidate) => !pending.links.some((link) => link.id === candidate.id))
   // Until what is left to refund is known, the button shows, so the reason never goes without its amount. An unlink
   // asks for the list again, and until the new list lands the old one shows without the link just freed. That link
@@ -496,6 +499,9 @@ export default function TransactionModalLinkedRefundsSection({
         heldIds={pending.links.map((link) => link.id)}
         unlinkedIds={pending.unlinkedRefundIds}
         refundRoom={refundRoom}
+        leftToRefund={leftToRefund}
+        linkedCount={refundCount}
+        iconOf={iconOf}
         onPick={(picked) => {
           picked.forEach(pending.addLink)
           focusAfterPick.current = isRefund ? current.id : (picked.at(-1)?.id ?? null)
