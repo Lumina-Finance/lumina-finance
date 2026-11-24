@@ -17,7 +17,7 @@ from app.models.transaction import Transaction
 from app.models.transaction_link import TransactionLink
 from app.models.user import User
 from app.permissions import check_transaction_access
-from app.schemas.transaction import RefundLinkCandidate, TransactionResponse
+from app.schemas.transaction import RefundLinkCandidateResponse, TransactionResponse
 from app.services.transactions.accounts import get_parent_account_for_transaction
 from app.services.transactions.links import get_refunded_amounts
 from app.services.transactions.listing import list_transaction_responses
@@ -52,12 +52,12 @@ async def list_refund_link_candidates(
     filters: CandidateFilters | None = None,
     unlinked_ids: list[uuid.UUID] | None = None,
     left_to_refund: int | None = None,
-) -> list[RefundLinkCandidate]:
+) -> list[RefundLinkCandidateResponse]:
     """Return the transactions a transaction can be linked to, the likely matches first
 
     A candidate paid to or from the transaction's own merchant, for exactly what is left to refund,
-    comes first, then one for exactly that amount, then one from the same merchant, so the limit never
-    hides a likely match. Within each, and after them, the nearer an amount is to the transaction's the
+    comes first, then one for exactly that amount, then one from the same merchant, so closer amounts
+    never push a likely match past the limit. Within each, and after them, the nearer an amount is to the transaction's the
     earlier it comes, and a tie goes to the newer date. Only the transaction's own currency is offered.
 
     An expense that can be refunded is offered the money that came in and is not yet the refund of
@@ -150,13 +150,11 @@ async def list_refund_link_candidates(
         if own_original_id in refunded:
             refunded[own_original_id] -= anchor.amount
 
-    def flagged(candidate: TransactionResponse) -> RefundLinkCandidate:
+    def flagged(candidate: TransactionResponse) -> RefundLinkCandidateResponse:
         is_exact = (
-            candidate.amount == left_to_refund
-            if anchor.amount < 0
-            else -candidate.amount - refunded.get(candidate.id, 0) == anchor.amount
+            candidate.amount == left_to_refund if anchor.amount < 0 else -candidate.amount - refunded.get(candidate.id, 0) == anchor.amount
         )
-        return RefundLinkCandidate(
+        return RefundLinkCandidateResponse(
             **candidate.model_dump(exclude={"refunded_amount"}),
             refunded_amount=refunded.get(candidate.id, 0) if anchor.amount > 0 else None,
             same_merchant=merchant_matches and candidate.merchant_id == anchor.merchant_id,

@@ -39,7 +39,7 @@ from app.schemas.transaction import (
     CreateTransactionRequest,
     ExportSelectedTransactionsRequest,
     LinkRefundRequest,
-    RefundLinkCandidate,
+    RefundLinkCandidateResponse,
     TransactionResponse,
     TransactionsOverview,
     UpdateTransactionRequest,
@@ -184,7 +184,7 @@ async def list_transactions(
     )
 
 
-@router.get("/{transaction_id}/refund-link-candidates", response_model=list[RefundLinkCandidate])
+@router.get("/{transaction_id}/refund-link-candidates", response_model=list[RefundLinkCandidateResponse])
 async def list_refund_link_candidates_route(
     transaction_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],

@@ -117,7 +117,7 @@ class TransactionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class RefundLinkCandidate(TransactionResponse):
+class RefundLinkCandidateResponse(TransactionResponse):
     """A transaction offered by the refund link picker, with why it is a likely match"""
 
     # Paid to or from the open transaction's own merchant. A merchant the app ships, such as Myself
