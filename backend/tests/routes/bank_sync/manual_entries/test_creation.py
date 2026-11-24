@@ -15,7 +15,7 @@ from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankLinkState
 from tests.conftest import TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_link, _commit_listed_connection
-from tests.routes.support.lock_helpers import _wait_until_waiting_on
+from tests.routes.support.lock_helpers import _cancel_unfinished, _wait_until_waiting_on
 from tests.routes.support.manual_entry_helpers import (
     IMPORT_START,
     INSIDE,
@@ -95,19 +95,23 @@ async def test_a_manual_transaction_waits_for_a_link_being_made_and_is_then_refu
     ledger = await _ledger(client)
     connection = await _commit_listed_connection(ledger.user_id)
 
-    async with TestSession() as linking:
-        await linking.execute(select(Account.id).where(Account.id == uuid.UUID(ledger.everyday_id)).with_for_update(key_share=True))
-        account = await linking.get_one(Account, uuid.UUID(ledger.everyday_id))
-        link = _build_bank_link(account, connection)
-        link.import_start = IMPORT_START
-        link.checkpoint = IMPORT_START - timedelta(days=1)
-        linking.add(link)
-        await linking.flush()
-        linking_pid = await linking.scalar(select(func.pg_backend_pid()))
-        adding = asyncio.create_task(_add(client, ledger, ledger.everyday_id, date(2026, 7, 12)))
-        await _wait_until_waiting_on(linking_pid, adding)
-        await linking.commit()
-    added = await asyncio.wait_for(adding, 10)
+    requests: list[asyncio.Task] = []
+    try:
+        async with TestSession() as linking:
+            await linking.execute(select(Account.id).where(Account.id == uuid.UUID(ledger.everyday_id)).with_for_update(key_share=True))
+            account = await linking.get_one(Account, uuid.UUID(ledger.everyday_id))
+            link = _build_bank_link(account, connection)
+            link.import_start = IMPORT_START
+            link.checkpoint = IMPORT_START - timedelta(days=1)
+            linking.add(link)
+            await linking.flush()
+            linking_pid = await linking.scalar(select(func.pg_backend_pid()))
+            requests.append(asyncio.create_task(_add(client, ledger, ledger.everyday_id, date(2026, 7, 12))))
+            await _wait_until_waiting_on(linking_pid, requests[0])
+            await linking.commit()
+        added = await asyncio.wait_for(requests[0], 10)
+    finally:
+        await _cancel_unfinished(requests)
 
     assert added.status_code == 422, added.text
     assert added.json()["detail"] == SUPPLIED

@@ -27,6 +27,11 @@ _QUEUED_BEHIND = text(
 )
 
 
+# How long a request may take to reach a lock. The wait ends as soon as the request queues, so only a request
+# that never queues reaches the limit, and on a loaded host a request can take longer than 5 s to get there
+_QUEUE_WAIT_SECONDS = 30
+
+
 async def _wait_until_waiting_on(blocker_pid: int, request: asyncio.Future, waiters: int = 1):
     """Wait until this many backends queue behind a lock the blocker holds, failing if the request answers first
 
@@ -34,7 +39,7 @@ async def _wait_until_waiting_on(blocker_pid: int, request: asyncio.Future, wait
     race it is there for. Several requests gathered into one future count as one request that answers
     when all of them have
     """
-    async with asyncio.timeout(5), TestSession() as observer:
+    async with asyncio.timeout(_QUEUE_WAIT_SECONDS), TestSession() as observer:
         while True:
             if request.done():
                 raise AssertionError(f"The request answered without queueing behind the lock: {request.result()!r}")
@@ -56,7 +61,7 @@ async def _cancel_unfinished(requests: Sequence[asyncio.Task]) -> None:
 
 async def _wait_until_blocked(blocker_pid: int, blocked_pid: int) -> None:
     """Observe the actual PostgreSQL wait rather than assuming a scheduled task reached the lock."""
-    async with asyncio.timeout(5):
+    async with asyncio.timeout(_QUEUE_WAIT_SECONDS):
         async with TestSession() as observer:
             while blocker_pid not in await observer.scalar(
                 text("SELECT pg_blocking_pids(:pid)"),
