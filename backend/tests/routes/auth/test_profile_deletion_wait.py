@@ -4,7 +4,6 @@ import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import func, select, text, update
@@ -82,7 +81,8 @@ async def test_delete_with_a_wait_marks_the_profile_and_keeps_everything_else(
 ):
     """The request marks the profile with its due time, ends every session and emailed link, keeps connections and data, and emails the date"""
     profile_deletion_wait(_WAIT)
-    requested_at = datetime.now(UTC)
+    # 03:00 UTC is still the evening before in Toronto, where the profile is, so the date is told in its zone
+    requested_at = datetime(2026, 12, 1, 3, 0, tzinfo=UTC)
     freeze_now(request_module, requested_at)
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
@@ -114,13 +114,11 @@ async def test_delete_with_a_wait_marks_the_profile_and_keeps_everything_else(
     for device in (headers, other_device[0]):
         assert (await client.get("/auth/2fa/status", headers=device)).status_code == 401, "every session has ended"
     assert profile_deletions == [], "nothing is deleted yet"
-    due_day = (requested_at + _WAIT).astimezone(ZoneInfo(SIGNUP_PAYLOAD["tz"]))
-    due_date = f"{due_day.day} {due_day:%B %Y}"
     assert [(recipient, message.subject) for recipient, message in sent_action_emails] == [
-        (_EMAIL, f"Your profile will be deleted on {due_date}")
+        (_EMAIL, "Your profile will be deleted on 7 December 2026")
     ]
     body = sent_action_emails[0][1].text_body
-    assert due_date in body and "sign in and press Cancel deletion before then" in body
+    assert "7 December 2026" in body and "Please sign in and cancel before then." in body
 
 
 async def test_delete_with_no_wait_deletes_at_once_and_sends_no_email(client, sent_action_emails, profile_deletions):
@@ -264,14 +262,19 @@ async def test_cancel_works_for_a_user_whose_second_factor_re_enrolment_is_requi
     assert cancelled.json()["second_factor_reenrollment_required"] is True, "re-enrolment follows the cancel"
 
 
-async def test_cancel_for_a_profile_that_was_never_marked_is_a_conflict(client):
-    """A user not waiting to be deleted gets a conflict and nothing changes"""
-    headers = _get_auth_header(await _create_user(client))
+async def test_cancel_for_a_profile_that_is_not_marked_answers_with_the_user_and_changes_nothing(client):
+    """A second tab cancelling after the first has cancelled finds nothing to cancel and is told so with the user"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    headers = _get_auth_header(signup)
 
     response = await client.post(_CANCEL, headers=headers)
 
-    assert response.status_code == 409
-    assert response.json()["detail"] == "Your profile is not waiting to be deleted"
+    assert response.status_code == 200, response.text
+    assert response.json()["deletion_due_at"] is None
+    assert response.json()["email"] == _EMAIL
+    after = await _stored_user(user_id)
+    assert (after.deletion_requested_at, after.deletion_due_at, after.deletion_reminder_sent_at) == (None, None, None)
 
 
 async def test_the_run_ends_the_sessions_of_the_wait_before_it_deletes_anything(client, profile_deletion_wait, monkeypatch):

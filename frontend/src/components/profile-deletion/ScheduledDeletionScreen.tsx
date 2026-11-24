@@ -4,7 +4,7 @@ import { DeletionDate } from '@/components/profile-deletion/DeletionDate'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { getSaveFailureMessage } from '@/utils/createFailure'
-import { formatDeletionDueDate, isCancelTooLate } from '@/utils/profileDeletion'
+import { formatDeletionDueDate, settleCancel } from '@/utils/profileDeletion'
 
 type ScheduledDeletionScreenProps = {
   /** When the profile is deleted, as an ISO time */
@@ -25,14 +25,15 @@ export default function ScheduledDeletionScreen({ dueAt }: ScheduledDeletionScre
 
   async function cancelDeletion() {
     setCancelling(true)
-    try {
-      setUser(await cancelProfileDeletion())
+    const outcome = await settleCancel(cancelProfileDeletion)
+    if (outcome.kind === 'cancelled') {
+      setUser(outcome.user)
       showToast({ status: 'success', text: 'Deletion cancelled' })
-    } catch (error) {
-      showToast({ status: 'error', text: getSaveFailureMessage(error) })
-      setCancelling(false)
-      if (isCancelTooLate(error)) await logout()
+      return
     }
+    showToast({ status: 'error', text: getSaveFailureMessage(outcome.error) })
+    setCancelling(false)
+    if (outcome.kind === 'too-late') await logout()
   }
 
   return (

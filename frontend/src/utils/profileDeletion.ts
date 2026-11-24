@@ -1,4 +1,5 @@
 import { ApiError } from '@/api/auth'
+import type { User } from '@/api/auth/types'
 import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 /**
@@ -30,4 +31,22 @@ const DELETION_UNDER_WAY_STATUS = 409
 /** Whether a failed cancel came too late, because the deletion has begun and the user's session is no use any more */
 export function isCancelTooLate(error: unknown) {
   return error instanceof ApiError && error.status === DELETION_UNDER_WAY_STATUS
+}
+
+/** How a cancel ended: the user to hand back to the app, a refusal that came too late, or any other failure */
+export type CancelOutcome =
+  { kind: 'cancelled'; user: User } | { kind: 'too-late'; error: unknown } | { kind: 'failed'; error: unknown }
+
+/**
+ * Runs a cancel and says how it ended. A profile a second tab already cancelled answers like a cancel that
+ * worked, with the user and no due time, so the app comes back and nothing signs out
+ *
+ * @param cancel - Sends the cancel and answers with the user
+ */
+export async function settleCancel(cancel: () => Promise<User>): Promise<CancelOutcome> {
+  try {
+    return { kind: 'cancelled', user: await cancel() }
+  } catch (error) {
+    return { kind: isCancelTooLate(error) ? 'too-late' : 'failed', error }
+  }
 }
