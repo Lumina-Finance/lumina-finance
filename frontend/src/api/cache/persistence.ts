@@ -47,7 +47,8 @@ const TIMED_SAVE_INTERVAL_MS = 1000
 // Version 12 adds the profile deletion wait, in seconds, every linked sign-in list carries
 // Version 13 adds the reason every account, budget and tax-advantaged category gives while its currency
 // keeps it read-only
-const PERSISTED_CACHE_SHAPE = '13'
+// Version 14 adds whether each refund link candidate shares the merchant and matches the amount left
+const PERSISTED_CACHE_SHAPE = '14'
 
 /**
  * What local storage holds: the saved cache sealed under the user's key, and in plain text only what
