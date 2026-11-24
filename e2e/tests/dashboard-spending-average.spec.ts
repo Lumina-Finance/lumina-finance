@@ -287,9 +287,14 @@ test('keeps nothing from a press moved off the control before the hold is over',
 
 test('sinks only its inside when pressed, so a hold at its edge still keeps it', async ({ page, request }) => {
   await seedThreeMonths(page, request)
+  await page.clock.install()
   await openPage(page, '/dashboard')
   const toggle = averageToggle(page)
   const box = await stableBox(toggle)
+  // A press counts as long once 600 ms pass on the page's clock, and the button then grows for its dot. The clock
+  // stands still while the press is checked, so a slow machine can't run the hold out before the box is read.
+  // Motion stays on, since the sink and the growth are CSS transitions that run on the browser's own timeline
+  await page.clock.pauseAt(Date.now() + 1_000)
   const scaleOf = (selector: string) =>
     toggle.locator(selector).evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a)
 
@@ -304,6 +309,8 @@ test('sinks only its inside when pressed, so a hold at its edge still keeps it',
   expect(await scaleOf('.app-hold-toggle-label')).toBeCloseTo(0.9, 2)
   expect(await toggle.boundingBox()).toEqual(box)
 
+  // Long enough to run the hold's timer out
+  await page.clock.runFor(1_000)
   await expect(toggle).toHaveAccessibleName(KEPT_NAME, { timeout: 5_000 })
   await page.mouse.up()
   // Kept, the tint is wider for the dot, and the inside is back at full size
