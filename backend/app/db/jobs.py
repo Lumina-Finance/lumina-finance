@@ -110,13 +110,14 @@ async def run_migrate() -> None:
     grants, records the encryption key the stored secrets are under, or refuses when the key in hand
     is another, and creates or updates the currencies, system categories and system merchants. Needs
     the migrator's password, `MIGRATOR_DB_PASSWORD`, the `DB_HOST`, `DB_PORT` and `DB_NAME` of the
-    database, the encryption key and the bank transaction hash key, which the migrations that hash
-    saved transactions read. It needs neither the admin login nor the app role's password. A run
-    while another set-up run goes waits for it
+    database, the encryption key and the bank transaction hash key. The migrations refuse to start
+    under another hash key than the one the database recorded, before any of them changes anything,
+    and the ones that hash saved transactions read it. It needs neither the admin login nor the app
+    role's password. A run while another set-up run goes waits for it
 
     Raises:
         RuntimeError: The encryption key is missing or is not the one the stored secrets are under, or
-            a pending migration needs the bank transaction hash key and it is missing
+            the bank transaction hash key is missing or is not the one the database recorded
     """
     engine = create_async_engine(migration_database_url(), hide_parameters=True)
     try:

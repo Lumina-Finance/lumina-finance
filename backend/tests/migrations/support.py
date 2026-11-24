@@ -4,10 +4,13 @@ Each test builds its own database rather than reusing the worker's. The test har
 from the model metadata, so what these tests see is what the migrations actually build
 """
 
+import hashlib
+import hmac
 import os
 import subprocess
 import sys
 from pathlib import Path
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
@@ -17,6 +20,45 @@ from app.config.database import MIGRATOR_DB_USER
 from tests.conftest import DB_HOST, DB_PASSWORD, DB_PORT, DB_USER
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+# The revision before the one that replaces each saved bank sync transaction ID with its keyed hash
+BEFORE_BANK_SYNC_ID_HASH_REVISION = "8d86357d118a"
+BANK_SYNC_ID_HASH_REVISION = "a2d7f4c8e1b6"
+
+BANK_SYNC_IDS = {
+    "user_id": UUID("11111111-1111-4111-8111-111111111111"),
+    "account_id": UUID("22222222-2222-4222-8222-222222222222"),
+}
+
+# Saved bank sync records as a database one revision before the hash holds them. Plain SQL, so a later
+# change to a model can't break the insert into a database built only up to that revision
+BANK_SYNC_SEED = (
+    "INSERT INTO currencies (id, name, symbol, minor_unit_exponent) VALUES ('CAD', 'Canadian Dollar', '$', 2) ON CONFLICT (id) DO NOTHING",
+    "INSERT INTO users (id, email, first_name, tz, base_currency) VALUES (:user_id, 'hash@example.com', 'Hash', 'America/Toronto', 'CAD')",
+    "INSERT INTO accounts (id, owner_id, account_kind, account_type, name, currency, is_archived) "
+    "VALUES (:account_id, :user_id, 'ASSET', 'CHECKING', 'Everyday', 'CAD', false)",
+    "INSERT INTO bank_transactions "
+    "(id, owner_id, account_id, provider, external_account_id, external_transaction_id, disposition, observed_date, observed_amount, "
+    "description, merchant_name, category_hint, extras, observed_at) "
+    "VALUES (gen_random_uuid(), :user_id, :account_id, 'simplefin', 'ACT-1', 'TRN-coffee', 'awaiting_review', '2026-10-02', -450, "
+    "'POS 4411 COFFEE', 'Corner Coffee', 'Dining', '{\"memo\": \"latte\"}', now())",
+    # A dismissed record keeps only its identity, so the hash must carry that alone
+    "INSERT INTO bank_transactions (id, owner_id, account_id, provider, external_account_id, external_transaction_id, disposition) "
+    "VALUES (gen_random_uuid(), :user_id, :account_id, 'simplefin', 'ACT-1', 'TRN-refund', 'dismissed')",
+    "INSERT INTO bank_pending_transactions "
+    "(id, owner_id, account_id, external_transaction_id, transaction_date, amount, description, observed_at) "
+    "VALUES (gen_random_uuid(), :user_id, :account_id, 'P-1', '2026-10-04', -2500, 'HOLD', now())",
+)
+
+
+def expected_bank_sync_hash(key: bytes, external_account_id: str, external_transaction_id: str) -> str:
+    """Return the hash the server keeps under a key for a SimpleFIN transaction, worked out here from its definition
+
+    HMAC-SHA256 under the key of the SHA-256 digest over the provider and bank account, a zero byte and
+    the transaction ID
+    """
+    digest = hashlib.sha256(f"simplefin:{external_account_id}".encode() + b"\0" + external_transaction_id.encode()).digest()
+    return hmac.new(key, digest, hashlib.sha256).hexdigest()
 
 
 async def _recreate_database(database_name: str) -> None:

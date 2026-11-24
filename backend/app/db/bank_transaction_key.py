@@ -1,8 +1,8 @@
 """Provision the bank transaction hash key and bind it to the hashes made with it
 
 The database records the key's fingerprint, written by the migration that introduced the hashes.
-The app refuses to start under any other key, and provisioning refuses to generate one over a
-database that has a key. An operator who has lost the key accepts the cost of a new one with
+The migrations and the app refuse to run under any other key, and provisioning refuses to generate
+one over a database that has a key. An operator who has lost the key accepts the cost of a new one with
 reset-key: every statement imported again then brings back the transactions already saved from it, and
 bank sync sends the transactions it fetches again back for review and stops correcting or removing the
 ones already saved
@@ -67,7 +67,8 @@ async def ensure_key(connection: AsyncConnection) -> None:
     """Generate and persist the key when the deployment has none and the database has none either
 
     A key that is set or persisted is only checked to be well formed here. Whether it is the one
-    the hashes were made with is checked at every start, by verify_key_matches_hashes
+    the hashes were made with is checked before any migration and at every start, by
+    verify_key_matches_hashes
 
     Args:
         connection: Open connection used to check for a recorded key or saved hashes
