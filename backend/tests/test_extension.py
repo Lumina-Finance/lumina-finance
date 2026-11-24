@@ -60,6 +60,8 @@ EXPECTED_SHAPES: dict[str, str] = {
     "EmailChange": "EmailChange(user_id: UUID, old_email: str, new_email: str)",
     "observe_profile_deletions": "observe_profile_deletions(observer: Callable[[ProfileDeletion], None]) -> None",
     "ProfileDeletion": "ProfileDeletion(user_id: UUID, deleted_at: datetime)",
+    "list_users": "async list_users(after: UUID | None = ..., session_factory: async_sessionmaker[AsyncSession] = ...) -> list[UserSummary]",
+    "UserSummary": "UserSummary(user_id: UUID, email: str, signed_up_at: datetime, last_signed_in_at: datetime | None)",
     "get_authenticated_user": "async get_authenticated_user(credentials: HTTPAuthorizationCredentials, db: AsyncSession) -> User",
     "set_email_sender": "set_email_sender(sender: EmailSender) -> None",
     "EmailSender": "async EmailSender.send(self, recipient: str, message: RenderedEmail) -> None",

@@ -7,8 +7,10 @@ from sqlalchemy import select, update
 
 from app.models.user import User, UserLastSignIn
 from app.services.auth import sessions
-from tests.conftest import TestSession
+from app.services.users.listing import list_users
+from tests.conftest import ScopedSession, TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _enroll, _fresh_totp_code, _refresh_session
+from tests.routes.support.identity_helpers import _act_as
 
 _PASSWORD = SIGNUP_PAYLOAD["password"]
 _CONFIRMED = datetime(2026, 3, 1, 14, 0, tzinfo=UTC)
@@ -28,6 +30,13 @@ async def test_confirming_a_sign_up_then_signing_in_then_renewing_each_store_the
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
     assert await _last_signed_in_at(user_id) == _CONFIRMED, "confirming the sign-up is the first sign-in"
+    async with TestSession() as session:
+        signed_up_at = await session.scalar(select(User.created_at).where(User.id == user_id))
+    async with _act_as(None):
+        listed = await list_users(session_factory=ScopedSession)
+    assert [(summary.user_id, summary.signed_up_at, summary.last_signed_in_at) for summary in listed] == [
+        (user_id, signed_up_at, _CONFIRMED)
+    ], "the list shows the sign-up and that first session"
 
     freeze_now(sessions, _SIGNED_IN)
     sign_in = await client.post("/auth/login", json={"email": SIGNUP_PAYLOAD["email"], "password": _PASSWORD})
