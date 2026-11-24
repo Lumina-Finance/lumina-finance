@@ -210,19 +210,22 @@ for (const range of ['WTD', 'MTD', 'QTD', 'YTD']) {
       answer()
       await expect(badge).toBeVisible()
       await expect(title).toHaveText(average ? /avg\.|average/ : /last/)
-      // The title rolls and the form it takes settles over a moment, so the tabs are sampled until ten frames in a
-      // row have been read, and none of them may have moved or wrapped
-      const samples: { tabs: unknown; sameLine: number }[] = []
-      await expect
-        .poll(
-          async () => {
-            samples.push({ tabs: await tabs.boundingBox(), sameLine: await sameLine() })
-            return samples.length
-          },
-          // Each read waits on a busy shared host, so ten of them can take longer than the usual 15 seconds
-          { intervals: [100], timeout: 45_000 },
-        )
-        .toBeGreaterThanOrEqual(10)
+      // The title rolls for under a second and the form it takes settles meanwhile, so the page reads the tabs and
+      // title on every frame for a second, and none of those frames may have moved or wrapped the tabs
+      const titleElement = await title.elementHandle()
+      const samples = await tabs.evaluate(async (tabsElement, titleElement) => {
+        const frames: { tabs: { x: number; y: number; width: number; height: number }; sameLine: number }[] = []
+        const start = performance.now()
+        while (performance.now() - start < 1000) {
+          await new Promise((resolve) => requestAnimationFrame(resolve))
+          const { x, y, width, height } = tabsElement.getBoundingClientRect()
+          const titleBox = titleElement!.getBoundingClientRect()
+          const sameLine = Math.abs(y + height / 2 - (titleBox.y + titleBox.height / 2))
+          frames.push({ tabs: { x, y, width, height }, sameLine })
+        }
+        return frames
+      }, titleElement)
+      expect(samples.length).toBeGreaterThanOrEqual(10)
       for (const sample of samples) {
         expect(sample.tabs).toEqual(before)
         expect(sample.sameLine).toBeLessThan(2)
