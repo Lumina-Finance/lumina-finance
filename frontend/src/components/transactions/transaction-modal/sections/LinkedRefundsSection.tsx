@@ -38,6 +38,13 @@ const NO_EXPENSE_FITS = 'No expense has room for this refund.'
 const NO_MERCHANT = 'No merchant'
 const LOAD_FAILED = 'Oops, something went wrong loading the linked transaction. Please reopen this transaction.'
 
+/** Where a refund row sits in the chain: whether it ends the line, and which unsaved neighbours share its border */
+interface RowPlace {
+  last: boolean
+  joinsAbove: boolean
+  joinsBelow: boolean
+}
+
 /**
  * Reads a linked transaction, and keeps showing what was loaded while Save has the copy reload, so its row never
  * drops to the shorter placeholder
@@ -254,7 +261,7 @@ export default function TransactionModalLinkedRefundsSection({
     refund: Pick<Transaction, 'merchant_name' | 'dt' | 'amount' | 'currency'>,
     notSaved: boolean,
     onUnlink: () => void,
-    last: boolean,
+    { last, joinsAbove, joinsBelow }: RowPlace,
   ) => (
     <RevealRow key={key} testId="linked-row" className="-mx-2" spacingClassName="px-2">
       <RefundChainGap place="above" />
@@ -266,6 +273,8 @@ export default function TransactionModalLinkedRefundsSection({
         amount={refund.amount}
         currency={refund.currency}
         notSaved={notSaved}
+        joinsAbove={joinsAbove}
+        joinsBelow={joinsBelow}
         unlink={readOnly ? undefined : { otherName: refund.merchant_name ?? NO_MERCHANT, disabled, onUnlink }}
         lineAbove
         lineBelow={!last}
@@ -277,12 +286,13 @@ export default function TransactionModalLinkedRefundsSection({
   )
 
   // Saved refunds, links Save has just made and links held until Save, in one date order. Each row is drawn once its
-  // place is known, since the last one ends the dashed line
+  // place is known, since the last one ends the dashed line and held rows next to each other share one border
   const refundRows = orderRefundsByDate(
     [
       ...savedRefundIds.map((refundId, index) => ({
         dt: savedRefunds[index]?.dt,
-        row: (last: boolean) => (
+        notSaved: false,
+        row: ({ last }: RowPlace) => (
           <RevealRow key={refundId} testId="linked-row" className="-mx-2" spacingClassName="px-2">
             <RefundChainGap place="above" />
             <SavedRefundRow
@@ -299,20 +309,24 @@ export default function TransactionModalLinkedRefundsSection({
       })),
       ...appliedRefundLinks.map((refund) => ({
         dt: refund.dt,
-        row: (last: boolean) => refundRow(refund.id, refund, false, () => pending.unlink(refund.id), last),
+        notSaved: false,
+        row: (place: RowPlace) => refundRow(refund.id, refund, false, () => pending.unlink(refund.id), place),
       })),
       ...appliedRefunds.map((refund) => ({
         dt: refund.preview.dt,
-        row: (last: boolean) => refundRow(refund.key, refund.preview, false, () => pending.unlink(refund.id), last),
+        notSaved: false,
+        row: (place: RowPlace) => refundRow(refund.key, refund.preview, false, () => pending.unlink(refund.id), place),
       })),
       ...pendingRefundLinks.map((refund) => ({
         dt: refund.dt,
-        row: (last: boolean) => refundRow(refund.id, refund, true, () => pending.removeLink(refund.id), last),
+        notSaved: true,
+        row: (place: RowPlace) => refundRow(refund.id, refund, true, () => pending.removeLink(refund.id), place),
       })),
       ...pending.refunds.map((refund) => ({
         dt: refund.preview.dt,
-        row: (last: boolean) =>
-          refundRow(refund.key, refund.preview, true, () => pending.removeRefund(refund.key), last),
+        notSaved: true,
+        row: (place: RowPlace) =>
+          refundRow(refund.key, refund.preview, true, () => pending.removeRefund(refund.key), place),
       })),
     ],
     (entry) => entry.dt,
@@ -446,7 +460,13 @@ export default function TransactionModalLinkedRefundsSection({
                     {expenseRow(current, false, 'refund-chain-expense')}
                     <RefundChainLead />
                     <AnimatePresence initial={false}>
-                      {refundRows.map(({ row }, index) => row(index === refundRows.length - 1))}
+                      {refundRows.map(({ row, notSaved }, index) =>
+                        row({
+                          last: index === refundRows.length - 1,
+                          joinsAbove: notSaved && refundRows[index - 1]?.notSaved === true,
+                          joinsBelow: notSaved && refundRows[index + 1]?.notSaved === true,
+                        }),
+                      )}
                     </AnimatePresence>
                     {!refundsLoadFailed && (
                       <RefundChainFooter room={refundRoom} currency={current.currency} keepsUnlinkRoom={!readOnly} />

@@ -154,11 +154,15 @@ test('greys out the refunds that no longer fit and updates them as rows are pick
   await expect(picker).toBeHidden()
   await expect(expense.getByTestId('linked-transaction')).toHaveCount(2)
   await expect(expense.getByTestId('linked-transaction')).toContainText(['not saved yet', 'not saved yet'])
-  // Two unsaved refunds in a row keep room between their borders, read again until the rows have finished growing in
+  // Two unsaved refunds in a row share one border with one label: the upper drops its bottom edge, the lower its top
+  // edge, and their sides meet, read again until the rows have finished growing in
   const held = expense.locator('[data-not-saved]')
+  await expect(expense.getByTestId('unsaved-label')).toHaveCount(1)
+  await expect(held.nth(0)).toHaveCSS('border-bottom-width', '0px')
+  await expect(held.nth(1)).toHaveCSS('border-top-width', '0px')
   await expect(async () => {
     const [upper, lower] = [await held.nth(0).boundingBox(), await held.nth(1).boundingBox()]
-    expect(lower!.y - (upper!.y + upper!.height)).toBeGreaterThan(2)
+    expect(lower!.y - (upper!.y + upper!.height)).toBeCloseTo(0, 0)
   }).toPass()
   await saveButton(expense).click()
   await expect(expense).toBeHidden()

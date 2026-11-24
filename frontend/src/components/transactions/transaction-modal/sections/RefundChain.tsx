@@ -58,7 +58,7 @@ function ChainSegment({ drawn, below = false }: { drawn: boolean; below?: boolea
  * Part of the dashed line between two refunds, drawn inside each refund's own row. That row clips as it grows and
  * collapses. The part takes 8px above the refund and 4px below it, so two refunds sit 12px apart. An unsaved
  * refund's dashed border reaches 4px into each, and its "Unsaved" label, centred on the border's top edge above
- * Unlink, takes the rest of the room above.
+ * Unlink, takes the rest of the room above. Under an unsaved refund joined to the one above, the border fills all 8px.
  * Under the last refund the part keeps its room with no line, so the line ends at that refund's icon
  */
 export function RefundChainGap({ place, drawn = true }: { place: 'above' | 'below'; drawn?: boolean }) {
@@ -113,6 +113,10 @@ interface RefundChainRowProps {
   /** Marks a link that Save has yet to make */
   notSaved?: boolean
 
+  /** Joins an unsaved row's border to the unsaved row above or below it, so a run of them shares one border */
+  joinsAbove?: boolean
+  joinsBelow?: boolean
+
   /** Offered on a refund the window can unlink, named after the transaction on the other side of the link */
   unlink?: { otherName: string; disabled: boolean; onUnlink: () => void }
 
@@ -137,6 +141,8 @@ export function RefundChainRow({
   amount,
   currency,
   notSaved = false,
+  joinsAbove = false,
+  joinsBelow = false,
   unlink,
   keepsUnlinkRoom = false,
   lineAbove = false,
@@ -145,14 +151,22 @@ export function RefundChainRow({
   testId,
 }: RefundChainRowProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
+  // A link Save has yet to make sits in a dashed border in the warning colour, with no fill, and "Unsaved" sits on
+  // the border's top edge above Unlink. The border reaches past the row by 8px on each side and 4px above and below,
+  // into the room between rows, and its padding takes that back. So the row keeps its place and height, and nothing
+  // moves when Save takes the border away. Unsaved rows next to each other share one border with one label: a row
+  // joined to the one above reaches through all 8px above it with no top edge, and a row joined to the one below
+  // drops its bottom edge, so their sides meet at the edge of the rows they grow in
+  const unsavedBox = notSaved
+    ? [
+        'relative -mx-2 border-x border-dashed px-[7px]',
+        joinsAbove ? '-mt-2 pt-2' : '-mt-1 rounded-t-lg border-t pt-[3px]',
+        joinsBelow ? '-mb-1 pb-1' : '-mb-1 rounded-b-lg border-b pb-[3px]',
+      ].join(' ')
+    : ''
   return (
-    // A link Save has yet to make sits in a dashed border in the warning colour, with no fill, and "Unsaved" sits on
-    // the border's top edge above Unlink. The border reaches past the row by 8px on each side and 4px above
-    // and below, into the room between rows, and its padding takes that back. So the row keeps its place and height,
-    // and nothing moves when Save takes the border away. Two unsaved refunds in a row keep 4px of the 12px between
-    // them, so their borders never touch
     <div
-      className={`flex items-center gap-3 ${notSaved ? 'relative -mx-2 -my-1 rounded-lg border border-dashed px-[7px] py-[3px]' : ''}`}
+      className={`flex items-center gap-3 ${unsavedBox}`}
       style={notSaved ? { borderColor: 'var(--app-warning-dot)' } : undefined}
       data-testid={testId}
       data-link-id={linkId}
@@ -163,7 +177,7 @@ export function RefundChainRow({
           the room Unlink keeps, ends, 7px of padding in from the right, so it stays off the border's rounded corner
           and clear of the dashed line that runs down through the icons. A screen reader hears "not saved yet" after
           the name instead */}
-      {notSaved && (
+      {notSaved && !joinsAbove && (
         <span
           className="absolute right-[7px] top-[-0.5px] -translate-y-1/2 px-1 text-[0.625rem] font-semibold uppercase leading-1.5 tracking-wider"
           style={{ background: 'var(--app-bg)', color: 'var(--app-warning-text)' }}
