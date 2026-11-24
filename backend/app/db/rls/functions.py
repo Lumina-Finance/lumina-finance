@@ -81,14 +81,17 @@ _FINISHED_JOB_RETENTION = "interval '30 days'"
 # database only through a migration that recreates the helpers
 _DELETION_REMINDER_LEAD = f"interval '{int(DELETION_REMINDER_LEAD.total_seconds())} seconds'"
 
-# A marked profile's bank connections neither sync nor claim jobs, since the deletion may be waiting or
-# under way. Each is the test on the owner column of the table the function reads
-_CONNECTION_OWNER_NOT_MARKED = """NOT EXISTS (
-                SELECT 1 FROM public.users marked WHERE marked.id = c.owner_id AND marked.deletion_requested_at IS NOT NULL
+
+def _owner_not_marked(alias: str) -> str:
+    """Return the SQL test that the owner of a row under this alias has no deletion mark
+
+    A marked profile's bank connections neither sync nor claim jobs, since the deletion may be waiting or
+    under way. The test is on the owner column of the table the function reads, under its alias
+    """
+    return f"""NOT EXISTS (
+                SELECT 1 FROM public.users marked WHERE marked.id = {alias}.owner_id AND marked.deletion_requested_at IS NOT NULL
             )"""
-_JOB_OWNER_NOT_MARKED = """NOT EXISTS (
-                SELECT 1 FROM public.users marked WHERE marked.id = j.owner_id AND marked.deletion_requested_at IS NOT NULL
-            )"""
+
 
 # Signatures the app no longer creates, dropped wherever the helpers are applied or revoked.
 # bump_user_cache stamped whatever user id it was given, and the app role can execute every
@@ -449,7 +452,7 @@ _HELPERS: tuple[_Helper, ...] = (
                         WHERE r.connection_id = j.connection_id AND r.status = 'running'
                     )
                 ) OR (j.status = 'running' AND j.lease_expires_at <= now())
-            ) AND {_JOB_OWNER_NOT_MARKED}
+            ) AND {_owner_not_marked("j")}
             ORDER BY
                 {_CLAIM_RANK_OF_KIND},
                 j.run_after,
@@ -482,7 +485,7 @@ _HELPERS: tuple[_Helper, ...] = (
         RETURN QUERY
         SELECT c.id, c.owner_id FROM public.bank_connections c
         WHERE c.credential_rejected_at IS NULL
-            AND {_CONNECTION_OWNER_NOT_MARKED}
+            AND {_owner_not_marked("c")}
             AND (
                 c.next_sync_at <= p_now
                 OR (
