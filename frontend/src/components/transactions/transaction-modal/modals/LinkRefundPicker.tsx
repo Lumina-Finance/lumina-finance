@@ -62,7 +62,7 @@ interface LinkRefundPickerProps {
 
 /**
  * Opens over the transaction modal to link existing refunds to an expense, or an existing expense to
- * a refund. The server lists only what linking would accept, the likely matches first, each saying why, and then the
+ * a refund. The server lists only what linking would accept, the likely matches first and then the
  * nearest, and the list's own filters narrow it. The list shows the likely matches and the others under their own
  * headings, and folds what can't be linked now into one row at the end that opens to say why for each. An expense
  * takes several refunds while their total stays within it, so each pick lowers what is left for the others and folds
