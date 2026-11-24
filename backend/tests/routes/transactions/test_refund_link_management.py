@@ -306,7 +306,8 @@ async def _merchant(client, headers, name):
 
 async def test_an_expenses_likely_refunds_lead_even_past_the_limit(client):
     """Same merchant and exactly what is left leads, then exactly what is left, then the same merchant,
-    then the nearest, so thirty closer amounts never push a likely match out."""
+    then the nearest, so thirty closer amounts never push a likely match out.
+    """
     headers, account_id, category_id = await _setup_user_with_deps(client)
     harbor = await _merchant(client, headers, "Harbor Electronics")
     northwind = await _merchant(client, headers, "Northwind Supply")
@@ -336,7 +337,8 @@ async def test_an_expenses_likely_refunds_lead_even_past_the_limit(client):
 
 async def test_a_refunds_likely_expenses_are_those_with_exactly_its_amount_left_or_its_merchant(client):
     """A refund is offered first the expenses from its merchant with exactly its amount left to refund,
-    then those with exactly its amount left, then those from its merchant."""
+    then those with exactly its amount left, then those from its merchant.
+    """
     headers, account_id, category_id = await _setup_user_with_deps(client)
     harbor = await _merchant(client, headers, "Harbor Electronics")
     northwind = await _merchant(client, headers, "Northwind Supply")
@@ -356,6 +358,36 @@ async def test_a_refunds_likely_expenses_are_those_with_exactly_its_amount_left_
         (ids["northwind exact"], False, True),
         (ids["harbor large"], True, False),
         (ids["northwind near"], False, False),
+    ]
+
+
+async def test_a_refund_unlinked_in_the_window_gives_its_amount_back_to_an_expenses_exact_match(client):
+    """An expense's refund the window unlinks no longer counts, so money for the whole expense is the exact match."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id, amount=-5000)).json()
+    held = await _refund(client, headers, account_id, category_id, expense["id"], amount=2000)
+    whole = (await _create_transaction(client, headers, account_id, category_id, amount=5000)).json()
+    rest = (await _create_transaction(client, headers, account_id, category_id, amount=3000)).json()
+
+    assert await _candidate_flags(client, headers, expense["id"]) == [(rest["id"], False, True), (whole["id"], False, False)]
+    assert await _candidate_flags(client, headers, expense["id"], unlinked_id=held["id"]) == [
+        (whole["id"], False, True),
+        (rest["id"], False, False),
+        (held["id"], False, False),
+    ]
+
+
+async def test_a_refund_unlinked_in_the_window_is_an_exact_match_for_the_expense_it_leaves(client):
+    """A refund being moved matches the expense it is leaving when that expense has exactly its amount left without it."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id, amount=-4000)).json()
+    await _refund(client, headers, account_id, category_id, expense["id"], amount=2500)
+    moving = await _refund(client, headers, account_id, category_id, expense["id"], amount=1500)
+    nearer = (await _create_transaction(client, headers, account_id, category_id, amount=-1600)).json()
+
+    assert await _candidate_flags(client, headers, moving["id"], unlinked_id=moving["id"]) == [
+        (expense["id"], False, True),
+        (nearer["id"], False, False),
     ]
 
 

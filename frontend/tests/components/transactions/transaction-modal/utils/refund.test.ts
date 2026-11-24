@@ -1,6 +1,7 @@
 /**
  * Tests what the refund flow decides in the browser: when the Refund button is offered, what a refund
- * starts as, what it is saved with, and which transactions deleting a linked one can take with it
+ * starts as, what it is saved with, the transactions deleting a linked one can take with it, how the link picker
+ * groups its rows by fit, and how it words the rows it folds and the refunds a chain holds
  */
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'

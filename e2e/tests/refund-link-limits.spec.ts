@@ -337,7 +337,8 @@ test('offers expenses again to a refund unlinked in the window', async ({ page, 
   await refund.getByRole('button', { name: 'Link to an expense', exact: true }).click()
   const picker = page.getByRole('dialog', { name: 'Link to an expense', exact: true })
   await expect(picker.getByTestId('link-candidate')).toHaveCount(1)
-  await expect(picker.getByTestId('link-candidate-reason')).toHaveCount(0)
+  await expect(picker.getByTestId('link-candidate')).not.toHaveAttribute('data-refused', 'true')
+  await expect(foldedRow(picker)).toHaveCount(0)
 })
 
 // Unlinking a refund in the window, before Save, gives its amount back at once: an expense that was fully refunded

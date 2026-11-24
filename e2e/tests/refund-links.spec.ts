@@ -503,7 +503,8 @@ test('narrows the picker with the filter sheet on a phone', async ({ page, reque
   await expect(picker.getByTestId('link-candidate')).toHaveCount(1)
 })
 
-// Opening and closing Filters moves only the list area: the search field and the Filters button keep their places in the dialogue before, during and after, at a desktop, a laptop and a phone size
+// Opening and closing Filters moves only the list area: the search field and the Filters button keep their places in
+// the dialogue before, during and after, at a desktop, a laptop and a phone size
 for (const size of [
   { width: 1920, height: 1080 },
   { width: 1280, height: 800 },

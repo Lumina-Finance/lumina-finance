@@ -75,6 +75,21 @@ const amounts = (scope: Locator) => scope.getByTestId('link-candidate').getByTes
 const folded = (picker: Locator) => picker.getByRole('button', { name: /can't be linked/ })
 const preview = (picker: Locator) => picker.getByTestId('link-chain-preview')
 
+// The eyebrow's date for a day this many days ago, such as "Nov 12", with the year only when it isn't this year's
+function eyebrowDate(daysAgo: number) {
+  const iso = daysFromTodayInTestTimezone(-daysAgo)
+  const short = new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  return iso.slice(0, 4) === daysFromTodayInTestTimezone(0).slice(0, 4) ? short : `${short}, ${iso.slice(0, 4)}`
+}
+
+// Opens the folded row and waits for its rows, so the next key or check sees them
+async function openFolded(picker: Locator, count: number) {
+  await folded(picker).click()
+  await expect(folded(picker)).toHaveAttribute('aria-expanded', 'true')
+  await expect(picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')).toHaveCount(count)
+  return picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
+}
+
 function rowWith(scope: Locator, merchant: string, amount: string) {
   return scope
     .getByTestId('link-candidate')
@@ -87,7 +102,7 @@ function rowWith(scope: Locator, merchant: string, amount: string) {
 test('groups an expense picker by fit and previews the chain as it stands', async ({ page, request }) => {
   const { picker } = await openPicker(page, request, 'expense')
 
-  await expect(picker.getByText(/^Harbor Electronics · .+ · −\$420\.00$/)).toBeVisible()
+  await expect(picker.getByText(`Harbor Electronics · ${eyebrowDate(12)} · −$420.00`, { exact: true })).toBeVisible()
   await expect(picker.getByText(/^Pick money that comes in/)).toHaveCount(0)
 
   await expect(group(picker, 'likely').getByRole('heading')).toHaveText('Likely matches')
@@ -100,9 +115,7 @@ test('groups an expense picker by fit and previews the chain as it stands', asyn
 
   await expect(folded(picker)).toHaveText("2 can't be linked, each more than what's left")
   await expect(folded(picker)).toHaveAttribute('aria-expanded', 'false')
-  await folded(picker).click()
-  const unlinkable = picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
-  await expect(unlinkable).toHaveCount(2)
+  const unlinkable = await openFolded(picker, 2)
   for (const row of await unlinkable.all()) {
     await expect(row).toContainText('This refund is more than the $135.00 left to refund')
   }
@@ -126,6 +139,9 @@ test('previews a pick that refunds in full and links the same chain', async ({ p
   // The rows that no longer fit fold away while the picked one stays in its group
   await expect(amounts(group(picker, 'likely'))).toHaveText(['+$135.00'])
   await expect(folded(picker)).toHaveText("4 can't be linked, nothing is left to refund")
+  for (const row of await (await openFolded(picker, 4)).all()) {
+    await expect(row).toContainText('Nothing is left to refund on this expense')
+  }
 
   await picker.getByRole('button', { name: 'Link', exact: true }).click()
   await expect(picker).toBeHidden()
@@ -172,7 +188,7 @@ test('hides a group and its heading when a search leaves it empty', async ({ pag
 test('groups a refund picker by fit and previews the picked expense chain', async ({ page, request }) => {
   const { picker } = await openPicker(page, request, 'refund')
 
-  await expect(picker.getByText(/^Harbor Electronics · .+ · \+\$135\.00$/)).toBeVisible()
+  await expect(picker.getByText(`Harbor Electronics · ${eyebrowDate(1)} · +$135.00`, { exact: true })).toBeVisible()
   await expect(amounts(group(picker, 'likely'))).toHaveText(['−$420.00', '−$135.00', '−$1,000.00'])
   await expect(group(picker, 'likely').getByTestId('link-candidate').nth(0).getByTestId('likely-chip')).toHaveText(['Same merchant', 'Exact amount'])
   await expect(group(picker, 'likely').getByTestId('link-candidate').nth(1).getByTestId('likely-chip')).toHaveText(['Exact amount'])
@@ -180,13 +196,17 @@ test('groups a refund picker by fit and previews the picked expense chain', asyn
   await expect(group(picker, 'other').getByRole('heading')).toHaveText('Other expenses')
   await expect(amounts(group(picker, 'other'))).toHaveText(['−$200.00'])
   await expect(folded(picker)).toHaveText("1 can't be linked, with less than this refund left")
+  await expect(await openFolded(picker, 1)).toContainText('This expense has only $50.00 left to refund')
 
-  // Before a pick the preview shows this refund, marked New, under a prompt to pick its expense
-  await expect(preview(picker)).toContainText('Pick the expense this refund gives money back for.')
+  // Before a pick the preview shows this refund alone, marked New, and its live region is already there to read the
+  // first pick's result
   await expect(preview(picker).getByTestId('refund-chain-new')).toHaveCount(1)
+  await expect(preview(picker).getByTestId('refund-room')).toHaveCount(0)
+  const totals = preview(picker).locator('[aria-live="polite"]')
+  await expect(totals).toHaveText('')
 
   await rowWith(group(picker, 'likely'), 'Harbor Electronics', '−$420.00').getByRole('button').click()
-  await expect(preview(picker)).not.toContainText('Pick the expense')
+  await expect(totals).toHaveText('Refunded in full, $0.00 left to refund')
   await expect(preview(picker).getByTestId('refund-chain-note')).toHaveText('2 refunds linked')
   await expect(preview(picker).getByTestId('refund-chain-new')).toHaveCount(1)
   await expect(preview(picker).getByTestId('refund-status')).toHaveText('Refunded in full')
@@ -211,6 +231,8 @@ test('reaches every row, the folded row and Link in order with Tab', async ({ pa
     await expect(control).toBeFocused()
   }
   await page.keyboard.press('Enter')
+  await expect(folded(picker)).toHaveAttribute('aria-expanded', 'true')
+  await expect(picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')).toHaveCount(2)
   await page.keyboard.press('Tab')
   await expect(picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate').first().getByRole('button')).toBeFocused()
   await page.keyboard.press('Tab')
@@ -223,15 +245,100 @@ test('keeps the preview in view on a phone while the list scrolls', async ({ pag
   await page.setViewportSize({ width: 375, height: 667 })
   const { picker } = await openPicker(page, request, 'expense')
   await rowWith(group(picker, 'likely'), 'Harbor Electronics', '+$60.00').getByRole('button').click()
-  await folded(picker).click()
+  await openFolded(picker, 4)
 
   const body = picker.locator('[data-tooltip-bounds]')
-  await body.evaluate((node) => {
-    node.scrollTop = node.scrollHeight
-  })
-  for (const control of [preview(picker).getByTestId('refund-room'), picker.getByRole('button', { name: 'Link', exact: true })]) {
+  const strip = preview(picker)
+  const link = picker.getByRole('button', { name: 'Link', exact: true })
+  expect(await body.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true)
+  const scrollTo = (place: 'top' | 'bottom') =>
+    body.evaluate((node, to) => {
+      node.scrollTop = to === 'top' ? 0 : node.scrollHeight
+    }, place)
+  await scrollTo('top')
+  const atTop = [await strip.boundingBox(), await link.boundingBox()]
+  await scrollTo('bottom')
+  expect([await strip.boundingBox(), await link.boundingBox()]).toEqual(atTop)
+  for (const control of [strip, link]) {
     await expect(control).toBeInViewport({ ratio: 1 })
   }
   // The list keeps room to show at least one row
   expect((await body.boundingBox())!.height).toBeGreaterThanOrEqual(120)
+})
+
+/**
+ * A $100.00 Harbor Electronics expense with nothing linked, a $40.00 Harbor credit and two Corner Shop payments of
+ * $60.00 and $30.00
+ */
+async function openUnlinkedPicker(page: Page, request: APIRequestContext) {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  for (const name of ['Harbor Electronics', 'Corner Shop']) await createMerchant(request, user, name)
+  const at = (merchantName: string, amount: number, daysAgo: number) =>
+    createTransaction(request, user, { accountId: account.id, categoryName: 'Groceries', merchantName, amount, date: daysFromTodayInTestTimezone(-daysAgo) })
+  const expenseId = await at('Harbor Electronics', -10000, 6)
+  await at('Harbor Electronics', 4000, 3)
+  await at('Corner Shop', 6000, 2)
+  await at('Corner Shop', 3000, 1)
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const dialog = await openRow(page, expenseId)
+  await dialog.getByTestId('link-existing').click()
+  const picker = page.getByRole('dialog', { name: 'Link a refund', exact: true })
+  await expect(picker).toBeVisible()
+  return { dialog, picker }
+}
+
+// With nothing linked yet the preview has no line for linked refunds, and several picks each join the chain marked New
+// and together set what is left
+test('previews several picks together on an expense with nothing linked', async ({ page, request }) => {
+  const { picker } = await openUnlinkedPicker(page, request)
+  await expect(preview(picker).getByTestId('refund-chain-note')).toHaveCount(0)
+  await expect(preview(picker).getByTestId('refund-room')).toHaveText('$100.00')
+
+  await rowWith(group(picker, 'likely'), 'Harbor Electronics', '+$40.00').getByRole('button').click()
+  await rowWith(group(picker, 'other'), 'Corner Shop', '+$30.00').getByRole('button').click()
+  await expect(preview(picker).getByTestId('refund-chain-new')).toHaveCount(2)
+  await expect(preview(picker).getByTestId('refund-chain-note')).toHaveCount(0)
+  await expect(preview(picker).getByTestId('refund-status')).toHaveText('Partly refunded')
+  await expect(preview(picker).getByTestId('refund-room')).toHaveText('$30.00')
+  await expect(folded(picker)).toHaveText("1 can't be linked, more than what's left")
+})
+
+// A link the window holds but hasn't saved counts toward what is left, so the next picker's likely matches and its
+// preview follow it
+test('groups by what is left after a link the window holds', async ({ page, request }) => {
+  const { dialog, picker } = await openUnlinkedPicker(page, request)
+  await rowWith(group(picker, 'likely'), 'Harbor Electronics', '+$40.00').getByRole('button').click()
+  await picker.getByRole('button', { name: 'Link', exact: true }).click()
+  await expect(picker).toBeHidden()
+
+  await dialog.getByTestId('link-existing').click()
+  await expect(picker).toBeVisible()
+  await expect(amounts(group(picker, 'likely'))).toHaveText(['+$60.00'])
+  await expect(group(picker, 'likely').getByTestId('likely-chip')).toHaveText(['Exact amount'])
+  await expect(amounts(group(picker, 'other'))).toHaveText(['+$30.00'])
+  await expect(preview(picker).getByTestId('refund-chain-note')).toHaveText('1 refund linked')
+  await expect(preview(picker).getByTestId('refund-room')).toHaveText('$60.00')
+})
+
+// A refund's picker folds an expense already refunded in full. Opening the folded row gives that reason as text
+test('folds an expense already refunded in full from a refund picker', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  const account = await createAccount(request, user, { name: 'Everyday', startingBalance: 50000 })
+  const row = { accountId: account.id, categoryName: 'Groceries' }
+  const refundedId = await createTransaction(request, user, { ...row, amount: -2000, date: daysFromTodayInTestTimezone(-5) })
+  await link(request, user, await createTransaction(request, user, { ...row, amount: 2000, date: daysFromTodayInTestTimezone(-4) }), refundedId)
+  await createTransaction(request, user, { ...row, amount: -10000, date: daysFromTodayInTestTimezone(-3) })
+  const refundId = await createTransaction(request, user, { ...row, amount: 3000, date: daysFromTodayInTestTimezone(-1) })
+
+  await logInViaApi(page, user)
+  await openPage(page, `/accounts/${account.id}`)
+  const dialog = await openRow(page, refundId)
+  await dialog.getByTestId('link-existing').click()
+  const picker = page.getByRole('dialog', { name: 'Link to an expense', exact: true })
+  await expect(amounts(group(picker, 'other'))).toHaveText(['−$100.00'])
+  await expect(folded(picker)).toHaveText("1 can't be linked, already refunded in full")
+  await expect(await openFolded(picker, 1)).toContainText('This expense is already fully refunded')
 })
