@@ -12,8 +12,7 @@ from app.config.profile_deletion import DELETION_REMINDER_LEAD as _LEAD
 from app.db.rls.functions import LIST_PROFILES_TO_REMIND
 from app.models.user import User
 from app.services.email import contract as email_contract
-from app.services.profile_deletion import reminders, send_due_reminders
-from app.services.profile_deletion.emails import send_reminder_email
+from app.services.profile_deletion import send_due_reminders
 from tests.conftest import ScopedSession
 from tests.routes.support.identity_helpers import _act_as
 from tests.routes.support.profile_deletion_helpers import _commit_user, _stored_marks
@@ -92,14 +91,18 @@ async def test_the_edges_of_the_lead_decide_who_is_reminded(sent_action_emails, 
 
 async def test_the_reminder_names_the_date_in_the_profile_zone(sent_action_emails):
     """A due time at 03:00 UTC is still the evening before in Toronto, so the reminder names that day, not the UTC one"""
-    due_at = datetime(2099, 1, 1, 3, 0, tzinfo=UTC)
-    user = await _commit_user("zone@example.com", requested_at=due_at - timedelta(days=10), due_at=due_at)
+    now = datetime.now(UTC)
+    # The next 03:00 UTC at least an hour ahead, so inside the lead
+    due_at = now.replace(hour=3, minute=0, second=0, microsecond=0)
+    if due_at < now + timedelta(hours=1):
+        due_at += timedelta(days=1)
+    await _commit_user("zone@example.com", requested_at=due_at - timedelta(days=10), due_at=due_at)
+    local_day = due_at - timedelta(days=1)
 
-    claimed = await reminders._claim_reminder(ScopedSession, user.id)
-    await send_reminder_email(*claimed)
+    await send_due_reminders(ScopedSession)
 
     assert [recipient for recipient, _ in sent_action_emails] == ["zone@example.com"]
-    assert "will be deleted on 31 December 2098" in sent_action_emails[0][1].text_body
+    assert f"will be deleted on {local_day.day} {local_day:%B %Y}" in sent_action_emails[0][1].text_body
 
 
 async def test_a_due_time_with_no_mark_is_not_reminded(sent_action_emails):
