@@ -84,7 +84,8 @@ export default function BudgetCard({
         {isArchived ? (
           <ArchivedPill />
         ) : baseBudget.read_only_reason ? (
-          <span className="flex min-w-0 shrink-0">
+          // As tall as the name's line, so the pill centres on the name as the status pill does
+          <span className="flex h-7 min-w-0 shrink-0 items-center">
             <ReadOnlyReasonPill id={readOnlyPillId} reason={baseBudget.read_only_reason} />
           </span>
         ) : (
