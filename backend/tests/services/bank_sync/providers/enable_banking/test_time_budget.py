@@ -41,10 +41,36 @@ class _StallingApi(httpx.AsyncBaseTransport):
         return await self._api.transport.handle_async_request(request)
 
 
+class _BudgetFromEachCall:
+    """Stands in for the request's deadline, giving each provider call the short budget from when that call starts
+
+    The real deadline counts from the start of the request, so on a busy machine the calls before the stalled one could
+    spend the short budget and the stalled call would never be sent
+    """
+
+    def __init__(self, deadline) -> None:
+        """Keep the real deadline, so a request outside the budget still has none"""
+        self._deadline = deadline
+
+    def get(self) -> float | None:
+        """The short budget from now, or no deadline where the real one has none"""
+        if self._deadline.get() is None:
+            return None
+        return asyncio.get_running_loop().time() + _BUDGET_SECONDS
+
+    def set(self, value):
+        """Set the real deadline"""
+        return self._deadline.set(value)
+
+    def reset(self, token) -> None:
+        """Reset the real deadline"""
+        self._deadline.reset(token)
+
+
 @pytest.fixture
 def shorten_budget(monkeypatch) -> Callable[[], None]:
-    """Return the call that gives each later request the tests' short budget, made once setup is done so setup keeps the production one"""
-    return lambda: monkeypatch.setattr(outbound, "WAITED_REQUEST_BUDGET_SECONDS", _BUDGET_SECONDS)
+    """Return the call that gives each later provider call the tests' short budget, made once setup is done so setup keeps the production one"""
+    return lambda: monkeypatch.setattr(outbound, "_budget_deadline", _BudgetFromEachCall(outbound._budget_deadline))
 
 
 @pytest.fixture
