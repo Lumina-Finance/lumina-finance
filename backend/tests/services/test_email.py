@@ -412,8 +412,8 @@ def test_email_change_sentences_name_the_fixed_name_until_code_names_the_service
         assert sentence.format(name) in message.html_body
 
 
-def test_profile_deletion_emails_name_the_date_in_utc_and_what_to_do_in_both_parts():
-    """The scheduled and reminder emails show the due date as a UTC day, tell the user to sign in to cancel, and the reminder counts the days"""
+def test_profile_deletion_emails_name_the_date_and_what_to_do_in_both_parts():
+    """Both emails show the due date as a UTC day with no zone given and say to sign in and cancel, and the reminder counts the days"""
     scheduled = render_profile_deletion_scheduled_email(_DELETION_DUE_AT)
     reminder = render_profile_deletion_reminder_email(_DELETION_DUE_AT)
     done = render_profile_deletion_done_email()
@@ -424,12 +424,32 @@ def test_profile_deletion_emails_name_the_date_in_utc_and_what_to_do_in_both_par
     for message in (scheduled, reminder):
         for body in (message.text_body, message.html_body):
             assert "will be deleted on 1 January 2027" in body
-            assert "sign in before then to cancel" in body.lower()
+            assert "sign in and press cancel deletion before then" in body.lower()
     assert "in 3 days or less" in reminder.text_body
     assert "has been deleted" not in scheduled.text_body
     for body in (done.text_body, done.html_body):
         assert "profile and all its data have been deleted" in body
         assert "cancel" not in body
+
+
+@pytest.mark.parametrize(
+    ("render", "tz", "date"),
+    [
+        (render_profile_deletion_scheduled_email, "America/Toronto", "31 December 2026"),
+        (render_profile_deletion_reminder_email, "America/Toronto", "31 December 2026"),
+        (render_profile_deletion_scheduled_email, "Pacific/Auckland", "1 January 2027"),
+        (render_profile_deletion_scheduled_email, "UTC", "1 January 2027"),
+        (render_profile_deletion_scheduled_email, None, "1 January 2027"),
+        (render_profile_deletion_scheduled_email, "", "1 January 2027"),
+        (render_profile_deletion_scheduled_email, "Not/AZone", "1 January 2027"),
+    ],
+)
+def test_profile_deletion_emails_name_the_date_in_the_profile_zone_and_fall_back_to_utc(render, tz, date):
+    """Just after midnight UTC is still the day before west of it, as the app shows, and a missing or unknown zone gives the UTC day"""
+    message = render(datetime(2027, 1, 1, 4, 59, tzinfo=UTC), tz)
+
+    for body in (message.text_body, message.html_body):
+        assert f"will be deleted on {date}" in body
 
 
 def test_render_action_needed_email_lists_the_accounts_in_both_parts_escaping_them_in_html():

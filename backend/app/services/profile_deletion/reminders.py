@@ -37,8 +37,8 @@ async def send_due_reminders(session_factory: async_sessionmaker[AsyncSession]) 
             await send_reminder_email(*claimed)
 
 
-async def _claim_reminder(session_factory: async_sessionmaker[AsyncSession], user_id: uuid.UUID) -> tuple[str, datetime] | None:
-    """Record the reminder as sent for a profile still waiting and not yet reminded, returning its address and due time
+async def _claim_reminder(session_factory: async_sessionmaker[AsyncSession], user_id: uuid.UUID) -> tuple[str, datetime, str] | None:
+    """Record the reminder as sent for a profile still waiting and not yet reminded, returning its address, due time and zone
 
     The record is committed before the email goes, so a reminder is sent at most once, even when the send
     fails. Another pass that records it first, or a cancel that clears the mark, leaves nothing to claim
@@ -55,8 +55,8 @@ async def _claim_reminder(session_factory: async_sessionmaker[AsyncSession], use
                         User.deletion_reminder_sent_at.is_(None),
                     )
                     .values(deletion_reminder_sent_at=func.now())
-                    .returning(User.email, User.deletion_due_at)
+                    .returning(User.email, User.deletion_due_at, User.tz)
                 )
             ).first()
             await db.commit()
-    return None if row is None else (row.email, row.deletion_due_at)
+    return None if row is None else (row.email, row.deletion_due_at, row.tz)

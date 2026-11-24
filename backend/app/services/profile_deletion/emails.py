@@ -19,24 +19,26 @@ from app.services.email import (
 logger = logging.getLogger(__name__)
 
 
-async def send_scheduled_email(recipient: str, due_at: datetime) -> None:
+async def send_scheduled_email(recipient: str, due_at: datetime, tz: str | None = None) -> None:
     """Tell a user the date their profile will be deleted and that signing in before it cancels
 
     Args:
         recipient: The user's email address
         due_at: When the deletion is due
+        tz: The user's IANA timezone, whose calendar gives the date
     """
-    await _send(recipient, lambda: render_profile_deletion_scheduled_email(due_at), "scheduled")
+    await _send(recipient, lambda: render_profile_deletion_scheduled_email(due_at, tz), "scheduled")
 
 
-async def send_reminder_email(recipient: str, due_at: datetime) -> None:
+async def send_reminder_email(recipient: str, due_at: datetime, tz: str | None = None) -> None:
     """Remind a user that their profile will be deleted within days
 
     Args:
         recipient: The user's email address
         due_at: When the deletion is due
+        tz: The user's IANA timezone, whose calendar gives the date
     """
-    await _send(recipient, lambda: render_profile_deletion_reminder_email(due_at), "reminder")
+    await _send(recipient, lambda: render_profile_deletion_reminder_email(due_at, tz), "reminder")
 
 
 async def send_done_email(recipient: str) -> None:

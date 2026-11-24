@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -125,32 +126,34 @@ def render_action_needed_email(subject: str, lead: str, accounts: Sequence[str],
     return RenderedEmail(subject=subject, text_body=text_body, html_body=html_body)
 
 
-def render_profile_deletion_scheduled_email(due_at: datetime) -> RenderedEmail:
+def render_profile_deletion_scheduled_email(due_at: datetime, tz: str | None = None) -> RenderedEmail:
     """Render the email telling a user their profile will be deleted on a date, and that signing in before it cancels
 
     Args:
-        due_at: When the deletion is due. Only its date in UTC is shown
+        due_at: When the deletion is due. Only its date is shown
+        tz: The user's IANA timezone, whose calendar gives the date. UTC when unset
 
     Returns:
         The rendered subject and both body parts
     """
-    due_date = _plain_date(due_at)
+    due_date = _plain_date(due_at, tz)
     context = {"app_name": email_service_name(), "due_date": due_date}
     html_body = _environment.get_template("profile_deletion_scheduled.html").render(context)
     text_body = _environment.get_template("profile_deletion_scheduled.txt").render(context)
     return RenderedEmail(subject=f"Your profile will be deleted on {due_date}", text_body=text_body, html_body=html_body)
 
 
-def render_profile_deletion_reminder_email(due_at: datetime) -> RenderedEmail:
+def render_profile_deletion_reminder_email(due_at: datetime, tz: str | None = None) -> RenderedEmail:
     """Render the reminder that a profile's deletion is only days away, and that signing in before it cancels
 
     Args:
-        due_at: When the deletion is due. Only its date in UTC is shown
+        due_at: When the deletion is due. Only its date is shown
+        tz: The user's IANA timezone, whose calendar gives the date. UTC when unset
 
     Returns:
         The rendered subject and both body parts
     """
-    due_date = _plain_date(due_at)
+    due_date = _plain_date(due_at, tz)
     days_left = DELETION_REMINDER_LEAD.days
     context = {"app_name": email_service_name(), "due_date": due_date, "days_left": days_left}
     html_body = _environment.get_template("profile_deletion_reminder.html").render(context)
@@ -170,7 +173,16 @@ def render_profile_deletion_done_email() -> RenderedEmail:
     return RenderedEmail(subject="Your profile was deleted", text_body=text_body, html_body=html_body)
 
 
-def _plain_date(moment: datetime) -> str:
-    """Write the date of an instant in UTC as a day, a month name and a year, such as 3 December 2026"""
-    utc = moment.astimezone(UTC)
-    return f"{utc.day} {_MONTH_NAMES[utc.month - 1]} {utc.year}"
+def _plain_date(moment: datetime, tz: str | None) -> str:
+    """Write the date of an instant in a zone as a day, a month name and a year, such as 3 December 2026
+
+    Args:
+        moment: The instant to write
+        tz: IANA name of the zone whose calendar decides the day, UTC when unset or not a known zone
+    """
+    try:
+        zone = ZoneInfo(tz) if tz else UTC
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = UTC
+    local = moment.astimezone(zone)
+    return f"{local.day} {_MONTH_NAMES[local.month - 1]} {local.year}"
