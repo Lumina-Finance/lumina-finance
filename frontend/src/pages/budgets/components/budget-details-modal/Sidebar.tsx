@@ -68,6 +68,9 @@ export default function BudgetDetailsSidebar({
   const { formatCurrency } = useMoneyFormatters()
   const [trackedCategoryListScrollable, setTrackedCategoryListScrollable] = useState(false)
   const [trackedCategoryListAtBottom, setTrackedCategoryListAtBottom] = useState(false)
+
+  // A read-only budget starts no new period, so it shows as an archived one does, with its own pill in the status's place
+  const looksArchived = baseBudget.is_archived || Boolean(baseBudget.read_only_reason)
   const showTrackedCategoryListMoreIndicator = trackedCategoryListScrollable && !trackedCategoryListAtBottom
   const utilizationPct = latestPeriod ? getBudgetUtilizationLabelPercent(spent, limit) : null
 
@@ -127,6 +130,10 @@ export default function BudgetDetailsSidebar({
           </h2>
           {baseBudget.is_archived ? (
             <ArchivedPill className="mt-2" />
+          ) : baseBudget.read_only_reason ? (
+            <span className="mt-2 flex min-w-0">
+              <ReadOnlyReasonPill reason={baseBudget.read_only_reason} focusable />
+            </span>
           ) : (
             <span
               className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
@@ -139,11 +146,6 @@ export default function BudgetDetailsSidebar({
           <p className="mt-2 min-w-0 truncate text-sm" style={{ color: 'var(--app-text-subtle-on-accent)' }}>
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
           </p>
-          {baseBudget.read_only_reason && (
-            <span className="mt-2 flex min-w-0">
-              <ReadOnlyReasonPill reason={baseBudget.read_only_reason} focusable />
-            </span>
-          )}
         </div>
         <button
           type="button"
@@ -167,13 +169,13 @@ export default function BudgetDetailsSidebar({
         {/* An archived budget has no live period, so the current-budget figures do not apply */}
         <div className="mt-2 flex items-baseline gap-2 min-[750px]:mt-3">
           <p className="min-w-0 text-3xl font-semibold leading-none tracking-tight min-[750px]:text-4xl">
-            {baseBudget.is_archived
+            {looksArchived
               ? 'N/A'
               : latestPeriod
                 ? formatCurrency(Math.abs(remaining), baseBudget.currency)
                 : 'Not set'}
           </p>
-          {!baseBudget.is_archived && latestPeriod && (
+          {!looksArchived && latestPeriod && (
             <span
               className="shrink-0 text-base font-bold uppercase min-[750px]:text-lg"
               style={{ color: 'var(--app-text)' }}
@@ -185,11 +187,11 @@ export default function BudgetDetailsSidebar({
         <p className="mt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
           {!latestPeriod
             ? 'No periods have been created yet.'
-            : baseBudget.is_archived
+            : looksArchived
               ? `N/A used of ${formatCurrency(limit, baseBudget.currency)}`
               : `${formatCurrency(spent, baseBudget.currency)} used of ${formatCurrency(limit, baseBudget.currency)}`}
         </p>
-        {!baseBudget.is_archived && latestPeriod && (
+        {!looksArchived && latestPeriod && (
           <div className="mt-4 flex items-center gap-3 min-[750px]:mt-5">
             <div className="h-2 flex-1 rounded-full" style={{ background: 'var(--app-border)' }}>
               <div
@@ -205,7 +207,7 @@ export default function BudgetDetailsSidebar({
             </span>
           </div>
         )}
-        {!baseBudget.is_archived && (
+        {!looksArchived && (
           <div
             className="mt-4 flex justify-between gap-4 border-t pt-3 text-sm min-[750px]:mt-5 min-[750px]:pt-4"
             style={{ borderColor: 'var(--app-border)' }}
@@ -219,7 +221,7 @@ export default function BudgetDetailsSidebar({
       </section>
 
       <section
-        className={`${!baseBudget.is_archived ? 'border-t ' : ''}pt-6 min-[1050px]:flex min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col`}
+        className={`${!looksArchived ? 'border-t ' : ''}pt-6 min-[1050px]:flex min-[1050px]:min-h-0 min-[1050px]:flex-1 min-[1050px]:flex-col`}
         style={{ borderColor: 'var(--app-border)' }}
       >
         <div className="flex items-center justify-between gap-3">

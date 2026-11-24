@@ -2,7 +2,6 @@ import { useId } from 'react'
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
 import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
 import { useReadOnlyReasonOnFocus } from '@/hooks/useReadOnlyReasonOnFocus'
-import { FADED_ROW_COLOURS } from '@/contexts/FadedRowsContext'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import BudgetCategoryRow from '@/pages/budgets/components/budget-card/CategoryRow'
 import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
@@ -47,18 +46,18 @@ export default function BudgetCard({
   const readOnlyPillId = useId()
   const readOnlyFocus = useReadOnlyReasonOnFocus(baseBudget.read_only_reason, readOnlyPillId)
 
+  // A read-only budget starts no new period, so its card looks archived, with its own pill in the status's place
+  const looksArchived = isArchived || Boolean(baseBudget.read_only_reason)
+
   return (
     <article
       data-testid={`budget-card-${baseBudget.id}`}
       className={`app-card app-budget-card flex w-full min-w-0 cursor-pointer flex-col hover:-translate-y-0.5 ${
-        isArchived
+        looksArchived
           ? 'opacity-80 transition-[translate,opacity] hover:opacity-100'
           : 'min-h-[21.5rem] transition-transform'
       }`}
-      style={{
-        borderTop: `5px solid ${isArchived ? 'var(--app-text-muted)' : attention.indicatorColor}`,
-        ...(baseBudget.read_only_reason ? FADED_ROW_COLOURS : null),
-      }}
+      style={{ borderTop: `5px solid ${looksArchived ? 'var(--app-text-muted)' : attention.indicatorColor}` }}
       role="button"
       tabIndex={0}
       {...(baseBudget.read_only_reason ? readOnlyFocus.focusProps : null)}
@@ -81,14 +80,13 @@ export default function BudgetCard({
           <p className="mt-1 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
           </p>
-          {baseBudget.read_only_reason && (
-            <span className="mt-2 flex min-w-0">
-              <ReadOnlyReasonPill id={readOnlyPillId} reason={baseBudget.read_only_reason} />
-            </span>
-          )}
         </div>
         {isArchived ? (
           <ArchivedPill />
+        ) : baseBudget.read_only_reason ? (
+          <span className="flex min-w-0 shrink-0">
+            <ReadOnlyReasonPill id={readOnlyPillId} reason={baseBudget.read_only_reason} />
+          </span>
         ) : (
           <span
             className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
@@ -101,7 +99,7 @@ export default function BudgetCard({
       </div>
 
       {/* An archived budget no longer tracks a live period, so an over or left reading would be stale noise */}
-      {!isArchived && (
+      {!looksArchived && (
         <div className="mt-5">
           <div className="app-budget-card-summary">
             <p
