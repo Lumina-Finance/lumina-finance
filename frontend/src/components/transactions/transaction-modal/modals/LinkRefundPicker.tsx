@@ -11,6 +11,7 @@ import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { useTodayYmd } from '@/hooks/useTodayYmd'
 import LinkCandidateRow from '@/components/transactions/transaction-modal/modals/LinkCandidateRow'
 import LinkChainPreview from '@/components/transactions/transaction-modal/modals/LinkChainPreview'
 import TransactionModalLinkRefundFilters from '@/components/transactions/transaction-modal/modals/LinkRefundFilters'
@@ -83,6 +84,7 @@ export default function TransactionModalLinkRefundPicker({
 }: LinkRefundPickerProps) {
   const titleId = useId()
   const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
+  const today = useTodayYmd()
   const [search, setSearch] = useState('')
   const [sentSearch, setSentSearch] = useState('')
   const [filters, setFilters] = useState<TransactionListFilters>({})
@@ -192,7 +194,7 @@ export default function TransactionModalLinkRefundPicker({
   // The header names the open transaction, so the picker says what it links to
   const eyebrow = [
     transaction.merchant_name ?? NO_MERCHANT,
-    formatShortDateRangeLabel(transaction.dt, transaction.dt, new Date().getFullYear()),
+    formatShortDateRangeLabel(transaction.dt, transaction.dt, Number(today.slice(0, 4))),
     formatMovedCurrency(transaction.amount, transaction.currency),
   ].join(' · ')
   const kindOf = (expense: Transaction) => categoryById.get(expense.category_id)?.name ?? 'Uncategorized'
