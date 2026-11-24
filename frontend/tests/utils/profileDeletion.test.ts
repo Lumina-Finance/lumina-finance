@@ -17,9 +17,9 @@ describe('formatDeletionDateAfterWait', () => {
   const now = new Date('2026-12-20T03:00:00Z')
 
   it('adds the wait to the current time and names the day it ends on in the user zone, across a year end', () => {
-    expect(formatDeletionDateAfterWait(30 * DAY, 'UTC', now)).toBe('Jan 19, 2027')
-    expect(formatDeletionDateAfterWait(30 * DAY, 'America/Toronto', now)).toBe('Jan 18, 2027')
-    expect(formatDeletionDateAfterWait(30 * DAY, 'Pacific/Auckland', now)).toBe('Jan 19, 2027')
+    expect(formatDeletionDateAfterWait(21 * DAY, 'UTC', now)).toBe('Jan 10, 2027')
+    expect(formatDeletionDateAfterWait(21 * DAY, 'America/Toronto', now)).toBe('Jan 9, 2027')
+    expect(formatDeletionDateAfterWait(21 * DAY, 'Pacific/Auckland', now)).toBe('Jan 10, 2027')
   })
 
   it('never rounds a wait up to a whole day', () => {
@@ -31,9 +31,9 @@ describe('formatDeletionDateAfterWait', () => {
 
   it('writes the date in the format the app is set to', () => {
     setDateFormat('iso')
-    expect(formatDeletionDateAfterWait(30 * DAY, 'UTC', now)).toBe('2027-01-19')
+    expect(formatDeletionDateAfterWait(21 * DAY, 'UTC', now)).toBe('2027-01-10')
     setDateFormat('day-month-year')
-    expect(formatDeletionDateAfterWait(30 * DAY, 'UTC', now)).toBe('19 Jan 2027')
+    expect(formatDeletionDateAfterWait(21 * DAY, 'UTC', now)).toBe('10 Jan 2027')
   })
 })
 

@@ -169,7 +169,7 @@ test('shows the deletion under way when it returns from the provider sign-in', a
 
 const CANCEL_URL = `${API_BASE_URL}/auth/profile/delete/cancel`
 // Any length does, since the server answers it and the suite never sets one
-const STUBBED_WAIT_DAYS = 30
+const STUBBED_WAIT_DAYS = 21
 const STUBBED_WAIT_SECONDS = STUBBED_WAIT_DAYS * 24 * 60 * 60
 
 /**
