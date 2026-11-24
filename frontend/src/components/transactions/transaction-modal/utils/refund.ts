@@ -50,6 +50,12 @@ export function getRefundRoom(original: Amounted, refunds: readonly Amounted[]):
 
 export type RefundStatus = 'full' | 'partial'
 
+/** What the badge over an expense's refunds says for each status */
+export const REFUND_STATUS_LABELS: Record<RefundStatus, string> = {
+  full: 'Refunded in full',
+  partial: 'Partly refunded',
+}
+
 /**
  * How much of an expense its refunds give back, for the badge over its refunds. Null while nothing is refunded
  *

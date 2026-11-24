@@ -1,21 +1,22 @@
 import type { ReactNode } from 'react'
 import { Unlink } from 'lucide-react'
 import { HintButton } from '@/components/tooltips/HintButton'
-import type { RefundStatus } from '@/components/transactions/transaction-modal/utils/refund'
+import { REFUND_STATUS_LABELS, type RefundStatus } from '@/components/transactions/transaction-modal/utils/refund'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { formatDateLabel } from '@/utils/date'
 
 /** Named in a chain's row for a transaction with no merchant */
 export const NO_MERCHANT = 'No merchant'
 
-const STATUS_BADGES: Record<RefundStatus, { label: string; background: string; color: string }> = {
-  full: { label: 'Refunded in full', background: 'var(--app-positive-soft)', color: 'var(--app-positive-text)' },
-  partial: { label: 'Partly refunded', background: 'var(--app-warning-soft)', color: 'var(--app-warning-text)' },
+const STATUS_BADGES: Record<RefundStatus, { background: string; color: string }> = {
+  full: { background: 'var(--app-positive-soft)', color: 'var(--app-positive-text)' },
+  partial: { background: 'var(--app-warning-soft)', color: 'var(--app-warning-text)' },
 }
 
 /** Says at the end of the section's heading how much of the expense its refunds give back */
 export function RefundStatusBadge({ status }: { status: RefundStatus }) {
-  const { label, background, color } = STATUS_BADGES[status]
+  const { background, color } = STATUS_BADGES[status]
+  const label = REFUND_STATUS_LABELS[status]
   return (
     <span
       className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium leading-5"
@@ -298,26 +299,15 @@ interface RefundChainFooterProps {
 
   /** Shown before the total in a preview. A preview has no section heading to carry the badge */
   status?: RefundStatus | null
-
-  /** Has a screen reader read the whole line out again when the total changes, as a preview's picks change it */
-  announcesChanges?: boolean
 }
 
 /** Closes the chain with what is left to refund of the expense, held at its height while that is worked out */
-export function RefundChainFooter({
-  room,
-  currency,
-  keepsUnlinkRoom,
-  status,
-  announcesChanges = false,
-}: RefundChainFooterProps) {
+export function RefundChainFooter({ room, currency, keepsUnlinkRoom, status }: RefundChainFooterProps) {
   const { formatCurrency } = useMoneyFormatters()
   return (
     <div
       className="mt-2 flex items-center gap-3 border-t pt-2.5 text-sm leading-5"
       style={{ borderColor: 'var(--app-border)' }}
-      aria-live={announcesChanges ? 'polite' : undefined}
-      aria-atomic={announcesChanges ? true : undefined}
     >
       <span className="flex-1" style={{ color: 'var(--app-text-muted)' }}>
         Left to refund
