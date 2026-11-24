@@ -1,4 +1,5 @@
 import { LogOut } from 'lucide-react'
+import { UserRowLine } from '@/slots/userRowLine'
 
 interface NavigationUserProfileProps {
   displayName: string
@@ -9,11 +10,7 @@ interface NavigationUserProfileProps {
 /**
  * Renders the authenticated user row and logout action in the navigation footer
  */
-export function NavigationUserProfile({
-  displayName,
-  initials,
-  logout,
-}: NavigationUserProfileProps) {
+export function NavigationUserProfile({ displayName, initials, logout }: NavigationUserProfileProps) {
   return (
     <div className="app-nav-user">
       <span
@@ -30,12 +27,14 @@ export function NavigationUserProfile({
           {displayName}
         </p>
         <p className="truncate text-[0.6875rem]" style={{ color: 'var(--app-text-subtle)' }}>
-          Premium plan
+          <UserRowLine />
         </p>
       </div>
       <button
         type="button"
-        onClick={() => { void logout() }}
+        onClick={() => {
+          void logout()
+        }}
         aria-label="Log out"
         className="app-nav-user-logout app-icon-button shrink-0"
       >
@@ -44,4 +43,3 @@ export function NavigationUserProfile({
     </div>
   )
 }
-
