@@ -1,7 +1,7 @@
 /**
  * Guards a read-only category's account links. Linking or unlinking changes the account, so the toggles
- * are held back with a "Read-only" pill above the list while the category is read-only, and on one
- * account's row with the pill while only that account is
+ * are held back, described by the reason, while the category is read-only, and on one account's row with
+ * a "Read-only" pill while only that account is
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -39,14 +39,13 @@ function checkbox(markup: string, label: string): string {
 }
 
 describe('the account links of a read-only category', () => {
-  it('holds every toggle back, each described by the pill above the list holding the reason', () => {
+  it('holds every toggle back, each described by the reason, with no pill repeating the header', () => {
     const markup = renderPanel(REASON, [BROKERAGE, SAVINGS])
-    const pills = [...markup.matchAll(/<span id="([^"]+)" data-testid="read-only-reason-pill" tabindex="0"/g)]
-    const reasonId = pills[0]?.[1]
+    const reasonId = new RegExp(`<span id="([^"]+)" class="sr-only">${REASON}</span>`).exec(markup)?.[1]
 
-    // One pill above the list covers every row, so no row repeats it, and no lasting sentence shows
-    expect(pills).toHaveLength(1)
-    expect(markup).toContain(`<span class="sr-only">. ${REASON}</span>`)
+    // The dialogue's header already carries the category's pill, so the tab shows none and no lasting sentence
+    expect(reasonId).toBeDefined()
+    expect(markup).not.toContain('read-only-reason-pill')
     expect(markup).not.toContain('role="note"')
     for (const label of ['Link Brokerage', 'Link Savings']) {
       expect(checkbox(markup, label)).toContain('disabled=""')

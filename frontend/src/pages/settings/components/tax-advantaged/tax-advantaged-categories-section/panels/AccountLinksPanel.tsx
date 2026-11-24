@@ -18,8 +18,8 @@ interface TaxAdvantagedAccountLinksPanelProps {
  * Renders the TAC account-linking tab for eligible same-currency asset accounts
  *
  * Linking or unlinking changes the account, so the toggles are held back while the server keeps the
- * category read-only, with a "Read-only" pill above the list holding the reason, and on each account it
- * keeps read-only, with the pill on that account's row
+ * category read-only, each described by the reason, and on each account it keeps read-only, with a
+ * "Read-only" pill on that account's row
  */
 export default function TaxAdvantagedAccountLinksPanel({
   accountError,
@@ -42,9 +42,10 @@ export default function TaxAdvantagedAccountLinksPanel({
         </p>
       </div>
 
+      {/* The category's own Read-only pill sits in the dialogue's header, so the toggles only need its reason */}
       {plan.read_only_reason && (
-        <span className="flex min-w-0 shrink-0">
-          <ReadOnlyReasonPill id={planReasonId} reason={plan.read_only_reason} focusable />
+        <span id={planReasonId} className="sr-only">
+          {plan.read_only_reason}
         </span>
       )}
 
