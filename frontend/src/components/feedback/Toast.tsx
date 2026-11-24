@@ -104,7 +104,8 @@ function ToastCard({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () =>
           <CircleCheck size={14} strokeWidth={3} aria-hidden />
         )}
       </span>
-      <span className="leading-6">{toast.text}</span>
+      {/* A message that wraps never leaves its last word alone on a line, as the server notice and tooltips don't */}
+      <span className="leading-6 text-pretty">{toast.text}</span>
       {/* Level with the icon, so a message that wraps keeps both on its first line as a callout keeps its close */}
       <button
         type="button"
