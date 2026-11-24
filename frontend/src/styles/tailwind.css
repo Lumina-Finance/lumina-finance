@@ -650,6 +650,36 @@
     pointer-events: none;
   }
 
+  /* The log out button is a real control, so folding it to nothing is not enough: it also leaves the
+     focus order and the accessibility tree, or a keyboard user would land on it unseen and sign out.
+     Visibility flips only once the 0.2s fade has finished, and back at once on opening, so the
+     button is usable the moment the rail is. Focus on it when the rail folds is dropped by the browser.
+     The first rule outweighs app-icon-button's own transition, which would otherwise replace the fade and
+     the fold, so the control's look keeps its transitions in that list as well */
+  .app-nav-user .app-nav-user-logout {
+    transition:
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      border-color var(--app-ease-duration) var(--app-ease-curve),
+      outline-color var(--app-focus-fade-duration) var(--app-ease-curve),
+      opacity 0.2s ease,
+      max-width 0.28s ease,
+      visibility 0s;
+  }
+
+  /* One delay for each property listed above, in the same order, so only visibility waits */
+  .app-desktop-nav-collapsed .app-nav-user-logout {
+    visibility: hidden;
+    transition-delay: 0s, 0s, 0s, 0s, 0s, 0s, 0.2s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-nav-user .app-nav-user-logout,
+    .app-desktop-nav-collapsed .app-nav-user-logout {
+      transition: none;
+    }
+  }
+
   /* The brand text has no icon-only form, so it cross-fades and collapses its width as the rail closes
      rather than blinking out */
   .app-nav-brand-text {

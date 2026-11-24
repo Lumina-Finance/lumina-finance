@@ -8,6 +8,9 @@ import { logInViaApi, openPage } from '../support/app'
 /**
  * Guards the sidebar's "Collapse sidebar" button. It used to unpin the sidebar while the hover or
  * focus preview kept the full menu open, so the sidebar stayed expanded until the pointer left it
+ *
+ * Also guards the user row's Log out button. The collapsed rail folds it away, and it must then leave
+ * the focus order and the accessibility tree
  */
 
 const RAIL_WIDTH = 74
@@ -96,4 +99,60 @@ test('keeps the sidebar expanded after its button pins it', async ({ page, reque
     'true',
   )
   await expectWidth(navigation, EXPANDED_WIDTH)
+})
+
+// How long the collapsed rail waits before it hides Log out. The button fades out for that long first
+const HIDING_DELAY_MS = 200
+
+/**
+ * Holds the transition that hides Log out at the given time into its delay, and answers the button's
+ * visibility there, or null while no such transition has started
+ */
+function holdHidingTransition(page: Page, milliseconds: number) {
+  return page.evaluate((time) => {
+    const button = document.querySelector('nav[aria-label="Primary"] button[aria-label="Log out"]')
+    const transition = button
+      ?.getAnimations()
+      .find((animation): animation is CSSTransition => animation instanceof CSSTransition && animation.transitionProperty === 'visibility')
+    if (!button || !transition) return null
+    transition.pause()
+    transition.currentTime = time
+    return getComputedStyle(button).visibility
+  }, milliseconds)
+}
+
+test('takes Log out out of reach when the rail collapses around it', async ({ page, request }) => {
+  const navigation = await openWithSidebar(page, request, false)
+  const logOut = navigation.getByRole('button', { name: 'Log out', exact: true })
+
+  // Hovering previews the full menu, where Log out is an ordinary control the keyboard can reach
+  await navigation.hover()
+  await expectWidth(navigation, EXPANDED_WIDTH)
+  await logOut.focus()
+  await expect(logOut).toBeFocused()
+
+  // The pointer leaving collapses the rail even though focus is still inside it. The button stays while
+  // it fades, so the transition that hides it is held just before its end
+  await moveAwayFromSidebar(page)
+  await expect.poll(() => holdHidingTransition(page, HIDING_DELAY_MS - 50), { intervals: [20] }).toBe('visible')
+  await expect(logOut).toHaveCount(1)
+
+  // Once that transition ends the button leaves the accessibility tree and focus leaves it
+  await holdHidingTransition(page, HIDING_DELAY_MS)
+  await expect(logOut).toHaveCount(0)
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? null))
+    .not.toBe('Log out')
+
+  // Opening the rail again makes it a normal control again at once, a couple of frames after the pointer
+  // arrives and well inside the delay that hides it, so it is read once with no retry
+  await navigation.hover()
+  const visibilityAfterFrames = await page.evaluate(async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    const button = document.querySelector('nav[aria-label="Primary"] button[aria-label="Log out"]')
+    return button ? getComputedStyle(button).visibility : null
+  })
+  expect(visibilityAfterFrames).toBe('visible')
+  await logOut.focus()
+  await expect(logOut).toBeFocused()
 })
