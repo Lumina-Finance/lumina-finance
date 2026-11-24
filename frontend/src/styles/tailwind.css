@@ -650,6 +650,36 @@
     pointer-events: none;
   }
 
+  /* The log out button is a real control, so folding it to nothing is not enough: it also leaves the
+     focus order and the accessibility tree, or a keyboard user would land on it unseen and sign out.
+     Visibility flips only once the 0.2s fade has finished, and back at once on opening, so the
+     button is usable the moment the rail is. Focus on it when the rail folds is dropped by the browser.
+     The first rule outweighs app-icon-button's own transition, which would otherwise replace the fade and
+     the fold, so the control's look keeps its transitions in that list as well */
+  .app-nav-user .app-nav-user-logout {
+    transition:
+      color var(--app-ease-duration) var(--app-ease-curve),
+      background-color var(--app-ease-duration) var(--app-ease-curve),
+      border-color var(--app-ease-duration) var(--app-ease-curve),
+      outline-color var(--app-focus-fade-duration) var(--app-ease-curve),
+      opacity 0.2s ease,
+      max-width 0.28s ease,
+      visibility 0s;
+  }
+
+  /* One delay for each property listed above, in the same order, so only visibility waits */
+  .app-desktop-nav-collapsed .app-nav-user-logout {
+    visibility: hidden;
+    transition-delay: 0s, 0s, 0s, 0s, 0s, 0s, 0.2s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-nav-user .app-nav-user-logout,
+    .app-desktop-nav-collapsed .app-nav-user-logout {
+      transition: none;
+    }
+  }
+
   /* The brand text has no icon-only form, so it cross-fades and collapses its width as the rail closes
      rather than blinking out */
   .app-nav-brand-text {
@@ -766,8 +796,8 @@
   }
 
   /* The profile is its own soft card rather than a nav link, so it never takes the menu-item hover or
-     the icon-rail spacing. In the rail the card fades away to leave just the avatar, which its own
-     auto margins recentre as the name folds, so it glides in without a snap */
+     the icon-rail spacing. In the rail the card fades away to leave just the avatar. A fixed left
+     margin recentres it as the name folds, so it glides in without a snap */
   .app-nav-user {
     display: flex;
     width: 100%;
@@ -798,9 +828,10 @@
 
   /* Centre the avatar with a fixed left offset rather than auto margins, so it stays anchored to the
      rail's left edge and cannot bounce sideways as the spring-driven width overshoots. The offset is
-     half the gap between the avatar and the collapsed content box */
+     half the gap between the avatar and the collapsed content box, which is the width of the icon
+     column the links use, since the row's own 1px border takes room from the rail's inner width */
   .app-desktop-nav-collapsed .app-nav-user-avatar {
-    margin-left: 0.375rem;
+    margin-left: calc((2.375rem - 1.75rem) / 2);
   }
 
   .app-nav-link {
