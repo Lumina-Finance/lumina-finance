@@ -39,7 +39,7 @@ export function Checkbox({
       role="checkbox"
       aria-checked={indeterminate ? 'mixed' : checked}
       aria-label={label}
-      className="relative flex h-5 w-5 items-center justify-center rounded-lg transition-[background-color,border-color,opacity] motion-reduce:transition-none app-field-focus-visible"
+      className="relative flex h-5 w-5 items-center justify-center rounded-lg transition-field app-field-focus-visible"
       style={{
         background: checked || indeterminate ? 'var(--app-accent)' : uncheckedBackground,
         border: `1px solid ${checked || indeterminate ? 'var(--app-accent)' : 'var(--app-border-strong)'}`,

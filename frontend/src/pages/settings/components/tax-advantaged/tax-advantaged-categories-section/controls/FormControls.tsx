@@ -143,7 +143,7 @@ export function CompactCurrencyInput({
 
   return (
     <div
-      className="group flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 transition-colors hover:border-[var(--app-border)] app-field-focus"
+      className="group flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md border border-transparent px-2 transition-field hover:border-[var(--app-border)] app-field-focus"
       style={getCompactFieldFrameStyle(hasError)}
     >
       {symbol && (

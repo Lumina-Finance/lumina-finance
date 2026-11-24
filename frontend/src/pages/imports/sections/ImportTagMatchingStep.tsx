@@ -140,7 +140,7 @@ export function ImportTagMatchingStep({
                 <>
                   <input
                     type="text"
-                    className={`app-input h-[var(--app-dropdown-height-compact)] text-sm transition-[border-color,box-shadow,opacity] ${nameError ? 'app-input-error' : ''} ${rowState === 'creating' ? '' : 'opacity-60'}`}
+                    className={`app-input h-[var(--app-dropdown-height-compact)] text-sm ${nameError ? 'app-input-error' : ''} ${rowState === 'creating' ? '' : 'opacity-60'}`}
                     value={createName}
                     aria-label={`Name for the tag created from ${value}`}
                     aria-invalid={nameError ? true : undefined}

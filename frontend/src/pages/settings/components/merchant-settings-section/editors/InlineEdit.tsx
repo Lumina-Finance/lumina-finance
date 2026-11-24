@@ -82,7 +82,7 @@ export default function InlineMerchantEdit({
         >
           <div className="min-w-0">
             <div
-              className="group flex h-9 min-w-0 items-center gap-1.5 rounded-md border px-2 transition-colors hover:border-[var(--app-border-strong)] app-field-focus"
+              className="group flex h-9 min-w-0 items-center gap-1.5 rounded-md border px-2 transition-field hover:border-[var(--app-border-strong)] app-field-focus"
               style={{
                 background: 'var(--app-input-bg)',
                 borderColor: 'var(--app-input-border)',
