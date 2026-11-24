@@ -62,10 +62,12 @@ async def get_user_who_may_cancel_deletion(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_security)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
-    """Validate the access JWT and load the user, letting a profile that is waiting to be deleted through
+    """Validate the access JWT and load the user, letting a profile marked with a due time through
 
     The one route that cancels a deletion depends on this instead of get_authenticated_user. A marked
-    profile whose due time has passed is refused as every other marked profile is
+    profile with a due time passes whether that time is ahead or behind, so the route can tell a user who
+    came too late why. A marked profile with no due time goes at once and is refused as every other
+    marked profile is
 
     Args:
         credentials: Bearer token from the Authorization header
@@ -76,10 +78,10 @@ async def get_user_who_may_cancel_deletion(
 
     Raises:
         HTTPException 401: Token is missing, invalid, expired, not allowlisted, or the user is gone
-        HTTPException 403: The user's profile is marked for deletion and its due time has passed or was never set
+        HTTPException 403: The user's profile is marked for deletion with no due time
     """
     user = await _load_authenticated_user(credentials, db)
-    if user.deletion_requested_at is not None and not user.is_waiting_to_be_deleted:
+    if user.deletion_requested_at is not None and user.deletion_due_at is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_SCHEDULED_FOR_DELETION_DETAIL)
 
     return user
