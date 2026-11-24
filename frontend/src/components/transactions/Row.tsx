@@ -1,6 +1,6 @@
 import { useContext, useId, useState, type MouseEvent } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Link2, StickyNote, Tag as TagIcon } from 'lucide-react'
+import { HandCoins, StickyNote, Tag as TagIcon } from 'lucide-react'
 import type { Institution } from '@/api/institutions'
 import type { Category } from '@/api/categories'
 import type { Transaction } from '@/api/transactions'
@@ -287,7 +287,8 @@ function NoteAndTagIcons({
           title={refundLink}
           data-testid="transaction-refund-link"
         >
-          <Link2 size={14} strokeWidth={2} aria-hidden />
+          {/* The Refund button's icon, so a row linked to a refund reads as refunded */}
+          <HandCoins size={14} strokeWidth={2} aria-hidden />
         </span>
       )}
       {hasNotes && (
