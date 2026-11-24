@@ -39,17 +39,6 @@ current_user_id_ctx: ContextVar[uuid.UUID | None] = ContextVar("current_user_id"
 # bank sync worker shares with requests needs no keys. Unset outside a request
 current_session_id_ctx: ContextVar[uuid.UUID | None] = ContextVar("current_session_id", default=None)
 
-
-@contextmanager
-def acting_as(user_id: uuid.UUID) -> Iterator[None]:
-    """Work as a user outside a request, so every session opened inside stamps their identity for row-level security"""
-    token = current_user_id_ctx.set(user_id)
-    try:
-        yield
-    finally:
-        current_user_id_ctx.reset(token)
-
-
 # expire_on_commit=False keeps objects usable after commit without re-fetching
 async_session = async_sessionmaker(engine, expire_on_commit=False)
 

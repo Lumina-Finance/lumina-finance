@@ -1,7 +1,7 @@
 """let a profile be deleted
 
 Revision ID: e6b2d9f4a1c7
-Revises: a4c8e2f6b1d3
+Revises: d2f6b8a4c1e9
 Create Date: 2026-11-22 18:00:00.000000
 """
 
@@ -13,7 +13,7 @@ from alembic import op
 from app.db.rls.functions import create_helper_functions
 
 revision: str = "e6b2d9f4a1c7"
-down_revision: str | Sequence[str] | None = "a4c8e2f6b1d3"
+down_revision: str | Sequence[str] | None = "d2f6b8a4c1e9"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

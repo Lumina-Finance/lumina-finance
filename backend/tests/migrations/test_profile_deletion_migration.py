@@ -15,7 +15,7 @@ from tests.migrations.support import _create_engine_for_database, _drop_database
 
 _DATABASE_NAME = f"{WORKER_DB_NAME}_alembic_profile_deletion"
 _REVISION = "e6b2d9f4a1c7"
-_PREVIOUS_REVISION = "a4c8e2f6b1d3"
+_PREVIOUS_REVISION = "d2f6b8a4c1e9"
 _USER_ID = UUID("11111111-1111-4111-8111-111111111111")
 
 # A user with a row in a table whose foreign key had no delete rule before the revision, and one in a
