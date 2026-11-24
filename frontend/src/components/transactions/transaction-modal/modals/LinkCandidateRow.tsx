@@ -1,4 +1,4 @@
-import { Fragment, useId } from 'react'
+import { useId } from 'react'
 import type { Category } from '@/api/categories'
 import type { Institution } from '@/api/institutions'
 import type { RefundLinkCandidate } from '@/api/transactions'
@@ -41,24 +41,16 @@ const PICKABLE_LINE_CLASS_NAME = [
 // column and the 0.625rem gap after it
 const LINE_CLASS_NAME = 'flex flex-wrap gap-1.5 pb-2.5 pl-14 pr-3 -mt-1'
 
-/** Says why a candidate is a likely match, in a line under its row */
-export function LikelyMatchChips({ sameMerchant, exactAmount }: { sameMerchant: boolean; exactAmount: boolean }) {
+/** Says a likely match has exactly the amount that fits, in a line under its row */
+function ExactAmountChip() {
   return (
-    <>
-      {[sameMerchant && 'Same merchant', exactAmount && 'Exact amount'].filter(Boolean).map((label, index) => (
-        <Fragment key={label as string}>
-          {/* Keeps the reasons apart for a screen reader, which may join a row of spans into one word */}
-          {index > 0 && <span className="sr-only">, </span>}
-          <span
-            className="likely-chip rounded-full bg-[var(--app-surface-soft)] px-2 text-xs font-medium leading-5 transition-control motion-reduce:transition-none"
-            style={{ color: 'var(--app-text-muted)' }}
-            data-testid="likely-chip"
-          >
-            {label}
-          </span>
-        </Fragment>
-      ))}
-    </>
+    <span
+      className="likely-chip rounded-full bg-[var(--app-surface-soft)] px-2 text-xs font-medium leading-5 transition-control motion-reduce:transition-none"
+      style={{ color: 'var(--app-text-muted)' }}
+      data-testid="likely-chip"
+    >
+      Exact amount
+    </span>
   )
 }
 
@@ -69,7 +61,7 @@ interface LinkCandidateRowProps {
   accountInstitution: Institution | null | undefined
   isPicked: boolean
 
-  /** Shows why the row is a likely match under it */
+  /** Shows Exact amount under a likely match that has it */
   showsChips: boolean
 
   /** Why the row can't be linked now, written under it. Null when it can be */
@@ -78,7 +70,7 @@ interface LinkCandidateRowProps {
 }
 
 /**
- * A row of the link picker. A likely match says why under it. A row that can't be linked is greyed out with its
+ * A row of the link picker. A likely match with exactly the amount that fits shows Exact amount under it. A row that can't be linked is greyed out with its
  * reason written under it, never only in a tooltip, and describes the row's button for a screen reader
  */
 export default function LinkCandidateRow({
@@ -94,7 +86,8 @@ export default function LinkCandidateRow({
   const reasonId = useId()
   const chipsId = useId()
   const reason = useDisabledReason(refusal, reasonId)
-  const chips = showsChips && (transaction.same_merchant || transaction.exact_amount)
+  // A likely match from the same merchant shows no chip for it, since the row and the eyebrow both name the merchant
+  const chips = showsChips && transaction.exact_amount
   const hasLine = Boolean(refusal) || chips
   return (
     <div
@@ -138,7 +131,7 @@ export default function LinkCandidateRow({
           // A press on the reasons picks the row as a press on the row does. The keyboard reaches the row's button, and
           // a screen reader hears the reasons as part of its description
           <div id={chipsId} className={`${LINE_CLASS_NAME} cursor-pointer`} onClick={onPick}>
-            <LikelyMatchChips sameMerchant={transaction.same_merchant} exactAmount={transaction.exact_amount} />
+            <ExactAmountChip />
           </div>
         )
       )}

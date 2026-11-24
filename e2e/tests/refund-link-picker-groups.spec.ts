@@ -107,8 +107,9 @@ test('groups an expense picker by fit and previews the chain as it stands', asyn
 
   await expect(group(picker, 'likely').getByRole('heading')).toHaveText('Likely matches')
   await expect(amounts(group(picker, 'likely'))).toHaveText(['+$135.00', '+$60.00'])
-  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(0).getByTestId('likely-chip')).toHaveText(['Same merchant', 'Exact amount'])
-  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(1).getByTestId('likely-chip')).toHaveText(['Same merchant'])
+  // The row and the eyebrow both name the merchant, so only an exact amount says why under the row
+  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(0).getByTestId('likely-chip')).toHaveText(['Exact amount'])
+  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(1).getByTestId('likely-chip')).toHaveCount(0)
   await expect(group(picker, 'other').getByRole('heading')).toHaveText('Other money in')
   await expect(group(picker, 'other').getByTestId('link-candidate')).toHaveText([/Northwind Supply/])
   await expect(group(picker, 'other').getByTestId('likely-chip')).toHaveCount(0)
@@ -190,9 +191,9 @@ test('groups a refund picker by fit and previews the picked expense chain', asyn
 
   await expect(picker.getByText(`Harbor Electronics · ${eyebrowDate(1)} · +$135.00`, { exact: true })).toBeVisible()
   await expect(amounts(group(picker, 'likely'))).toHaveText(['−$420.00', '−$135.00', '−$1,000.00'])
-  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(0).getByTestId('likely-chip')).toHaveText(['Same merchant', 'Exact amount'])
+  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(0).getByTestId('likely-chip')).toHaveText(['Exact amount'])
   await expect(group(picker, 'likely').getByTestId('link-candidate').nth(1).getByTestId('likely-chip')).toHaveText(['Exact amount'])
-  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(2).getByTestId('likely-chip')).toHaveText(['Same merchant'])
+  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(2).getByTestId('likely-chip')).toHaveCount(0)
   await expect(group(picker, 'other').getByRole('heading')).toHaveText('Other expenses')
   await expect(amounts(group(picker, 'other'))).toHaveText(['−$200.00'])
   await expect(folded(picker)).toHaveText("1 can't be linked, with less than this refund left")
