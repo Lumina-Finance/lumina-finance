@@ -23,6 +23,7 @@ import { ServerNotice } from '@/components/feedback/ServerNotice'
 import LoadingScreen from '@/components/loading/Screen'
 import ScheduledDeletionScreen from '@/components/profile-deletion/ScheduledDeletionScreen'
 import ForcedReenrollScreen from '@/components/two-factor/ForcedReenrollScreen'
+import { getHeldScreen } from '@/utils/heldScreen'
 import { lazyPage } from '@/utils/pageCode'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 
@@ -206,12 +207,13 @@ function ProtectedRoute({
   // No session and not loading — go straight to login
   if (!loading && !user) return <Navigate to="/login" replace />
 
-  // A recovery-code login holds the account to re-enrolment before any route renders
-  if (user?.second_factor_reenrollment_required) return <ForcedReenrollScreen />
-
   // A profile waiting to be deleted can only cancel the deletion or sign out, since the server refuses every
-  // other request until then
-  if (user?.deletion_due_at) return <ScheduledDeletionScreen dueAt={user.deletion_due_at} />
+  // other request until then. A recovery-code login holds the account to re-enrolment before any route renders
+  const heldScreen = getHeldScreen(user)
+  if (heldScreen === 'scheduled-deletion' && user?.deletion_due_at) {
+    return <ScheduledDeletionScreen dueAt={user.deletion_due_at} />
+  }
+  if (heldScreen === 'reenrollment') return <ForcedReenrollScreen />
 
   // Nothing retries this on its own, not a refocus, a reconnect, or the remount every navigation
   // performs, so it stands until the user reloads, which is what the screen asks them to do. It says
