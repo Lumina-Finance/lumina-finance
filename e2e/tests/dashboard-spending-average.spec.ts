@@ -489,10 +489,14 @@ test('keeps the amount row and the button where they are when the average turns 
   const amount = card.locator('p.font-financial')
   const title = card.locator('.app-label:not([data-title-measure])').first()
   await card.scrollIntoViewIfNeeded()
+  // One plain read per sample, since settledValue waits for the samples to hold still. A wait of its own in each
+  // sample costs about a second, so nine samples used up the 15 seconds on a slow machine
   const positions = async () => {
-    const [toggleBox, amountBox] = await Promise.all([stableBox(toggle), amount.boundingBox()])
-    return { toggleY: Math.round(toggleBox.y), amountY: Math.round(amountBox!.y) }
+    const [toggleBox, amountBox] = await Promise.all([toggle.boundingBox(), amount.boundingBox()])
+    return { toggleY: Math.round(toggleBox!.y), amountY: Math.round(amountBox!.y) }
   }
+  // The card's body settles in after the page opens, so the starting spot is read once the button holds still
+  await stableBox(toggle)
   const before = await positions()
 
   await toggle.click()
