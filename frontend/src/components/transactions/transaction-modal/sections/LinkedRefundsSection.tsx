@@ -222,11 +222,13 @@ export default function TransactionModalLinkedRefundsSection({
   const linkButtonShown = anythingFits && (isRefund ? offersExpenseLink : offersRefundLink)
 
   // The picker gives focus back to the button that opened it. Where the link it made takes that button away, focus
-  // moves on to Unlink on the row the link made, after the picker's own hand back a frame on
+  // moves on to Unlink on the row the link made, after the picker's own hand back a frame on. A link changes what is
+  // left, so the list is asked for again, and the button's fate waits for that list to land
   const focusAfterPick = useRef<string | null>(null)
+  const listSettling = candidates.isPlaceholderData
   useEffect(() => {
     const linkId = focusAfterPick.current
-    if (pickerOpen || linkId === null) return
+    if (pickerOpen || linkId === null || listSettling) return
     focusAfterPick.current = null
     if (linkButtonShown) return
     const frame = window.requestAnimationFrame(() => {
@@ -235,7 +237,7 @@ export default function TransactionModalLinkedRefundsSection({
         ?.focus({ preventScroll: true })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [pickerOpen, linkButtonShown])
+  }, [pickerOpen, linkButtonShown, listSettling])
 
   if (!showRefunds && !showRefundOf) return null
 
