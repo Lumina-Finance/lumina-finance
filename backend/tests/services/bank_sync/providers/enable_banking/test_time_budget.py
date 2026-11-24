@@ -6,6 +6,7 @@ answering ends either one while the browser still waits, with a reason the scree
 
 import asyncio
 import json
+from collections.abc import Callable
 
 import httpx
 import pytest
@@ -40,10 +41,36 @@ class _StallingApi(httpx.AsyncBaseTransport):
         return await self._api.transport.handle_async_request(request)
 
 
-@pytest.fixture(autouse=True)
-def short_budget(monkeypatch) -> None:
-    """Give each request the tests' short budget"""
-    monkeypatch.setattr(outbound, "WAITED_REQUEST_BUDGET_SECONDS", _BUDGET_SECONDS)
+class _BudgetFromEachCall:
+    """Stands in for the request's deadline, giving each provider call the short budget from when that call starts
+
+    The real deadline counts from the start of the request, so on a busy machine the calls before the stalled one could
+    spend the short budget and the stalled call would never be sent
+    """
+
+    def __init__(self, deadline) -> None:
+        """Keep the real deadline, so a request outside the budget still has none"""
+        self._deadline = deadline
+
+    def get(self) -> float | None:
+        """The short budget from now, or no deadline where the real one has none"""
+        if self._deadline.get() is None:
+            return None
+        return asyncio.get_running_loop().time() + _BUDGET_SECONDS
+
+    def set(self, value):
+        """Set the real deadline"""
+        return self._deadline.set(value)
+
+    def reset(self, token) -> None:
+        """Reset the real deadline"""
+        self._deadline.reset(token)
+
+
+@pytest.fixture
+def shorten_budget(monkeypatch) -> Callable[[], None]:
+    """Return the call that gives each later provider call the tests' short budget, made once setup is done so setup keeps the production one"""
+    return lambda: monkeypatch.setattr(outbound, "_budget_deadline", _BudgetFromEachCall(outbound._budget_deadline))
 
 
 @pytest.fixture
@@ -67,9 +94,10 @@ async def _start(client, headers):
     )
 
 
-async def test_start_when_enable_banking_stalls_answers_within_the_budget(client, stalling: _StallingApi):
+async def test_start_when_enable_banking_stalls_answers_within_the_budget(client, stalling: _StallingApi, shorten_budget):
     """The sign-in request gets no answer, so the start stops at its budget and says Lumina Finance couldn't reach Enable Banking"""
     headers, _ = await _sign_up(client)
+    shorten_budget()
     stalling.stalled_path = "/auth"
 
     async with asyncio.timeout(_GIVE_UP_SECONDS):
@@ -81,7 +109,7 @@ async def test_start_when_enable_banking_stalls_answers_within_the_budget(client
 
 
 async def test_finish_when_enable_banking_stalls_answers_within_the_budget_and_saves_nothing(
-    client, api: EnableBankingApi, stalling: _StallingApi
+    client, api: EnableBankingApi, stalling: _StallingApi, shorten_budget
 ):
     """The bank sent the user back, but the session request gets no answer, so the finish stops at its budget and says to connect again"""
     headers, _ = await _sign_up(client)
@@ -89,6 +117,7 @@ async def test_finish_when_enable_banking_stalls_answers_within_the_budget_and_s
     assert started.status_code == 201, started.text
     [sign_in] = [request for request in api.requests if request.url.path == "/auth"]
     state = json.loads(sign_in.content)["state"]
+    shorten_budget()
     stalling.stalled_path = "/sessions"
 
     async with asyncio.timeout(_GIVE_UP_SECONDS):
