@@ -27,6 +27,9 @@ export default function UnlinkableCandidates({ picksRefund, rooms, children }: U
       // field as the list scrolls up beneath it
       className="isolate mt-2"
       bodyClassName="pt-1"
+      // The list eases in a box that clips at its edges, so the header draws its focus ring inside them, as the rows
+      // above do
+      headerStyle={{ outlineOffset: 'calc(var(--app-focus-offset) * -1)' }}
     >
       <div role="group" aria-label="Transactions that can't be linked" data-testid="unlinkable-candidates">
         {children}

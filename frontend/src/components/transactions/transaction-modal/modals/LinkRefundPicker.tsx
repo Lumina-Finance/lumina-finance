@@ -330,8 +330,7 @@ export default function TransactionModalLinkRefundPicker({
               {group('other', picksRefund ? 'Other money in' : 'Other expenses', groups.other, false)}
               <AnimatePresence initial={false}>
                 {groups.unlinkable.length > 0 && (
-                  // The folded row's focus ring draws outside its edges, so the clipping row reaches past them
-                  <RevealRow key="unlinkable" className="-mx-1 -mb-1" spacingClassName="px-1 pb-1">
+                  <RevealRow key="unlinkable" spacingClassName="">
                     <UnlinkableCandidates picksRefund={picksRefund} rooms={groups.unlinkable.map(({ room }) => room)}>
                       <AnimatePresence initial={false}>
                         {groups.unlinkable.map(({ candidate, room }) =>
