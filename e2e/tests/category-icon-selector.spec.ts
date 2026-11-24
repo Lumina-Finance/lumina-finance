@@ -164,3 +164,22 @@ test('returns the panel to its content height when the button is pressed while i
   await expect(panel.getByRole('searchbox')).toBeVisible()
   await expect.poll(height).toBeGreaterThan(full - 2)
 })
+
+test('the panel leaves the page after folding away, even when a search changes its results mid-fold', async ({
+  page,
+  request,
+}) => {
+  const { panel } = await openPicker(page, request)
+  await expect(panel.getByRole('searchbox')).toHaveValue('')
+
+  // Types a search and presses Escape in one go, so the results change height after the panel has begun
+  // to fold. A driven keyboard can't be sure of landing the search inside the fold
+  await panel.getByRole('searchbox').evaluate((input) => {
+    const field = input as HTMLInputElement
+    field.value = 'car'
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }))
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+  })
+
+  await expect(panel).toHaveCount(0)
+})
