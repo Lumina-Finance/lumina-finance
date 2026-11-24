@@ -230,7 +230,7 @@ async def test_import_creating_an_account_in_another_currency_refused_saves_noth
 
     saved = await _import_run(client, headers, _PAYLOAD)
 
-    assert saved.status_code == 201, saved.text
+    assert saved.status_code == 200, saved.text
     assert await _account_names(client, headers) == ["Main Chequing"]
     assert len([request for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES]) == 1, (
         "an account in the main currency was asked about"
@@ -244,8 +244,10 @@ async def test_import_of_a_budget_in_another_currency_refused_saves_nothing_at_a
     run_path = await _stage_journal_run_with_budgets(client, headers, ["Groceries"], budget_currency="USD")
     asked = install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
 
-    refused = await client.post(f"{run_path}/journal/commit", headers=headers)
+    requested = await client.post(f"{run_path}/journal/commit", headers=headers)
+    refused = await client.get(f"{run_path}/journal/commit", headers=headers)
 
+    assert requested.status_code == 202, requested.text
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == ALLOWANCE_REASON
     assert await _account_names(client, headers) == [], "the account of a refused import was saved"
@@ -272,7 +274,7 @@ async def test_import_asks_about_other_currencies_once_for_each_and_never_for_th
 
     saved = await _import_run(client, headers, payload)
 
-    assert saved.status_code == 201, saved.text
+    assert saved.status_code == 200, saved.text
     assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [(None, 0)]
 
 
@@ -290,7 +292,7 @@ async def test_import_of_two_different_other_currencies_asks_once_for_each(clien
 
     saved = await _import_run(client, headers, {**_PAYLOAD, "accounts": accounts})
 
-    assert saved.status_code == 201, saved.text
+    assert saved.status_code == 200, saved.text
     assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [(None, 0), (None, 0)]
 
 
@@ -314,9 +316,11 @@ async def test_import_of_two_budgets_in_another_currency_asks_about_it_once(clie
     run_path = await _stage_journal_run_with_budgets(client, headers, ["Groceries", "Dining"], budget_currency="USD")
     asked = install_check()
 
-    committed = await client.post(f"{run_path}/journal/commit", headers=headers)
+    requested = await client.post(f"{run_path}/journal/commit", headers=headers)
+    committed = await client.get(f"{run_path}/journal/commit", headers=headers)
 
-    assert committed.status_code == 201, committed.text
+    assert requested.status_code == 202, requested.text
+    assert committed.status_code == 200, committed.text
     assert [(request.held, request.adding) for request in asked if request.kind == AllowanceKind.FOREIGN_CURRENCIES] == [(None, 0)]
 
 
@@ -327,8 +331,10 @@ async def test_import_of_a_budget_in_the_main_currency_beside_an_account_in_anot
     run_path = await _stage_journal_run_with_budgets(client, headers, ["Groceries"], account_currency="USD")
     install_check(refused={AllowanceKind.FOREIGN_CURRENCIES})
 
-    refused = await client.post(f"{run_path}/journal/commit", headers=headers)
+    requested = await client.post(f"{run_path}/journal/commit", headers=headers)
+    refused = await client.get(f"{run_path}/journal/commit", headers=headers)
 
+    assert requested.status_code == 202, requested.text
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == ALLOWANCE_REASON
     assert await _account_names(client, headers) == []
