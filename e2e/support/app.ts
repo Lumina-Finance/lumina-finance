@@ -608,13 +608,23 @@ export async function openModal(page: Page, buttonNames: string[], dialogName: s
     .reduce((all, one) => all.or(one))
 
   await opener.click()
-  await expect(dialog).toBeVisible()
-  // A dialog moves focus onto its first field a frame after it opens, and on a busy host that frame can
-  // land after the dialog shows, taking focus from wherever the spec has moved it. Focus starts on the
-  // opener outside the dialog, so it's inside once the dialog has placed it
-  await expect.poll(() => dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true)
+  await waitForDialogFocus(dialog)
 
   return dialog
+}
+
+/**
+ * Waits for a dialogue opened from outside it to place its opening focus.
+ *
+ * A dialogue moves focus onto its first field a frame after it opens, and on a busy host that frame can
+ * land after the dialogue shows, taking focus from wherever the spec has moved it. Focus starts on the
+ * opener outside the dialogue, so it's inside once the dialogue has placed it
+ *
+ * @param dialogue - The dialogue just opened
+ */
+export async function waitForDialogFocus(dialogue: Locator): Promise<void> {
+  await expect(dialogue).toBeVisible()
+  await expect.poll(() => dialogue.evaluate((node) => node.contains(document.activeElement))).toBe(true)
 }
 
 /**

@@ -11,7 +11,14 @@ import {
   enrollTotp,
   signUpUser,
 } from '../support/api'
-import { logInViaApi, openModal, openPage, reachTwoFactorChallenge, signUpThroughTheForm } from '../support/app'
+import {
+  logInViaApi,
+  openModal,
+  openPage,
+  reachTwoFactorChallenge,
+  signUpThroughTheForm,
+  waitForDialogFocus,
+} from '../support/app'
 import {
   answerAsBankImported,
   answerLinksWith,
@@ -365,6 +372,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await page.getByRole('dialog', { name: 'Old one-off', exact: true }).getByRole('button', { name: 'Edit', exact: true }).click()
     const edit = page.getByRole('dialog', { name: 'Edit budget', exact: true })
     const recurring = edit.getByRole('button', { name: 'Recurring', exact: true })
+    // The dialogue's own opening focus would otherwise take focus back from Recurring
+    await waitForDialogFocus(edit)
 
     await expect(recurring).toHaveAttribute('aria-disabled', 'true')
     await focusFromKeyboard(page, recurring)
