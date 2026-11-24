@@ -217,7 +217,7 @@ test('names the date a waiting deletion runs in the dialogue and on the sign-in 
   await logInViaApi(page, user)
   await openPage(page, '/settings')
 
-  await page.getByRole('button', { name: 'Delete profile', exact: true }).click()
+  await page.locator('#delete-profile').getByRole('button', { name: 'Delete profile', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Delete your profile and all your data?' })
   await expect(dialog.getByText(`Your profile and data will be deleted on ${date}. Until then, you can sign in and cancel.`)).toBeVisible()
   await expect(dialog.getByText('This will permanently delete all your data and is irrevocable.')).toHaveCount(0)
