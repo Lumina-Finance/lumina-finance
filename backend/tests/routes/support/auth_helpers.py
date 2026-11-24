@@ -1,8 +1,12 @@
 """Shared auth route test helpers"""
 
+import base64
+import hashlib
+import secrets
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
+from urllib.parse import parse_qs, urlsplit
 
 import jwt
 import pyotp
@@ -253,6 +257,34 @@ async def _refresh_session(client, refresh_cookie: str):
     client.cookies.clear()
     client.cookies.set("refresh_token", refresh_cookie)
     return await client.post("/auth/refresh")
+
+
+def _pkce_pair() -> tuple[str, str]:
+    """Return a PKCE verifier and its S256 challenge, as the app makes them"""
+    verifier = secrets.token_urlsafe(32)
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    return verifier, challenge
+
+
+async def _hand_off(client, access_token: str, challenge: str):
+    """Submit the page's handoff form and return the query the redirect hands to the app"""
+    resp = await client.post(
+        "/auth/native/handoff",
+        data={"access_token": access_token, "code_challenge": challenge},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    location = urlsplit(resp.headers["location"])
+    assert f"{location.scheme}://{location.netloc}{location.path}" == "luminafinance://auth/callback"
+    return {name: values[0] for name, values in parse_qs(location.query).items()}
+
+
+async def _signed_in_code(client) -> tuple[str, str, str]:
+    """Sign up in the web, hand off, and return the code, its verifier and the web refresh cookie"""
+    signup = await _create_user(client)
+    verifier, challenge = _pkce_pair()
+    query = await _hand_off(client, signup.json()["access_token"], challenge)
+    return query["code"], verifier, signup.cookies["refresh_token"]
 
 
 async def _assert_session_works(client, session: tuple[dict, str]) -> None:

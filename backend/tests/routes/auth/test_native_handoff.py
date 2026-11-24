@@ -1,13 +1,9 @@
 """Native handoff tests: a web sign-in in the app's system sheet hands its session to the app"""
 
 import asyncio
-import base64
 import contextlib
-import hashlib
-import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
-from urllib.parse import parse_qs, urlsplit
 
 import jwt
 import pytest
@@ -29,7 +25,7 @@ from app.models.user import User
 from app.services.auth import native_handoff as native_handoff_service
 from app.services.auth import tokens
 from tests.conftest import TestSession
-from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _resend_cookie
+from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _hand_off, _pkce_pair, _resend_cookie, _signed_in_code
 
 
 def _clock_set_back(age: timedelta) -> type[datetime]:
@@ -41,34 +37,6 @@ def _clock_set_back(age: timedelta) -> type[datetime]:
             return datetime.now(tz) - age
 
     return _Earlier
-
-
-def _pkce_pair() -> tuple[str, str]:
-    """Return a PKCE verifier and its S256 challenge, as the app makes them"""
-    verifier = secrets.token_urlsafe(32)
-    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
-    return verifier, challenge
-
-
-async def _hand_off(client, access_token: str, challenge: str):
-    """Submit the page's handoff form and return the query the redirect hands to the app"""
-    resp = await client.post(
-        "/auth/native/handoff",
-        data={"access_token": access_token, "code_challenge": challenge},
-        follow_redirects=False,
-    )
-    assert resp.status_code == 303
-    location = urlsplit(resp.headers["location"])
-    assert f"{location.scheme}://{location.netloc}{location.path}" == "luminafinance://auth/callback"
-    return {name: values[0] for name, values in parse_qs(location.query).items()}
-
-
-async def _signed_in_code(client) -> tuple[str, str, str]:
-    """Sign up in the web, hand off, and return the code, its verifier and the web refresh cookie"""
-    signup = await _create_user(client)
-    verifier, challenge = _pkce_pair()
-    query = await _hand_off(client, signup.json()["access_token"], challenge)
-    return query["code"], verifier, signup.cookies["refresh_token"]
 
 
 async def test_exchange_starts_native_session_and_ends_web_session(client):

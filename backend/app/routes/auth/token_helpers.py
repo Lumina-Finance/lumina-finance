@@ -46,6 +46,7 @@ from app.services.auth.sessions import (
     create_auth_session,
     create_auth_token,
     delete_grace_ended_refresh_tokens,
+    end_sessions_past_limit,
     is_session_live,
     rotate_auth_session_tokens,
 )
@@ -700,6 +701,9 @@ async def issue_and_store_tokens(
     refresh_token, refresh_jti, refresh_exp = create_refresh_token(user.id, session_id)
 
     if is_new_session:
+        # Every way of signing in starts its session here, so this one call holds each person to the
+        # session limit
+        await end_sessions_past_limit(db, user.id)
         db.add(create_auth_session(user.id, session_id, refresh_exp))
     else:
         auth_session = await get_active_session_by_id(db, session_id, user.id)

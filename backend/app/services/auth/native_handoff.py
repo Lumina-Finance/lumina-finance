@@ -14,7 +14,7 @@ from app.models.auth import MfaChallenge
 from app.models.auth_session import AuthSession
 from app.models.user import User
 from app.services.auth.mfa_challenge import consume_mfa_challenge
-from app.services.auth.sessions import delete_auth_session
+from app.services.auth.sessions import delete_auth_session, lock_user_for_session_changes
 from app.services.auth.tokens import create_native_handoff_token
 
 # The handoff's single use rides on the challenge table, under a purpose no other flow accepts
@@ -70,8 +70,11 @@ async def redeem_native_handoff_code(
         The user to start the app's session for, or None when the code is spent, expired or wrong,
         or its web session has ended
     """
-    # Locking the web session first means two codes for one session queue here, and the second
-    # finds the session already gone once the first has replaced it
+    # The user's row comes before any of their session rows, so a sign-in ending this web session at
+    # the session limit can't deadlock with it. Two codes for one session also queue here, and the
+    # second finds the session already gone once the first has replaced it
+    await lock_user_for_session_changes(db, user_id)
+
     web_session = await db.scalar(
         select(AuthSession)
         .where(AuthSession.id == session_id, AuthSession.user_id == user_id, AuthSession.expires_at > sa_func.now())
@@ -87,9 +90,8 @@ async def redeem_native_handoff_code(
         await db.commit()
         return None
 
-    user = await db.scalar(select(User).where(User.id == user_id))
-    if user is None:
-        return None
+    # The lock above already found this row
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one()
 
     # The web session only existed to carry the sign-in to the app, so it ends as the app's begins
     await delete_auth_session(db, session_id)

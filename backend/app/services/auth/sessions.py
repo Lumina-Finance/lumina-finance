@@ -18,6 +18,11 @@ from app.models.user import User
 # refresh leaves one and every refresh issues tokens, so ordinary traffic clears them all as they end
 GRACE_ENDED_TOKEN_DELETE_LIMIT = 100
 
+# The most live sessions one person holds: twice a typical person's phone, tablet and browsers, with
+# room for private windows, so repeated sign-ins can't pile up sessions and normal use never signs a
+# device out
+MAX_LIVE_SESSIONS_PER_USER = 10
+
 
 def is_session_live() -> ColumnElement[bool]:
     """Return the condition a session row meets while it can still authorize requests and refreshes
@@ -32,6 +37,47 @@ def is_session_live() -> ColumnElement[bool]:
         AuthSession.expires_at > sa_func.now(),
         AuthSession.created_at > sa_func.now() - timedelta(seconds=SESSION_MAX_AGE_SECONDS),
     )
+
+
+async def lock_user_for_session_changes(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Hold the user's row until the transaction ends, before touching any of their session rows
+
+    Every flow that adds a session, or ends sessions other than the caller's own, takes this row first,
+    here or through the saved copy key rotation's update, so two such flows wait for each other rather
+    than deadlock. A sign-out ending only its own session needs no order, since it never waits on a
+    lock a sign-in holds. The row is visible only once the request has adopted the user's identity, so
+    a missing one fails loudly
+
+    Args:
+        db: Active database session
+        user_id: User whose sessions are about to change
+    """
+    (await db.execute(select(User.id).where(User.id == user_id).with_for_update(key_share=True))).scalar_one()
+
+
+async def end_sessions_past_limit(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """End the sessions renewed longest ago, leaving room for one more within the limit
+
+    Each refresh moves a session's expiry on, so the earliest expiry is the session renewed or signed
+    in longest ago. Sessions no longer live aren't counted, and the scheduled cleanup removes them.
+    Ending one doesn't move the saved copy key on, just as a sign-out doesn't
+
+    Args:
+        db: Active database session
+        user_id: User about to start a new session
+    """
+    await lock_user_for_session_changes(db, user_id)
+    surplus_session_ids = (
+        await db.scalars(
+            select(AuthSession.id)
+            .where(AuthSession.user_id == user_id, is_session_live())
+            .order_by(AuthSession.expires_at.desc(), AuthSession.created_at.desc(), AuthSession.id)
+            .offset(MAX_LIVE_SESSIONS_PER_USER - 1)
+        )
+    ).all()
+    if surplus_session_ids:
+        # Removing the sessions cascades to their token allowlist rows
+        await db.execute(delete(AuthSession).where(AuthSession.id.in_(surplus_session_ids)))
 
 
 async def delete_expired_auth_sessions(db: AsyncSession) -> None:
@@ -144,6 +190,10 @@ async def delete_other_user_auth_sessions(
     Returns:
         None
     """
+    # The rotation's update takes the user's row before any session row, in the order
+    # lock_user_for_session_changes describes
+    await _rotate_saved_copy_key(db, user_id)
+
     other_sessions_delete_query = delete(AuthSession).where(
         AuthSession.user_id == user_id,
         AuthSession.id != keep_session_id,
@@ -151,7 +201,6 @@ async def delete_other_user_auth_sessions(
 
     # Removing the sessions cascades to their token allowlist rows
     await db.execute(other_sessions_delete_query)
-    await _rotate_saved_copy_key(db, user_id)
 
 
 async def end_other_sessions(db: AsyncSession, user_id: uuid.UUID, current_session_id: uuid.UUID) -> None:
@@ -178,11 +227,15 @@ async def delete_all_user_auth_sessions(db: AsyncSession, user_id: uuid.UUID) ->
     Returns:
         None
     """
+    # The rotation's update takes the user's row before any session row, in the order
+    # lock_user_for_session_changes describes. It also works before sign-in, when the
+    # request has no identity yet and the row is hidden from a plain lock
+    await _rotate_saved_copy_key(db, user_id)
+
     sessions_delete_query = delete(AuthSession).where(AuthSession.user_id == user_id)
 
     # Removing the sessions cascades to their token allowlist rows
     await db.execute(sessions_delete_query)
-    await _rotate_saved_copy_key(db, user_id)
 
 
 async def rotate_auth_session_tokens(
