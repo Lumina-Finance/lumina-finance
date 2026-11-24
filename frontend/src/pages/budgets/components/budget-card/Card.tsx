@@ -46,16 +46,19 @@ export default function BudgetCard({
   const readOnlyPillId = useId()
   const readOnlyFocus = useReadOnlyReasonOnFocus(baseBudget.read_only_reason, readOnlyPillId)
 
-  // A read-only budget starts no new period, so its card looks archived, with its own pill in the status's place
+  // A read-only budget starts no new period, so its card looks archived, with its own pill in the status's place.
+  // It stays fully opaque, since fading it would leave the pill's small text below the contrast minimum
   const looksArchived = isArchived || Boolean(baseBudget.read_only_reason)
 
   return (
     <article
       data-testid={`budget-card-${baseBudget.id}`}
       className={`app-card app-budget-card flex w-full min-w-0 cursor-pointer flex-col hover:-translate-y-0.5 ${
-        looksArchived
+        isArchived
           ? 'opacity-80 transition-[translate,opacity] hover:opacity-100'
-          : 'min-h-[21.5rem] transition-transform'
+          : looksArchived
+            ? 'transition-transform'
+            : 'min-h-[21.5rem] transition-transform'
       }`}
       style={{ borderTop: `5px solid ${looksArchived ? 'var(--app-text-muted)' : attention.indicatorColor}` }}
       role="button"

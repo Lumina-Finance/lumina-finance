@@ -63,7 +63,8 @@ describe('a read-only budget’s card', () => {
     const markup = renderCard({ ...BUDGET, read_only_reason: REASON })
 
     expect(cardStyle(markup)).toContain('border-top:5px solid var(--app-text-muted)')
-    expect(markup).toMatch(/<article data-testid="budget-card-budget-1"[^>]*class="[^"]*opacity-80/)
+    // Fully opaque, unlike an archived card, so the pill's small text keeps its contrast
+    expect(markup).not.toMatch(/<article data-testid="budget-card-budget-1"[^>]*class="[^"]*opacity-80/)
     expect(markup).toContain('data-testid="read-only-reason-pill"')
     expect(markup).toContain(REASON)
     expect(markup).not.toContain('On track')
