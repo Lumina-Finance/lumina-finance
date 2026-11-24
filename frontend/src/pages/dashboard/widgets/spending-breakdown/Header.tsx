@@ -30,10 +30,11 @@ export function SpendingBreakdownHeader({
 }: SpendingBreakdownHeaderProps) {
   const oppositeModeLabel = breakdownMode === 'spending' ? 'income' : 'spending'
 
-  // The desktop tabs show only where the row holds the icon (32px), title (169.3px), FX badge (21px), toggle (32px)
-  // and tabs (174px) with four 8px gaps, 460.3px measured, rounded up to 461px. The badge is counted whether or not
-  // it has arrived, so its late arrival never wraps the row. Narrower, the mobile selector takes its own row below
-  // the other four. Those four stay on one line
+  // The desktop tabs show only where the viewport is 730px or wider, as on every dashboard card, and the row holds the
+  // icon (32px), title (169.3px), FX badge (FX_BADGE_WIDTH_PX, 20.27px), toggle (32px) and tabs (174px) with four 8px
+  // gaps, 459.6px measured, rounded up to 461px to leave a pixel for the title's rounding. The badge is counted whether
+  // or not it has arrived, so its late arrival never wraps the row. Narrower, or on a viewport under 730px, the mobile
+  // selector takes its own row below the other four. Those four stay on one line
   return (
     <div data-testid="spending-breakdown-header" className="@container mb-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -61,8 +62,8 @@ export function SpendingBreakdownHeader({
           onChange={onRangeChange}
           ariaLabel="Breakdown range"
           sheetTitle="Breakdown range"
-          desktopClassName="hidden @[461px]:inline-flex"
-          mobileClassName="w-full @[461px]:hidden"
+          desktopClassName="hidden min-[730px]:@[461px]:inline-flex"
+          mobileClassName="w-full min-[730px]:@[461px]:hidden"
         />
       </div>
     </div>

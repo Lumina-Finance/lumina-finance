@@ -121,6 +121,21 @@ test(`switches the breakdown header's range control at exactly ${BREAKDOWN.minim
   expect(Math.abs(middle(badgeBox) - middle(tabsBox))).toBeLessThan(2)
 })
 
+test('shows the breakdown header the mobile range selector at a 600px viewport, as the comparison card does', async ({
+  page,
+  request,
+}) => {
+  const { card, rangeName } = BREAKDOWN
+  await openDashboard(page, request, 600)
+  await openPage(page, '/dashboard')
+  await expect(page.getByRole('button', { name: `${card} FX status`, exact: true })).toBeVisible()
+  // The card is wider than the 461px the tabs need here, but the dashboard keeps the tabs for 730px and up
+  await expect(rangeControl(page, rangeName, false)).toBeVisible()
+  await expect(rangeControl(page, rangeName, true)).toBeHidden()
+  await expect(rangeControl(page, 'Spending range', false)).toBeVisible()
+  await expect(rangeControl(page, 'Spending range', true)).toBeHidden()
+})
+
 /** The vertical middle of a box, or NaN where it has none */
 function middle(box: { y: number; height: number } | null) {
   return box ? box.y + box.height / 2 : Number.NaN
@@ -204,7 +219,8 @@ for (const range of ['WTD', 'MTD', 'QTD', 'YTD']) {
             samples.push({ tabs: await tabs.boundingBox(), sameLine: await sameLine() })
             return samples.length
           },
-          { intervals: [100] },
+          // Each read waits on a busy shared host, so ten of them can take longer than the usual 15 seconds
+          { intervals: [100], timeout: 45_000 },
         )
         .toBeGreaterThanOrEqual(10)
       for (const sample of samples) {
