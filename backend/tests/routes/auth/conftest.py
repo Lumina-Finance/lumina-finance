@@ -4,6 +4,8 @@ from app import dependencies
 from app.routes.auth import token_helpers
 from app.services.auth import discovery, registration, reset_send_limit, send_backoff, signup, tokens
 from tests.routes.support.oidc_helpers import provider_protocol  # noqa: F401  (a fixture the auth tests take by name)
+from tests.services.bank_sync.authorizing_provider import AuthorizingProviderAdapter
+from tests.services.bank_sync.fake_provider import use_adapter
 
 
 @pytest.fixture(autouse=True)
@@ -23,6 +25,14 @@ def reset_clock(monkeypatch):
         now[0] += seconds
 
     return advance
+
+
+@pytest.fixture
+def authorizing_provider(no_bank_provider, monkeypatch) -> AuthorizingProviderAdapter:
+    """Install the scripted provider that records each access it is given back, as the only provider"""
+    adapter = AuthorizingProviderAdapter()
+    use_adapter(monkeypatch, adapter)
+    return adapter
 
 
 @pytest.fixture

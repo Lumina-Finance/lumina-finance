@@ -76,3 +76,17 @@ class UserRunwayAccount(Base):
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
+
+
+class UserLastSignIn(Base):
+    """When a user last signed in or renewed a session, one row per user once they first do
+
+    Kept apart from the user row because a renewal writes it while holding its session row, and ending
+    a user's other sessions holds the user row while it deletes sessions, so a write to the user row
+    there could deadlock with it. Nothing else locks this row
+    """
+
+    __tablename__ = "user_last_sign_ins"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    last_signed_in_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

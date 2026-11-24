@@ -44,6 +44,7 @@ PRUNE_EXPIRED_BANK_AUTHORIZATIONS = "public.prune_expired_bank_authorizations"
 MIGRATION_REVISIONS = "public.migration_revisions"
 ROTATE_SAVED_COPY_KEY = "public.rotate_saved_copy_key"
 LIST_PROFILES_TO_DELETE = "public.list_profiles_to_delete"
+LIST_USERS = "public.list_users"
 
 # The worker functions see across users. Only the worker, connecting with no request
 # identity, may do that. Refusing a call made under an identity keeps a request from reaching them
@@ -578,6 +579,33 @@ _HELPERS: tuple[_Helper, ...] = (
     $$
     """,
         f"{LIST_PROFILES_TO_DELETE}()",
+    ),
+    # One batch of users in id order after a given id, with when each signed up and last signed in, for
+    # code built on the app. Users being deleted are left out. Only code with no request identity may see
+    # across users, so a call made under one is refused. Written in plpgsql so creating it does not check
+    # the table of last sign-ins exists, since migrations that predate it create every current helper
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {LIST_USERS}(p_after uuid, p_limit integer)
+    RETURNS TABLE (id uuid, email varchar, created_at timestamptz, last_signed_in_at timestamptz)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+    BEGIN
+        IF {CURRENT_USER_ID}() IS NOT NULL THEN
+            RAISE EXCEPTION 'Only code with no request identity may list users'
+                USING ERRCODE = 'insufficient_privilege';
+        END IF;
+
+        RETURN QUERY
+            SELECT u.id, u.email, u.created_at, s.last_signed_in_at
+            FROM public.users u
+            LEFT JOIN public.user_last_sign_ins s ON s.user_id = u.id
+            WHERE u.deletion_requested_at IS NULL AND (p_after IS NULL OR u.id > p_after)
+            ORDER BY u.id
+            LIMIT p_limit;
+    END
+    $$
+    """,
+        f"{LIST_USERS}(uuid, integer)",
     ),
     # The revisions the database is migrated to. The worker compares them with the head it
     # ships before it starts. The app role can't read the migration history itself, and the

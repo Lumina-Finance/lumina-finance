@@ -48,6 +48,7 @@ from app.services.auth.sessions import (
     delete_grace_ended_refresh_tokens,
     end_sessions_past_limit,
     is_session_live,
+    record_sign_in,
     rotate_auth_session_tokens,
 )
 from app.services.auth.step_up import verify_sensitive_action_step_up
@@ -727,6 +728,7 @@ async def issue_and_store_tokens(
     # wait on rows the other cleared until the database ended one with a deadlock. The clearing
     # skips rows others hold, so run last it never waits
     await delete_grace_ended_refresh_tokens(db)
+    await record_sign_in(db, user.id)
     await db.commit()
 
     auth_response = AuthResponse(user=UserInfo.model_validate(user), access_token=access_token)

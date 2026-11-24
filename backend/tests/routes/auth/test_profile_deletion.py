@@ -3,7 +3,6 @@
 import uuid
 from datetime import UTC, datetime
 
-import pytest
 from sqlalchemy import delete, func, select, update
 
 from app.models.account import Account
@@ -27,25 +26,10 @@ from tests.routes.support import (
 )
 from tests.routes.support.authorization_helpers import OLD_ACCESS, _commit_rejected_connection
 from tests.routes.support.bank_sync_helpers import _build_account
-from tests.services.bank_sync.authorizing_provider import AuthorizingProviderAdapter
-from tests.services.bank_sync.fake_provider import use_adapter
+from tests.routes.support.deletion_helpers import _user_exists
 
 _PASSWORD = SIGNUP_PAYLOAD["password"]
 _DELETE = "/auth/profile/delete"
-
-
-@pytest.fixture
-def authorizing_provider(no_bank_provider, monkeypatch) -> AuthorizingProviderAdapter:
-    """Install the scripted provider that records each access it is given back, as the only provider"""
-    adapter = AuthorizingProviderAdapter()
-    use_adapter(monkeypatch, adapter)
-    return adapter
-
-
-async def _user_exists(user_id: uuid.UUID) -> bool:
-    """Whether the user row is still there"""
-    async with TestSession() as session:
-        return await session.scalar(select(func.count()).select_from(User).where(User.id == user_id)) == 1
 
 
 async def _skip_deletion(*_args) -> None:
