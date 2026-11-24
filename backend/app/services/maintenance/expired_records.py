@@ -2,7 +2,8 @@
 
 Each kind is one entry in EXPIRED_RECORD_KINDS. The app prunes them all on a schedule while it serves,
 unless code outside the app turns that timer off, and prune_expired_records runs one pass without it.
-Each pass also finishes deleting any profile still marked for deletion, such as one a restart cut short
+Each pass also reminds the owners of profiles waiting to be deleted, and deletes every profile whose
+deletion is due, such as one a restart cut short or one whose waiting time has passed
 
 Bank sync prunes its request records where it writes them: recording a request to a provider deletes
 that connection's earlier records once the request budget no longer counts them
@@ -30,7 +31,7 @@ from app.services.auth.webauthn import delete_expired_webauthn_challenges
 from app.services.bank_sync.authorization import delete_expired_bank_authorizations
 from app.services.bank_sync.jobs import delete_finished_bank_sync_jobs
 from app.services.importers.shared.run_staging import delete_expired_import_runs
-from app.services.profile_deletion import delete_marked_profiles
+from app.services.profile_deletion import delete_marked_profiles, send_due_reminders
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +84,17 @@ async def prune_expired_records(session_factory: async_sessionmaker[AsyncSession
             # Best-effort: a failed kind waits for the next run rather than stopping this one
             logger.warning("Expired %s could not be pruned", kind.name, exc_info=True)
 
-    # A profile deletion a restart cut short. Each runs in many transactions of its own, so it opens its
-    # sessions from the factory rather than taking one, and logs any profile it can't finish yet
+    # The reminders of waiting profile deletions go first. Each profile's reminder is claimed in a
+    # transaction of its own, so the pass opens its sessions from the factory
+    try:
+        await send_due_reminders(session_factory)
+    except Exception:
+        # Best-effort: a reminder not sent yet waits for the next run, and the deletions below still run
+        logger.warning("Profile deletion reminders could not be sent", exc_info=True)
+
+    # Every profile whose deletion is due, including one a restart cut short. Each runs in many
+    # transactions of its own, so it opens its sessions from the factory rather than taking one, and
+    # logs any profile it can't finish yet
     try:
         await delete_marked_profiles(session_factory)
     except Exception:
