@@ -29,9 +29,13 @@ const HAS_LINE_CLASS_NAME = [
   'has-[[data-row-title]:focus-visible]:[outline:var(--app-focus-outline)]',
 ].join(' ')
 
-// A pickable row with a line takes the hover fill across the row and its line, as the press on either picks it
-const PICKABLE_LINE_CLASS_NAME =
-  'hover:bg-[var(--app-hover-soft)] has-[button:focus-visible]:bg-[var(--app-hover-soft)] [&_.app-transaction-row]:bg-transparent!'
+// A pickable row with a line takes the hover fill across the row and its line, as the press on either picks it. The
+// chips' own fill matches that hover fill, so on a filled row they take the wash made for a surface of that shade
+const PICKABLE_LINE_CLASS_NAME = [
+  'hover:bg-[var(--app-hover-soft)] has-[button:focus-visible]:bg-[var(--app-hover-soft)] [&_.app-transaction-row]:bg-transparent!',
+  'hover:[&_.likely-chip]:bg-[var(--app-hover-on-surface-soft)]',
+  'has-[button:focus-visible]:[&_.likely-chip]:bg-[var(--app-hover-on-surface-soft)]',
+].join(' ')
 
 // The line under the row starts where the row's merchant name does
 const LINE_CLASS_NAME = 'flex flex-wrap gap-1.5 pb-2.5 pl-[3.75rem] pr-3 -mt-1'
@@ -45,8 +49,8 @@ export function LikelyMatchChips({ sameMerchant, exactAmount }: { sameMerchant: 
           {/* Keeps the reasons apart for a screen reader, which may join a row of spans into one word */}
           {index > 0 && <span className="sr-only">, </span>}
           <span
-            className="rounded-full px-2 text-xs font-medium leading-5"
-            style={{ background: 'var(--app-surface-soft)', color: 'var(--app-text-muted)' }}
+            className="likely-chip rounded-full bg-[var(--app-surface-soft)] px-2 text-xs font-medium leading-5 transition-control motion-reduce:transition-none"
+            style={{ color: 'var(--app-text-muted)' }}
             data-testid="likely-chip"
           >
             {label}
