@@ -4,6 +4,7 @@ from tests.routes.transactions._helpers import (
     NONEXISTENT_ID,
     _create_account,
     _create_category,
+    _create_merchant,
     _create_transaction,
     _get,
     _link,
@@ -289,6 +290,82 @@ async def test_candidates_come_exact_amount_first_then_nearest_then_newest(clien
 
     assert exact_first == [ids["old exact"], ids["near newer"], ids["near older"], ids["far"], ids["farthest"]]
     assert no_exact == [ids["near older"], ids["old exact"], ids["near newer"], ids["far"], ids["farthest"]]
+
+
+async def _candidate_flags(client, headers, transaction_id, **params):
+    """Fetch the candidates in order, each with whether it shares the merchant and matches what is left"""
+    resp = await client.get(f"/transactions/{transaction_id}/refund-link-candidates", params=params, headers=headers)
+    assert resp.status_code == 200, resp.text
+    return [(row["id"], row["same_merchant"], row["exact_amount"]) for row in resp.json()]
+
+
+async def _merchant(client, headers, name):
+    """Create a merchant and return its id"""
+    return (await _create_merchant(client, headers, name=name)).json()["id"]
+
+
+async def test_an_expenses_likely_refunds_lead_even_past_the_limit(client):
+    """Same merchant and exactly what is left leads, then exactly what is left, then the same merchant,
+    then the nearest, so thirty closer amounts never push a likely match out."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    harbor = await _merchant(client, headers, "Harbor Electronics")
+    northwind = await _merchant(client, headers, "Northwind Supply")
+    filler = await _merchant(client, headers, "Corner Bakery")
+    expense = (await _create_transaction(client, headers, account_id, category_id, amount=-42000, merchant_id=harbor)).json()
+    for _ in range(2):
+        await _refund(client, headers, account_id, category_id, expense["id"], amount=14250, merchant_id=harbor)
+    ids = {}
+    for name, amount, merchant in [
+        ("harbor credit", 6000, harbor),
+        ("northwind exact", 13500, northwind),
+        ("harbor exact", 13500, harbor),
+    ]:
+        ids[name] = (await _create_transaction(client, headers, account_id, category_id, amount=amount, merchant_id=merchant)).json()["id"]
+    for _ in range(30):
+        await _create_transaction(client, headers, account_id, category_id, amount=42000, merchant_id=filler)
+
+    offered = await _candidate_flags(client, headers, expense["id"])
+    with_a_held_link = await _candidate_flags(client, headers, expense["id"], left_to_refund=6000)
+
+    assert len(offered) == 30
+    assert offered[:3] == [(ids["harbor exact"], True, True), (ids["northwind exact"], False, True), (ids["harbor credit"], True, False)]
+    assert all(not same and not exact for _, same, exact in offered[3:])
+    assert with_a_held_link[:2] == [(ids["harbor credit"], True, True), (ids["harbor exact"], True, False)]
+    assert ids["northwind exact"] not in [candidate_id for candidate_id, _, _ in with_a_held_link]
+
+
+async def test_a_refunds_likely_expenses_are_those_with_exactly_its_amount_left_or_its_merchant(client):
+    """A refund is offered first the expenses from its merchant with exactly its amount left to refund,
+    then those with exactly its amount left, then those from its merchant."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    harbor = await _merchant(client, headers, "Harbor Electronics")
+    northwind = await _merchant(client, headers, "Northwind Supply")
+    refund = (await _create_transaction(client, headers, account_id, category_id, amount=13500, merchant_id=harbor)).json()
+    ids = {}
+    for name, amount, merchant in [
+        ("harbor large", -100000, harbor),
+        ("northwind exact", -13500, northwind),
+        ("harbor partly refunded", -42000, harbor),
+        ("northwind near", -14000, northwind),
+    ]:
+        ids[name] = (await _create_transaction(client, headers, account_id, category_id, amount=amount, merchant_id=merchant)).json()["id"]
+    await _refund(client, headers, account_id, category_id, ids["harbor partly refunded"], amount=28500, merchant_id=harbor)
+
+    assert await _candidate_flags(client, headers, refund["id"]) == [
+        (ids["harbor partly refunded"], True, True),
+        (ids["northwind exact"], False, True),
+        (ids["harbor large"], True, False),
+        (ids["northwind near"], False, False),
+    ]
+
+
+async def test_a_merchant_the_app_ships_is_never_a_same_merchant_match(client):
+    """Myself names no shop, so an expense and an inflow both paid to it are not the same merchant."""
+    headers, account_id, category_id = await _setup_user_with_deps(client)
+    expense = (await _create_transaction(client, headers, account_id, category_id, amount=-5000)).json()
+    inflow = (await _create_transaction(client, headers, account_id, category_id, amount=700)).json()
+
+    assert await _candidate_flags(client, headers, expense["id"]) == [(inflow["id"], False, False)]
 
 
 async def test_candidates_are_narrowed_by_the_list_filters(client):

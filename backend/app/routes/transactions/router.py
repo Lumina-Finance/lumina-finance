@@ -39,6 +39,7 @@ from app.schemas.transaction import (
     CreateTransactionRequest,
     ExportSelectedTransactionsRequest,
     LinkRefundRequest,
+    RefundLinkCandidate,
     TransactionResponse,
     TransactionsOverview,
     UpdateTransactionRequest,
@@ -183,7 +184,7 @@ async def list_transactions(
     )
 
 
-@router.get("/{transaction_id}/refund-link-candidates", response_model=list[TransactionResponse])
+@router.get("/{transaction_id}/refund-link-candidates", response_model=list[RefundLinkCandidate])
 async def list_refund_link_candidates_route(
     transaction_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
@@ -201,6 +202,7 @@ async def list_refund_link_candidates_route(
     to_date: DateFilter = None,
     search_text: Annotated[str | None, Query(alias="q", max_length=200)] = None,
     unlinked_id: Annotated[list[uuid.UUID] | None, Query()] = None,
+    left_to_refund: AmountFilter = None,
 ):
     """Return the transactions this one can be linked to as a refund or as the expense it refunds
 
@@ -221,10 +223,11 @@ async def list_refund_link_candidates_route(
         to_date: Optional inclusive end date for transaction dates
         search_text: Optional text to find in merchant names and notes
         unlinked_id: Optional refunds whose link the open edit window will remove on Save, offered as unlinked
+        left_to_refund: Optional amount an expense's open edit window shows it has left to refund
 
     Returns:
-        The candidates linking would accept, exact amount first and then the nearest, newest first among
-        equals, empty when it can't be linked
+        The candidates linking would accept, the likely matches first and then the nearest, newest first
+        among equals, each saying why it is a likely match, empty when it can't be linked
     """
     filters = CandidateFilters(
         account_ids=account_id,
@@ -239,7 +242,7 @@ async def list_refund_link_candidates_route(
         from_date=from_date,
         to_date=to_date,
     )
-    return await list_refund_link_candidates(db, user, transaction_id, search_text, filters, unlinked_id)
+    return await list_refund_link_candidates(db, user, transaction_id, search_text, filters, unlinked_id, left_to_refund)
 
 
 @router.get("/export", response_class=StreamingResponse)

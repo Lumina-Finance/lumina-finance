@@ -43,6 +43,7 @@ async def list_transaction_responses(
     limit: int = 15,
     offset: int = 0,
     extra_conditions: Sequence[ColumnElement[bool]] = (),
+    leading_order: Sequence[ColumnElement] = (),
     nearest_amount: tuple[int, str] | None = None,
 ) -> list[TransactionResponse]:
     """Return paginated transaction responses with sorting and filtering
@@ -71,6 +72,8 @@ async def list_transaction_responses(
         limit: Maximum number of transactions to return
         offset: Number of transactions to skip before returning rows
         extra_conditions: Further conditions every row must meet
+        leading_order: Ordering that date sorting applies before the nearest amount, such as how likely a
+            match each row is
         nearest_amount: Optional amount magnitude in minor units and its currency, which date sorting puts
             first: an exact match, then the nearest amounts, then other currencies
 
@@ -109,6 +112,7 @@ async def list_transaction_responses(
         limit=limit,
         offset=offset,
         extra_conditions=extra_conditions,
+        leading_order=leading_order,
         nearest_amount=nearest_amount,
     )
 
