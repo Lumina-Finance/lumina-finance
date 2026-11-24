@@ -29,12 +29,7 @@ export default function BudgetFxStatusBadge({
       onClick={stopPropagation ? stopEvent : undefined}
       onKeyDown={stopPropagation ? stopEvent : undefined}
     >
-      <FxStatusBadge
-        fxStatus={fxStatus}
-        label={label}
-        placement={placement}
-        getMessage={getMessage}
-      />
+      <FxStatusBadge fxStatus={fxStatus} label={label} placement={placement} getMessage={getMessage} />
     </span>
   )
 }
