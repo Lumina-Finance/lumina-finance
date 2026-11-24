@@ -54,7 +54,9 @@ test('deletes the profile once the user types delete and confirms with the passw
   await stepUp.getByLabel('Current password').fill(user.password)
   const deleted = page.waitForResponse((response) => response.url() === DELETE_URL && response.request().method() === 'POST')
   await stepUp.getByRole('button', { name: 'Delete profile', exact: true }).click()
-  expect((await deleted).status()).toBe(204)
+  const answer = await deleted
+  expect(answer.status()).toBe(200)
+  expect(await answer.json()).toEqual({ deletion_due_at: null })
 
   await expect(page).toHaveURL(/\/login$/)
   await expect(page.getByRole('status').filter({ hasText: 'Your profile and data were deleted.' })).toBeVisible()
@@ -148,7 +150,7 @@ test('shows the deletion under way when it returns from the provider sign-in', a
   const held = new Promise<void>((resolve) => (release = resolve))
   await page.route(DELETE_URL, async (route) => {
     await held
-    await route.fulfill({ status: 204 })
+    await route.fulfill({ json: { deletion_due_at: null } })
   })
   await logInViaApi(page, user)
   await openPage(page, '/settings')
@@ -162,20 +164,22 @@ test('shows the deletion under way when it returns from the provider sign-in', a
   await expect(pending).toHaveAttribute('aria-busy', 'true')
   release()
   await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByRole('status').filter({ hasText: 'Your profile and data were deleted.' })).toBeVisible()
 })
 
 const CANCEL_URL = `${API_BASE_URL}/auth/profile/delete/cancel`
 // Any length does, since the server answers it and the suite never sets one
 const STUBBED_WAIT_DAYS = 30
+const STUBBED_WAIT_SECONDS = STUBBED_WAIT_DAYS * 24 * 60 * 60
 
 /**
  * Answers the account's linked providers with a waiting period added to the real answer
  */
-async function stubDeletionWait(page: Page, waitDays: number) {
+async function stubDeletionWait(page: Page, waitSeconds: number) {
   await page.route(`${API_BASE_URL}/auth/oidc/identities`, async (route) => {
     const response = await route.fetch()
     const body = await response.json()
-    body.profile_deletion_wait_days = waitDays
+    body.profile_deletion_wait_seconds = waitSeconds
     await route.fulfill({ response, json: body })
   })
 }
@@ -205,12 +209,15 @@ async function stubScheduledDeletion(page: Page, days: number) {
 
 test('names the date a waiting deletion runs in the dialogue and on the sign-in screen', async ({ page, request }) => {
   const user = await signUpUser(request)
-  await stubDeletionWait(page, STUBBED_WAIT_DAYS)
+  await stubDeletionWait(page, STUBBED_WAIT_SECONDS)
+  const day = daysFromTodayInTestTimezone(STUBBED_WAIT_DAYS)
+  const date = formatDateLabel(day)
+  // The sign-in screen names the time the server scheduled. The suite's own server has no wait set, so it is answered here
+  await page.route(DELETE_URL, (route) => route.fulfill({ json: { deletion_due_at: `${day}T17:00:00Z` } }))
   await logInViaApi(page, user)
   await openPage(page, '/settings')
-  const date = formatDateLabel(daysFromTodayInTestTimezone(STUBBED_WAIT_DAYS))
 
-  await page.locator('#delete-profile').getByRole('button', { name: 'Delete profile', exact: true }).click()
+  await page.getByRole('button', { name: 'Delete profile', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Delete your profile and all your data?' })
   await expect(dialog.getByText(`Your profile and data will be deleted on ${date}. Until then, you can sign in and cancel.`)).toBeVisible()
   await expect(dialog.getByText('This will permanently delete all your data and is irrevocable.')).toHaveCount(0)
@@ -222,7 +229,7 @@ test('names the date a waiting deletion runs in the dialogue and on the sign-in 
   await stepUp.getByRole('button', { name: 'Delete profile', exact: true }).click()
 
   await expect(page).toHaveURL(/\/login$/)
-  await expect(page.getByRole('status').filter({ hasText: `Your profile will be deleted on ${date}. Sign in before then to cancel.` })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: `Your profile will be deleted on ${date}. Please sign in and cancel before then.` })).toBeVisible()
   await expect(page.getByText('Your profile and data were deleted.')).toHaveCount(0)
 })
 
@@ -241,7 +248,7 @@ test('holds a profile waiting to be deleted to the cancel screen, and cancelling
     await expect(page.getByText(`Your profile and data will be deleted on ${dueLabel}.`)).toBeVisible()
     await expect(page.getByRole('button')).toHaveText(['Cancel deletion', 'Sign out'])
     await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0)
-    await expect(page.locator('#app-page-content')).toHaveCount(0)
+    await expect(page.getByRole('main')).toHaveCount(0)
   })
 
   await test.step('cancelling shows the toast and brings the app back', async () => {
@@ -266,14 +273,13 @@ test('signs out from the cancel screen', async ({ page, request }) => {
 test('shows why a cancel that came too late failed and signs the user out', async ({ page, request }) => {
   const user = await signUpUser(request)
   await stubScheduledDeletion(page, STUBBED_WAIT_DAYS)
-  await page.route(CANCEL_URL, (route) => route.fulfill({
-    status: 409,
-    json: { detail: 'Your profile is already being deleted.' },
-  }))
+  // The server's own answer to a cancel made after the due time
+  const detail = 'Your profile is already being deleted, so the deletion can no longer be cancelled'
+  await page.route(CANCEL_URL, (route) => route.fulfill({ status: 409, json: { detail } }))
   await logInViaApi(page, user)
   await page.goto('/')
 
   await page.getByRole('button', { name: 'Cancel deletion', exact: true }).click()
-  await expect(page.getByText('Your profile is already being deleted.')).toBeVisible()
+  await expect(page.getByText(detail)).toBeVisible()
   await expect(page).toHaveURL(/\/login$/)
 })

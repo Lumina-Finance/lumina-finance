@@ -4,6 +4,7 @@ import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import func, select, text, update
@@ -28,8 +29,8 @@ _EMAIL = SIGNUP_PAYLOAD["email"]
 _DELETE = "/auth/profile/delete"
 _CANCEL = "/auth/profile/delete/cancel"
 _SCHEDULED_DETAIL = "Your profile is scheduled for deletion"
+_ALREADY_UNDER_WAY_DETAIL = "Your profile is already being deleted, so the deletion can no longer be cancelled"
 _WAIT = timedelta(days=7)
-_REQUESTED_AT = datetime(2026, 12, 1, 10, 30, tzinfo=UTC)
 
 
 @pytest.fixture
@@ -46,19 +47,19 @@ async def _stored_user(user_id: uuid.UUID) -> User | None:
         return await session.get(User, user_id)
 
 
-async def _set_due(user_id: uuid.UUID, due_at: datetime | None) -> None:
+async def _set_due(user_id: uuid.UUID, due_at: datetime) -> None:
     """Move the due time of a marked profile, such as to the past once the wait is over"""
     async with TestSession() as session:
         await session.execute(update(User).where(User.id == user_id).values(deletion_due_at=due_at))
         await session.commit()
 
 
-async def _request_deletion(client, *, wait: timedelta = _WAIT) -> tuple[uuid.UUID, dict]:
-    """Sign a user up and ask to delete their profile with the wait set, returning the user and the session the request ended"""
+async def _request_deletion(client) -> tuple[uuid.UUID, dict]:
+    """Sign a user up and ask to delete their profile, returning the user and the session the request ended"""
     signup = await _create_user(client)
     headers = _get_auth_header(signup)
     response = await client.post(_DELETE, headers=headers, json={"password": _PASSWORD})
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
     return uuid.UUID(signup.json()["user"]["id"]), headers
 
 
@@ -81,7 +82,8 @@ async def test_delete_with_a_wait_marks_the_profile_and_keeps_everything_else(
 ):
     """The request marks the profile with its due time, ends every session and emailed link, keeps connections and data, and emails the date"""
     profile_deletion_wait(_WAIT)
-    freeze_now(request_module, _REQUESTED_AT)
+    requested_at = datetime.now(UTC)
+    freeze_now(request_module, requested_at)
     signup = await _create_user(client)
     user_id = uuid.UUID(signup.json()["user"]["id"])
     headers = _get_auth_header(signup)
@@ -96,12 +98,13 @@ async def test_delete_with_a_wait_marks_the_profile_and_keeps_everything_else(
 
     response = await client.post(_DELETE, headers=headers, json={"password": _PASSWORD})
 
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
+    assert datetime.fromisoformat(response.json()["deletion_due_at"]) == requested_at + _WAIT, "the answer names the due time"
     assert 'refresh_token=""' in response.headers["set-cookie"], "the refresh cookie is cleared"
     user = await _stored_user(user_id)
     assert user is not None, "the profile is still there"
-    assert user.deletion_requested_at == _REQUESTED_AT, "the profile is marked"
-    assert user.deletion_due_at == _REQUESTED_AT + _WAIT, "the due time is the wait after the request"
+    assert user.deletion_requested_at == requested_at, "the profile is marked"
+    assert user.deletion_due_at == requested_at + _WAIT, "the due time is the wait after the request"
     assert user.deletion_reminder_sent_at is None, "no reminder has gone"
     async with TestSession() as session:
         for model in (AuthSession, PasswordResetToken, EmailChangeRequest):
@@ -111,11 +114,13 @@ async def test_delete_with_a_wait_marks_the_profile_and_keeps_everything_else(
     for device in (headers, other_device[0]):
         assert (await client.get("/auth/2fa/status", headers=device)).status_code == 401, "every session has ended"
     assert profile_deletions == [], "nothing is deleted yet"
+    due_day = (requested_at + _WAIT).astimezone(ZoneInfo(SIGNUP_PAYLOAD["tz"]))
+    due_date = f"{due_day.day} {due_day:%B %Y}"
     assert [(recipient, message.subject) for recipient, message in sent_action_emails] == [
-        (_EMAIL, "Your profile will be deleted on 8 December 2026")
+        (_EMAIL, f"Your profile will be deleted on {due_date}")
     ]
     body = sent_action_emails[0][1].text_body
-    assert "8 December 2026" in body and "sign in before then to cancel" in body
+    assert due_date in body and "sign in and press Cancel deletion before then" in body
 
 
 async def test_delete_with_no_wait_deletes_at_once_and_sends_no_email(client, sent_action_emails, profile_deletions):
@@ -126,7 +131,8 @@ async def test_delete_with_no_wait_deletes_at_once_and_sends_no_email(client, se
 
     response = await client.post(_DELETE, headers=_get_auth_header(signup), json={"password": _PASSWORD})
 
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
+    assert response.json() == {"deletion_due_at": None}
     assert await _stored_user(user_id) is None
     assert [deletion.user_id for deletion in profile_deletions] == [user_id]
     assert sent_action_emails == []
@@ -190,7 +196,7 @@ async def test_cancel_clears_the_mark_and_sync_resumes_for_the_connections(clien
         await session.commit()
     assert connection.id in await _due_connection_ids(), "the connection is due before the request"
     response = await client.post(_DELETE, headers=_get_auth_header(signup), json={"password": _PASSWORD})
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
     assert connection.id not in await _due_connection_ids(), "sync pauses while the deletion waits"
     async with TestSession() as session:
         await session.execute(update(User).where(User.id == user_id).values(deletion_reminder_sent_at=datetime.now(UTC)))
@@ -209,7 +215,7 @@ async def test_cancel_clears_the_mark_and_sync_resumes_for_the_connections(clien
 
 
 async def test_cancel_after_the_due_time_is_refused_and_the_profile_stays_marked(client, profile_deletion_wait):
-    """A session made during the wait can no longer cancel once the due time has passed, and sign-in is refused too"""
+    """A session made during the wait is told why a cancel came too late once the due time has passed, and sign-in is refused too"""
     profile_deletion_wait(_WAIT)
     user_id, _ = await _request_deletion(client)
     headers = await _sign_in_while_waiting(client)
@@ -221,10 +227,41 @@ async def test_cancel_after_the_due_time_is_refused_and_the_profile_stays_marked
     client.cookies.set("refresh_token", refresh_cookie)
     renewal = await client.post("/auth/refresh")
 
-    assert (cancelled.status_code, cancelled.json()["detail"]) == (403, _SCHEDULED_DETAIL)
+    assert (cancelled.status_code, cancelled.json()["detail"]) == (409, _ALREADY_UNDER_WAY_DETAIL)
     assert (sign_in.status_code, sign_in.json()["detail"]) == (401, "Invalid credentials")
     assert renewal.status_code == 401
     assert (await _stored_user(user_id)).deletion_requested_at is not None
+
+
+async def test_cancel_for_a_mark_with_no_due_time_is_refused_as_every_other_route_is(client):
+    """A profile marked to go at once has nothing to cancel, so the cancel route answers 403 as the rest do"""
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    headers = _get_auth_header(signup)
+    async with TestSession() as session:
+        await session.execute(update(User).where(User.id == user_id).values(deletion_requested_at=datetime.now(UTC)))
+        await session.commit()
+
+    response = await client.post(_CANCEL, headers=headers)
+
+    assert (response.status_code, response.json()["detail"]) == (403, _SCHEDULED_DETAIL)
+    assert (await _stored_user(user_id)).deletion_requested_at is not None
+
+
+async def test_cancel_works_for_a_user_whose_second_factor_re_enrolment_is_required_and_re_enrolment_follows(client, profile_deletion_wait):
+    """A waiting user who signed in with a recovery code can cancel, and the answer still holds them to re-enrolment"""
+    profile_deletion_wait(_WAIT)
+    user_id, _ = await _request_deletion(client)
+    headers = await _sign_in_while_waiting(client)
+    async with TestSession() as session:
+        await session.execute(update(User).where(User.id == user_id).values(second_factor_reenrollment_required=True))
+        await session.commit()
+
+    cancelled = await client.post(_CANCEL, headers=headers)
+
+    assert cancelled.status_code == 200, cancelled.text
+    assert cancelled.json()["deletion_due_at"] is None
+    assert cancelled.json()["second_factor_reenrollment_required"] is True, "re-enrolment follows the cancel"
 
 
 async def test_cancel_for_a_profile_that_was_never_marked_is_a_conflict(client):
@@ -258,16 +295,16 @@ async def test_the_run_ends_the_sessions_of_the_wait_before_it_deletes_anything(
     assert (await client.get("/auth/2fa/status", headers=headers)).status_code == 401
 
 
-async def test_the_status_tells_the_client_the_wait_in_whole_days(client, profile_deletion_wait):
-    """The settings status reports 0 with no wait and the wait's days, rounded up, once one is set"""
+async def test_the_status_tells_the_client_the_wait_in_whole_seconds(client, profile_deletion_wait):
+    """The settings status reports 0 with no wait and the wait in seconds, never rounded up to a day, once one is set"""
     headers = _get_auth_header(await _create_user(client))
-    assert (await client.get("/auth/oidc/identities", headers=headers)).json()["profile_deletion_wait_days"] == 0
+    assert (await client.get("/auth/oidc/identities", headers=headers)).json()["profile_deletion_wait_seconds"] == 0
 
     profile_deletion_wait(timedelta(days=7))
-    assert (await client.get("/auth/oidc/identities", headers=headers)).json()["profile_deletion_wait_days"] == 7
+    assert (await client.get("/auth/oidc/identities", headers=headers)).json()["profile_deletion_wait_seconds"] == 7 * 86400
 
     profile_deletion_wait(timedelta(hours=36))
-    assert (await client.get("/auth/oidc/identities", headers=headers)).json()["profile_deletion_wait_days"] == 2
+    assert (await client.get("/auth/oidc/identities", headers=headers)).json()["profile_deletion_wait_seconds"] == 36 * 3600
 
 
 @pytest.mark.parametrize(("sender", "logged_class"), [("raises", "ConnectionError"), ("missing", "RuntimeError")])

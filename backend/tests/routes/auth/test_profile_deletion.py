@@ -56,7 +56,8 @@ async def test_delete_with_password_removes_the_profile_and_signs_out_everywhere
 
     response = await client.post(_DELETE, headers=headers, json={"password": _PASSWORD})
 
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
+    assert response.json() == {"deletion_due_at": None}, "a deletion that runs at once names no due time"
     assert 'refresh_token=""' in response.headers["set-cookie"]
     assert not await _user_exists(user_id)
     async with TestSession() as session:
@@ -98,7 +99,7 @@ async def test_delete_gives_each_bank_connections_access_back(client, authorizin
 
     response = await client.post(_DELETE, headers=_get_auth_header(signup), json={"password": _PASSWORD})
 
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
     assert authorizing_provider.released == [OLD_ACCESS, OLD_ACCESS]
     async with TestSession() as session:
         assert await session.scalar(select(func.count()).select_from(BankConnection)) == 0
@@ -113,7 +114,7 @@ async def test_delete_finishes_when_a_provider_refuses_the_access_back(client, a
 
     response = await client.post(_DELETE, headers=_get_auth_header(signup), json={"password": _PASSWORD})
 
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
     assert not await _user_exists(user_id)
     assert [deletion.user_id for deletion in profile_deletions] == [user_id]
 
@@ -151,7 +152,7 @@ async def test_the_request_ends_sessions_and_emailed_links_before_the_data_goes(
 
     response = await client.post(_DELETE, headers=headers, json={"password": _PASSWORD})
 
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
     async with TestSession() as session:
         user = await session.get(User, user_id)
         assert user is not None and user.deletion_requested_at is not None
@@ -181,7 +182,7 @@ async def test_delete_passwordless_needs_a_fresh_provider_proof(client, profile_
     client.cookies.set("oidc_reauth_stepup", proof)
     accepted = await client.post(_DELETE, headers=headers)
 
-    assert accepted.status_code == 204, accepted.text
+    assert accepted.status_code == 200, accepted.text
     assert not await _user_exists(user_id)
     assert [deletion.user_id for deletion in profile_deletions] == [user_id]
 
@@ -201,5 +202,5 @@ async def test_delete_with_a_second_factor_on_needs_its_code(client, profile_del
         await session.commit()
     accepted = await client.post(_DELETE, headers=headers, json={"password": _PASSWORD, "code": _fresh_totp_code(secret)})
 
-    assert accepted.status_code == 204, accepted.text
+    assert accepted.status_code == 200, accepted.text
     assert len(profile_deletions) == 1
