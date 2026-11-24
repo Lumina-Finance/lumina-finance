@@ -202,6 +202,13 @@ class ApproveAllReviewItemsRequest(BaseModel):
     account_ids: list[uuid.UUID] | None = Field(None, max_length=MAX_APPROVE_ACCOUNTS)
 
 
+class ApplyImportRulesResponse(BaseModel):
+    """What applying the import rules to the waiting items changed"""
+
+    # The waiting items whose saved values differ after the press. It is none when the rules gave every item what it held
+    changed_count: int
+
+
 class ApproveAllReviewItemsResponse(BaseModel):
     """What approving all the waiting items added"""
 

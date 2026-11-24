@@ -12,6 +12,7 @@ from app.models.bank_connection import PROVIDER_ID_MAX_LENGTH
 from app.models.user import User
 from app.schemas.bank_review import (
     AddReviewItemRequest,
+    ApplyImportRulesResponse,
     ApproveAllReviewItemsRequest,
     ApproveAllReviewItemsResponse,
     BankReviewBacklogResponse,
@@ -81,6 +82,7 @@ from app.services.bank_sync.review_items import (
     list_review_backlogs,
     list_review_items,
 )
+from app.services.bank_sync.rule_apply import apply_import_rules_to_review_items
 from app.services.bank_sync.sync_now import sync_account_now
 
 router = APIRouter(prefix="/bank-sync", tags=["bank-sync"])
@@ -604,6 +606,23 @@ async def approve_all_bank_review_items(
         The items added, the accounts they went to, and whether more are left to add
     """
     return await approve_all_review_items(db, user, data)
+
+
+@review_router.post("/items/apply-rules", response_model=ApplyImportRulesResponse)
+async def apply_import_rules_to_bank_review_items(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Put every waiting new item through the user's import rules as they stand now and save the values
+
+    Args:
+        user: Authenticated user reviewing
+        db: Active database session
+
+    Returns:
+        How many waiting items' saved values changed
+    """
+    return await apply_import_rules_to_review_items(db, user)
 
 
 @review_router.post("/items/bulk-dismiss", response_model=BulkReviewResultResponse)
