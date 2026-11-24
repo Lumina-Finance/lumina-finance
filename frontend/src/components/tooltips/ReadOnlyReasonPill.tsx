@@ -14,7 +14,7 @@ type ReadOnlyReasonPillProps = {
   focusable?: boolean
 }
 
-/** The pill's short label, beside main's "Archived · Read-only" and "Read-only access" */
+/** The pill's short label, beside the rows' "Archived · Read-only" and "Read-only access" */
 const READ_ONLY_LABEL = 'Read-only'
 
 /**
