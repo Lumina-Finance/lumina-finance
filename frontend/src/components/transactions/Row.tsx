@@ -123,13 +123,17 @@ interface TransactionRowProps {
   // Marks the row as a toggle, for a list where pressing a row picks it instead of opening it
   pressed?: boolean
 
-  // Holds the row off while it can't be used, with its reason in the shared tooltip on hover, keyboard focus and tap
-  // and described for a screen reader, as for a greyed out button. The row's own reason text is not drawn
+  // Holds the row off while it can't be used and describes it for a screen reader with its reason, as for a greyed out
+  // button. The row draws no reason text of its own, so the caller shows the reason, such as in a line under the row
   disabledReason?: DisabledReasonState
   selection?: TransactionRowSelection
 
   // The id of the day's heading above the row. It names the date the row's button is described by
   dateHeadingId?: string
+
+  // The id of a line drawn under the row that its button is also described by, such as why a picker row is a likely
+  // match
+  lineId?: string
 
   // Goes to the waiting correction or removal a bank-imported transaction names, given where the list
   // shows the review block. Without it the row leaves the Needs review marker out
@@ -417,6 +421,7 @@ export function TransactionRowView({
   selection,
   bankMarker,
   dateHeadingId,
+  lineId,
   onOpen,
 }: TransactionRowViewProps) {
   const wide = !phoneLayout
@@ -568,7 +573,7 @@ export function TransactionRowView({
       tabIndex={selection ? -1 : undefined}
       {...titleReasonProps}
       {...(readOnlyReason && !isHeldOff ? readOnlyFocus.focusProps : null)}
-      aria-describedby={[...describingIds(layout), dateHeadingId, titleReasonProps['aria-describedby']]
+      aria-describedby={[...describingIds(layout), dateHeadingId, lineId, titleReasonProps['aria-describedby']]
         .filter(Boolean)
         .join(' ')}
       aria-pressed={pressed}

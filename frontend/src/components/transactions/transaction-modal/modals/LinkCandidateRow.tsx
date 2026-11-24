@@ -6,7 +6,8 @@ import TransactionRow from '@/components/transactions/Row'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 
 // A picked row takes the accent fill and an accent border. The others keep a clear border so it eases in and out
-const ROW_CLASS_NAME = 'scroll-mt-44 rounded-lg transition-[background-color,box-shadow] motion-reduce:transition-none'
+const ROW_CLASS_NAME =
+  'scroll-mt-44 rounded-lg transition-[background-color,box-shadow,outline-color] motion-reduce:transition-none'
 const RESTING_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px transparent' }
 const PICKED_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
 
@@ -19,8 +20,18 @@ const PICKED_ROW_CLASS_NAME =
 // cells and its title, whereas the row around it draws the keyboard focus ring and stays at full strength
 const DISABLED_CONTENT_CLASS_NAME = '[&_[data-row-content]]:opacity-50'
 
-// A row with a line under it, its reasons or why it can't be linked, moves the row's separator below that line
-const HAS_LINE_CLASS_NAME = '[&_.app-transaction-row]:[border-bottom-color:transparent]!'
+// A row with a line under it, its reasons or why it can't be linked, moves the row's separator below that line. The
+// keyboard focus ring goes around the row and its line together, in place of the inner row's ring, so it never cuts
+// through the line
+const HAS_LINE_CLASS_NAME = [
+  '[&_.app-transaction-row]:[border-bottom-color:transparent]! [&_.app-transaction-row]:outline-none!',
+  '[outline:var(--app-focus-outline-rest)] [outline-offset:calc(var(--app-focus-offset)*-1)]',
+  'has-[[data-row-title]:focus-visible]:[outline:var(--app-focus-outline)]',
+].join(' ')
+
+// A pickable row with a line takes the hover fill across the row and its line, as the press on either picks it
+const PICKABLE_LINE_CLASS_NAME =
+  'hover:bg-[var(--app-hover-soft)] has-[button:focus-visible]:bg-[var(--app-hover-soft)] [&_.app-transaction-row]:bg-transparent!'
 
 // The line under the row starts where the row's merchant name does
 const LINE_CLASS_NAME = 'flex flex-wrap gap-1.5 pb-2.5 pl-[3.75rem] pr-3 -mt-1'
@@ -73,12 +84,18 @@ export default function LinkCandidateRow({
   onPick,
 }: LinkCandidateRowProps) {
   const reasonId = useId()
+  const chipsId = useId()
   const reason = useDisabledReason(refusal, reasonId)
   const chips = showsChips && (transaction.same_merchant || transaction.exact_amount)
   const hasLine = Boolean(refusal) || chips
   return (
     <div
-      className={[ROW_CLASS_NAME, isPicked && PICKED_ROW_CLASS_NAME, hasLine && HAS_LINE_CLASS_NAME]
+      className={[
+        ROW_CLASS_NAME,
+        isPicked && PICKED_ROW_CLASS_NAME,
+        hasLine && HAS_LINE_CLASS_NAME,
+        hasLine && !refusal && !isPicked && PICKABLE_LINE_CLASS_NAME,
+      ]
         .filter(Boolean)
         .join(' ')}
       style={{
@@ -100,6 +117,7 @@ export default function LinkCandidateRow({
           phoneLayout
           pressed={isPicked}
           disabledReason={reason}
+          lineId={!refusal && chips ? chipsId : undefined}
           onOpen={onPick}
         />
       </div>
@@ -109,8 +127,9 @@ export default function LinkCandidateRow({
         </p>
       ) : (
         chips && (
-          // A press on the reasons picks the row as a press on the row does. The keyboard reaches the row's button
-          <div className={`${LINE_CLASS_NAME} cursor-pointer`} onClick={onPick}>
+          // A press on the reasons picks the row as a press on the row does. The keyboard reaches the row's button, and
+          // a screen reader hears the reasons as part of its description
+          <div id={chipsId} className={`${LINE_CLASS_NAME} cursor-pointer`} onClick={onPick}>
             <LikelyMatchChips sameMerchant={transaction.same_merchant} exactAmount={transaction.exact_amount} />
           </div>
         )
