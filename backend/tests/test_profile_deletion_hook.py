@@ -2,8 +2,11 @@
 
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
+import pytest
+
+import app.profile_deletion_hook as profile_deletion_hook
 from app.profile_deletion_hook import ProfileDeletion, notify_profile_deletion, observe_profile_deletions
 
 _DELETION = ProfileDeletion(user_id=uuid.uuid4(), deleted_at=datetime(2026, 11, 23, tzinfo=UTC))
@@ -26,3 +29,28 @@ def test_notify_with_a_failing_observer_still_reaches_the_observers_after_it(pro
     assert later == [_DELETION]
     assert "ValueError" in caplog.text
     assert str(_DELETION.user_id) not in caplog.text
+
+
+def test_the_wait_is_none_until_set_and_a_set_wait_is_read_back(profile_deletion_wait):
+    """No code setting a wait leaves deletions immediate, and a set wait is the one read"""
+    assert profile_deletion_hook.profile_deletion_wait() == timedelta(0)
+
+    profile_deletion_wait(timedelta(days=7))
+
+    assert profile_deletion_hook.profile_deletion_wait() == timedelta(days=7)
+
+
+def test_a_negative_wait_is_refused_and_keeps_the_wait_before_it(profile_deletion_wait):
+    """A wait before now would put the due time in the past, so it is refused and the earlier wait stays"""
+    profile_deletion_wait(timedelta(days=2))
+
+    with pytest.raises(ValueError, match="negative"):
+        profile_deletion_wait(timedelta(seconds=-1))
+
+    assert profile_deletion_hook.profile_deletion_wait() == timedelta(days=2)
+
+
+def test_a_wait_that_is_not_a_timedelta_is_refused(profile_deletion_wait):
+    """A bare number could mean seconds or days, so only a timedelta is taken"""
+    with pytest.raises(TypeError):
+        profile_deletion_wait(7)

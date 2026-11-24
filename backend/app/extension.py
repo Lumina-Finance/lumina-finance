@@ -24,6 +24,7 @@ SUPPORTED_POINTS: dict[str, str] = {
     "list_users": "app.services.users.listing:list_users",
     "UserSummary": "app.services.users.listing:UserSummary",
     "delete_user": "app.services.profile_deletion.request:delete_user",
+    "set_profile_deletion_wait": "app.profile_deletion_hook:set_profile_deletion_wait",
     "get_authenticated_user": "app.dependencies:get_authenticated_user",
     "set_email_sender": "app.services.email.contract:set_email_sender",
     "EmailSender": "app.services.email.contract:EmailSender",
