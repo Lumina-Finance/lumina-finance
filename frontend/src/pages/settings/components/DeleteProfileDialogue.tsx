@@ -4,7 +4,7 @@ import { FieldError } from '@/components/forms/FieldError'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
-import { isDeletionConfirmed } from '@/pages/settings/utils/deleteProfile'
+import { getDeleteWarning, isDeletionConfirmed } from '@/pages/settings/utils/deleteProfile'
 
 const CONFIRM_WORD_MISSING = 'Please type delete to confirm'
 const EXPORT_RUNNING = 'Please wait for the export to finish'
@@ -13,6 +13,8 @@ type DeleteProfileDialogueProps = {
   open: boolean
   /** Shows the sentence about the bank sync provider's charges. Only a user with a bank connection needs it */
   hasBankConnections: boolean
+  /** The date a waiting deletion runs, or null where the deletion runs at once */
+  scheduledFor: string | null
   exporting: boolean
   onExport: () => void
   onConfirm: () => void
@@ -27,6 +29,7 @@ type DeleteProfileDialogueProps = {
 export function DeleteProfileDialogue({
   open,
   hasBankConnections,
+  scheduledFor,
   exporting,
   onExport,
   onConfirm,
@@ -78,7 +81,7 @@ export function DeleteProfileDialogue({
       }
     >
       <div id={descriptionId} className="space-y-4 text-sm leading-6" style={{ color: 'var(--app-text)' }}>
-        <WarningCallout>This will permanently delete all your data and is irrevocable.</WarningCallout>
+        <WarningCallout>{getDeleteWarning(scheduledFor)}</WarningCallout>
         {hasBankConnections && (
           <p>
             Your subscriptions and related charges with the bank sync provider will not be cancelled automatically.
