@@ -1,8 +1,6 @@
 import { useId } from 'react'
-import { TriangleAlert } from 'lucide-react'
 import type { AccountsOverview } from '@/api/accounts'
 import { FormError } from '@/components/forms/FormError'
-import { InfoCallout } from '@/components/InfoCallout'
 import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
@@ -20,8 +18,8 @@ interface TaxAdvantagedAccountLinksPanelProps {
  * Renders the TAC account-linking tab for eligible same-currency asset accounts
  *
  * Linking or unlinking changes the account, so the toggles are held back while the server keeps the
- * category read-only, with its reason above the list, and on each account it keeps read-only, with the
- * reason in a pill on that account's row
+ * category read-only, with a "Read-only" pill above the list holding the reason, and on each account it
+ * keeps read-only, with the pill on that account's row
  */
 export default function TaxAdvantagedAccountLinksPanel({
   accountError,
@@ -45,11 +43,9 @@ export default function TaxAdvantagedAccountLinksPanel({
       </div>
 
       {plan.read_only_reason && (
-        <div className="shrink-0">
-          <InfoCallout tone="stopped" icon={TriangleAlert}>
-            <span id={planReasonId}>{plan.read_only_reason}</span>
-          </InfoCallout>
-        </div>
+        <span className="flex min-w-0 shrink-0">
+          <ReadOnlyReasonPill id={planReasonId} reason={plan.read_only_reason} focusable />
+        </span>
       )}
 
       <FormError message={accountError} className="shrink-0" />
