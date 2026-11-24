@@ -134,8 +134,10 @@ describe('what a transaction row title is described by', () => {
       render({ accountName: 'Everyday Chequing', readOnlyReason: 'Account archived' }),
     )
 
-    expect(wide).toEqual(['Uncategorized', 'Everyday Chequing', 'Account archived', AMOUNT, 'day-heading'])
-    expect(narrow).toEqual([AMOUNT, 'Uncategorized', 'Everyday Chequing', 'Account archived', 'day-heading'])
+    // The pill's short label, then its reason. Only a screen reader hears the reason
+    const pill = 'Read-only . Account archived'
+    expect(wide).toEqual(['Uncategorized', 'Everyday Chequing', pill, AMOUNT, 'day-heading'])
+    expect(narrow).toEqual([AMOUNT, 'Uncategorized', 'Everyday Chequing', pill, 'day-heading'])
   })
 
   it('reads the refund link label in the place each layout shows it', () => {
