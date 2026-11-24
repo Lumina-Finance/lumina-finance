@@ -58,6 +58,7 @@ export default function ScheduledDeletionScreen({ dueAt }: ScheduledDeletionScre
                 type="button"
                 onClick={() => void cancelDeletion()}
                 disabled={cancelling}
+                aria-busy={cancelling}
                 className={`app-primary-button ${cancelling ? 'app-primary-button-loading' : 'w-full'}`}
               >
                 <PendingLabel pending={cancelling} name={CANCEL_LABEL}>

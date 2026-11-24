@@ -8,6 +8,7 @@ import { expect, test, type Page, type Route } from '@playwright/test'
 
 import { daysFromTodayInTestTimezone, formatDateLabel, signUpUser } from '../support/api'
 import { logInViaApi, openPage, waitForPageReady } from '../support/app'
+import { checkSubmitTransition } from '../support/buttonFrames'
 import { API_BASE_URL, BASE_URL } from '../support/target'
 
 // Runs on desktop only: the section and its dialogue behave the same at every size
@@ -257,6 +258,16 @@ test('holds a profile waiting to be deleted to the cancel screen, and cancelling
     await expect(page.getByRole('heading', { name: 'Your profile is scheduled for deletion' })).toHaveCount(0)
     await waitForPageReady(page)
   })
+})
+
+test('fades Cancel deletion to its spinner while the cancel runs, and back when it fails', async ({ page, request }) => {
+  const user = await signUpUser(request)
+  await stubScheduledDeletion(page, STUBBED_WAIT_DAYS)
+  await logInViaApi(page, user)
+  await page.goto('/')
+
+  const button = page.getByRole('button', { name: 'Cancel deletion', exact: true })
+  await checkSubmitTransition(page, button, 'Cancel deletion', { method: 'POST', path: '/auth/profile/delete/cancel' })
 })
 
 test('signs out from the cancel screen', async ({ page, request }) => {
