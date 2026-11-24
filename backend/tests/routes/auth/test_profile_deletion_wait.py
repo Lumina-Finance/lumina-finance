@@ -14,7 +14,7 @@ from app.models.auth_session import AuthSession
 from app.models.bank_connection import BankConnection
 from app.models.user import User
 from app.services.email import contract as email_contract
-from app.services.profile_deletion import delete_marked_profiles, removal
+from app.services.profile_deletion import delete_marked_profiles, delete_user, removal
 from app.services.profile_deletion import request as request_module
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support import SIGNUP_PAYLOAD, _create_user, _get_auth_header, _seed_reset_token, _sign_in_again
@@ -119,6 +119,26 @@ async def test_delete_with_a_wait_marks_the_profile_and_keeps_everything_else(
     ]
     body = sent_action_emails[0][1].text_body
     assert "7 December 2026" in body and "Please sign in and cancel before then." in body
+
+
+async def test_deleting_a_waiting_user_from_code_goes_at_once_and_emails_that_it_is_done(
+    client, profile_deletion_wait, sent_action_emails, authorizing_provider, profile_deletions
+):
+    """A user waiting for their due time is deleted at once, their bank access goes back, and they get the done email"""
+    profile_deletion_wait(_WAIT)
+    signup = await _create_user(client)
+    user_id = uuid.UUID(signup.json()["user"]["id"])
+    await _commit_rejected_connection(user_id, rejected=False)
+    response = await client.post(_DELETE, headers=_get_auth_header(signup), json={"password": _PASSWORD})
+    assert response.status_code == 200, response.text
+    sent_action_emails.clear()
+
+    assert await delete_user(user_id, session_factory=ScopedSession) is True
+
+    assert await _stored_user(user_id) is None, "the profile is gone before its due time"
+    assert [deletion.user_id for deletion in profile_deletions] == [user_id]
+    assert len(authorizing_provider.released) == 1, "the connection's access is given back"
+    assert [(recipient, message.subject) for recipient, message in sent_action_emails] == [(_EMAIL, "Your profile was deleted")]
 
 
 async def test_delete_with_no_wait_deletes_at_once_and_sends_no_email(client, sent_action_emails, profile_deletions):
