@@ -15,12 +15,15 @@ export default function BudgetFxStatusBadge({
   placement = 'top',
   stopPropagation = false,
   getMessage = getBudgetUtilizationFxStatusMessage,
+  readOnly = false,
 }: {
   fxStatus: FxStatus | undefined
   label: string
   placement?: 'top' | 'bottom'
   stopPropagation?: boolean
   getMessage?: (fxStatus: FxStatus) => string
+  // A read-only budget tracks nothing new, so its badge stays grey and gives only the reason
+  readOnly?: boolean
 }) {
   if (!fxStatus) return null
 
@@ -37,8 +40,8 @@ export default function BudgetFxStatusBadge({
         label={label}
         placement={placement}
         getMessage={getMessage}
-        withheldTone="red"
-        withheldMessage={WITHHELD_MESSAGE}
+        withheldTone={readOnly ? 'gray' : 'red'}
+        withheldMessage={readOnly ? undefined : WITHHELD_MESSAGE}
       />
     </span>
   )

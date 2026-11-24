@@ -10,8 +10,8 @@ import BudgetFxStatusBadge from '@/pages/budgets/components/shared/FxStatusBadge
 const REASON = 'This server allows no more of these'
 const MESSAGE = 'This budget counts only spending from accounts in its own currency'
 
-function render(fxStatus: FxStatus) {
-  return renderToStaticMarkup(<BudgetFxStatusBadge label="Budget FX status" fxStatus={fxStatus} />)
+function render(fxStatus: FxStatus, readOnly = false) {
+  return renderToStaticMarkup(<BudgetFxStatusBadge label="Budget FX status" fxStatus={fxStatus} readOnly={readOnly} />)
 }
 
 // Reads the tone from the badge's own tag, whatever order its attributes come in
@@ -25,6 +25,14 @@ describe('a budget’s FX badge', () => {
     expect(tone(markup)).toBe('red')
     expect(markup.indexOf(MESSAGE)).toBeGreaterThanOrEqual(0)
     expect(markup.indexOf(REASON)).toBeGreaterThan(markup.indexOf(MESSAGE))
+  })
+
+  it('stays grey and gives only the reason on a read-only budget', () => {
+    const markup = render({ state: 'none', missing_pairs: [], withheld_reason: REASON }, true)
+
+    expect(tone(markup)).toBe('gray')
+    expect(markup).not.toContain(MESSAGE)
+    expect(markup).toContain(REASON)
   })
 
   it('keeps its usual tone and message when nothing was left out', () => {

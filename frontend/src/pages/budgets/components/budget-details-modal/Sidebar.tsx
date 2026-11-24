@@ -163,7 +163,11 @@ export default function BudgetDetailsSidebar({
             <p className="text-xs font-semibold uppercase" style={{ color: 'var(--app-text-subtle-on-accent)' }}>
               Current budget
             </p>
-            <BudgetFxStatusBadge fxStatus={latestUtilization?.fx_status} label="Current budget FX status" />
+            <BudgetFxStatusBadge
+              fxStatus={latestUtilization?.fx_status}
+              label="Current budget FX status"
+              readOnly={Boolean(baseBudget.read_only_reason)}
+            />
           </div>
         </div>
         {/* An archived budget has no live period, so the current-budget figures do not apply */}

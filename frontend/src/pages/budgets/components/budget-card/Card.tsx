@@ -75,7 +75,12 @@ export default function BudgetCard({
             <h2 className="truncate text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
               {baseBudget.name}
             </h2>
-            <BudgetFxStatusBadge fxStatus={utilization?.fx_status} label="Budget FX status" stopPropagation />
+            <BudgetFxStatusBadge
+              fxStatus={utilization?.fx_status}
+              label="Budget FX status"
+              stopPropagation
+              readOnly={Boolean(baseBudget.read_only_reason)}
+            />
           </div>
           <p className="mt-1 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
