@@ -199,7 +199,7 @@ export default function TransactionModalLinkRefundPicker({
   ].join(' · ')
   const kindOf = (expense: Transaction) => categoryById.get(expense.category_id)?.name ?? 'Uncategorized'
 
-  const renderRow = (candidate: RefundLinkCandidate, refusal: string | null, showsChips: boolean) => {
+  const renderRow = (candidate: RefundLinkCandidate, refusal: string | null) => {
     const account = accountById.get(candidate.account_id)
     return (
       <RevealRow key={candidate.id} spacingClassName={ROW_SPACING_CLASS_NAME}>
@@ -209,7 +209,6 @@ export default function TransactionModalLinkRefundPicker({
           accountName={account?.name}
           accountInstitution={account?.institution}
           isPicked={pickedIds.includes(candidate.id)}
-          showsChips={showsChips}
           refusal={refusal}
           onPick={() => {
             if (!refusal) togglePick(candidate.id)
@@ -220,7 +219,7 @@ export default function TransactionModalLinkRefundPicker({
   }
 
   // A group with no rows left drops its heading with them
-  const group = (key: string, heading: string, groupRows: RefundLinkCandidate[], showsChips: boolean) => (
+  const group = (key: string, heading: string, groupRows: RefundLinkCandidate[]) => (
     <AnimatePresence initial={false}>
       {groupRows.length > 0 && (
         <RevealRow key={key} spacingClassName="">
@@ -233,7 +232,7 @@ export default function TransactionModalLinkRefundPicker({
               {heading}
             </h3>
             <AnimatePresence initial={false}>
-              {groupRows.map((candidate) => renderRow(candidate, null, showsChips))}
+              {groupRows.map((candidate) => renderRow(candidate, null))}
             </AnimatePresence>
           </div>
         </RevealRow>
@@ -326,16 +325,14 @@ export default function TransactionModalLinkRefundPicker({
             </p>
           ) : (
             <div data-testid="link-candidates">
-              {group('likely', 'Likely matches', groups.likely, true)}
-              {group('other', picksRefund ? 'Other money in' : 'Other expenses', groups.other, false)}
+              {group('likely', 'Likely matches', groups.likely)}
+              {group('other', picksRefund ? 'Other money in' : 'Other expenses', groups.other)}
               <AnimatePresence initial={false}>
                 {groups.unlinkable.length > 0 && (
                   <RevealRow key="unlinkable" spacingClassName="">
                     <UnlinkableCandidates picksRefund={picksRefund} rooms={groups.unlinkable.map(({ room }) => room)}>
                       <AnimatePresence initial={false}>
-                        {groups.unlinkable.map(({ candidate, room }) =>
-                          renderRow(candidate, refusalFor(room, candidate), false),
-                        )}
+                        {groups.unlinkable.map(({ candidate, room }) => renderRow(candidate, refusalFor(room, candidate)))}
                       </AnimatePresence>
                     </UnlinkableCandidates>
                   </RevealRow>

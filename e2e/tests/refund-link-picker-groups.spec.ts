@@ -1,4 +1,4 @@
-// The Link a refund picker's groups, the reasons on its likely matches, the folded row of what can't be linked and the
+// The Link a refund picker's groups, their order, the folded row of what can't be linked and the
 // preview of the chain linking makes. Runs on desktop, as the picker is the same markup at every size. The phone test
 // sets its own 375x667 size to check the preview stays in view while the list scrolls
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
@@ -97,7 +97,7 @@ function rowWith(scope: Locator, merchant: string, amount: string) {
     .filter({ has: scope.page().getByTestId('transaction-amount').filter({ hasText: amount }) })
 }
 
-// Example 1: the header names the expense, the likely matches lead with their reasons, every other refund that fits
+// Example 1: the header names the expense, the likely matches lead, every other refund that fits
 // follows, what is more than is left folds into one row, and the preview shows the chain as it stands
 test('groups an expense picker by fit and previews the chain as it stands', async ({ page, request }) => {
   const { picker } = await openPicker(page, request, 'expense')
@@ -107,12 +107,8 @@ test('groups an expense picker by fit and previews the chain as it stands', asyn
 
   await expect(group(picker, 'likely').getByRole('heading')).toHaveText('Likely matches')
   await expect(amounts(group(picker, 'likely'))).toHaveText(['+$135.00', '+$60.00'])
-  // The row and the eyebrow both name the merchant, so only an exact amount says why under the row
-  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(0).getByTestId('likely-chip')).toHaveText(['Exact amount'])
-  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(1).getByTestId('likely-chip')).toHaveCount(0)
   await expect(group(picker, 'other').getByRole('heading')).toHaveText('Other money in')
   await expect(group(picker, 'other').getByTestId('link-candidate')).toHaveText([/Northwind Supply/])
-  await expect(group(picker, 'other').getByTestId('likely-chip')).toHaveCount(0)
 
   await expect(folded(picker)).toHaveText("2 can't be linked, each more than what's left")
   await expect(folded(picker)).toHaveAttribute('aria-expanded', 'false')
@@ -191,9 +187,6 @@ test('groups a refund picker by fit and previews the picked expense chain', asyn
 
   await expect(picker.getByText(`Harbor Electronics · ${eyebrowDate(1)} · +$135.00`, { exact: true })).toBeVisible()
   await expect(amounts(group(picker, 'likely'))).toHaveText(['−$420.00', '−$135.00', '−$1,000.00'])
-  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(0).getByTestId('likely-chip')).toHaveText(['Exact amount'])
-  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(1).getByTestId('likely-chip')).toHaveText(['Exact amount'])
-  await expect(group(picker, 'likely').getByTestId('link-candidate').nth(2).getByTestId('likely-chip')).toHaveCount(0)
   await expect(group(picker, 'other').getByRole('heading')).toHaveText('Other expenses')
   await expect(amounts(group(picker, 'other'))).toHaveText(['−$200.00'])
   await expect(folded(picker)).toHaveText("1 can't be linked, with less than this refund left")
@@ -320,7 +313,6 @@ test('groups by what is left after a link the window holds', async ({ page, requ
   await dialog.getByTestId('link-existing').click()
   await expect(picker).toBeVisible()
   await expect(amounts(group(picker, 'likely'))).toHaveText(['+$60.00'])
-  await expect(group(picker, 'likely').getByTestId('likely-chip')).toHaveText(['Exact amount'])
   await expect(amounts(group(picker, 'other'))).toHaveText(['+$30.00'])
   await expect(preview(picker).getByTestId('refund-chain-note')).toHaveText('1 refund linked')
   await expect(preview(picker).getByTestId('refund-room')).toHaveText('$60.00')

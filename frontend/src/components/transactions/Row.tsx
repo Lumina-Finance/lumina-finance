@@ -131,10 +131,6 @@ interface TransactionRowProps {
   // The id of the day's heading above the row. It names the date the row's button is described by
   dateHeadingId?: string
 
-  // The id of a line drawn under the row that its button is also described by, such as why a picker row is a likely
-  // match
-  lineId?: string
-
   // Goes to the waiting correction or removal a bank-imported transaction names, given where the list
   // shows the review block. Without it the row leaves the Needs review marker out
   onShowReview?: (reviewItemId: string) => void
@@ -421,7 +417,6 @@ export function TransactionRowView({
   selection,
   bankMarker,
   dateHeadingId,
-  lineId,
   onOpen,
 }: TransactionRowViewProps) {
   const wide = !phoneLayout
@@ -573,7 +568,7 @@ export function TransactionRowView({
       tabIndex={selection ? -1 : undefined}
       {...titleReasonProps}
       {...(readOnlyReason && !isHeldOff ? readOnlyFocus.focusProps : null)}
-      aria-describedby={[...describingIds(layout), dateHeadingId, lineId, titleReasonProps['aria-describedby']]
+      aria-describedby={[...describingIds(layout), dateHeadingId, titleReasonProps['aria-describedby']]
         .filter(Boolean)
         .join(' ')}
       aria-pressed={pressed}
