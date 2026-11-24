@@ -1,7 +1,7 @@
 /**
  * Guards the edit dialogue of an account the server keeps read-only. Its identity and details sit in a
- * disabled fieldset under the reason, since the server refuses a change to them, and archiving and
- * deleting stay outside it, open
+ * disabled fieldset under the reason, since the server refuses a change to them, each field held back in
+ * the transaction form's muted look. Archiving and deleting stay outside it, open
  */
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -10,6 +10,7 @@ import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import type { Account } from '@/api/accounts'
 import { ToastContext, type ToastValue } from '@/contexts/ToastContext'
+import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
 import { createAccount } from '@tests/pages/accounts/detail/components/bank-link/fixtures'
 
 // The crossfade needs a browser to mount, so a button's content is drawn without its animated layers
@@ -63,6 +64,11 @@ function renderDialogue(account: Account): string {
   ).replaceAll('<!-- -->', '')
 }
 
+/** The opening tag of the input or textarea with this id */
+function fieldTag(markup: string, id: string): string {
+  return new RegExp(`<(?:input|textarea)\\b[^>]*\\bid="${id}"[^>]*>`).exec(markup)?.[0] ?? ''
+}
+
 /** What sits inside the dialogue's fieldset, and what follows it */
 function splitAtFieldset(markup: string): { fieldset: string; opening: string; after: string } {
   const start = markup.indexOf('<fieldset')
@@ -90,6 +96,17 @@ describe('the edit dialogue of a read-only account', () => {
     expect(fieldset).toContain('Everyday')
   })
 
+  it("holds back the name, institution and notes in the transaction form's muted look", () => {
+    const { fieldset } = splitAtFieldset(renderDialogue(account))
+
+    for (const id of [EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.notes]) {
+      const field = fieldTag(fieldset, id)
+      expect(field).toContain('disabled=""')
+      expect(field).toContain('disabled:opacity-60')
+    }
+    expect(fieldset).toContain('app-dropdown-glass-disabled')
+  })
+
   it('leaves archiving and deleting outside the fieldset', () => {
     const { fieldset, after } = splitAtFieldset(renderDialogue(account))
 
@@ -103,5 +120,7 @@ describe('the edit dialogue of a read-only account', () => {
 
     expect(splitAtFieldset(markup).opening).not.toContain('disabled')
     expect(markup).not.toContain('read-only-reason-pill')
+    expect(fieldTag(markup, EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name)).not.toContain('disabled=""')
+    expect(markup).not.toContain('app-dropdown-glass-disabled')
   })
 })

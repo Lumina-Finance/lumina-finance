@@ -358,7 +358,8 @@ export default function EditAccountIdentityModal({
             data-dropdown-bounds
           >
             <div className="space-y-5">
-              {/* A read-only account keeps its details as they are. Archiving and deleting stay open below */}
+              {/* A read-only account keeps its details as they are, with each field held back in the
+                  transaction form's muted look. Archiving and deleting stay open below */}
               {account.read_only_reason && (
                 <span className="flex min-w-0">
                   <ReadOnlyReasonPill reason={account.read_only_reason} focusable />
@@ -372,6 +373,7 @@ export default function EditAccountIdentityModal({
                   setField={setField}
                   onCreateInstitution={institutionModal.openForCreate}
                   onCorrectInstitution={institutionModal.openForCorrection}
+                  readOnly={Boolean(account.read_only_reason)}
                 />
 
                 {hasEditableAccountContext && (
@@ -381,6 +383,7 @@ export default function EditAccountIdentityModal({
                     canLinkTaxAdvantagedCategory={canLinkTaxAdvantagedCategory}
                     isRevolving={isRevolving}
                     isCreditLimitLocked={isCreditLimitLocked}
+                    readOnly={Boolean(account.read_only_reason)}
                     currencyState={currencyState}
                     selectedCurrencySymbol={selectedCurrencySymbol}
                     creditLimitExponent={knownCreditLimitExponent ?? DEFAULT_MINOR_UNIT_EXPONENT}

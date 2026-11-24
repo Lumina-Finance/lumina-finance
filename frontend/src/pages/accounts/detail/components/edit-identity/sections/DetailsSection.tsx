@@ -17,6 +17,8 @@ type AccountDetailsSectionProps = {
   canLinkTaxAdvantagedCategory: boolean
   isRevolving: boolean
   isCreditLimitLocked: boolean
+  /** Holds every field back in the transaction form's muted look, for an account that can't change */
+  readOnly: boolean
 
   // Explains why the authoritative own-currency lock applies
   currencyState: CurrencyListState
@@ -38,6 +40,7 @@ export function AccountDetailsSection({
   canLinkTaxAdvantagedCategory,
   isRevolving,
   isCreditLimitLocked,
+  readOnly,
   currencyState,
   selectedCurrencySymbol,
   creditLimitExponent,
@@ -68,6 +71,7 @@ export function AccountDetailsSection({
             placeholder="Select category..."
             searchable
             searchPlaceholder="Search categories..."
+            disabled={readOnly}
           />
           {/* Beside the dropdown rather than in place of the form, since the category is optional
               and the rest of the account can still be edited without it */}
@@ -110,7 +114,7 @@ export function AccountDetailsSection({
               aria-invalid={fieldErrors.credit_limit ? true : undefined}
               aria-describedby={fieldErrors.credit_limit ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimitError : undefined}
               placeholder="Optional"
-              disabled={isCreditLimitLocked}
+              disabled={isCreditLimitLocked || readOnly}
               {...creditLimitInput}
             />
           </div>
