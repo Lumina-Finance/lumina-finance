@@ -808,8 +808,8 @@ describe('the import start reminder', () => {
   })
 })
 
-// Nothing a sync brings in reaches an account the server keeps read-only, so the section says why once and
-// holds back every action that would write to the account. Unlinking stays open
+// Nothing a sync brings in reaches an account the server keeps read-only, so the section marks it once with a
+// "Read-only" pill and holds back every action that would write to the account. Unlinking stays open
 describe('the bank link of a read-only account', () => {
   const REASON = 'Records in USD are read-only. They can be archived or deleted'
   const readOnly = () => createAccount({ currency: 'USD', read_only_reason: REASON })
@@ -824,13 +824,16 @@ describe('the bank link of a read-only account', () => {
     expect(markup).not.toContain('Open bank connections')
   })
 
-  it('shows the reason above the link, and holds back Sync now and Import a date range with it', () => {
+  it('marks the link read-only in a pill, and holds back Sync now and Import a date range with its reason', () => {
     read.status = linkSynced()
     const markup = renderSection(readOnly())
-    const reasonId = markup.match(new RegExp(`<span id="([^"]+)">${REASON}</span>`))?.[1]
+    const reasonId = markup.match(/<span id="([^"]+)" data-testid="read-only-reason-pill" tabindex="0"/)?.[1]
     const range = getButton(markup, 'Import a date range')
 
     expect(reasonId).toBeDefined()
+    // The pill holds the reason for a screen reader, and no lasting sentence shows
+    expect(markup).toContain(`<span class="sr-only">. ${REASON}</span>`)
+    expect(markup).not.toContain(`<span id="${reasonId}">${REASON}</span>`)
     expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
     expect(range).toContain('aria-disabled="true"')
     expect(range).toContain(`aria-describedby="${reasonId}"`)

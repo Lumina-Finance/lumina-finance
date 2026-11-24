@@ -27,6 +27,7 @@ import { revealInScrollArea } from '@/components/modal/scrollArea'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useAuth } from '@/hooks/useAuth'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
 import { BalanceMatchOffer } from '@/pages/accounts/detail/components/bank-link/BalanceMatchOffer'
 import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
@@ -164,12 +165,13 @@ function LinkedView({
       </IdentityFacts>
 
       <AnimatePresence initial={false}>
-        {/* Syncs bring nothing into a read-only account, so its reason comes before anything else about the link */}
+        {/* Syncs bring nothing into a read-only account, so its "Read-only" pill comes before anything else
+            about the link, holding the reason the held-back actions point at */}
         {readOnlyReason && (
           <Unfold key="read-only">
-            <InfoCallout tone="stopped" icon={TriangleAlert}>
-              <span id={readOnlyReasonId}>{readOnlyReason}</span>
-            </InfoCallout>
+            <span className="flex min-w-0">
+              <ReadOnlyReasonPill id={readOnlyReasonId} reason={readOnlyReason} focusable />
+            </span>
           </Unfold>
         )}
         {showsImport && (
