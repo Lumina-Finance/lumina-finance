@@ -332,7 +332,9 @@ export default function TransactionModalLinkRefundPicker({
                   <RevealRow key="unlinkable" spacingClassName="">
                     <UnlinkableCandidates picksRefund={picksRefund} rooms={groups.unlinkable.map(({ room }) => room)}>
                       <AnimatePresence initial={false}>
-                        {groups.unlinkable.map(({ candidate, room }) => renderRow(candidate, refusalFor(room, candidate)))}
+                        {groups.unlinkable.map(({ candidate, room }) =>
+                          renderRow(candidate, refusalFor(room, candidate)),
+                        )}
                       </AnimatePresence>
                     </UnlinkableCandidates>
                   </RevealRow>
