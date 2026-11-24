@@ -30,7 +30,7 @@ const HAS_LINE_CLASS_NAME = [
 ].join(' ')
 
 // A pickable row with a line takes the hover fill across the row and its line, as the press on either picks it. The
-// chips' own fill matches that hover fill, so on a filled row they take the wash made for a surface of that shade
+// chip's own fill matches that hover fill, so on a filled row the chip takes the wash made for a surface of that shade
 const PICKABLE_LINE_CLASS_NAME = [
   'hover:bg-[var(--app-hover-soft)] has-[button:focus-visible]:bg-[var(--app-hover-soft)] [&_.app-transaction-row]:bg-transparent!',
   'hover:[&_.likely-chip]:bg-[var(--app-hover-on-surface-soft)]',
@@ -129,8 +129,8 @@ export default function LinkCandidateRow({
         </p>
       ) : (
         chips && (
-          // A press on Exact amount picks the row as a press on the row does. The keyboard reaches the row's button, and
-          // a screen reader hears Exact amount as part of its description
+          // A press on Exact amount picks the row as a press on the row does. The keyboard reaches the row's button,
+          // and a screen reader hears Exact amount as part of its description
           <div id={chipsId} className={`${LINE_CLASS_NAME} cursor-pointer`} onClick={onPick}>
             <ExactAmountChip />
           </div>
