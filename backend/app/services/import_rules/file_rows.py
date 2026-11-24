@@ -129,6 +129,27 @@ async def load_fill_targets(db: AsyncSession, user_id: uuid.UUID, fills: Sequenc
     merchant_ids = {fill.merchant.value for fill in fills if fill.merchant is not None}
     category_ids = {fill.category.value for fill in fills if fill.category is not None}
     tag_ids = {tag.value for fill in fills for tag in fill.tags}
+    targets = await read_fill_targets(db, user_id, merchant_ids, category_ids, tag_ids)
+    if not (merchant_ids <= targets.merchants.keys() and category_ids <= targets.categories.keys() and tag_ids <= targets.tags.keys()):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=CHANGED_DETAIL)
+    return targets
+
+
+async def read_fill_targets(
+    db: AsyncSession, user_id: uuid.UUID, merchant_ids: set[uuid.UUID], category_ids: set[uuid.UUID], tag_ids: set[uuid.UUID]
+) -> FillTargets:
+    """Read the merchants, categories and tags named by id, one statement for each kind, leaving out any that is gone
+
+    Args:
+        db: Active database session
+        user_id: The person the records belong to
+        merchant_ids: The merchants to read
+        category_ids: The categories to read
+        tag_ids: The tags to read
+
+    Returns:
+        The records found by id, within what a person files under
+    """
     # The scopes an import files rows under, written here rather than imported from the importers,
     # which import this module in turn: the user's own personal records, and for merchants and
     # categories the ones that ship with the app
@@ -147,6 +168,4 @@ async def load_fill_targets(db: AsyncSession, user_id: uuid.UUID, fills: Sequenc
         if tag_ids
         else {}
     )
-    if not (merchant_ids <= merchants.keys() and category_ids <= categories.keys() and tag_ids <= tags.keys()):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=CHANGED_DETAIL)
     return FillTargets(merchants=merchants, categories=categories, tags=tags)

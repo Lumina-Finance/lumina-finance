@@ -8,7 +8,6 @@ pages neither repeats nor skips one, and only the user's own personal accounts h
 
 import uuid
 from datetime import UTC, date, datetime
-from unittest.mock import ANY
 
 from sqlalchemy import delete
 
@@ -251,7 +250,7 @@ async def test_review_list_shows_each_kind_with_the_values_its_review_compares(c
         ],
         "counts": {"new": 2, "correction": 1, "removal": 1},
         "next_cursor": None,
-        "rules": {"version": ANY, "any_matches": False, "any_addable": False},
+        "rules": {"any_addable": False, "changed": False, "read_only_reason": None},
     }
 
 

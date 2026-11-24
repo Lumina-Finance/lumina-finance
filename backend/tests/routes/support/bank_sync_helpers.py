@@ -13,7 +13,6 @@ import contextlib
 import uuid
 from collections.abc import AsyncIterator, Collection
 from datetime import UTC, date, datetime, timedelta
-from unittest.mock import ANY
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, update
@@ -61,7 +60,7 @@ EMPTY_REVIEW_PAGE = {
     "items": [],
     "counts": {"new": 0, "correction": 0, "removal": 0},
     "next_cursor": None,
-    "rules": {"version": ANY, "any_matches": False, "any_addable": False},
+    "rules": {"any_addable": False, "changed": False, "read_only_reason": None},
 }
 
 # The values a dismissal clears, since a dismissed bank transaction keeps only its identity

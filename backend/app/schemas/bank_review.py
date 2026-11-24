@@ -15,11 +15,8 @@ from app.schemas.limits import Counter
 from app.schemas.transaction import MAX_BULK_UPDATE_TRANSACTIONS, TransactionEntry
 from app.utils.date_window import WindowDate
 
-# The most accounts one request to apply the rules names
-MAX_APPLY_ACCOUNTS = 500
-
-# The length of the digest a version of the rules is, in hexadecimal
-MAX_RULES_VERSION_LENGTH = 64
+# The most accounts one request to approve all names
+MAX_APPROVE_ACCOUNTS = 500
 
 # A bank transaction to add or dismiss, or a change or removal the bank reports for one already in the ledger
 ReviewItemKind = Literal["new", "correction", "removal"]
@@ -55,7 +52,7 @@ class ReviewRuleTagsLeftOut(BaseModel):
 
 
 class ReviewItemRuleFill(BaseModel):
-    """What the user's import rules fill in for one new item, worked out as the list is read"""
+    """What the user's import rules filled in for one new item when it arrived, read with the records as they are now"""
 
     merchant: ImportRuleGivenValue | None
 
@@ -106,14 +103,18 @@ class BankReviewCountsResponse(BaseModel):
 
 
 class BankReviewRulesResponse(BaseModel):
-    """What the import rules do to the waiting new items of the accounts listed, across every page"""
+    """What the saved rule values of the waiting new items say, across every page"""
 
-    # Sent back when the rules are applied, so rules changed since the list loaded are refused
-    version: str
-
-    # Whether any waiting new item matches a rule, and whether applying the rules would add any
-    any_matches: bool
+    # Whether approving all would add any waiting item of the accounts listed
     any_addable: bool
+
+    # Whether the rules changed since a waiting item of any of the user's own accounts was put through
+    # them, whatever accounts are listed. Applying the rules puts every one through them again
+    changed: bool
+
+    # The installed check's sentence when an item could be added but every such item sits in an account
+    # the check keeps read-only, so Approve all says why it adds nothing. None otherwise
+    read_only_reason: str | None = None
 
 
 class BankReviewPageResponse(BaseModel):
@@ -194,18 +195,15 @@ class AddReviewItemRequest(TransactionEntry):
     """
 
 
-class ApplyImportRulesRequest(BaseModel):
-    """Add every waiting new item the user's import rules give a merchant and a fitting category, over the accounts the list shows"""
+class ApproveAllReviewItemsRequest(BaseModel):
+    """Add every waiting new item whose saved rule values give a merchant and a fitting category, over the accounts the list shows"""
 
     # The accounts the list is filtered to, or every one of the user's own when left out
-    account_ids: list[uuid.UUID] | None = Field(None, max_length=MAX_APPLY_ACCOUNTS)
-
-    # The version of the rules the list answered with
-    rules_version: str = Field(max_length=MAX_RULES_VERSION_LENGTH)
+    account_ids: list[uuid.UUID] | None = Field(None, max_length=MAX_APPROVE_ACCOUNTS)
 
 
-class ApplyImportRulesResponse(BaseModel):
-    """What applying the import rules added"""
+class ApproveAllReviewItemsResponse(BaseModel):
+    """What approving all the waiting items added"""
 
     added_ids: list[uuid.UUID]
 
