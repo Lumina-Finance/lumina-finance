@@ -7,6 +7,7 @@ import type {
   CacheStatus,
   ChangePasswordPayload,
   FeatureGrants,
+  ProfileDeletionResult,
   RatesStatus,
   RequestEmailChangePayload,
   RunwayResultResponse,
@@ -114,10 +115,11 @@ export function endOtherSessions(stepUp?: StepUpPayload) {
  * Deletes the profile and everything it holds, and signs it out everywhere
  *
  * An account with a password passes its step-up, and a passwordless one omits it, relying on the
- * reauth proof cookie. The data goes once the server has answered, so the app signs out straight after
+ * reauth proof cookie. The data goes once the server has answered, or on the due time the answer names,
+ * so the app signs out straight after
  */
 export function deleteProfile(stepUp?: StepUpPayload) {
-  return authenticatedFetch<void>('/auth/profile/delete', {
+  return authenticatedFetch<ProfileDeletionResult>('/auth/profile/delete', {
     method: 'POST',
     body: JSON.stringify(stepUp ?? null),
   })
@@ -126,7 +128,7 @@ export function deleteProfile(stepUp?: StepUpPayload) {
 /**
  * Cancels a deletion that is waiting to run, answering with the user it hands back to the app
  *
- * The server refuses once the due time has passed
+ * The server answers 409 once the due time has passed
  */
 export function cancelProfileDeletion() {
   return authenticatedFetch<User>('/auth/profile/delete/cancel', { method: 'POST' })

@@ -23,15 +23,12 @@ import {
 import { useAuthFormWorkflow } from '@/pages/auth/hooks/useAuthFormWorkflow'
 import { useMaintenanceRecheck } from '@/pages/auth/hooks/useMaintenanceRecheck'
 import { getAuthMode, REGISTRATION_CLOSED_NOTICE } from '@/pages/auth/utils/authForm'
+import { ProfileDeletedMessage } from '@/components/profile-deletion/ProfileDeletedMessage'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
 import { getBrowserTimeZone } from '@/utils/date'
 import { focusWhenShown } from '@/utils/focusWhenShown'
 import { isNativeSignIn, rememberNativeChallenge } from '@/utils/nativeHandoff'
-import {
-  clearProfileDeletedNotice,
-  getProfileDeletedNoticeText,
-  readProfileDeletedNotice,
-} from '@/utils/profileDeletedNotice'
+import { clearProfileDeletedNotice, readProfileDeletedNotice } from '@/utils/profileDeletedNotice'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 const DETECTED_TZ = getBrowserTimeZone()
@@ -191,7 +188,7 @@ const AuthPage = () => {
             className="mt-4 rounded-lg border px-3 py-2 text-sm"
             style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
           >
-            {getProfileDeletedNoticeText(profileDeletedNotice)}
+            <ProfileDeletedMessage scheduledFor={profileDeletedNotice.scheduledFor} />
           </div>
         )}
 

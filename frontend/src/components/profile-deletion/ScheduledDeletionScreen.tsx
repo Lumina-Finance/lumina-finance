@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { cancelProfileDeletion } from '@/api/user'
+import { DeletionDate } from '@/components/profile-deletion/DeletionDate'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { getSaveFailureMessage } from '@/utils/createFailure'
@@ -44,7 +45,8 @@ export default function ScheduledDeletionScreen({ dueAt }: ScheduledDeletionScre
 
         <div className="mt-5 space-y-5">
           <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            Your profile and data will be deleted on {formatDeletionDueDate(dueAt, user?.tz)}.
+            Your profile and data will be deleted on{' '}
+            <DeletionDate>{formatDeletionDueDate(dueAt, user?.tz)}</DeletionDate>.
           </p>
 
           <div className="space-y-3">

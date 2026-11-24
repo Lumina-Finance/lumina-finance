@@ -53,6 +53,6 @@ export interface OidcIdentitiesResponse {
   identities: OidcLinkedIdentity[]
   // False for provider-created accounts until they set a password, which gates link and unlink
   has_password: boolean
-  // Days a deletion waits before it runs, so the dialogue can name the date. 0 deletes at once
-  profile_deletion_wait_days: number
+  // Seconds a deletion waits before it runs, so the dialogue can name the date. 0 deletes at once
+  profile_deletion_wait_seconds: number
 }

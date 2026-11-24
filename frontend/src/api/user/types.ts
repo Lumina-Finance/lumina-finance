@@ -45,6 +45,11 @@ export type UserProfile = User & {
   foreign_currencies_refusal: string | null
 }
 
+/** What a confirmed profile deletion answers with. The due time is null when the profile is deleted at once */
+export interface ProfileDeletionResult {
+  deletion_due_at: string | null
+}
+
 export interface CacheScopeStatus {
   changed_at: string | null
   last_change_from_current_session: boolean

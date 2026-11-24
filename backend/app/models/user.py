@@ -50,10 +50,10 @@ class User(Base):
     saved_copy_key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     # Set when the user asks to delete their profile, and the profile is marked from then on. A marked
-    # profile syncs nothing and every route but the one that cancels refuses it. With no due time the
-    # same request has already deleted every bank connection and signed the user out for good, and
-    # app.services.profile_deletion removes their data and then this row. With a due time the user can
-    # still sign in until then, only to cancel, and the bank connections stay
+    # profile syncs nothing and every route but the ones that cancel, refresh and log out refuses it. With
+    # no due time the same request has already deleted every bank connection and signed the user out for
+    # good, and app.services.profile_deletion removes their data and then this row. With a due time the
+    # user can still sign in until then, only to cancel, and the bank connections stay
     deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # When a marked profile's data may start to go, set when a waiting period applies. None on a marked

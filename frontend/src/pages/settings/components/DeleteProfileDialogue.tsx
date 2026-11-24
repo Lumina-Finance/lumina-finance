@@ -4,7 +4,8 @@ import { FieldError } from '@/components/forms/FieldError'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { WarningCallout } from '@/components/WarningCallout'
-import { getDeleteWarning, isDeletionConfirmed } from '@/pages/settings/utils/deleteProfile'
+import { DeleteWarning } from '@/pages/settings/components/DeleteWarning'
+import { isDeletionConfirmed } from '@/pages/settings/utils/deleteProfile'
 
 const CONFIRM_WORD_MISSING = 'Please type delete to confirm'
 const EXPORT_RUNNING = 'Please wait for the export to finish'
@@ -81,7 +82,9 @@ export function DeleteProfileDialogue({
       }
     >
       <div id={descriptionId} className="space-y-4 text-sm leading-6" style={{ color: 'var(--app-text)' }}>
-        <WarningCallout>{getDeleteWarning(scheduledFor)}</WarningCallout>
+        <WarningCallout>
+          <DeleteWarning scheduledFor={scheduledFor} />
+        </WarningCallout>
         {hasBankConnections && (
           <p>
             Your subscriptions and related charges with the bank sync provider will not be cancelled automatically.

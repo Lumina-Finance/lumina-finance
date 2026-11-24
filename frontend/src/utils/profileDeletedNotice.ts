@@ -28,10 +28,3 @@ export function readProfileDeletedNotice() {
 export function clearProfileDeletedNotice() {
   notice = null
 }
-
-/** What the sign-in screen says about the deletion */
-export function getProfileDeletedNoticeText({ scheduledFor }: ProfileDeletedNotice) {
-  return scheduledFor
-    ? `Your profile will be deleted on ${scheduledFor}. Sign in before then to cancel.`
-    : 'Your profile and data were deleted.'
-}

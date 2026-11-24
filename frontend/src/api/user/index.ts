@@ -4,6 +4,7 @@ export type {
   ChangePasswordPayload,
   FeatureGrants,
   GrantableFeature,
+  ProfileDeletionResult,
   RatesStatus,
   RequestEmailChangePayload,
   RunwayAccountBalance,

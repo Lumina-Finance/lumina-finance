@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import get_db, get_session_factory
@@ -10,13 +10,13 @@ from app.dependencies import get_current_user, get_user_who_may_cancel_deletion
 from app.models.user import User
 from app.routes.auth.cookie_helpers import clear_refresh_cookie, read_oidc_reauth_stepup_cookie
 from app.routes.auth.token_helpers import authorize_sensitive_action
-from app.schemas.auth import StepUpRequest, UserInfo
+from app.schemas.auth import ProfileDeletionResponse, StepUpRequest, UserInfo
 from app.services.profile_deletion import cancel_profile_deletion, request_profile_deletion
 
 router = APIRouter(prefix="/profile", tags=["auth"])
 
 
-@router.post("/delete", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/delete", response_model=ProfileDeletionResponse)
 async def delete_profile_route(
     request: Request,
     response: Response,
@@ -44,10 +44,13 @@ async def delete_profile_route(
         data: Password and a current factor, for an account that has a password
         oidc_reauth_stepup: Reauth proof cookie, for a passwordless account
 
+    Returns:
+        When the deletion is due, or None when the profile is being deleted at once
+
     Raises:
         HTTPException 401: The step-up is missing or fails
     """
-    await authorize_sensitive_action(
+    due_at = await authorize_sensitive_action(
         db,
         user,
         request,
@@ -57,6 +60,7 @@ async def delete_profile_route(
         lambda: request_profile_deletion(db, user, background_tasks, session_factory),
     )
     clear_refresh_cookie(request, response)
+    return ProfileDeletionResponse(deletion_due_at=due_at)
 
 
 @router.post("/delete/cancel", response_model=UserInfo)
@@ -67,17 +71,18 @@ async def cancel_profile_deletion_route(
     """Cancel the deletion of the authenticated user's profile while it is still waiting
 
     The only route a profile waiting to be deleted can reach. It needs no new password, since a session
-    of a waiting profile can only come from a sign-in made after the deletion was requested
+    of a waiting profile can only come from a sign-in made after the deletion was requested. A session
+    that outlives the due time reaches it too, and is told why the cancel came too late
 
     Args:
-        user: Authenticated user, let through while the profile waits to be deleted
+        user: Authenticated user, let through when the profile is marked with a due time
         db: Active database session
 
     Returns:
         The user's info, with no deletion due
 
     Raises:
-        HTTPException 403: The deletion's due time has passed
-        HTTPException 409: The profile is not waiting to be deleted
+        HTTPException 403: The profile is marked with no due time, so it goes at once
+        HTTPException 409: The profile is not waiting to be deleted, or its due time has passed
     """
     return await cancel_profile_deletion(db, user)

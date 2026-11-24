@@ -216,6 +216,14 @@ class StepUpRequest(BaseModel):
     passkey: dict[str, Any] | None = None  # a passkey assertion, taking priority over a code
 
 
+class ProfileDeletionResponse(BaseModel):
+    """What a confirmed profile deletion answers with"""
+
+    # When the deletion is due, or None when the profile is being deleted at once. The sign-in screen
+    # tells the user the date from this
+    deletion_due_at: datetime | None
+
+
 class RequestEmailChangeRequest(BaseModel):
     """The address an account wants to sign in with, and the step-up proving who asks
 
@@ -465,9 +473,9 @@ class OidcIdentitiesResponse(BaseModel):
     identities: list[OidcIdentitySummary]
     has_password: bool
 
-    # Whole days a confirmed profile deletion waits before the data goes, 0 when it goes at once. The delete
-    # profile dialogue reads it to show the date the deletion would be due
-    profile_deletion_wait_days: int = 0
+    # Whole seconds a confirmed profile deletion waits before the data goes, 0 when it goes at once. The
+    # delete profile dialogue adds it to the current time to show the date the deletion would be due
+    profile_deletion_wait_seconds: int = 0
 
 
 class PasskeyRegisterResponse(BaseModel):

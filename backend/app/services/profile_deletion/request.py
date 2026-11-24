@@ -6,9 +6,8 @@ connections stay as they are until the due time, so the user can still cancel. A
 waits for that time, and code built on the app deletes at once
 """
 
-import math
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import BackgroundTasks
 from sqlalchemy import delete
@@ -30,7 +29,7 @@ async def request_profile_deletion(
     user: User,
     background_tasks: BackgroundTasks,
     session_factory: async_sessionmaker[AsyncSession],
-) -> None:
+) -> datetime | None:
     """Mark a user's profile for deletion as one unit of work, then delete it once the answer is out
 
     The caller authorizes the request first. With no waiting period, the deletion starts as in
@@ -44,6 +43,9 @@ async def request_profile_deletion(
         user: The user whose profile goes
         background_tasks: Runs the deletion, or the email of its date, once the response is out
         session_factory: Opens the sessions the deletion runs in
+
+    Returns:
+        When the deletion is due, or None when the profile is being deleted at once
     """
     wait = profile_deletion_wait()
     if wait.total_seconds() > 0:
@@ -52,15 +54,17 @@ async def request_profile_deletion(
         due_at = now + wait
         user.deletion_due_at = due_at
         recipient = user.email
+        tz = user.tz
         await db.commit()
-        background_tasks.add_task(send_scheduled_email, recipient, due_at)
-        return
+        background_tasks.add_task(send_scheduled_email, recipient, due_at, tz)
+        return due_at
 
     credentials = await _mark_for_deletion(db, user)
     await db.commit()
 
     await release_stored_credentials(credentials)
     background_tasks.add_task(delete_profile, session_factory, user.id)
+    return None
 
 
 async def delete_user(user_id: uuid.UUID, session_factory: async_sessionmaker[AsyncSession] = async_session) -> bool:
@@ -116,6 +120,6 @@ async def _end_access(db: AsyncSession, user: User, now: datetime) -> None:
     await db.execute(delete(EmailChangeRequest).where(EmailChangeRequest.user_id == user.id))
 
 
-def profile_deletion_wait_days() -> int:
-    """Return the whole days a profile deletion waits, rounded up so a wait of any length shows as a day, and 0 for none"""
-    return math.ceil(profile_deletion_wait().total_seconds() / timedelta(days=1).total_seconds())
+def profile_deletion_wait_seconds() -> int:
+    """Return the whole seconds a profile deletion waits, and 0 when it goes at once"""
+    return int(profile_deletion_wait().total_seconds())

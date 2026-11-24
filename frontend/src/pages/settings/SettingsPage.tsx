@@ -94,9 +94,8 @@ export default function SettingsPage() {
   const sectionNavigation = useSettingsSectionNavigation(sections)
   const showBankConnections = sections.some((section) => section.id === 'bank-connections')
   const { exportAllData, isExporting } = useExportAllData()
-  // The wait is unknown until the identities settle, and a failed read leaves the deletion running at once
-  const deletionWaitDays = oidcIdentities.isPending ? null : (oidcIdentities.data?.profile_deletion_wait_days ?? 0)
-  const deleteProfile = useDeleteProfile(hasPassword, deletionWaitDays)
+  // Until the identities arrive, or when reading them fails, the dialogue shows the deletion running at once
+  const deleteProfile = useDeleteProfile(hasPassword, oidcIdentities.data?.profile_deletion_wait_seconds ?? 0)
   // Delete profile's dialogue warns about the bank sync provider's charges for anyone who still has a connection,
   // even where new banks can't be linked, so it asks for the connections whenever it opens
   const { data: bankConnections } = useBankConnections({ enabled: showBankConnections || deleteProfile.dialogueOpen })
