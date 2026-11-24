@@ -6,7 +6,7 @@ import { asUser, createAccount, createTransaction, daysFromTodayInTestTimezone, 
 import { logInViaApi, openPage, readSettledBox, SAVED_QUERY_CACHE_KEY } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
-// The link icon a list row shows on a refund and on the expense it refunds
+// The refund icon a list row shows on a refund and on the expense it refunds
 function linkIcon(page: Page, id: string) {
   return page.getByTestId(`transaction-row-${id}`).getByTestId('transaction-refund-link').filter({ visible: true })
 }
@@ -588,7 +588,7 @@ async function expectPointerLandsOn(icon: Locator) {
   await icon.hover({ timeout: 2000 })
 }
 
-// A refunded expense's link icon keeps its "Refunded once" hint in a list at a wide and a phone width
+// A refunded expense's refund icon keeps its "Refunded once" hint in a list at a wide and a phone width
 for (const width of [1280, 390]) {
   test(`shows the refund link hint on a list row at ${width}px wide`, async ({ page, request }) => {
     await page.setViewportSize({ width, height: 844 })
