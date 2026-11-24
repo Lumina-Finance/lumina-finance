@@ -105,11 +105,12 @@ function ToastCard({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () =>
         )}
       </span>
       <span className="leading-6">{toast.text}</span>
+      {/* Level with the icon, so a message that wraps keeps both on its first line as a callout keeps its close */}
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss message"
-        className="app-icon-button -mr-1 h-6 w-6 shrink-0 self-center"
+        className="app-icon-button -mr-1 mt-0.5 h-6 w-6 shrink-0"
       >
         <X size={14} aria-hidden />
       </button>
