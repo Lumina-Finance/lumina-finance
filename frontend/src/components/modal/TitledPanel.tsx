@@ -1,7 +1,7 @@
 import type { FormEvent, ReactNode, Ref } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
 import { ModalFooterSlot } from '@/components/modal/FooterSlot'
-import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
+import { MODAL_BODY_CLASS_NAME, MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { MODAL_TITLE_CLASS_NAME, ModalRail } from '@/components/modal/Rail'
 import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
 
@@ -12,13 +12,13 @@ const CHROME = {
     panelClassName: 'flex max-h-[86vh] w-full overflow-hidden',
     widthClassName: 'max-w-2xl',
     headerClassName: `shrink-0 pb-5 pt-6 sm:pt-7 ${MODAL_INSET_CLASS_NAME.page}`,
-    bodyClassName: `min-h-0 flex-1 overflow-y-auto pb-3 pt-4 ${MODAL_INSET_CLASS_NAME.page}`,
+    bodyClassName: MODAL_BODY_CLASS_NAME.page,
   },
   stacked: {
     panelClassName: 'flex max-h-[84vh] w-full overflow-hidden',
     widthClassName: 'max-w-xl',
     headerClassName: `shrink-0 pb-5 pt-6 ${MODAL_INSET_CLASS_NAME.stacked}`,
-    bodyClassName: `min-h-0 flex-1 overflow-y-auto pb-3 pt-4 ${MODAL_INSET_CLASS_NAME.stacked}`,
+    bodyClassName: MODAL_BODY_CLASS_NAME.stacked,
   },
 } as const
 

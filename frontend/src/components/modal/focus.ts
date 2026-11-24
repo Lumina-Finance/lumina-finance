@@ -1,4 +1,5 @@
 import { useEffect, useState, type RefObject } from 'react'
+import { findScrollableAncestor } from '@/components/modal/scrollArea'
 import { isTopMostModal } from '@/components/modal/stack'
 import { isFloatingLayerOpen, isInsideFloatingLayer } from '@/utils/floatingLayer'
 
@@ -38,6 +39,47 @@ export function getFocusableElements(container: HTMLElement) {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
     (element) => element.tabIndex >= 0 && isVisibleElement(element),
   )
+}
+
+/**
+ * Scrolls a body that focus has just moved to a control so the text around that control shows in full: above it
+ * its label, and the heading of its section when it is the first control there, and below it a label that wraps
+ * past the control, such as a checkbox's. The browser scrolls only the control to the edge and leaves that text
+ * cut under the header or the footer. The text keeps the room the body's scroll padding gives the control.
+ * `focusable` is the dialogue's Tab order, and the body is found from the control's parent, since a long textarea
+ * scrolls itself
+ */
+export function revealControlText(control: HTMLElement, focusable: readonly HTMLElement[]): void {
+  const area = control.parentElement && findScrollableAncestor(control.parentElement, document.body)
+  if (!area) return
+
+  const style = window.getComputedStyle(area)
+  const topPadding = parseFloat(style.scrollPaddingTop) || 0
+  const bottomPadding = parseFloat(style.scrollPaddingBottom) || 0
+  const label = (control as HTMLInputElement).labels?.[0] ?? control.closest('label')
+
+  const section = control.closest('section')
+  const top = control.getBoundingClientRect().top
+  const opensSection =
+    section !== null &&
+    !focusable.some(
+      (other) => other !== control && section.contains(other) && other.getBoundingClientRect().top < top - 1,
+    )
+  const aboveTops = [label, opensSection ? section : null].flatMap((element) =>
+    element ? [element.getBoundingClientRect().top] : [],
+  )
+  if (aboveTops.length > 0) {
+    // Never so far that the control reaches the bottom padding, where a footer over the body covers it
+    const shortBy = area.getBoundingClientRect().top + topPadding - Math.min(...aboveTops)
+    const room = area.getBoundingClientRect().bottom - bottomPadding - control.getBoundingClientRect().bottom
+    if (shortBy > 0) area.scrollTop -= Math.min(shortBy, Math.max(room, 0))
+  }
+
+  // Never so far that the control reaches the top padding
+  const reach = Math.max(control.getBoundingClientRect().bottom, label?.getBoundingClientRect().bottom ?? 0)
+  const below = reach - (area.getBoundingClientRect().bottom - bottomPadding)
+  const roomAbove = control.getBoundingClientRect().top - (area.getBoundingClientRect().top + topPadding)
+  if (below > 0) area.scrollTop += Math.min(below, Math.max(roomAbove, 0))
 }
 
 /**
@@ -178,7 +220,9 @@ export function useDialogFocus(
 
       const active = document.activeElement instanceof HTMLElement ? document.activeElement : null
       const from = active && panel.contains(active) ? active : null
-      getNextTabStop(focusable, from, event.shiftKey)?.focus()
+      const next = getNextTabStop(focusable, from, event.shiftKey)
+      next?.focus()
+      if (next) revealControlText(next, focusable)
     }
 
     // A child cannot suppress Tab before the dialog keeps focus inside it

@@ -11,6 +11,7 @@ import { useInstitutionModal } from '@/hooks/useInstitutionModal'
 import { useTaxAdvantagedCategories } from '@/api/tax-advantaged-categories'
 import InstitutionModal from '@/components/reference-modals/InstitutionModal'
 import type { DropdownOption } from '@/components/dropdown/Dropdown'
+import { MODAL_BODY_CLASS_NAME } from '@/components/modal/inset'
 import { ModalShell } from '@/components/modal/Shell'
 import { DEFAULT_MINOR_UNIT_EXPONENT, findCurrencyExponent, fromMinorUnits } from '@/utils/moneyInput'
 import { formatCurrencySymbol } from '@/utils/formatCurrency'
@@ -351,7 +352,7 @@ export default function EditAccountIdentityModal({
               header */}
           <div
             ref={scrollAreaRef}
-            className="min-h-0 flex-1 overflow-y-auto pb-3 pl-4 pr-5 pt-4 min-[1050px]:px-7"
+            className={MODAL_BODY_CLASS_NAME.stacked}
             data-tooltip-bounds={bankLink ? true : undefined}
             data-dropdown-bounds
           >

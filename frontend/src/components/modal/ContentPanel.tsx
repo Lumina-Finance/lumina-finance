@@ -1,13 +1,15 @@
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { X, type LucideIcon } from 'lucide-react'
 import { ModalRail } from '@/components/modal/Rail'
 import { ModalShell, type ModalLevel } from '@/components/modal/Shell'
 
 // Capped at the viewport so the body scrolls when the content runs tall, such as a long batch of recovery
 // codes. The bottom padding clears the device safe area, since viewport-fit=cover lets content sit under
-// the home indicator, and is set in app-modal-body so a footer can take it over
+// the home indicator, and is set in app-modal-body so a footer can take it over. The padding is also the scroll
+// padding, so a control that focus scrolls into view keeps the room it has at the end of the scroll
 const PANEL_CLASS_NAME = 'flex max-h-[86vh] w-full max-w-sm flex-col'
-const BODY_CLASS_NAME = 'app-modal-body min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 pt-6'
+const BODY_CLASS_NAME =
+  'app-modal-body min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 pt-6 scroll-pt-6'
 
 // With a rail the panel is widened by the rail's own width, so the content keeps the room it has without
 // one. The rail clips to the panel's corners
@@ -109,8 +111,31 @@ export function ModalContentPanel({
  * them scrolls. Place it last in the content
  */
 export function ModalContentFooter({ children }: { children: ReactNode }) {
+  const footerRef = useRef<HTMLDivElement>(null)
+
+  // The footer is drawn over the end of the body, so the body's scroll padding has to clear the footer's real
+  // height. That height changes with its content and the device safe area. It is handed to the body, and the
+  // stylesheet rule there adds the room above it
+  useLayoutEffect(() => {
+    const footer = footerRef.current
+    const body = footer?.closest<HTMLElement>('.app-modal-body')
+    if (!footer || !body) return
+    // The layout height, since the panel scales in and a scaled box would read short
+    const publish = (height: number) => body.style.setProperty('--app-modal-footer-height', `${height}px`)
+    publish(footer.offsetHeight)
+    const observer = new ResizeObserver(([entry]) => publish(entry.borderBoxSize[0].blockSize))
+    observer.observe(footer)
+    return () => {
+      observer.disconnect()
+      // A step change keeps the old footer mounted while the new one is already in the body, and the new one has
+      // published its height by then, so only the last footer leaving takes the variable away
+      const another = Array.from(body.querySelectorAll('.app-modal-footer')).some((other) => other !== footer)
+      if (!another) body.style.removeProperty('--app-modal-footer-height')
+    }
+  }, [])
+
   return (
-    <div data-toast-keep-clear className="app-modal-footer">
+    <div ref={footerRef} data-toast-keep-clear className="app-modal-footer">
       {children}
     </div>
   )
