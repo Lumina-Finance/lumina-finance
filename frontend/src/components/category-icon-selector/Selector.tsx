@@ -277,10 +277,17 @@ function EmojiMartIconPicker({
   const panelHeight = useMotionValue(position.maxHeight)
   const maxHeightRef = useRef(position.maxHeight)
   const contentHeightRef = useRef<number | null>(null)
+  const isPresentRef = useRef(isPresent)
+  useEffect(() => {
+    isPresentRef.current = isPresent
+  }, [isPresent])
 
   // Until the picker reports what it holds the panel stands at its greatest height, which is also
   // what the full list asks for, so the picker arrives into a panel that is already its size
   const followContent = useCallback(() => {
+    // A panel folding away takes its height from the fold. Any other height set meanwhile keeps the fold
+    // from ending, so a search that changes the results as the panel goes would leave the panel in the page
+    if (!isPresentRef.current) return
     const content = contentHeightRef.current
     const target = content === null ? maxHeightRef.current : getEmojiPickerPanelHeight(content, maxHeightRef.current)
     if (shouldReduceMotion || content === null) panelHeight.set(target)
