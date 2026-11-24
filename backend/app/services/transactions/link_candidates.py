@@ -57,8 +57,9 @@ async def list_refund_link_candidates(
 
     A candidate paid to or from the transaction's own merchant, for exactly what is left to refund,
     comes first, then one for exactly that amount, then one from the same merchant, so closer amounts
-    never push a likely match past the limit. Within each, and after them, the nearer an amount is to the transaction's the
-    earlier it comes, and a tie goes to the newer date. Only the transaction's own currency is offered.
+    never push a likely match past the limit. Within each, and after them, the nearer an amount is to
+    the transaction's the earlier it comes, and a tie goes to the newer date. Only the transaction's
+    own currency is offered.
 
     An expense that can be refunded is offered the money that came in and is not yet the refund of
     anything. A transaction that can be a refund is offered the expenses. Anything else, a transfer,
