@@ -16,6 +16,7 @@ from typing import NamedTuple
 from sqlalchemy import Connection, text
 
 from app.config.imports import ABANDONED_RUN_AGE, IMPORT_UNDO_WINDOW
+from app.config.profile_deletion import DELETION_REMINDER_LEAD
 from app.models.bank_connection import FRESH_DISCOVERY_AGE
 from app.models.bank_sync_job import CLAIM_RANK
 
@@ -45,6 +46,7 @@ MIGRATION_REVISIONS = "public.migration_revisions"
 ROTATE_SAVED_COPY_KEY = "public.rotate_saved_copy_key"
 LIST_PROFILES_TO_DELETE = "public.list_profiles_to_delete"
 LIST_USERS = "public.list_users"
+LIST_PROFILES_TO_REMIND = "public.list_profiles_to_remind"
 
 # The worker functions see across users. Only the worker, connecting with no request
 # identity, may do that. Refusing a call made under an identity keeps a request from reaching them
@@ -73,6 +75,20 @@ _JOB_LEASE = "interval '10 minutes'"
 # design sets for job rows. Copied into the function that prunes them, so a change reaches a database
 # only through a migration that recreates the helpers
 _FINISHED_JOB_RETENTION = "interval '30 days'"
+
+# How long before its due time a waiting profile's owner is reminded of the deletion, from the profile
+# deletion settings. Copied into the function that lists the reminders due, so a change reaches a
+# database only through a migration that recreates the helpers
+_DELETION_REMINDER_LEAD = f"interval '{int(DELETION_REMINDER_LEAD.total_seconds())} seconds'"
+
+# A marked profile's bank connections neither sync nor claim jobs, since the deletion may be waiting or
+# under way. Each is the test on the owner column of the table the function reads
+_CONNECTION_OWNER_NOT_MARKED = """NOT EXISTS (
+                SELECT 1 FROM public.users marked WHERE marked.id = c.owner_id AND marked.deletion_requested_at IS NOT NULL
+            )"""
+_JOB_OWNER_NOT_MARKED = """NOT EXISTS (
+                SELECT 1 FROM public.users marked WHERE marked.id = j.owner_id AND marked.deletion_requested_at IS NOT NULL
+            )"""
 
 # Signatures the app no longer creates, dropped wherever the helpers are applied or revoked.
 # bump_user_cache stamped whatever user id it was given, and the app role can execute every
@@ -426,12 +442,14 @@ _HELPERS: tuple[_Helper, ...] = (
         WITH claimable AS (
             SELECT j.id FROM public.bank_sync_jobs j
             WHERE (
-                j.status = 'queued' AND j.run_after <= now()
-                AND NOT EXISTS (
-                    SELECT 1 FROM public.bank_sync_jobs r
-                    WHERE r.connection_id = j.connection_id AND r.status = 'running'
-                )
-            ) OR (j.status = 'running' AND j.lease_expires_at <= now())
+                (
+                    j.status = 'queued' AND j.run_after <= now()
+                    AND NOT EXISTS (
+                        SELECT 1 FROM public.bank_sync_jobs r
+                        WHERE r.connection_id = j.connection_id AND r.status = 'running'
+                    )
+                ) OR (j.status = 'running' AND j.lease_expires_at <= now())
+            ) AND {_JOB_OWNER_NOT_MARKED}
             ORDER BY
                 {_CLAIM_RANK_OF_KIND},
                 j.run_after,
@@ -464,6 +482,7 @@ _HELPERS: tuple[_Helper, ...] = (
         RETURN QUERY
         SELECT c.id, c.owner_id FROM public.bank_connections c
         WHERE c.credential_rejected_at IS NULL
+            AND {_CONNECTION_OWNER_NOT_MARKED}
             AND (
                 c.next_sync_at <= p_now
                 OR (
@@ -560,10 +579,12 @@ _HELPERS: tuple[_Helper, ...] = (
     """,
         f"{ROTATE_SAVED_COPY_KEY}(uuid)",
     ),
-    # The users who asked to delete their profile, by id only, for the cleanup that finishes a deletion a
-    # restart cut short. Only the cleanup, connecting with no request identity, may see across users, so a
-    # call made under an identity is refused. Written in plpgsql so creating it does not check the column
-    # exists, since migrations that predate it create every current helper
+    # The users whose profile deletion has started, by id only, for the cleanup that finishes it and the
+    # request that began it. A profile marked with a due time is listed only once the time has passed, and
+    # one marked with none, such as one marked before waiting existed, is listed at once. Only the cleanup,
+    # connecting with no request identity, may see across users, so a call made under an identity is
+    # refused. Written in plpgsql so creating it does not check the columns exist, since migrations that
+    # predate them create every current helper
     _Helper(
         f"""
     CREATE OR REPLACE FUNCTION {LIST_PROFILES_TO_DELETE}() RETURNS SETOF uuid
@@ -574,7 +595,9 @@ _HELPERS: tuple[_Helper, ...] = (
                 USING ERRCODE = 'insufficient_privilege';
         END IF;
 
-        RETURN QUERY SELECT u.id FROM public.users u WHERE u.deletion_requested_at IS NOT NULL ORDER BY u.deletion_requested_at;
+        RETURN QUERY SELECT u.id FROM public.users u
+            WHERE u.deletion_requested_at IS NOT NULL AND (u.deletion_due_at IS NULL OR u.deletion_due_at <= now())
+            ORDER BY u.deletion_requested_at;
     END
     $$
     """,
@@ -606,6 +629,32 @@ _HELPERS: tuple[_Helper, ...] = (
     $$
     """,
         f"{LIST_USERS}(uuid, integer)",
+    ),
+    # The users whose waiting profile is due a reminder, by id only: the deletion is due within the
+    # reminder lead, was requested more than the lead before its due time, and no reminder was sent. Only
+    # the cleanup, with no request identity, may see across users. Written in plpgsql so creating it
+    # does not check the columns exist
+    _Helper(
+        f"""
+    CREATE OR REPLACE FUNCTION {LIST_PROFILES_TO_REMIND}() RETURNS SETOF uuid
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+    BEGIN
+        IF {CURRENT_USER_ID}() IS NOT NULL THEN
+            RAISE EXCEPTION 'Only the cleanup may list the profiles to remind'
+                USING ERRCODE = 'insufficient_privilege';
+        END IF;
+
+        RETURN QUERY SELECT u.id FROM public.users u
+            WHERE u.deletion_requested_at IS NOT NULL
+                AND u.deletion_due_at > now()
+                AND u.deletion_due_at <= now() + {_DELETION_REMINDER_LEAD}
+                AND u.deletion_requested_at < u.deletion_due_at - {_DELETION_REMINDER_LEAD}
+                AND u.deletion_reminder_sent_at IS NULL
+            ORDER BY u.deletion_due_at;
+    END
+    $$
+    """,
+        f"{LIST_PROFILES_TO_REMIND}()",
     ),
     # The revisions the database is migrated to. The worker compares them with the head it
     # ships before it starts. The app role can't read the migration history itself, and the
