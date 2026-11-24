@@ -113,6 +113,11 @@ test('keeps the chooser its height while a search matches no card', async ({ pag
   await expect(dialog.getByRole('checkbox', { name: 'Card C' })).toBeVisible()
   // The layout height, which the dialog's entrance scaling does not change
   const heightOf = () => dialog.evaluate((panel) => (panel as HTMLElement).offsetHeight)
+  // The chooser holds the height of its full list once the page has drawn the list. A search sent before
+  // that shrinks the list with nothing yet held. A person cannot type fast enough to do that, so the search
+  // waits for the hold. Without the hold in the app this wait is the step that times out
+  const listBox = dialog.locator('[style*="min-height"]')
+  await expect.poll(() => listBox.evaluate((box) => parseFloat((box as HTMLElement).style.minHeight) >= (box as HTMLElement).offsetHeight)).toBe(true)
   const full = await heightOf()
   expect(full).toBeGreaterThan(300)
 
@@ -165,12 +170,17 @@ test('eases the name of a chooser row straight to its new colour and leaves the 
       const frames: number[][][] = []
       const start = performance.now()
       const sampled = { frames, done: false }
+      // A transition lasts only a few frames, and a slow page can draw none of them. Slowing the row's
+      // transitions as they start leaves frames to sample and keeps the curve of colours each one passes through
+      button.addEventListener('transitionrun', () => {
+        for (const animation of button.getAnimations({ subtree: true })) animation.updatePlaybackRate(0.1)
+      })
       // Samples until the colours have changed and then held still for ten frames, or for a few seconds at most
       const tick = () => {
         frames.push(lines.map(read))
         const changed = frames.some((frame) => JSON.stringify(frame) !== JSON.stringify(frames[0]))
         const still = frames.length > 10 && frames.slice(-10).every((frame) => JSON.stringify(frame) === JSON.stringify(frames[frames.length - 1]))
-        if ((changed && still) || performance.now() - start > 4000) sampled.done = true
+        if ((changed && still) || performance.now() - start > 8000) sampled.done = true
         else requestAnimationFrame(tick)
       }
       Object.assign(window, { __sampled: sampled })
