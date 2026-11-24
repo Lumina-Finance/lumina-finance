@@ -22,7 +22,7 @@ RUN npm run build:app
 
 
 # Backend dependencies
-FROM dhi.io/python:3.14-debian13-sfw-dev@sha256:b393b117f642b0063bcde36c208c47a7359196687184af753f4ed8326a196ae3 AS backend-deps
+FROM dhi.io/python:3.15-debian13-sfw-dev@sha256:7ed4b69018a6f4dbfffbd0b0470c8f6074840b3a946bcb80b2baa2cd105af511 AS backend-deps
 
 # The same uv as the setup-uv steps in the backend workflows, so a relock anywhere writes one lockfile format
 ARG UV_VERSION=0.13.7
@@ -45,7 +45,7 @@ FROM dhi.io/caddy:2-debian13-dev@sha256:6a74a06053fee7f242e46a5a12b46389b8cfdb23
 
 
 # Runtime image, with no shell, package manager or build tools. OpenSSL and the CA certificates come with it
-FROM dhi.io/python:3.14-debian13@sha256:d20d953b545c83acd9e1b6b6b6d27cf14de38e6a39689334f71454c33cf41893 AS runtime
+FROM dhi.io/python:3.15-debian13@sha256:76e89381500bad12fdaba7333bca42a96e4f1a72e3bf5ef753bbe5258cc77ac8 AS runtime
 
 ARG APP_VERSION
 
