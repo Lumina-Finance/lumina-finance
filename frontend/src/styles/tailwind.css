@@ -796,8 +796,8 @@
   }
 
   /* The profile is its own soft card rather than a nav link, so it never takes the menu-item hover or
-     the icon-rail spacing. In the rail the card fades away to leave just the avatar, which its own
-     auto margins recentre as the name folds, so it glides in without a snap */
+     the icon-rail spacing. In the rail the card fades away to leave just the avatar. A fixed left
+     margin recentres it as the name folds, so it glides in without a snap */
   .app-nav-user {
     display: flex;
     width: 100%;
@@ -828,9 +828,10 @@
 
   /* Centre the avatar with a fixed left offset rather than auto margins, so it stays anchored to the
      rail's left edge and cannot bounce sideways as the spring-driven width overshoots. The offset is
-     half the gap between the avatar and the collapsed content box */
+     half the gap between the avatar and the collapsed content box, which is the width of the icon
+     column the links use, since the row's own 1px border takes room from the rail's inner width */
   .app-desktop-nav-collapsed .app-nav-user-avatar {
-    margin-left: 0.375rem;
+    margin-left: calc((2.375rem - 1.75rem) / 2);
   }
 
   .app-nav-link {

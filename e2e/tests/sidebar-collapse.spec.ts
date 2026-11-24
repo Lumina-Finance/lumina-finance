@@ -156,3 +156,24 @@ test('takes Log out out of reach when the rail collapses around it', async ({ pa
   await logOut.focus()
   await expect(logOut).toBeFocused()
 })
+
+test('centres the avatar of the collapsed rail on the rail’s icons', async ({ page, request }) => {
+  const navigation = await openWithSidebar(page, request, false)
+  await expectWidth(navigation, RAIL_WIDTH)
+
+  // The sign-up user's name is "Test", so the avatar draws the one initial
+  const avatar = navigation.getByText('T', { exact: true })
+  const icon = navigation.getByRole('link').first().locator('svg').first()
+
+  const centres = await avatar.evaluate((element, iconElement) => {
+    const centre = (box: DOMRect) => box.left + box.width / 2
+    return {
+      avatar: centre(element.getBoundingClientRect()),
+      row: centre(element.parentElement!.getBoundingClientRect()),
+      icon: centre(iconElement!.getBoundingClientRect()),
+    }
+  }, await icon.elementHandle())
+
+  expect(centres.avatar).toBeCloseTo(centres.row, 1)
+  expect(centres.avatar).toBeCloseTo(centres.icon, 1)
+})
