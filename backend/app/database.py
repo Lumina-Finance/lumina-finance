@@ -108,27 +108,34 @@ async def verify_app_role_is_unprivileged() -> None:
     """Fail startup unless requests run as the unprivileged app role
 
     Row-level security only constrains the app role, so serving requests as a
-    superuser, a BYPASSRLS role, or the table owner would silently disable tenant
-    isolation. This checks the live connection rather than trusting configuration
+    superuser, a BYPASSRLS role or a member of the role owning the tables would
+    silently disable tenant isolation. A REPLICATION role can stream every row over a
+    replication connection with the same password. Startup refuses any membership,
+    since the app role needs none. This checks the live connection rather than trusting
+    configuration
 
     Raises:
-        RuntimeError: The runtime connection can bypass row-level security
+        RuntimeError: The runtime connection or its password can bypass row-level security
     """
     async with engine.connect() as connection:
-        role_name, is_superuser, bypasses_rls = (
+        role_name, is_superuser, bypasses_rls, replicates, member_of = (
             await connection.execute(
                 text(
                     "SELECT current_user, "
                     "current_setting('is_superuser') = 'on', "
-                    "(SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user)"
+                    "(SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user), "
+                    "(SELECT rolreplication FROM pg_roles WHERE rolname = current_user), "
+                    "ARRAY(SELECT DISTINCT r.rolname::text FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid "
+                    "WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = current_user) ORDER BY 1)"
                 )
             )
         ).one()
 
-    if role_name != APP_DB_USER or is_superuser or bypasses_rls:
+    if role_name != APP_DB_USER or is_superuser or bypasses_rls or replicates or member_of:
         raise RuntimeError(
             f"Refusing to start: requests must use the unprivileged role {APP_DB_USER!r}, but the "
-            f"connection is role={role_name!r} superuser={is_superuser} bypassrls={bypasses_rls}"
+            f"connection is role={role_name!r} superuser={is_superuser} bypassrls={bypasses_rls} "
+            f"replication={replicates} member_of={member_of}"
         )
 
 

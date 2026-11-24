@@ -90,8 +90,8 @@ async def run_bootstrap() -> None:
     `APP_DB_PASSWORD`. A run while another set-up run goes waits for it
 
     Raises:
-        RuntimeError: A role no longer has the attributes it was created with, or the admin
-            login could not give the roles their access
+        RuntimeError: A role no longer has the attributes it was created with, the app role is a
+            member of another role, or the admin login could not give the roles their access
     """
     engine = create_async_engine(admin_database_url(), hide_parameters=True)
     try:

@@ -146,10 +146,12 @@ async def test_ownership_transfer_with_nothing_to_move_waits_for_no_table_lock(p
     [
         (RESTRICTED_ADMIN_LOGIN, APP_DB_USER, "rolsuper", "SUPERUSER", True),
         (RESTRICTED_ADMIN_LOGIN, APP_DB_USER, "rolbypassrls", "BYPASSRLS", True),
+        (RESTRICTED_ADMIN_LOGIN, APP_DB_USER, "rolreplication", "REPLICATION", True),
         (RESTRICTED_ADMIN_LOGIN, APP_DB_USER, "rolcreaterole", "CREATEROLE", True),
         (RESTRICTED_ADMIN_LOGIN, APP_DB_USER, "rolcreatedb", "CREATEDB", True),
         (RESTRICTED_ADMIN_LOGIN, APP_DB_USER, "rolcanlogin", "LOGIN", False),
         (RESTRICTED_ADMIN_LOGIN, MIGRATOR_DB_USER, "rolbypassrls", "BYPASSRLS", True),
+        (RESTRICTED_ADMIN_LOGIN, MIGRATOR_DB_USER, "rolreplication", "REPLICATION", True),
         (SUPERUSER_LOGIN, APP_DB_USER, "rolbypassrls", "BYPASSRLS", True),
     ],
 )
@@ -177,6 +179,81 @@ async def test_a_role_that_drifted_stops_set_up_with_its_name_and_attribute_and_
         assert await query(target.superuser(), stored_passwords) == before, "neither role's password changed"
         held_now = await query(target.superuser(), f"SELECT {column} FROM pg_roles WHERE rolname = '{role}'")  # noqa: S608
         assert held_now is drifted_to, "the role was not repaired"
+
+
+@pytest.mark.parametrize(
+    ("granted", "grantors", "rows_as_member"),
+    [
+        (MIGRATOR_DB_USER, [SUPERUSER_LOGIN], 2),
+        (MIGRATOR_DB_USER, [RESTRICTED_ADMIN_LOGIN], 2),
+        (MIGRATOR_DB_USER, [SUPERUSER_LOGIN, RESTRICTED_ADMIN_LOGIN], 2),
+        ("pg_monitor", [SUPERUSER_LOGIN], 1),
+    ],
+    ids=["migrator-granted-by-superuser", "migrator-granted-by-admin", "migrator-granted-by-both", "predefined-role"],
+)
+async def test_an_app_role_granted_another_role_stops_set_up_and_start_up_until_the_statements_given_revoke_it(
+    provision_into, granted, grantors, rows_as_member, monkeypatch
+):
+    """A member of the role owning the tables reads every user's rows, so setup and startup refuse any membership
+
+    The table stands in for any of the app's, owned by the migrator with a policy showing one user's
+    rows. Each grant of the role gets a statement of its own, and those statements, run by a superuser,
+    remove the membership whoever granted it
+    """
+    async with provision_into(RESTRICTED_ADMIN_LOGIN) as target:
+        await provision.ensure_roles()
+        for statement in (
+            "CREATE TABLE entries (owner text)",
+            "ALTER TABLE entries ENABLE ROW LEVEL SECURITY",
+            "CREATE POLICY one_user ON entries USING (owner = 'first')",
+            f'GRANT SELECT ON entries TO "{APP_DB_USER}"',
+            "INSERT INTO entries VALUES ('first'), ('second')",
+        ):
+            await query(target.engine(MIGRATOR_DB_USER, MIGRATOR_PASSWORD), statement)
+        visible_rows = "SELECT count(*) FROM entries"
+        assert await query(target.engine(APP_DB_USER, APP_PASSWORD), visible_rows) == 1, "the policy shows the app role one user's rows"
+
+        for grantor in grantors:
+            await query(target.engine(grantor, LOGIN_PASSWORD), f'GRANT "{granted}" TO "{APP_DB_USER}"')
+        assert await query(target.engine(APP_DB_USER, APP_PASSWORD), visible_rows) == rows_as_member, (
+            "a member of the owner reads every row, and of another role what that role reads"
+        )
+
+        stored_passwords = (
+            f"SELECT string_agg(rolpassword, ',' ORDER BY rolname) FROM pg_authid WHERE rolname IN ('{MIGRATOR_DB_USER}', '{APP_DB_USER}')"  # noqa: S608
+        )
+        before = await query(target.superuser(), stored_passwords)
+        monkeypatch.setenv("APP_DB_PASSWORD", "changed-app-password")
+        with pytest.raises(RuntimeError) as refusal:
+            await provision.ensure_roles()
+        assert str(refusal.value).count(f'"{APP_DB_USER}" is a member of "{granted}"') == 1, "setup names the membership once"
+        revokes = [f'REVOKE "{granted}" FROM "{APP_DB_USER}" GRANTED BY "{grantor}"' for grantor in grantors]
+        for revoke in revokes:
+            assert revoke in str(refusal.value), "setup gives a statement for each grant"
+        assert await query(target.superuser(), stored_passwords) == before, "neither role's password changed"
+
+        monkeypatch.setenv("APP_DB_PASSWORD", APP_PASSWORD)
+        monkeypatch.setattr(database, "engine", target.engine(APP_DB_USER, APP_PASSWORD))
+        with pytest.raises(RuntimeError, match=rf"member_of=\['{granted}'\]"):
+            await database.verify_app_role_is_unprivileged()
+
+        for revoke in revokes:
+            await query(target.superuser(), revoke)
+        await provision.ensure_roles()
+        await database.verify_app_role_is_unprivileged()
+        assert await query(target.engine(APP_DB_USER, APP_PASSWORD), visible_rows) == 1, "the policy binds the app role again"
+
+
+async def test_start_up_refuses_an_app_role_that_can_open_a_replication_connection(provision_into, monkeypatch):
+    """A replication connection streams every row past the policies with the same password the app holds"""
+    async with provision_into(RESTRICTED_ADMIN_LOGIN) as target:
+        await provision.ensure_roles()
+        monkeypatch.setattr(database, "engine", target.engine(APP_DB_USER, APP_PASSWORD))
+        await database.verify_app_role_is_unprivileged()
+
+        await query(target.superuser(), f'ALTER ROLE "{APP_DB_USER}" REPLICATION')
+        with pytest.raises(RuntimeError, match="replication=True"):
+            await database.verify_app_role_is_unprivileged()
 
 
 async def test_a_failed_password_change_names_the_role_and_never_shows_the_password(provision_into, cluster, monkeypatch):
