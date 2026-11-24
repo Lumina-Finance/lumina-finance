@@ -222,10 +222,10 @@ export default function TransactionModalLinkedRefundsSection({
   const linkButtonShown = anythingFits && (isRefund ? offersExpenseLink : offersRefundLink)
 
   // The picker gives focus back to the button that opened it. Where the link it made takes that button away, focus
-  // moves on to Unlink on the row the link made, after the picker's own hand back a frame on. A link changes what is
-  // left, so the list is asked for again, and the button's fate waits for that list to land
+  // moves on to Unlink on the row the link made, after the picker's own hand back a frame on. On an expense a link
+  // changes what is left, so the list is asked for again, and while the button could still show it waits for that list
   const focusAfterPick = useRef<string | null>(null)
-  const listSettling = candidates.isPlaceholderData
+  const listSettling = candidates.isPlaceholderData && (isRefund ? offersExpenseLink : offersRefundLink)
   useEffect(() => {
     const linkId = focusAfterPick.current
     if (pickerOpen || linkId === null || listSettling) return
