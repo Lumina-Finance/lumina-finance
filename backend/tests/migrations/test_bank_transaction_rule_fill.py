@@ -37,13 +37,15 @@ _SEED = (
     "VALUES (:account_id, :user_id, 'ASSET', 'CHECKING', 'Everyday', 'CAD', false)",
     "INSERT INTO bank_transactions (id, owner_id, account_id, provider, external_account_id, external_transaction_hash, disposition, "
     "observed_date, observed_amount, description, observed_at) VALUES "
-    "(gen_random_uuid(), :user_id, :account_id, 'simplefin', 'ACT-1', repeat('1', 64), 'awaiting_review', '2026-11-02', -1250, 'MARKET', now())",
+    "(gen_random_uuid(), :user_id, :account_id, 'simplefin', 'ACT-1', repeat('1', 64), 'awaiting_review', "
+    "'2026-11-02', -1250, 'MARKET', now())",
 )
 
 _WAITING = (
     "INSERT INTO bank_transactions (id, owner_id, account_id, provider, external_account_id, external_transaction_hash, disposition, "
     "observed_date, observed_amount, description, observed_at, rule_fill, rules_version) VALUES "
-    "(gen_random_uuid(), :user_id, :account_id, 'simplefin', 'ACT-1', repeat('2', 64), 'awaiting_review', '2026-11-03', -1250, 'MARKET', now(), "
+    "(gen_random_uuid(), :user_id, :account_id, 'simplefin', 'ACT-1', repeat('2', 64), 'awaiting_review', "
+    "'2026-11-03', -1250, 'MARKET', now(), "
     "'{\"merchant\": {}}', repeat('a', 64))"
 )
 

@@ -102,7 +102,7 @@ def _failing(statement_text: str):
 
 
 async def test_a_new_item_is_saved_with_the_rules_values_and_the_digest_and_one_that_matches_nothing_with_the_digest_alone(client):
-    """The coffee is saved with its merchant, category and tag by id with the rule behind each, the library item with no fill, both at the digest"""
+    """The coffee is saved with its merchant, category and tag by id and the rule behind each, the library item with no fill"""
     inbox = await _linked_inbox(client)
     tag_id = await _make_tag(client, inbox.headers, "Treat")
     rule = await _coffee_rule(client, inbox, tag_ids=[tag_id])
@@ -191,7 +191,7 @@ async def test_a_changed_waiting_item_and_a_restored_dismissed_item_are_put_thro
 
 @pytest.mark.parametrize("failure", ["python", "statement"])
 async def test_a_rule_load_that_fails_fills_nothing_and_the_sync_still_stores_the_item(client, failure):
-    """A rule with a broken condition fails in Python and one read made to fail fails in the database, and either way the item is saved unfilled"""
+    """A broken condition fails in Python and a read made to fail fails in the database, and either way the item is saved unfilled"""
     inbox = await _linked_inbox(client)
     rule = await _coffee_rule(client, inbox)
     if failure == "python":
