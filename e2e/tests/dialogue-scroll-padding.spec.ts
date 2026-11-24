@@ -454,6 +454,22 @@ function numberBodyTabStops(dialogue: Locator) {
 }
 
 /**
+ * Puts a block after every section of a dialogue body, so the body scrolls at any size and the control that opens
+ * a section is not left at the end of the scroll. Edit account fits whole at 390×844 without them
+ */
+function padBodyToScroll(dialogue: Locator) {
+  return dialogue.evaluate((panel) => {
+    const body = panel.querySelector('[data-dropdown-bounds]')
+    if (!body) throw new Error('no scrolling body in the dialogue')
+    for (const section of Array.from(body.querySelectorAll('section'))) {
+      const spacer = document.createElement('div')
+      spacer.style.height = '240px'
+      section.after(spacer)
+    }
+  })
+}
+
+/**
  * Reads what the header covers once focus has scrolled the body: the text that sits partly under the body's top
  * edge, and for a control that opens its section, whether the section's own heading is out of view
  */
@@ -555,6 +571,7 @@ for (const size of SIZES) {
     const account = page.getByRole('dialog', { name: 'Edit account', exact: true })
     await expect(account).toBeVisible()
     await readSettledBox(account)
+    await padBodyToScroll(account)
     await expectNothingCutUnderHeader(page, account, 'Edit account')
   })
 }
