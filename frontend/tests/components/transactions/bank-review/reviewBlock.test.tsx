@@ -6,7 +6,7 @@
  * These tests catch the block hiding the toggle a long backlog needs, offering one a short backlog
  * doesn't, a removal showing anything but the ledger amount struck through, a kind of item whose row
  * a keyboard can't open, a failed read counting nothing as zero or offering no retry, Approve all
- * missing from the header or drawn with nothing saying what the rules do, and a row showing no
+ * missing from the line under the header or drawn with nothing saying what the rules do, and a row showing no
  * merchant or category a rule gave it, or changed for one no rule matched. The
  * notice's own retry is covered with the notice, and following a Needs review marker to a failed
  * read, and opening an item, run in the browser, since they need effects and clicks
@@ -132,43 +132,30 @@ describe('the rows the block shows', () => {
   })
 })
 
-describe('Approve all in the header', () => {
+describe('Approve all beside the line under the header', () => {
   const ruleActions = {
-    rules: { any_addable: true, changed: false },
+    rules: { any_addable: true, changed: false, read_only_reason: null },
     busy: null,
     onApprove: () => {},
+    onApplyRules: () => {},
   }
 
-  it('sits in the header above the rows, level with the toggle and before it, so the toggle stays the last control', () => {
-    const markup = renderBlock(ITEMS, false, { ruleActions })
-    const button = markup.indexOf('Approve all')
-
-    expect(button).toBeGreaterThan(-1)
-    expect(button).toBeLessThan(markup.search(/aria-expanded=/))
-    expect(button).toBeLessThan(markup.indexOf('role="list"'))
-  })
-
-  it('stays alone at the top right when there are too few items for a toggle', () => {
-    const markup = renderBlock(ITEMS.slice(0, 2), false, { ruleActions })
-
-    expect(markup).toContain('Approve all')
-    expect(markup).not.toContain('aria-expanded')
-    // With no toggle after it the button ends where the rows' amounts end, not at the header's own edge
-    expect(markup).toMatch(/<div class="[^"]*\blast:mr-2\b[^"]*"><button[^>]*>(?:<span[^>]*>.*?<\/span>)?Approve all/)
-  })
-
-  it('is drawn beside the line under the header on a phone, where the header has no room for it', () => {
+  it('is drawn once, beside the line under the header and above the rows, at every width', () => {
     const markup = renderBlock(ITEMS, false, { ruleActions })
     const line = markup.indexOf('Bank items stay out of every balance')
     const beside = markup.indexOf('Approve all', line)
 
+    expect(markup.indexOf('Approve all')).toBe(beside)
     expect(beside).toBeGreaterThan(line)
     expect(beside).toBeLessThan(markup.indexOf('role="list"'))
-    // Each place shows at one width only: the header's from the small breakpoint up, the line's below it.
-    // Both hold the button as a flex item, so a spinner in place of the label can't shift the button
-    // off the line a label's baseline put it on
-    expect(markup.slice(0, line)).toMatch(/class="hidden [^"]*sm:flex"/)
-    expect(markup.slice(line, beside)).toContain('flex shrink-0 sm:hidden')
+  })
+
+  it('leaves the header to the title, the count and the toggle, so the toggle is its only control', () => {
+    const markup = renderBlock(ITEMS, false, { ruleActions })
+    const header = markup.slice(0, markup.indexOf('Bank items stay out of every balance'))
+
+    expect(header).toContain('aria-expanded=')
+    expect(header).not.toContain('Approve all')
   })
 
   it('is left out while the items could not load, and when nothing says what the rules do', () => {
@@ -177,6 +164,88 @@ describe('Approve all in the header', () => {
     )
     expect(renderBlock(ITEMS, false, { ruleActions: { ...ruleActions, rules: null } })).not.toContain('Approve all')
     expect(renderBlock(ITEMS, false)).not.toContain('Approve all')
+  })
+})
+
+describe('the offer to apply the rules again', () => {
+  const ruleActions = {
+    rules: { any_addable: true, changed: true, read_only_reason: null },
+    busy: null as 'approve' | 'apply' | null,
+    onApprove: () => {},
+    onApplyRules: () => {},
+  }
+  const LINE = 'Your import rules changed after these items arrived.'
+
+  /** Each button of the markup named `name`, the label measured out of sight inside it included */
+  const buttonsNamed = (markup: string, name: string) =>
+    [...markup.matchAll(/<button[^>]*>(?:(?!<\/button>).)*<\/button>/g)]
+      .map((match) => match[0])
+      .filter((button) => button.includes(name))
+
+  it('shows under the first line, with its button, once the rules changed', () => {
+    const markup = renderBlock(ITEMS, false, { ruleActions })
+    const first = markup.indexOf('Bank items stay out of every balance')
+    const offer = markup.indexOf(LINE)
+
+    expect(offer).toBeGreaterThan(first)
+    expect(offer).toBeLessThan(markup.indexOf('role="list"'))
+    expect(markup.slice(offer, markup.indexOf('role="list"'))).toContain('>Apply rules<')
+    expect(buttonsNamed(markup, 'Apply rules')).toHaveLength(1)
+    // The line is a polite status, so a screen reader hears it arrive
+    expect(markup).toMatch(/role="status"[^>]*>Your import rules changed/)
+  })
+
+  it('draws the import rules icon before its sentence, hidden from assistive technology, and none without the offer', () => {
+    // Between the first line and the rows, the offer's icon is the only drawing, found by what it is: hidden from assistive technology
+    const hiddenDrawings = (markup: string) => {
+      const start = markup.indexOf('Bank items stay out of every balance')
+      const between = markup.slice(start, markup.indexOf('role="list"'))
+      return [...between.matchAll(/<svg[^>]*aria-hidden="true"[^>]*>/g)].map((match) => ({ at: start + match.index }))
+    }
+    const markup = renderBlock(ITEMS, false, { ruleActions })
+    const found = hiddenDrawings(markup)
+
+    expect(found).toHaveLength(1)
+    expect(found[0].at).toBeLessThan(markup.indexOf(LINE))
+
+    const unchanged = { ...ruleActions, rules: { any_addable: true, changed: false, read_only_reason: null } }
+    expect(hiddenDrawings(renderBlock(ITEMS, false, { ruleActions: unchanged }))).toHaveLength(0)
+  })
+
+  it('is left out while the rules are unchanged, unknown or the items could not load', () => {
+    const unchanged = { ...ruleActions, rules: { any_addable: true, changed: false, read_only_reason: null } }
+
+    expect(renderBlock(ITEMS, false, { ruleActions: unchanged })).not.toContain(LINE)
+    expect(renderBlock(ITEMS, false, { ruleActions: { ...ruleActions, rules: null } })).not.toContain(LINE)
+    expect(renderBlock(ITEMS, false)).not.toContain(LINE)
+    expect(renderBlock([], false, { ruleActions, itemsFailure: { retry: () => {}, isRetrying: false } })).not.toContain(
+      LINE,
+    )
+  })
+
+  it('leaves Approve all live while it shows', () => {
+    const markup = renderBlock(ITEMS, false, { ruleActions })
+
+    const buttons = buttonsNamed(markup, 'Approve all')
+
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0]).not.toMatch(/ disabled=""|aria-disabled/)
+  })
+
+  it.each([
+    ['approve', 'Approve all', 'Apply rules'],
+    ['apply', 'Apply rules', 'Approve all'],
+  ] as const)('holds the other button off while %s runs, never both busy', (busy, running, waiting) => {
+    const markup = renderBlock(ITEMS, false, { ruleActions: { ...ruleActions, busy } })
+    const named = (name: string) => buttonsNamed(markup, name)
+
+    expect(named(running).length).toBeGreaterThan(0)
+    for (const button of named(running)) expect(button).toContain('aria-busy="true"')
+    expect(named(waiting).length).toBeGreaterThan(0)
+    for (const button of named(waiting)) {
+      expect(button).toMatch(/ disabled=""/)
+      expect(button).toContain('aria-busy="false"')
+    }
   })
 })
 

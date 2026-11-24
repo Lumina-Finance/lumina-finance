@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
+  useApplyRulesToReviewItems,
   useApproveAllReviewItems,
   useReviewBacklogs,
   useReviewItems,
@@ -10,7 +11,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
 import { useToast } from '@/hooks/useToast'
-import { describeApproveAllAnswer } from '@/components/transactions/bulk-edit/reviewSelection'
+import { describeAppliedRules, describeApproveAllAnswer } from '@/components/transactions/bulk-edit/reviewSelection'
 import { BankComparisonModal } from '@/components/transactions/bank-review/ComparisonModal'
 import type { BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import {
@@ -152,9 +153,20 @@ export const BankReviewSection = memo(function BankReviewSection({
   // only the rows loaded
   const rules = isInScope ? (pages?.pages[0]?.rules ?? null) : null
   const approveAll = useApproveAllReviewItems()
+  const applyRules = useApplyRulesToReviewItems()
   const { showToast } = useToast()
+
+  // The two presses never run together, and each is ignored while either is going
+  const busy = approveAll.isPending ? 'approve' : applyRules.isPending ? 'apply' : null
+  const pressApplyRules = () => {
+    if (!rules || busy) return
+    applyRules.mutate(undefined, {
+      onSuccess: (result) => showToast({ status: 'success', text: describeAppliedRules(result.changed_count) }),
+      onError: (error) => showToast({ status: 'error', text: getSaveFailureMessage(error) }),
+    })
+  }
   const pressApproveAll = () => {
-    if (!rules || approveAll.isPending) return
+    if (!rules || busy) return
     approveAll.mutate(
       { scope: accountIds },
       {
@@ -336,7 +348,7 @@ export const BankReviewSection = memo(function BankReviewSection({
                 registerRow={registerRow}
                 onOpenItem={openItem}
                 selection={selection}
-                ruleActions={{ rules, busy: approveAll.isPending ? 'approve' : null, onApprove: pressApproveAll }}
+                ruleActions={{ rules, busy, onApprove: pressApproveAll, onApplyRules: pressApplyRules }}
                 prefersReducedMotion={prefersReducedMotion}
               />
             </div>

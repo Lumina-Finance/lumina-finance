@@ -1,6 +1,6 @@
 import { useId, useRef, type Ref } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ChevronDown, Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
+import { ChevronDown, Landmark, ListOrdered, PauseCircle, TriangleAlert } from 'lucide-react'
 import type { BankReviewItem, BankReviewRules } from '@/api/bank-sync'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { Checkbox } from '@/components/forms/Checkbox'
@@ -8,6 +8,7 @@ import { HintButton } from '@/components/tooltips/HintButton'
 import { CONTENT_EASE_CURVE, QUICK_EASE_S } from '@/utils/widthEase'
 import { describeTickLimit } from '@/components/transactions/bulk-edit/reviewSelection'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
+import { ApplyRulesButton } from '@/components/transactions/bank-review/ApplyRulesButton'
 import { ApproveAllButton } from '@/components/transactions/bank-review/ApproveAllButton'
 import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
@@ -121,13 +122,17 @@ type BankReviewBlockProps = {
   selection?: ReviewRowSelection
 
   /**
-   * The Approve all button. Its rules come from the first page of the list and are null while that
-   * page has none. The button is left out then. Only one press runs at a time, and `busy` says which
+   * The Approve all button and the offer to apply the rules again. Their rules come from the first
+   * page of the list and are null while that page has none. Both are left out then. Only one press
+   * runs at a time, and `busy` says which, so the other button is held off
    */
   ruleActions?: {
     rules: BankReviewRules | null
-    busy: 'approve' | null
+    busy: 'approve' | 'apply' | null
     onApprove: () => void
+
+    /** Puts the waiting items through the rules again, offered once the rules changed */
+    onApplyRules: () => void
   }
 
   prefersReducedMotion: boolean | null
@@ -186,16 +191,17 @@ export function BankReviewBlock({
   )
   useFocusAfterRetry(backlogFailure !== null, backlogFailureRef, () => backlogNoticeRef.current ?? headingRef.current)
 
-  // Drawn in two places, each shown at one width only. A phone's header has no room for the button
-  // beside the title, the count and the caret, so there the button sits beside the line under the header
+  // Beside the line under the header at every width, so the header keeps only the title, the count and
+  // the caret, and the button ends where the rows' amounts end
   const approveButton = ruleActions?.rules && itemsFailure === null && (
     <ApproveAllButton
       rules={ruleActions.rules}
       isApproving={ruleActions.busy === 'approve'}
-      isHeldOff={ruleActions.busy !== null && ruleActions.busy !== 'approve'}
+      isHeldOff={ruleActions.busy === 'apply'}
       onApprove={ruleActions.onApprove}
     />
   )
+  const offersApplyRules = Boolean(ruleActions?.rules?.changed) && itemsFailure === null
 
   // Each notice grows in and collapses out under the title, its room kept inside it
   const notice = {
@@ -238,20 +244,7 @@ export function BankReviewBlock({
           </span>
         )}
 
-        {/* Approve all and the caret share one right-aligned wrapper, so neither depends on the other for
-            its place. The button glides along when the caret mounts or goes, rather than jumping. With no
-            caret after it the button keeps the rows' inset, so its edge lines up with their amounts */}
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {approveButton && (
-            <motion.div
-              layout="position"
-              className="hidden last:mr-2 sm:flex"
-              transition={{ duration: prefersReducedMotion ? 0 : QUICK_EASE_S, ease: CONTENT_EASE_CURVE }}
-            >
-              {approveButton}
-            </motion.div>
-          )}
-
+        <div className="ml-auto flex shrink-0 items-center">
           {/* The caret opens and closes the list, up here so a long list closes from where it starts, not
               from its end, and ends the header's first row like the chevron of the app's other collapsible
               sections. It stays mounted as the list changes, so keyboard focus stays on it through both.
@@ -290,10 +283,46 @@ export function BankReviewBlock({
         <p className="min-w-0 flex-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
           Bank items stay out of every balance until you add them to your ledger.
         </p>
-        {approveButton && <div className="flex shrink-0 sm:hidden">{approveButton}</div>}
+        {/* Held as a flex item, so a spinner in place of the label can't shift the button off the line a
+            label's baseline put it on */}
+        {approveButton && <div className="flex shrink-0">{approveButton}</div>}
       </div>
 
       <AnimatePresence initial={false}>
+        {offersApplyRules && ruleActions && (
+          <motion.div key="rules-offer" {...notice}>
+            <div className="px-3 pb-2" style={PAST_THE_RAIL}>
+              {/* The tint holds the sentence and the button that answers it, the button 6px from the tint's
+                  edges and the sentence 12px from its left as in the other notices. On a phone the button
+                  takes the line under the sentence, across the tint's whole width */}
+              <div
+                className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg p-1.5 text-xs"
+                style={{ background: 'var(--app-warning-soft)', color: 'var(--app-text)' }}
+              >
+                <div className="flex min-w-0 flex-1 basis-64 items-start gap-1 p-1.5">
+                  {/* The list's lines end 2 of the icon's 24 units short of its box, 1.17px at 14px, so pulling
+                      the box that far over the 4px gap puts the drawn glyph 4px from the sentence. A 0.8px drop
+                      centres the drawing on the capitals of the sentence's first line, where 1px sat 0.2px low */}
+                  <ListOrdered
+                    size={14}
+                    aria-hidden
+                    className="mt-[0.8px] -mr-[1.17px] shrink-0"
+                    style={{ color: 'var(--app-warning-text)' }}
+                  />
+                  {/* A polite status, so a screen reader hears it arrive */}
+                  <p role="status" className="min-w-0">
+                    Your import rules changed after these items arrived.
+                  </p>
+                </div>
+                <ApplyRulesButton
+                  isApplying={ruleActions.busy === 'apply'}
+                  isHeldOff={ruleActions.busy === 'approve'}
+                  onApply={ruleActions.onApplyRules}
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
         {backlogNotice && (
           <motion.div key="backlog" {...notice}>
             <div className="px-3 pb-2" style={PAST_THE_RAIL}>
