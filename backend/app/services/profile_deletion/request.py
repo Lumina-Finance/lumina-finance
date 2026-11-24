@@ -10,7 +10,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import BackgroundTasks
-from sqlalchemy import delete
+from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import acting_as, async_session
@@ -32,8 +32,9 @@ async def request_profile_deletion(
 ) -> datetime | None:
     """Mark a user's profile for deletion as one unit of work, then delete it once the answer is out
 
-    The caller authorizes the request first. With no waiting period, the deletion starts as in
-    _mark_for_deletion and the data goes once the answer is out. With one, the mark, the end of every
+    The caller authorizes the request first. With no waiting period, the mark, the end of every session,
+    every bank connection and every emailed link commit together, each connection's credential goes back
+    to its provider, and the data goes once the answer is out. With one, the mark, the end of every
     session and the end of any emailed link that could still change the account commit together, while
     the connections stay, so sync only pauses, the due time is set, and the user is emailed the date
     once the answer is out
@@ -108,7 +109,8 @@ async def _mark_for_deletion(db: AsyncSession, user: User) -> list[tuple[str, st
     now = datetime.now(UTC)
     await _end_access(db, user, now)
     if user.deletion_due_at is not None:
-        user.deletion_due_at = now
+        # Removal compares the due time with the database clock, so the due time comes from that clock too
+        user.deletion_due_at = func.now()
     return await disconnect_every_connection(db, user.id)
 
 
