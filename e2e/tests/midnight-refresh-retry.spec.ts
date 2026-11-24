@@ -13,6 +13,15 @@ test.use({ reducedMotion: 'reduce' })
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+// The wait the page sets after a check that failed. No other setTimeout of the page waits exactly this long
+const RETRY_INTERVAL_MS = 60_000
+
+// A failed check is not reported to the app shell until the page has read the maintenance file, so the
+// retry is set a little after the failure, not with it. A slow connection makes that gap long
+const MAINTENANCE_FILE_DELAY_MS = 1000
+
+type TimerLog = { retriesSet: number }
+
 test('refreshes calculated amounts when the date token changes at midnight, trying again a minute after a failed check', async ({ page, request }) => {
   const user = await signUpUser(request)
   const account = await createAccount(request, user, { name: 'Everyday Chequing' })
@@ -38,6 +47,10 @@ test('refreshes calculated amounts when the date token changes at midnight, tryi
       },
     })
   })
+  await page.route('**/maintenance.json', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, MAINTENANCE_FILE_DELAY_MS))
+    await route.continue()
+  })
   let accountReads = 0
   page.on('request', (sent) => {
     if (sent.method() === 'GET' && sent.url() === `${API_BASE_URL}/accounts/${account.id}`) accountReads += 1
@@ -51,13 +64,24 @@ test('refreshes calculated amounts when the date token changes at midnight, tryi
   const readsBeforeMidnight = accountReads
   expect(readsBeforeMidnight).toBeGreaterThan(0)
 
+  // Counts the waits of exactly a retry's length that the page asks its clock for from here on
+  await page.evaluate((interval) => {
+    const log = window as unknown as TimerLog
+    log.retriesSet = 0
+    const setTimer = window.setTimeout
+    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+      if (timeout === interval) log.retriesSet += 1
+      return setTimer(handler, timeout, ...args)
+    }) as typeof window.setTimeout
+  }, RETRY_INTERVAL_MS)
+
   const failedCheck = page.waitForEvent('requestfailed', (failed) => failed.url().endsWith('/me/cache-status'))
   await page.clock.fastForward('01:30')
   await failedCheck
   expect(checks).toBe(2)
 
-  // The failure has reached the page, which has set the next try by now
-  await page.evaluate(() => undefined)
+  // The clock moves past a wait only if the page set that wait before the jump, so the jump waits for the retry
+  await expect.poll(() => page.evaluate(() => (window as unknown as TimerLog).retriesSet)).toBe(1)
   await page.clock.fastForward('01:30')
   await expect.poll(() => checks).toBe(3)
   await expect.poll(() => accountReads).toBeGreaterThan(readsBeforeMidnight)
