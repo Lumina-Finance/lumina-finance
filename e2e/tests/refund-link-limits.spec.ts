@@ -670,13 +670,26 @@ test('drops the link prompt once a picked refund fills the expense, moving focus
   await expect(expense.getByTestId('refund-status')).toHaveText('Partly refunded')
   await expect(open).toBeFocused()
 
-  // $18.00 fills the expense, so the sentence and button go and focus moves to Unlink on the $18.00 row
+  // $18.00 fills the expense, so the sentence and button go and focus moves to Unlink on the $18.00 row. The link asks
+  // for the list again with nothing left. That list can't bring the button back, so focus doesn't wait for it
+  let release = () => {}
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await page.route(
+    (url) => url.pathname.endsWith('/refund-link-candidates') && url.searchParams.get('left_to_refund') === '0',
+    async (route) => {
+      await held
+      await route.continue()
+    },
+  )
+  const refetch = page.waitForRequest((req) => new URL(req.url()).searchParams.get('left_to_refund') === '0')
   await linkWithKeyboard('$18.00')
+  await refetch
   await expect(expense.getByTestId('refund-status')).toHaveText('Refunded in full')
   await expect(expense.getByTestId('link-prompt')).toHaveCount(0)
   await expect(open).toHaveCount(0)
   const added = expense.getByTestId('linked-transaction').filter({ hasText: '+$18.00' })
   await expect(added.getByRole('button', { name: /^Unlink / })).toBeFocused()
+  release()
 })
 
 // A refund with no expense that has room for it shows "No expense has room for this refund." in place of "Link to an
