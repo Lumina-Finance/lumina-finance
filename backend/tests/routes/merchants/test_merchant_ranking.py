@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app.database import current_user_id_ctx
 from app.routes.merchants.listing_helpers import MERCHANT_USAGE_CUTOFF_DAYS, get_merchants_for_user
 from app.utils.pagination import LIST_PAGE_SIZE
-from tests.conftest import ScopedSession
+from tests.conftest import ScopedSession, TestSession
 from tests.routes.merchants._helpers import (
     _create_group,
     _create_merchant,
@@ -300,6 +300,14 @@ async def test_list_merchants_reads_only_the_users_own_transactions(client, monk
     other_account_id = await _create_checking_account(client, other_headers)
     await _record_merchant_transactions(client, headers, account_id, category_id, shared_merchant_id, 3, _user_today())
     await _record_merchant_transactions(client, other_headers, other_account_id, category_id, shared_merchant_id, 5, _user_today())
+
+    # Statistics left by earlier tests, or gathered by autovacuum while this one was still adding rows,
+    # describe tables that no longer look like these. Read as one account holding every transaction,
+    # the merchant index looks as cheap as the account one and the planner may take it, reading every
+    # user's rows of the shared merchant. Gathering them here measures the plan a settled table gets
+    async with TestSession() as analyze_session:
+        await analyze_session.execute(text("ANALYZE"))
+        await analyze_session.commit()
 
     # The query's plan as the app role runs it, row-level security included
     identity_token = current_user_id_ctx.set(user_id)
