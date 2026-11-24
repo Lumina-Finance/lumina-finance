@@ -646,7 +646,8 @@ export type BankReviewGivenCategory = BankReviewGivenValue & {
 export type CategoryLeftOutReason = 'income_for_money_out' | 'expense_for_money_in' | 'transfer' | 'no_direction'
 
 /**
- * What the user's import rules fill in for one new item, worked out as the list is read
+ * What the user's import rules filled in for one new item, saved on the item as it arrived or as the
+ * rules were last applied to it
  */
 export type BankReviewRuleFill = {
   merchant: BankReviewGivenValue | null
@@ -672,12 +673,17 @@ export type BankReviewRuleFill = {
  * What the import rules do to the waiting new items of the accounts listed, across every page
  */
 export type BankReviewRules = {
-  /** Sent back when the rules are applied, so rules changed since the list loaded are refused */
-  version: string
-
-  /** Whether any waiting new item matches a rule, and whether applying the rules would add any */
-  any_matches: boolean
+  /** Whether approving all would add any waiting item, going by the values saved on each */
   any_addable: boolean
+
+  /** Whether the rules changed since a waiting item of any of the user's own accounts was put through them */
+  changed: boolean
+
+  /**
+   * The installed check's sentence when an item could be added but every such item sits in an account the
+   * check keeps read-only, or null
+   */
+  read_only_reason: string | null
 }
 
 /**
@@ -772,9 +778,9 @@ export type BulkReviewResult = {
 }
 
 /**
- * What a press of Apply rules added
+ * What a press of Approve all added
  */
-export type ApplyImportRulesResult = {
+export type ApproveAllResult = {
   added_ids: string[]
 
   /** The accounts the added items went to, whose ledgers changed */
@@ -782,6 +788,14 @@ export type ApplyImportRulesResult = {
 
   /** More items than one press adds are left to add */
   more_to_add: boolean
+}
+
+/**
+ * What a press of Apply rules did to the waiting items
+ */
+export type ApplyRulesResult = {
+  /** How many waiting items hold different values after the press */
+  changed_count: number
 }
 
 /**

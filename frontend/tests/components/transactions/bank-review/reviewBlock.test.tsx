@@ -5,7 +5,7 @@
  *
  * These tests catch the block hiding the toggle a long backlog needs, offering one a short backlog
  * doesn't, a removal showing anything but the ledger amount struck through, a kind of item whose row
- * a keyboard can't open, a failed read counting nothing as zero or offering no retry, Apply rules
+ * a keyboard can't open, a failed read counting nothing as zero or offering no retry, Approve all
  * missing from the header or drawn with nothing saying what the rules do, and a row showing no
  * merchant or category a rule gave it, or changed for one no rule matched. The
  * notice's own retry is covered with the notice, and following a Needs review marker to a failed
@@ -26,7 +26,7 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
   }),
 }))
 
-// The crossfade of Apply rules' label needs a browser to mount, so the label is drawn without its animated layers
+// The crossfade of the buttons' labels needs a browser to mount, so the label is drawn without its animated layers
 vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 
 import { BankReviewBlock } from '@/components/transactions/bank-review/ReviewBlock'
@@ -37,7 +37,7 @@ function renderBlock(
   items: BankReviewItem[],
   expanded: boolean,
   overrides: Partial<
-    Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure' | 'selection' | 'applyRules'>
+    Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure' | 'selection' | 'ruleActions'>
   > = {},
 ): string {
   return renderToStaticMarkup(
@@ -132,16 +132,16 @@ describe('the rows the block shows', () => {
   })
 })
 
-describe('Apply rules in the header', () => {
-  const applyRules = {
-    rules: { version: 'v1', any_matches: true, any_addable: true },
-    isApplying: false,
-    onApply: () => {},
+describe('Approve all in the header', () => {
+  const ruleActions = {
+    rules: { any_addable: true, changed: false },
+    busy: null,
+    onApprove: () => {},
   }
 
   it('sits in the header above the rows, level with the toggle and before it, so the toggle stays the last control', () => {
-    const markup = renderBlock(ITEMS, false, { applyRules })
-    const button = markup.indexOf('Apply rules')
+    const markup = renderBlock(ITEMS, false, { ruleActions })
+    const button = markup.indexOf('Approve all')
 
     expect(button).toBeGreaterThan(-1)
     expect(button).toBeLessThan(markup.search(/aria-expanded=/))
@@ -149,18 +149,18 @@ describe('Apply rules in the header', () => {
   })
 
   it('stays alone at the top right when there are too few items for a toggle', () => {
-    const markup = renderBlock(ITEMS.slice(0, 2), false, { applyRules })
+    const markup = renderBlock(ITEMS.slice(0, 2), false, { ruleActions })
 
-    expect(markup).toContain('Apply rules')
+    expect(markup).toContain('Approve all')
     expect(markup).not.toContain('aria-expanded')
     // With no toggle after it the button ends where the rows' amounts end, not at the header's own edge
-    expect(markup).toMatch(/<div class="[^"]*\blast:mr-2\b[^"]*"><button[^>]*>(?:<span[^>]*>.*?<\/span>)?Apply rules/)
+    expect(markup).toMatch(/<div class="[^"]*\blast:mr-2\b[^"]*"><button[^>]*>(?:<span[^>]*>.*?<\/span>)?Approve all/)
   })
 
   it('is drawn beside the line under the header on a phone, where the header has no room for it', () => {
-    const markup = renderBlock(ITEMS, false, { applyRules })
+    const markup = renderBlock(ITEMS, false, { ruleActions })
     const line = markup.indexOf('Bank items stay out of every balance')
-    const beside = markup.indexOf('Apply rules', line)
+    const beside = markup.indexOf('Approve all', line)
 
     expect(beside).toBeGreaterThan(line)
     expect(beside).toBeLessThan(markup.indexOf('role="list"'))
@@ -172,11 +172,11 @@ describe('Apply rules in the header', () => {
   })
 
   it('is left out while the items could not load, and when nothing says what the rules do', () => {
-    expect(renderBlock([], false, { applyRules, itemsFailure: { retry: () => {}, isRetrying: false } })).not.toContain(
-      'Apply rules',
+    expect(renderBlock([], false, { ruleActions, itemsFailure: { retry: () => {}, isRetrying: false } })).not.toContain(
+      'Approve all',
     )
-    expect(renderBlock(ITEMS, false, { applyRules: { ...applyRules, rules: null } })).not.toContain('Apply rules')
-    expect(renderBlock(ITEMS, false)).not.toContain('Apply rules')
+    expect(renderBlock(ITEMS, false, { ruleActions: { ...ruleActions, rules: null } })).not.toContain('Approve all')
+    expect(renderBlock(ITEMS, false)).not.toContain('Approve all')
   })
 })
 

@@ -490,7 +490,21 @@ describe('the review list the rules fill in', () => {
       (queryClient: QueryClient) => removeCategoryCaches(queryClient, 'category-1'),
     ],
     ['a tag is renamed', (queryClient: QueryClient) => updateTagUpdateCaches(queryClient, tag)],
-  ])('reads the waiting items again when %s, since the rule behind each fill may have changed', (_name, change) => {
+    [
+      'a merchant is deleted or merged away',
+      (queryClient: QueryClient) => removeMerchantCaches(queryClient, 'merchant-1'),
+    ],
+    ['a tag is deleted or merged away', (queryClient: QueryClient) => removeTagCaches(queryClient, 'tag-1')],
+    [
+      'an account is deleted',
+      (queryClient: QueryClient) =>
+        invalidateAccountAggregateData(queryClient, 'account-1', undefined, { isDeleted: true }),
+    ],
+    [
+      'an account is archived',
+      (queryClient: QueryClient) => invalidateAccountAggregateData(queryClient, 'account-1', undefined),
+    ],
+  ])('reads the waiting items again when %s, so the offer to apply the rules follows', (_name, change) => {
     const queryClient = new QueryClient()
     const key = bankSyncKeys.reviewItems(undefined)
     queryClient.setQueryData(key, { pages: [], pageParams: [] })

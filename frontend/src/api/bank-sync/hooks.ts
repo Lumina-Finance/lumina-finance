@@ -19,7 +19,8 @@ import {
 } from '@/api/bank-sync/polling'
 import {
   addReviewItem,
-  applyImportRules,
+  applyRulesToReviewItems,
+  approveAllReviewItems,
   bulkAddReviewItems,
   bulkDismissReviewItems,
   claimCredential,
@@ -60,7 +61,7 @@ import { invalidateAccountBankLink, invalidateBankLinks, invalidateBankSyncStatu
 import { bankSyncKeys } from '@/api/cache/queryKeys'
 import {
   applyAccountBankStatus,
-  applyAppliedRulesOutcome,
+  applyApproveAllOutcome,
   applyBankLinkChanges,
   applyBulkReviewOutcome,
   applyLedgerReviewOutcome,
@@ -68,6 +69,7 @@ import {
   applyRefusedReviewDecision,
   applyRestoredBankValue,
   applyReviewDecision,
+  applyRulesOutcome,
   putCachedBankLink,
   refreshBankLinkState,
   replaceCachedBankConnection,
@@ -611,27 +613,40 @@ export function useBulkAddReviewItems() {
 }
 
 /**
- * How a press of Apply rules runs. It settles once the ledger and the review block both show the
- * items added, and a refusal, most often rules that changed since the list loaded, reads the inbox
- * again and adds nothing
+ * How a press of Approve all runs. It settles once the ledger and the review block both show the
+ * items added, and a refusal reads the inbox again and adds nothing
  *
  * @param payload.scope - The accounts the block's list is read for, the same the press takes
- * @param payload.rulesVersion - The version of the rules the list answered with
  */
-export function applyImportRulesMutationOptions(queryClient: QueryClient) {
+export function approveAllReviewItemsMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
-    mutationFn: (payload: { scope: string[] | undefined; rulesVersion: string }) =>
-      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () =>
-        applyImportRules({ accountIds: payload.scope, rulesVersion: payload.rulesVersion }),
-      ),
-    onSuccess: (result, { scope }) => applyAppliedRulesOutcome(queryClient, scope, result),
+    mutationFn: (payload: { scope: string[] | undefined }) =>
+      runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => approveAllReviewItems({ accountIds: payload.scope })),
+    onSuccess: (result, { scope }) => applyApproveAllOutcome(queryClient, scope, result),
     onError: () => applyRefusedReviewDecision(queryClient),
   })
 }
 
-export function useApplyImportRules() {
+export function useApproveAllReviewItems() {
   const queryClient = useQueryClient()
-  return useMutation(applyImportRulesMutationOptions(queryClient))
+  return useMutation(approveAllReviewItemsMutationOptions(queryClient))
+}
+
+/**
+ * How a press of Apply rules runs. It settles once the review list has read the saved values again,
+ * so the rows, the offer and Approve all follow together. A refusal changes nothing, so the list and
+ * its offer stay as they are
+ */
+export function applyRulesToReviewItemsMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    mutationFn: () => runWithMinimumPendingTime(ACTION_LOADING_MIN_MS, () => applyRulesToReviewItems()),
+    onSuccess: () => applyRulesOutcome(queryClient),
+  })
+}
+
+export function useApplyRulesToReviewItems() {
+  const queryClient = useQueryClient()
+  return useMutation(applyRulesToReviewItemsMutationOptions(queryClient))
 }
 
 /**

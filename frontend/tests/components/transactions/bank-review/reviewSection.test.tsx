@@ -43,7 +43,7 @@ vi.mock('@/hooks/useAuth', () => ({
 }))
 vi.mock('@/hooks/useTodayYmd', () => ({ useTodayYmd: () => '2026-10-05' }))
 vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ showToast: () => {} }) }))
-// The crossfade of Apply rules' label needs a browser to mount, so the label is drawn without its animated layers
+// The crossfade of the buttons' labels needs a browser to mount, so the label is drawn without its animated layers
 vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 
 import { BankReviewSection, type ReviewFocusRequest } from '@/components/transactions/bank-review/ReviewSection'

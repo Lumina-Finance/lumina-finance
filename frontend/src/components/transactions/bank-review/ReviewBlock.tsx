@@ -8,7 +8,7 @@ import { HintButton } from '@/components/tooltips/HintButton'
 import { CONTENT_EASE_CURVE, QUICK_EASE_S } from '@/utils/widthEase'
 import { describeTickLimit } from '@/components/transactions/bulk-edit/reviewSelection'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
-import { ApplyRulesButton } from '@/components/transactions/bank-review/ApplyRulesButton'
+import { ApproveAllButton } from '@/components/transactions/bank-review/ApproveAllButton'
 import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { BANK_BOX_CLASS, BANK_BOX_EDGE_CLASS, REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
@@ -121,13 +121,13 @@ type BankReviewBlockProps = {
   selection?: ReviewRowSelection
 
   /**
-   * The Apply rules button. Its rules come from the first page of the list and are null while that
-   * page has none. The button is left out then
+   * The Approve all button. Its rules come from the first page of the list and are null while that
+   * page has none. The button is left out then. Only one press runs at a time, and `busy` says which
    */
-  applyRules?: {
+  ruleActions?: {
     rules: BankReviewRules | null
-    isApplying: boolean
-    onApply: () => void
+    busy: 'approve' | null
+    onApprove: () => void
   }
 
   prefersReducedMotion: boolean | null
@@ -164,7 +164,7 @@ export function BankReviewBlock({
   registerRow,
   onOpenItem,
   selection,
-  applyRules,
+  ruleActions,
   prefersReducedMotion,
 }: BankReviewBlockProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
@@ -188,8 +188,13 @@ export function BankReviewBlock({
 
   // Drawn in two places, each shown at one width only. A phone's header has no room for the button
   // beside the title, the count and the caret, so there the button sits beside the line under the header
-  const applyButton = applyRules?.rules && itemsFailure === null && (
-    <ApplyRulesButton rules={applyRules.rules} isApplying={applyRules.isApplying} onApply={applyRules.onApply} />
+  const approveButton = ruleActions?.rules && itemsFailure === null && (
+    <ApproveAllButton
+      rules={ruleActions.rules}
+      isApproving={ruleActions.busy === 'approve'}
+      isHeldOff={ruleActions.busy !== null && ruleActions.busy !== 'approve'}
+      onApprove={ruleActions.onApprove}
+    />
   )
 
   // Each notice grows in and collapses out under the title, its room kept inside it
@@ -233,17 +238,17 @@ export function BankReviewBlock({
           </span>
         )}
 
-        {/* Apply rules and the caret share one right-aligned wrapper, so neither depends on the other for
+        {/* Approve all and the caret share one right-aligned wrapper, so neither depends on the other for
             its place. The button glides along when the caret mounts or goes, rather than jumping. With no
             caret after it the button keeps the rows' inset, so its edge lines up with their amounts */}
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {applyButton && (
+          {approveButton && (
             <motion.div
               layout="position"
               className="hidden last:mr-2 sm:flex"
               transition={{ duration: prefersReducedMotion ? 0 : QUICK_EASE_S, ease: CONTENT_EASE_CURVE }}
             >
-              {applyButton}
+              {approveButton}
             </motion.div>
           )}
 
@@ -285,7 +290,7 @@ export function BankReviewBlock({
         <p className="min-w-0 flex-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
           Bank items stay out of every balance until you add them to your ledger.
         </p>
-        {applyButton && <div className="flex shrink-0 sm:hidden">{applyButton}</div>}
+        {approveButton && <div className="flex shrink-0 sm:hidden">{approveButton}</div>}
       </div>
 
       <AnimatePresence initial={false}>

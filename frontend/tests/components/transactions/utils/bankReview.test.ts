@@ -24,7 +24,7 @@ import {
   formatReviewDate,
   getReviewAccountIds,
   getReviewItemAmount,
-  getApplyRulesReason,
+  getApproveAllReason,
   getRuleFilledValues,
 } from '@/components/transactions/utils/bankReview'
 import { formatMovedCurrency } from '@/utils/formatCurrency'
@@ -157,13 +157,20 @@ describe('a new item the import rules fill in', () => {
   })
 })
 
-describe('why Apply rules is unavailable', () => {
+describe('why Approve all is unavailable', () => {
   it.each([
-    [{ version: 'v1', any_matches: false, any_addable: false }, 'No waiting item matches your import rules'],
-    [{ version: 'v1', any_matches: true, any_addable: false }, 'No waiting item can be added by your import rules'],
-    [{ version: 'v1', any_matches: true, any_addable: true }, null],
-  ])('gives the reason for %j', (rules, reason) => {
-    expect(getApplyRulesReason(rules)).toBe(reason)
+    [{ any_addable: false, changed: false, read_only_reason: null }, 'No waiting item is ready to add: each needs a merchant and a category'],
+    [{ any_addable: false, changed: true, read_only_reason: null }, 'No waiting item is ready to add: each needs a merchant and a category'],
+    [{ any_addable: true, changed: false, read_only_reason: null }, null],
+    [{ any_addable: true, changed: true, read_only_reason: null }, null],
+  ])('gives the one reason, whatever the rules changed, for %j', (rules, reason) => {
+    expect(getApproveAllReason(rules)).toBe(reason)
+  })
+
+  it("gives the server's sentence when the only items ready sit in read-only accounts", () => {
+    const reason = 'Your plan keeps accounts in other currencies read-only.'
+
+    expect(getApproveAllReason({ any_addable: false, read_only_reason: reason })).toBe(reason)
   })
 })
 

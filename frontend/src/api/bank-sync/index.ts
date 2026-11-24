@@ -1,7 +1,8 @@
 export type {
   AccountBankStatus,
   AddReviewItemPayload,
-  ApplyImportRulesResult,
+  ApplyRulesResult,
+  ApproveAllResult,
   BankAccountLink,
   BankBalance,
   BankConnection,
@@ -53,7 +54,8 @@ export { isBankSyncNotSetUp, offersBankSync } from '@/api/bank-sync/availability
 export {
   useAccountBankStatus,
   useAddReviewItem,
-  useApplyImportRules,
+  useApplyRulesToReviewItems,
+  useApproveAllReviewItems,
   useBankConnections,
   useBankLinks,
   useBankLinksByAccount,

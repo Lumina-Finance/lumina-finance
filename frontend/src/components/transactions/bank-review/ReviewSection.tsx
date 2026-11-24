@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
-  useApplyImportRules,
+  useApproveAllReviewItems,
   useReviewBacklogs,
   useReviewItems,
   type BankReviewItem,
@@ -10,7 +10,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
 import { useToast } from '@/hooks/useToast'
-import { describeAppliedRules, describeApplyRulesFailure } from '@/components/transactions/bulk-edit/reviewSelection'
+import { describeApproveAllAnswer } from '@/components/transactions/bulk-edit/reviewSelection'
 import { BankComparisonModal } from '@/components/transactions/bank-review/ComparisonModal'
 import type { BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import {
@@ -25,6 +25,7 @@ import { useInfiniteScrollTrigger } from '@/components/transactions/hooks/useInf
 import { useSkipAppendedEnter } from '@/components/transactions/hooks/useSkipAppendedEnter'
 import { describeBacklogNotice, findNextNewItem } from '@/components/transactions/utils/bankReview'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 
 // How long a row stays ringed after a Needs review marker went to it
 const JUMP_HIGHLIGHT_MS = 1800
@@ -147,19 +148,18 @@ export const BankReviewSection = memo(function BankReviewSection({
   const items = useMemo(() => itemsOf(pages?.pages ?? [], accountById), [pages, accountById])
   const counts = pages?.pages[0]?.counts
 
-  // What the rules do to every waiting new item, read with the first page and so never only the rows
-  // loaded. A press sends back the version of the rules it read, so rules changed since are refused
+  // What the saved rule values allow for every waiting new item, read with the first page and so never
+  // only the rows loaded
   const rules = isInScope ? (pages?.pages[0]?.rules ?? null) : null
-  const applyRules = useApplyImportRules()
+  const approveAll = useApproveAllReviewItems()
   const { showToast } = useToast()
-  const pressApplyRules = () => {
-    if (!rules || applyRules.isPending) return
-    applyRules.mutate(
-      { scope: accountIds, rulesVersion: rules.version },
+  const pressApproveAll = () => {
+    if (!rules || approveAll.isPending) return
+    approveAll.mutate(
+      { scope: accountIds },
       {
-        onSuccess: (result) =>
-          showToast({ status: 'success', text: describeAppliedRules(result.added_ids.length, result.more_to_add) }),
-        onError: (error) => showToast({ status: 'error', text: describeApplyRulesFailure(error) }),
+        onSuccess: (result) => showToast({ status: 'success', text: describeApproveAllAnswer(result) }),
+        onError: (error) => showToast({ status: 'error', text: getSaveFailureMessage(error) }),
       },
     )
   }
@@ -336,7 +336,7 @@ export const BankReviewSection = memo(function BankReviewSection({
                 registerRow={registerRow}
                 onOpenItem={openItem}
                 selection={selection}
-                applyRules={{ rules, isApplying: applyRules.isPending, onApply: pressApplyRules }}
+                ruleActions={{ rules, busy: approveAll.isPending ? 'approve' : null, onApprove: pressApproveAll }}
                 prefersReducedMotion={prefersReducedMotion}
               />
             </div>

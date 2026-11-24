@@ -13,8 +13,9 @@
  * kept removal taking out the correction it reopened or leaving it named a removal, a bulk add or
  * dismissal taking out an item it skipped, leaving its count too high for a decided item on a page not
  * loaded yet, reloading the ledger for a dismissal or never reading the inbox again for the items
- * skipped, a press of Apply rules leaving an added item in a loaded page or its count, or writing
- * to the ledger when nothing was added, a restored bank value leaving the inbox showing the ledger value it replaced or the balance panel's ledger stale, a link change settling
+ * skipped, a press of Approve all leaving an added item in a loaded page or its count, or writing
+ * to the ledger when nothing was added, a press of Apply rules leaving the rows or the offer stale
+ * or settling before the list has read them again, a restored bank value leaving the inbox showing the ledger value it replaced or the balance panel's ledger stale, a link change settling
  * before the views that show it have refetched, and a deleted account's own bank views asking about
  * it again while its page still shows them
  */
@@ -23,12 +24,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { BankReviewCounts, BankReviewItem, BankReviewPage } from '@/api/bank-sync/types'
 import { accountKeys, bankSyncKeys, transactionKeys } from '@/api/cache/queryKeys'
 import {
-  applyAppliedRulesOutcome,
+  applyApproveAllOutcome,
   applyBankLinkChanges,
   applyBulkReviewOutcome,
   applyLedgerReviewOutcome,
   applyRestoredBankValue,
   applyReviewDecision,
+  applyRulesOutcome,
   clearDeletedAccountBankData,
   forgetDeletedAccountBankData,
   refreshBankLinkState,
@@ -392,7 +394,7 @@ describe('a bulk add or dismissal', () => {
   })
 })
 
-describe('a press of Apply rules', () => {
+describe('a press of Approve all', () => {
   const accountScopeKey = bankSyncKeys.reviewItems(['account-1'])
   const pagesIn = (key: QueryKey) =>
     queryClient
@@ -441,7 +443,7 @@ describe('a press of Apply rules', () => {
     const answerLinks = observeWithHeldRead(bankSyncKeys.links(), [createBankLink()])
     const answerBacklogs = observeWithHeldRead(backlogKey, [createBacklog()])
 
-    const done = applyAppliedRulesOutcome(queryClient, undefined, {
+    const done = applyApproveAllOutcome(queryClient, undefined, {
       // item-9 sits on a page that was never loaded
       added_ids: ['item-1', 'item-4', 'item-9'],
       account_ids: ['account-1'],
@@ -469,10 +471,39 @@ describe('a press of Apply rules', () => {
   })
 
   it('writes nothing and reads only the inbox again when no item was added', async () => {
-    await applyAppliedRulesOutcome(queryClient, undefined, { added_ids: [], account_ids: [], more_to_add: false })
+    await applyApproveAllOutcome(queryClient, undefined, { added_ids: [], account_ids: [], more_to_add: false })
 
     expect(reviewItemIds()).toEqual(['item-1', 'item-2', 'item-3', 'item-4'])
     expectInvalidated([reviewKey, accountScopeKey], true)
+    expectInvalidated([...ledgerKeys, ...statusKeys, otherAccountKey], false)
+  })
+})
+
+describe('a press of Apply rules', () => {
+  const accountScopeKey = bankSyncKeys.reviewItems(['account-1'])
+
+  beforeEach(() => {
+    seedBankViews()
+    seedReviewPages()
+    queryClient.setQueryData(accountScopeKey, {})
+  })
+
+  it('settles once every scope of the waiting items has read its rows and its rules again, and leaves the ledger alone', async () => {
+    const answerItems = observeWithHeldRead(reviewKey, queryClient.getQueryData(reviewKey))
+    let settled = false
+    const done = applyRulesOutcome(queryClient).then(() => {
+      settled = true
+    })
+    await settle()
+
+    // The offer and the rows would otherwise follow in separate renders
+    expect(settled).toBe(false)
+    expectInvalidated([reviewKey, accountScopeKey], true)
+
+    answerItems()
+    await done
+
+    expect(reviewItemIds()).toEqual(['item-1', 'item-2', 'item-3', 'item-4'])
     expectInvalidated([...ledgerKeys, ...statusKeys, otherAccountKey], false)
   })
 })

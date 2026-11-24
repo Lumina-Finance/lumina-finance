@@ -94,19 +94,17 @@ export function getRuleFilledValues(item: BankReviewItem): string[] {
   )
 }
 
-/** Why Apply rules is unavailable while no waiting item matches the rules */
-export const APPLY_RULES_NO_MATCH_REASON = 'No waiting item matches your import rules'
-
-/** Why Apply rules is unavailable while items match but the rules give none a merchant and a fitting category */
-export const APPLY_RULES_NONE_ADDABLE_REASON = 'No waiting item can be added by your import rules'
+/** Why Approve all is unavailable while no waiting item holds a merchant and a category it can take */
+export const APPROVE_ALL_NONE_ADDABLE_REASON = 'No waiting item is ready to add: each needs a merchant and a category'
 
 /**
- * Why Apply rules is unavailable, or null while it can add an item. Both facts come from the first
- * page of the list and cover every waiting new item, never only the rows loaded
+ * Why Approve all is unavailable, or null while it can add an item. The fact comes from the first
+ * page of the list and covers every waiting new item, never only the rows loaded. When the only items
+ * ready sit in read-only accounts, the server's sentence for those accounts says why
  */
-export function getApplyRulesReason(rules: Pick<BankReviewRules, 'any_matches' | 'any_addable'>): string | null {
-  if (!rules.any_matches) return APPLY_RULES_NO_MATCH_REASON
-  return rules.any_addable ? null : APPLY_RULES_NONE_ADDABLE_REASON
+export function getApproveAllReason(rules: Pick<BankReviewRules, 'any_addable' | 'read_only_reason'>): string | null {
+  if (rules.any_addable) return null
+  return rules.read_only_reason ?? APPROVE_ALL_NONE_ADDABLE_REASON
 }
 
 /**

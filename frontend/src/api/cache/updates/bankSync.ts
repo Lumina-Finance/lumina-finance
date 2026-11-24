@@ -15,7 +15,7 @@ import {
 } from '@/api/cache/updates/transactions'
 import type {
   AccountBankStatus,
-  ApplyImportRulesResult,
+  ApproveAllResult,
   BankConnection,
   BankLink,
   BankReviewCounts,
@@ -223,7 +223,7 @@ export async function applyBulkReviewOutcome(
 }
 
 /**
- * Brings the inbox and the ledger views up to date after a press of Apply rules
+ * Brings the inbox and the ledger views up to date after a press of Approve all
  *
  * The added items leave the inbox as a bulk add's do. Every item added was a new one, so the block's
  * scope counts them out whether a loaded page holds them or not. A press that added nothing wrote
@@ -232,10 +232,10 @@ export async function applyBulkReviewOutcome(
  * @param scope - The accounts the block's list is read for
  * @param result - What the server answered the press with
  */
-export async function applyAppliedRulesOutcome(
+export async function applyApproveAllOutcome(
   queryClient: QueryClient,
   scope: string[] | undefined,
-  result: ApplyImportRulesResult,
+  result: ApproveAllResult,
 ): Promise<void> {
   if (result.added_ids.length === 0) {
     invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewItemsAll }])
@@ -246,6 +246,15 @@ export async function applyAppliedRulesOutcome(
     removed: { new: result.added_ids.length, correction: 0, removal: 0 },
     ledgerAccountIds: result.account_ids,
   })
+}
+
+/**
+ * Reads every scope of the inbox again after a press of Apply rules, settling once the active one has
+ * answered. The press changed values saved on waiting items and nothing in the ledger, so the rows,
+ * the offer and Approve all follow from that read alone
+ */
+export async function applyRulesOutcome(queryClient: QueryClient): Promise<void> {
+  await queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewItemsAll, refetchType: 'active' })
 }
 
 type DecidedItems = {
