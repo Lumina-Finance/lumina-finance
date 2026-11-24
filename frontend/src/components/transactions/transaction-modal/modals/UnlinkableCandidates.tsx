@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { CircleSlash } from 'lucide-react'
 import { CollapsibleSection } from '@/components/collapsible-section/Section'
 import { describeUnlinkable } from '@/components/transactions/transaction-modal/utils/refund'
@@ -28,8 +28,14 @@ export default function UnlinkableCandidates({ picksRefund, rooms, children }: U
       className="isolate mt-2"
       bodyClassName="pt-1"
       // The list eases in a box that clips at its edges, so the header draws its focus ring inside them, as the rows
-      // above do
-      headerStyle={{ outlineOffset: 'calc(var(--app-focus-offset) * -1)' }}
+      // above do. The ring then sits on the header's hover fill, so the header takes the rows' lighter fill and the
+      // ring keeps 3:1 against it
+      headerStyle={
+        {
+          outlineOffset: 'calc(var(--app-focus-offset) * -1)',
+          '--collapsible-header-hover-fill': 'var(--app-hover-soft)',
+        } as CSSProperties
+      }
     >
       <div role="group" aria-label="Transactions that can't be linked" data-testid="unlinkable-candidates">
         {children}
