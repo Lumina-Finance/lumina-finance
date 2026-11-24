@@ -424,7 +424,7 @@ def test_profile_deletion_emails_name_the_date_and_what_to_do_in_both_parts():
     for message in (scheduled, reminder):
         for body in (message.text_body, message.html_body):
             assert "will be deleted on 1 January 2027" in body
-            assert "sign in and press cancel deletion before then" in body.lower()
+            assert "please sign in and cancel before then." in body.lower()
     assert "in 3 days or less" in reminder.text_body
     assert "has been deleted" not in scheduled.text_body
     for body in (done.text_body, done.html_body):
@@ -445,7 +445,7 @@ def test_profile_deletion_emails_name_the_date_and_what_to_do_in_both_parts():
     ],
 )
 def test_profile_deletion_emails_name_the_date_in_the_profile_zone_and_fall_back_to_utc(render, tz, date):
-    """Just after midnight UTC is still the day before west of it, as the app shows, and a missing or unknown zone gives the UTC day"""
+    """04:59 UTC on 1 January is still 31 December west of UTC, as the app shows, and a missing or unknown zone gives the UTC day"""
     message = render(datetime(2027, 1, 1, 4, 59, tzinfo=UTC), tz)
 
     for body in (message.text_body, message.html_body):

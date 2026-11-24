@@ -12,7 +12,8 @@ from app.config.profile_deletion import DELETION_REMINDER_LEAD as _LEAD
 from app.db.rls.functions import LIST_PROFILES_TO_REMIND
 from app.models.user import User
 from app.services.email import contract as email_contract
-from app.services.profile_deletion import send_due_reminders
+from app.services.profile_deletion import reminders, send_due_reminders
+from app.services.profile_deletion.emails import send_reminder_email
 from tests.conftest import ScopedSession
 from tests.routes.support.identity_helpers import _act_as
 from tests.routes.support.profile_deletion_helpers import _commit_user, _stored_marks
@@ -50,7 +51,7 @@ async def test_only_a_waiting_profile_due_within_three_days_and_asked_longer_ago
     body = sent_action_emails[0][1].text_body
     due_day = due_at.astimezone(ZoneInfo("America/Toronto"))
     assert f"{due_day.day} {due_day:%B %Y}" in body, "the reminder names the date in the profile's zone"
-    assert "Please sign in and press Cancel deletion before then" in body
+    assert "Please sign in and cancel before then." in body
     assert (await _stored_marks(users["due soon"]))[2] is not None, "the reminder is recorded as sent"
     for stage in ("far off", "short wait", "past due", "no due time", "never asked"):
         assert (await _stored_marks(users[stage]))[2] is None, f"{stage} is left unreminded"
@@ -87,6 +88,18 @@ async def test_the_edges_of_the_lead_decide_who_is_reminded(sent_action_emails, 
 
     assert [recipient for recipient, _ in sent_action_emails] == (["edge@example.com"] if reminded else [])
     assert ((await _stored_marks(user))[2] is not None) is reminded
+
+
+async def test_the_reminder_names_the_date_in_the_profile_zone(sent_action_emails):
+    """A due time at 03:00 UTC is still the evening before in Toronto, so the reminder names that day, not the UTC one"""
+    due_at = datetime(2099, 1, 1, 3, 0, tzinfo=UTC)
+    user = await _commit_user("zone@example.com", requested_at=due_at - timedelta(days=10), due_at=due_at)
+
+    claimed = await reminders._claim_reminder(ScopedSession, user.id)
+    await send_reminder_email(*claimed)
+
+    assert [recipient for recipient, _ in sent_action_emails] == ["zone@example.com"]
+    assert "will be deleted on 31 December 2098" in sent_action_emails[0][1].text_body
 
 
 async def test_a_due_time_with_no_mark_is_not_reminded(sent_action_emails):
