@@ -27,13 +27,17 @@ function foldedRow(picker: Locator) {
 }
 
 // The refunds listed in the picker's order, every one pickable, and how many fold into the row at the end because they
-// don't fit what is left of the expense after the picks
+// don't fit what is left of the expense after the picks. A row moving between the list and the open folded row eases out
+// of one as it eases into the other, so an open folded row is waited on until it holds only what it folds
 async function expectRows(picker: Locator, listed: string[], folded: number) {
   const rows = picker.locator('[data-testid^="link-group-"]').getByTestId('link-candidate')
   await expect(rows.getByTestId('transaction-amount')).toHaveText(listed)
   await expect(rows.locator('button[aria-disabled="true"]')).toHaveCount(0)
   if (folded === 0) await expect(foldedRow(picker)).toHaveCount(0)
   else await expect(foldedRow(picker)).toHaveText(new RegExp(`^${folded} can't be linked`))
+  if (folded > 0 && (await foldedRow(picker).getAttribute('aria-expanded')) === 'true') {
+    await expect(picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')).toHaveCount(folded)
+  }
 }
 
 // The button of the picker row with this amount. Matched by the amount shown, as a folded row also holds its reason as text
@@ -572,7 +576,7 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   expect(faintest.contrast, `"${faintest.text}" on a picked row under the pointer`).toBeGreaterThanOrEqual(4.5)
 
   // After the rows, Tab reaches the folded row, Enter opens it, and Tab lands on the greyed $37.19 row. Its ring is
-  // drawn at full strength while its content fades, and its reason is written under it
+  // drawn at full strength round the row and its reason while its content fades, and its reason is written under it
   await rows.nth(1).getByRole('button').focus()
   await page.keyboard.press('Tab')
   await expect(foldedRow(picker)).toBeFocused()
@@ -582,10 +586,9 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   const greyedRow = picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
   const greyed = greyedRow.getByRole('button')
   await expect(greyed).toBeFocused()
-  const ringed = greyedRow.locator('.app-transaction-row')
-  await expect(ringed).toHaveCSS('outline-style', 'solid')
-  await expect(ringed).not.toHaveCSS('outline-color', 'rgba(0, 0, 0, 0)')
-  await expect(ringed).toHaveCSS('opacity', '1')
+  await expect(greyedRow).toHaveCSS('outline-style', 'solid')
+  await expect(greyedRow).not.toHaveCSS('outline-color', 'rgba(0, 0, 0, 0)')
+  await expect(greyedRow).toHaveCSS('opacity', '1')
   await expect(greyed).toHaveCSS('opacity', '1')
   await expect(greyedRow.getByText(OVER_THE_EXPENSE)).toBeVisible()
 })
