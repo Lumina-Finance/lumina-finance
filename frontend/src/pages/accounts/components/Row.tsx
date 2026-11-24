@@ -210,7 +210,7 @@ export default function AccountRow({
             <p
               id={`${descriptionId}-metadata`}
               ref={setMetaLine}
-              className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere] min-[750px]:flex-none min-[750px]:truncate"
+              className="min-w-0 flex-1 self-baseline text-sm [overflow-wrap:anywhere] min-[750px]:flex-none min-[750px]:truncate"
               style={{ color: 'var(--app-text-muted)' }}
             >
               {/* The link is described by this whole line, so on a phone it reads the form of the credit
@@ -227,9 +227,10 @@ export default function AccountRow({
                 </span>
               )}
             </p>
-            {/* Positioned and later than the name's stretched link, so a tap on the pill shows its reason */}
+            {/* Positioned and later than the name's stretched link, so a tap on the pill shows its reason.
+                It shares the type's baseline, since centring its box sets its smaller text above the type's */}
             {readOnlyReason && (
-              <span className="relative inline-flex min-w-0 max-w-full shrink">
+              <span className="relative inline-flex min-w-0 max-w-full shrink self-baseline">
                 <ReadOnlyReasonPill id={`${descriptionId}-read-only`} reason={readOnlyReason} />
               </span>
             )}
