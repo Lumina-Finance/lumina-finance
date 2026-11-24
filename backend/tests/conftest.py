@@ -281,7 +281,7 @@ def email_changes(monkeypatch) -> list[EmailChange]:
 
 @pytest.fixture
 def profile_deletion_wait(monkeypatch) -> Callable[[timedelta], None]:
-    """Return the supported point that sets how long a profile deletion waits, with the wait restored after the test"""
+    """Return the setter for how long a profile deletion waits, with the wait restored after the test"""
     monkeypatch.setattr(profile_deletion_hook, "_wait", profile_deletion_hook._wait)
     return profile_deletion_hook.set_profile_deletion_wait
 

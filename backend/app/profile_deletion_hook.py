@@ -59,8 +59,8 @@ def notify_profile_deletion(deletion: ProfileDeletion) -> None:
             logger.warning("A profile deletion observer failed: %s", type(error).__name__)
 
 
-# How long a deleted profile waits before its data goes. No wait deletes at once. It is set in code and
-# never read from the environment, and a change applies to requests made after it
+# How long a deleted profile waits before its data goes. No wait deletes at once, and a change applies to
+# requests made after it
 _wait = timedelta(0)
 
 
@@ -87,5 +87,5 @@ def set_profile_deletion_wait(wait: timedelta) -> None:
 
 
 def profile_deletion_wait() -> timedelta:
-    """Return how long a profile deletion waits, no time at all unless code has set one"""
+    """Return how long a profile deletion waits, no time at all by default"""
     return _wait

@@ -32,7 +32,7 @@ def test_notify_with_a_failing_observer_still_reaches_the_observers_after_it(pro
 
 
 def test_the_wait_is_none_until_set_and_a_set_wait_is_read_back(profile_deletion_wait):
-    """No code setting a wait leaves deletions immediate, and a set wait is the one read"""
+    """Deletions are immediate by default, and a set wait is the one read"""
     assert profile_deletion_hook.profile_deletion_wait() == timedelta(0)
 
     profile_deletion_wait(timedelta(days=7))

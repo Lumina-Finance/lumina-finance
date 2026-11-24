@@ -1,4 +1,4 @@
-"""Profile deletion settings that are fixed in code"""
+"""Profile deletion settings"""
 
 from datetime import timedelta
 
