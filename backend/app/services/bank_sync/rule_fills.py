@@ -13,6 +13,7 @@ from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import date
+from typing import Any
 
 from sqlalchemy import ColumnElement, Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -214,11 +215,11 @@ def _category_misfit(kind: str, amount: int | None) -> CategoryLeftOutReason | N
     return None if kind == CategoryKind.EXPENSE else "income_for_money_out"
 
 
-def read_item_fill(item: WaitingItem, fill: FileRowFill, category_kinds: Mapping[uuid.UUID, str]) -> ItemFill:
+def read_item_fill(amount: int | None, fill: FileRowFill, category_kinds: Mapping[uuid.UUID, str]) -> ItemFill:
     """Hold what the rules give an item to what a transaction takes: a category of the item's direction and at most 32 tags
 
     Args:
-        item: The item's facts
+        amount: The item's signed amount in minor units, or None when the bank's can't be stored
         fill: What the shared fill gave the item
         category_kinds: The kind of each category the rules name
 
@@ -228,7 +229,7 @@ def read_item_fill(item: WaitingItem, fill: FileRowFill, category_kinds: Mapping
     category = fill.category
     category_left_out = None
     if category is not None:
-        reason = _category_misfit(category_kinds[category.value], item.amount)
+        reason = _category_misfit(category_kinds[category.value], amount)
         if reason is not None:
             category, category_left_out = None, (category, reason)
 
@@ -281,11 +282,55 @@ def fill_waiting_items(matcher: ImportRuleMatcher, items: Sequence[WaitingItem],
     Returns:
         One answer per item, in the same order
     """
-    rows = [
-        FileRow(MatchCandidate(item.description, item.note, item.amount, item.currency, item.account_id, is_transfer=False)) for item in items
-    ]
-    fills = fill_rows(matcher, rows)
-    return [read_item_fill(item, fill, category_kinds) for item, fill in zip(items, fills, strict=True)]
+    candidates = [MatchCandidate(item.description, item.note, item.amount, item.currency, item.account_id, is_transfer=False) for item in items]
+    return fill_candidates(matcher, candidates, category_kinds)
+
+
+def fill_candidates(
+    matcher: ImportRuleMatcher, candidates: Sequence[MatchCandidate], category_kinds: Mapping[uuid.UUID, str]
+) -> list[ItemFill]:
+    """Ask the rules about each candidate and hold the answer to what a transaction takes, through the shared `fill_rows`
+
+    Pure, so it can run off the event loop
+
+    Args:
+        matcher: The person's rules
+        candidates: The facts the rules compare, one per item
+        category_kinds: The kind of each category the rules name
+
+    Returns:
+        One answer per candidate, in the same order
+    """
+    fills = fill_rows(matcher, [FileRow(candidate) for candidate in candidates])
+    return [read_item_fill(candidate.amount, fill, category_kinds) for candidate, fill in zip(candidates, fills, strict=True)]
+
+
+def _saved_value(supplied: Supplied) -> dict[str, Any]:
+    """Return a value a rule gives as it is saved: its id and the rule behind it, never a name of the record"""
+    return {"id": str(supplied.value), "rule": {"id": str(supplied.rule.id), "name": supplied.rule.name}}
+
+
+def fill_to_saved(fill: ItemFill) -> dict[str, Any] | None:
+    """Return what the rules gave an item as it is saved on the item, or None when they gave it nothing
+
+    Only what is present is saved. A category left out is saved with the reason, and tags left out
+    for passing what a transaction carries are saved so the item can say why none is filled
+    """
+    if not fill.matched:
+        return None
+    saved: dict[str, Any] = {}
+    if fill.merchant is not None:
+        saved["merchant"] = _saved_value(fill.merchant)
+    if fill.category is not None:
+        saved["category"] = _saved_value(fill.category)
+    if fill.category_left_out is not None:
+        supplied, reason = fill.category_left_out
+        saved["category_left_out"] = _saved_value(supplied) | {"reason": reason}
+    if fill.tags:
+        saved["tags"] = [_saved_value(tag) for tag in fill.tags]
+    if fill.tags_left_out:
+        saved["tags_left_out"] = [_saved_value(tag) for tag in fill.tags_left_out]
+    return saved
 
 
 async def fill_items(context: RuleFillContext, items: Sequence[WaitingItem]) -> list[ItemFill]:

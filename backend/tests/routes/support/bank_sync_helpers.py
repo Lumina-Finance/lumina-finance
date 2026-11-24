@@ -65,7 +65,7 @@ EMPTY_REVIEW_PAGE = {
 }
 
 # The values a dismissal clears, since a dismissed bank transaction keeps only its identity
-_DISMISSED = {"disposition": BankTransactionDisposition.DISMISSED} | dict.fromkeys(OBSERVATION_COLUMNS)
+_DISMISSED = {"disposition": BankTransactionDisposition.DISMISSED} | dict.fromkeys((*OBSERVATION_COLUMNS, "rule_fill", "rules_version"))
 
 
 async def _sign_up(client) -> tuple[dict, uuid.UUID]:

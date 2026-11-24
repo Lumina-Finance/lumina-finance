@@ -100,6 +100,11 @@ class BankTransaction(Base):
             "AND observed_at IS NOT NULL AND (observed_amount IS NULL) <> (raw_amount IS NULL))",
             name="ck_bank_transactions_observation",
         ),
+        # Only a new item still waiting holds the rules' values, and deciding it clears them
+        CheckConstraint(
+            "disposition = 'awaiting_review' OR (rule_fill IS NULL AND rules_version IS NULL)",
+            name="ck_bank_transactions_rule_fill",
+        ),
         # A dismissed record keeps only its identity, enough to stay dismissed when the bank resends it
         CheckConstraint(
             "disposition <> 'dismissed' OR (" + " AND ".join(f"{column} IS NULL" for column in OBSERVATION_COLUMNS) + ")",
@@ -163,6 +168,14 @@ class BankTransaction(Base):
     # so the same removal delivered again opens nothing, and cleared once the provider sends the
     # transaction again
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # What the user's import rules gave a new item while it waits: the merchant, category and tags by id,
+    # each with the rule behind it, and what was left out and why. Null when the rules gave nothing, and
+    # never holds a name of a merchant, category or tag. The digest says which rules the item was put
+    # through, set together with the fill, and null on an item never put through any. Neither is a bank
+    # value, so a provider's observation never touches them
+    rule_fill: Mapped[dict[str, Any] | None] = mapped_column(_JSON)
+    rules_version: Mapped[str | None] = mapped_column(VARCHAR(64))
 
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 

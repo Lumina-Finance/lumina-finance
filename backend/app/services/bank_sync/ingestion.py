@@ -26,9 +26,14 @@ ledger has its correction opened.
 
 An amount that can't be stored exactly in the account's currency is kept as the bank sent it, with
 no amount, so its item waits for the user to enter one rather than being rounded or dropped
+
+Every item the call writes as waiting, a new one, a dismissed one brought back and one still waiting
+whose bank values changed, is put through the owner's import rules, and what they give is saved on it
+with the digest of the rules (arrival_fills.py). One the bank resends unchanged is left as it is
 """
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -37,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank_connection import BankAccountLink
 from app.models.bank_transaction import BankTransaction, BankTransactionDisposition
+from app.services.bank_sync.arrival_fills import ArrivingItem, SavedFill, fill_arriving_items
 from app.services.bank_sync.corrections import store_accepted_observations
 from app.services.bank_sync.holds import is_hold
 from app.services.bank_sync.providers.contract import ProviderRecord
@@ -95,6 +101,7 @@ async def store_booked_records(
     known = {(row.account_id, row.provider, row.external_account_id, row.external_transaction_hash): row for row in stored}
 
     changed = False
+    waiting: list[_WaitingWrite] = []
     accepted: list[tuple[BankTransaction, dict[str, Any]]] = []
     removed: list[BankTransaction] = []
     for link, booked in wanted:
@@ -117,28 +124,14 @@ async def store_booked_records(
                 # A zero amount can't be approved or put in the ledger, so it is a hold (holds.py)
                 if not brings_in(link, record.date, running) or is_hold(record):
                     continue
-                db.add(
-                    BankTransaction(
-                        owner_id=link.owner_id,
-                        account_id=link.account_id,
-                        provider=link.provider,
-                        external_account_id=link.external_account_id,
-                        external_transaction_hash=transaction_hash,
-                        disposition=BankTransactionDisposition.AWAITING_REVIEW,
-                        observed_at=observed_at,
-                        **observation,
-                    )
-                )
+                waiting.append(_WaitingWrite(link, transaction_hash, observation, row=None))
                 changed = True
 
             elif row.disposition == BankTransactionDisposition.DISMISSED:
                 # Only a range asked to bring dismissed items back does, and only those dated inside it
                 if running is None or not running.restores_dismissed or not brings_in(link, record.date, running) or is_hold(record):
                     continue
-                row.disposition = BankTransactionDisposition.AWAITING_REVIEW
-                for column, value in observation.items():
-                    setattr(row, column, value)
-                row.observed_at = observed_at
+                waiting.append(_WaitingWrite(link, transaction_hash, observation, row=row))
                 changed = True
 
             # Writing only what changed leaves a record's version alone when the bank resends it as
@@ -150,14 +143,66 @@ async def store_booked_records(
                 accepted.append((row, observation))
                 changed = True
             else:
-                for column, value in observation.items():
-                    setattr(row, column, value)
-                row.observed_at = observed_at
+                waiting.append(_WaitingWrite(link, transaction_hash, observation, row=row))
                 changed = True
+    await _write_waiting_items(db, waiting, observed_at)
     if accepted or removed:
         await store_accepted_observations(db, accepted, removed, observed_at=observed_at)
     await db.flush()
     return changed
+
+
+@dataclass(frozen=True)
+class _WaitingWrite:
+    """An item the call writes as waiting: a new one, a dismissed one a range brings back, or one still waiting whose bank values changed
+
+    Attributes:
+        link: The link whose bank account sent it
+        transaction_hash: The keyed hash of the provider's transaction ID
+        observation: The bank transaction columns the record fills
+        row: The stored bank transaction, or None for a new item
+    """
+
+    link: BankAccountLink
+    transaction_hash: str
+    observation: dict[str, Any]
+    row: BankTransaction | None
+
+
+async def _write_waiting_items(db: AsyncSession, waiting: Sequence[_WaitingWrite], observed_at: datetime) -> None:
+    """Put the waiting items through the owner's import rules and write each with its saved values, in one write apiece
+
+    Nothing is written to the session before the rules are read, since reading them flushes it, and
+    an item written and then updated again would cost two statements and move its version twice
+    """
+    filled: list[tuple[_WaitingWrite, SavedFill]] = []
+    for owner_id in dict.fromkeys(write.link.owner_id for write in waiting):
+        owned = [write for write in waiting if write.link.owner_id == owner_id]
+        arriving = [
+            ArrivingItem(
+                write.link.account_id, write.observation["description"], write.observation["note"], write.observation["observed_amount"]
+            )
+            for write in owned
+        ]
+        filled.extend(zip(owned, await fill_arriving_items(db, owner_id, arriving), strict=True))
+    for write, fill in filled:
+        values = {"rule_fill": fill.rule_fill, "rules_version": fill.rules_version, "observed_at": observed_at, **write.observation}
+        if write.row is None:
+            db.add(
+                BankTransaction(
+                    owner_id=write.link.owner_id,
+                    account_id=write.link.account_id,
+                    provider=write.link.provider,
+                    external_account_id=write.link.external_account_id,
+                    external_transaction_hash=write.transaction_hash,
+                    disposition=BankTransactionDisposition.AWAITING_REVIEW,
+                    **values,
+                )
+            )
+            continue
+        write.row.disposition = BankTransactionDisposition.AWAITING_REVIEW
+        for column, value in values.items():
+            setattr(write.row, column, value)
 
 
 def _differs(row: BankTransaction, observation: dict[str, Any]) -> bool:
