@@ -78,6 +78,10 @@ test('folds away the refunds that no longer fit and brings them back as rows are
   await expect(linkButton).toBeDisabled()
   await foldedRow(picker).click()
   await expect(foldedRow(picker)).toHaveAttribute('aria-expanded', 'true')
+  // The forced press below skips Playwright's wait for a still element, so the list has to finish easing open first,
+  // or the press can land on the folded row's header and close it
+  const foldedList = picker.locator(`[id="${await foldedRow(picker).getAttribute('aria-controls')}"]`)
+  await expect(foldedList).toHaveCSS('overflow', 'visible')
   const greyed = picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
   await expect(greyed).toHaveCount(1)
   await expect(greyed).toContainText(OVER_THE_EXPENSE)
@@ -590,7 +594,8 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   await expect(greyedRow).not.toHaveCSS('outline-color', 'rgba(0, 0, 0, 0)')
   await expect(greyedRow).toHaveCSS('opacity', '1')
   await expect(greyed).toHaveCSS('opacity', '1')
-  await expect(greyedRow.getByText(OVER_THE_EXPENSE)).toBeVisible()
+  // The $15.00 pick leaves $22.13, and the reason measures the row against that
+  await expect(greyedRow.getByText('This refund is more than the $22.13 left to refund')).toBeVisible()
 })
 
 /** The colour a fill token computes to on the page, for waiting until a row's fill has eased into it */
