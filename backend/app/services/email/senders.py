@@ -28,7 +28,7 @@ IMPLICIT_TLS_PORT = 465
 
 
 class SmtpEmailSender:
-    """Delivers email through an SMTP server for self-hosted deployments"""
+    """Delivers email through an SMTP server"""
 
     async def send(self, recipient: str, message: RenderedEmail) -> None:
         """Build a multipart message and deliver it over SMTP
