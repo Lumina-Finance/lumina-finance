@@ -3,9 +3,9 @@
  * already hold are on the way to the screen, which they did when a frame callback that empties the
  * list ran after the cached rows had been installed
  */
-import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { asUser, signUpUser, type TestUser } from '../support/api'
+import { seedNamedRows, signUpUser } from '../support/api'
 import { logInViaApi, openPage } from '../support/app'
 import { API_BASE_URL } from '../support/target'
 
@@ -19,13 +19,6 @@ const LISTS = [
   { section: 'tags', endpoint: 'tags', emptyMessage: /^No tags (yet|match your search)\.$/ },
   { section: 'merchants', endpoint: 'merchants', emptyMessage: /^No merchants (yet|match your search)\.$/ },
 ] as const
-
-async function seedList(request: APIRequestContext, user: TestUser, endpoint: string, names: string[]) {
-  for (const name of names) {
-    const created = await request.post(`${API_BASE_URL}/${endpoint}`, { headers: asUser(user), data: { name } })
-    expect(created.status()).toBe(201)
-  }
-}
 
 /**
  * Makes the page run animation frame callbacks `FRAME_DELAY_MS` late and starts recording whether
@@ -101,7 +94,7 @@ for (const { section, endpoint, emptyMessage } of LISTS) {
     const user = await signUpUser(request)
     const prefix = `Cached ${crypto.randomUUID()}`
     const names = [`${prefix} one`, `${prefix} two`, `${prefix} three`]
-    await seedList(request, user, endpoint, names)
+    await seedNamedRows(request, user, endpoint, names)
 
     await logInViaApi(page, user)
     await openPage(page, `/settings#${section}`)
@@ -130,7 +123,7 @@ test('keeps the tags list rows on screen when returning to a warmed search with 
   const user = await signUpUser(request)
   const alpha = `Alpha ${crypto.randomUUID()}`
   const beta = `Beta ${crypto.randomUUID()}`
-  await seedList(request, user, 'tags', [alpha, beta])
+  await seedNamedRows(request, user, 'tags', [alpha, beta])
 
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await logInViaApi(page, user)
@@ -161,7 +154,7 @@ test('replaces the tags with a loader while a new search loads, then restores th
   const user = await signUpUser(request)
   const wanted = `Gamma ${crypto.randomUUID()}`
   const other = `Delta ${crypto.randomUUID()}`
-  await seedList(request, user, 'tags', [wanted, other])
+  await seedNamedRows(request, user, 'tags', [wanted, other])
 
   // Holds the answer to the new search, so the wait for it can be looked at
   let release!: () => void
