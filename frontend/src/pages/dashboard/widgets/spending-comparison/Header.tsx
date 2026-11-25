@@ -4,6 +4,7 @@ import type { SpendingRange } from '@/api/dashboard'
 import type { FxStatus } from '@/api/shared/fx'
 import { AppSlotMachineText } from '@/components/display/SlotMachineText'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
+import { FX_BADGE_WIDTH_PX } from '@/components/tooltips/fxToneClass'
 import { DashboardRangeSelector } from '@/pages/dashboard/components/RangeSelector'
 import { DashboardWidgetHeaderIcon } from '@/pages/dashboard/components/WidgetHeaderIcon'
 import { DASHBOARD_RANGE_SELECT_OPTIONS, PREVIOUS_PERIOD_LABEL_BY_RANGE } from '@/pages/dashboard/constants/ranges'
@@ -21,6 +22,7 @@ type SpendingComparisonHeaderProps = {
   onRangeChange: (range: SpendingRange) => void
 }
 
+const FX_BADGE_LABEL = 'Spending comparison FX status'
 const ROW_GAP_PX = 8
 const MEASURED_ATTRIBUTE = 'data-title-measure'
 
@@ -70,6 +72,9 @@ function useAverageTitle(
         (child) => !child.hasAttribute(MEASURED_ATTRIBUTE) && getComputedStyle(child).display !== 'none',
       )
       const widths = others.map((child) => child.getBoundingClientRect().width)
+      // The FX badge comes after the card's data, so a row without it is laid out as if it were there. The title is
+      // then the same form before and after the badge arrives, and the tabs never wrap when it does
+      if (!row.querySelector(`[aria-label="${FX_BADGE_LABEL}"]`)) widths.splice(2, 0, FX_BADGE_WIDTH_PX)
       const withTitle = (titleWidth: number) => widths.map((width, index) => (index === 1 ? titleWidth : width))
       const rowWidth = row.clientWidth
       // A form is used only where the title does not push the controls onto a row they would not take with no title
@@ -130,7 +135,7 @@ export function SpendingComparisonHeader({
       </span>
       <span
         className="app-label inline-flex items-baseline whitespace-nowrap"
-        style={showAverage && averageTitle === 'tight' ? { letterSpacing: '-0.04em' } : undefined}
+        style={averageTitle === 'tight' ? { letterSpacing: '-0.04em' } : undefined}
       >
         Spending vs.&nbsp;
         {/* "avg." is wider than "last", and the range selector shares the row with the title to the pixel at 1280,
@@ -142,11 +147,7 @@ export function SpendingComparisonHeader({
         &nbsp;
         <AppSlotMachineText text={periodLabel} />
       </span>
-      <FxStatusBadge
-        label="Spending comparison FX status"
-        fxStatus={fxStatus}
-        getMessage={getSpendingComparisonFxStatusMessage}
-      />
+      <FxStatusBadge label={FX_BADGE_LABEL} fxStatus={fxStatus} getMessage={getSpendingComparisonFxStatusMessage} />
       {showAverage &&
         (averageFxStatus?.state === 'incomplete' ||
           averageFxStatus?.state === 'unavailable' ||

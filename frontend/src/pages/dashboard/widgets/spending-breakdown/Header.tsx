@@ -30,34 +30,42 @@ export function SpendingBreakdownHeader({
 }: SpendingBreakdownHeaderProps) {
   const oppositeModeLabel = breakdownMode === 'spending' ? 'income' : 'spending'
 
+  // The desktop tabs show only where the viewport is 730px or wider, as on every dashboard card, and the row holds the
+  // icon (32px), title (169.3px), FX badge (FX_BADGE_WIDTH_PX, 20.27px), toggle (32px) and tabs (174px) with four 8px
+  // gaps, 459.6px measured, rounded up to 461px to leave a pixel for the title's rounding. The badge is counted whether
+  // or not it has arrived, so its late arrival never wraps the row. Narrower, or on a viewport under 730px, the mobile
+  // selector takes its own row below the other four. Those four stay on one line
   return (
-    <div className="flex flex-wrap items-center gap-2 mb-3">
-      <DashboardWidgetHeaderIcon icon={PieChartIcon} />
-      <span className="app-label inline-flex items-baseline whitespace-nowrap">
-        <AppSlotMachineText text={breakdownMode === 'spending' ? 'Spending' : 'Income'} />
-        <span className="ml-[0.25em]">breakdown</span>
-      </span>
-      <FxStatusBadge
-        label="Spending breakdown FX status"
-        fxStatus={fxStatus}
-        getMessage={(status) => getBreakdownFxStatusMessage(status, breakdownMode)}
-      />
-      <HintButton
-        onClick={onModeToggle}
-        hint={`Show ${oppositeModeLabel} breakdown`}
-        aria-label={`Show ${oppositeModeLabel} breakdown`}
-        className="app-icon-button ml-auto"
-      >
-        <Repeat size={12} />
-      </HintButton>
-      <DashboardRangeSelector
-        value={breakdownRange}
-        options={DASHBOARD_RANGE_SELECT_OPTIONS}
-        onChange={onRangeChange}
-        ariaLabel="Breakdown range"
-        sheetTitle="Breakdown range"
-        desktopClassName="hidden min-[730px]:inline-flex"
-      />
+    <div data-testid="spending-breakdown-header" className="@container mb-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <DashboardWidgetHeaderIcon icon={PieChartIcon} />
+        <span className="app-label inline-flex items-baseline whitespace-nowrap">
+          <AppSlotMachineText text={breakdownMode === 'spending' ? 'Spending' : 'Income'} />
+          <span className="ml-[0.25em]">breakdown</span>
+        </span>
+        <FxStatusBadge
+          label="Spending breakdown FX status"
+          fxStatus={fxStatus}
+          getMessage={(status) => getBreakdownFxStatusMessage(status, breakdownMode)}
+        />
+        <HintButton
+          onClick={onModeToggle}
+          hint={`Show ${oppositeModeLabel} breakdown`}
+          aria-label={`Show ${oppositeModeLabel} breakdown`}
+          className="app-icon-button ml-auto"
+        >
+          <Repeat size={12} />
+        </HintButton>
+        <DashboardRangeSelector
+          value={breakdownRange}
+          options={DASHBOARD_RANGE_SELECT_OPTIONS}
+          onChange={onRangeChange}
+          ariaLabel="Breakdown range"
+          sheetTitle="Breakdown range"
+          desktopClassName="hidden min-[730px]:@[461px]:inline-flex"
+          mobileClassName="w-full min-[730px]:@[461px]:hidden"
+        />
+      </div>
     </div>
   )
 }

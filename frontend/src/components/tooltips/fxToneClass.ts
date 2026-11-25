@@ -17,3 +17,7 @@ export const FX_TONE_CLASS: Record<IconTooltipFxTone, { idle: string; active: st
     active: 'border-[var(--app-fx-gray-fill)] bg-[var(--app-fx-gray-fill)] text-white',
   },
 }
+
+// The badge's measured width: "FX" in its bold 0.625rem type, with its padding and border. A header that fits its
+// title beside the badge counts this width before the badge has arrived
+export const FX_BADGE_WIDTH_PX = 20.27

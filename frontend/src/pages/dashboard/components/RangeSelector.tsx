@@ -1,7 +1,4 @@
-import {
-  TimeRangeSelector,
-  type TimeRangeSelectorOption,
-} from '@/components/time-range/Selector'
+import { TimeRangeSelector, type TimeRangeSelectorOption } from '@/components/time-range/Selector'
 
 type DashboardRangeSelectorProps<T extends string> = {
   value: T
@@ -10,6 +7,9 @@ type DashboardRangeSelectorProps<T extends string> = {
   ariaLabel: string
   sheetTitle: string
   desktopClassName?: string
+
+  /** Overrides where the mobile selector gives way to the desktop one, for a header that answers to its own width */
+  mobileClassName?: string
 }
 
 /**
@@ -22,6 +22,7 @@ export function DashboardRangeSelector<T extends string>({
   ariaLabel,
   sheetTitle,
   desktopClassName = 'ml-auto hidden min-[730px]:inline-flex',
+  mobileClassName = 'w-full min-[730px]:hidden',
 }: DashboardRangeSelectorProps<T>) {
   return (
     <>
@@ -38,7 +39,7 @@ export function DashboardRangeSelector<T extends string>({
         onChange={onChange}
         ariaLabel={ariaLabel}
         variant="mobile"
-        className="w-full min-[730px]:hidden"
+        className={mobileClassName}
         sheetTitle={sheetTitle}
       />
     </>
