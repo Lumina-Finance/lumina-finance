@@ -20,9 +20,7 @@ import type { ColumnMap, CsvRow, ImportAmountDirection, ImportDateRange, ImportF
 import { buildTransactionImportPayload, getImportDateRangeFilter, getImportedCategories } from '@/pages/imports/utils'
 import type { ImportDateFormat } from '@/pages/imports/utils/valueParsers'
 
-const CURRENCIES: Currency[] = [
-  { id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 },
-]
+const CURRENCIES: Currency[] = [{ id: 'CAD', name: 'Canadian Dollar', symbol: '$', minor_unit_exponent: 2 }]
 
 const CATEGORY: Category = {
   id: 'category-1',
@@ -118,12 +116,13 @@ describe('importing a chosen range of dates', () => {
     expect(result.payload?.rows.map((row) => row.dt)).toEqual(['2025-01-01', '2025-01-31'])
   })
 
-  it('still lists a row whose date can\'t be read, whatever the range, by its place in the whole file', () => {
+  it("still lists a row whose date can't be read, whatever the range, by its place in the whole file", () => {
     const result = build(rowsOn(['2025-01-15', 'not a date', '2025-03-15']), { from: '2025-03-01', to: '2025-03-31' })
 
     expect(result.payload?.rows.map((row) => row.dt)).toEqual(['2025-03-15'])
-    expect(result.rowProblems.map(({ id, rowNumber, reason }) => ({ id, rowNumber, reason })))
-      .toEqual([{ id: 'file-1-1', rowNumber: 2, reason: ROW_DATE_UNREADABLE_REASON }])
+    expect(result.rowProblems.map(({ id, rowNumber, reason }) => ({ id, rowNumber, reason }))).toEqual([
+      { id: 'file-1-1', rowNumber: 2, reason: ROW_DATE_UNREADABLE_REASON },
+    ])
   })
 
   it('leaves out a row outside the range without judging anything else about it', () => {
@@ -131,7 +130,9 @@ describe('importing a chosen range of dates', () => {
     const result = build(rows, { from: '2025-03-01', to: '' })
 
     // Read whole, the bad amount is a problem row, so the range is what leaves it out unlisted
-    expect(build(rows, { from: '', to: '' }).rowProblems.map((problem) => problem.reason)).toEqual([ROW_AMOUNT_UNREADABLE_REASON])
+    expect(build(rows, { from: '', to: '' }).rowProblems.map((problem) => problem.reason)).toEqual([
+      ROW_AMOUNT_UNREADABLE_REASON,
+    ])
     expect(result.rowProblems).toEqual([])
     expect(result.payload?.rows.map((row) => row.dt)).toEqual(['2025-03-15'])
   })
@@ -141,9 +142,12 @@ describe('importing a chosen range of dates', () => {
     const rows = rowsOn(['2025-03-31T23:30:00-04:00'])
     const march = { from: '2025-03-01', to: '2025-03-31' }
 
-    expect(build(rows, march, { dateFormat: 'iso', timeZone: 'America/Toronto' }).payload?.rows.map((row) => row.dt))
-      .toEqual(['2025-03-31'])
-    expect(build(rows, march, { dateFormat: 'iso', timeZone: 'UTC' }).errors).toEqual([IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR])
+    expect(
+      build(rows, march, { dateFormat: 'iso', timeZone: 'America/Toronto' }).payload?.rows.map((row) => row.dt),
+    ).toEqual(['2025-03-31'])
+    expect(build(rows, march, { dateFormat: 'iso', timeZone: 'UTC' }).errors).toEqual([
+      IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR,
+    ])
   })
 
   it('says no rows fall within the chosen dates, rather than that the file has none, and offers nothing to import', () => {
@@ -183,15 +187,25 @@ describe('importing a chosen range of dates', () => {
   // The limit is on what one import carries, and rows outside the dates aren't carried
   it('leaves the categories only rows outside the dates name out of the limit on new mappings', () => {
     const rows = [
-      ...Array.from({ length: MAX_IMPORT_MAPPINGS + 1 }, (_, index) => ({ Date: '2025-01-15', Amount: '-1.00', Category: `Old ${index}` })),
+      ...Array.from({ length: MAX_IMPORT_MAPPINGS + 1 }, (_, index) => ({
+        Date: '2025-01-15',
+        Amount: '-1.00',
+        Category: `Old ${index}`,
+      })),
       ...rowsOn(['2025-03-15']),
     ]
     const march = { from: '2025-03-01', to: '2025-03-31' }
-    const isRowIncluded = getImportDateRangeFilter({ columnMap: COLUMN_MAP, dateFormat: 'yearFirst', dateRange: march })!
+    const isRowIncluded = getImportDateRangeFilter({
+      columnMap: COLUMN_MAP,
+      dateFormat: 'yearFirst',
+      dateRange: march,
+    })!
     const files = [createFile(rows)]
 
     expect(getImportedCategories(files, COLUMN_MAP, {})).toHaveLength(MAX_IMPORT_MAPPINGS + 2)
-    const result = build(rows, march, { importedCategories: getImportedCategories(files, COLUMN_MAP, {}, undefined, isRowIncluded) })
+    const result = build(rows, march, {
+      importedCategories: getImportedCategories(files, COLUMN_MAP, {}, undefined, isRowIncluded),
+    })
     expect(result.errors).toEqual([])
     expect(result.payload?.rows).toHaveLength(1)
   })
@@ -202,9 +216,15 @@ describe('importing a chosen range of dates', () => {
       { Date: '2025-01-15', Amount: '12.34', Category: 'Groceries', Type: 'refund' },
       { Date: '2025-03-15', Amount: '12.34', Category: 'Groceries', Type: 'debit' },
     ]
-    const options = { columnMap, headers: ['Date', 'Amount', 'Category', 'Type'], directionAnswers: { debit: 'out' as const } }
+    const options = {
+      columnMap,
+      headers: ['Date', 'Amount', 'Category', 'Type'],
+      directionAnswers: { debit: 'out' as const },
+    }
 
     expect(build(rows, { from: '', to: '' }, options).payload).toBeNull()
-    expect(build(rows, { from: '2025-03-01', to: '' }, options).payload?.rows.map((row) => row.amount)).toEqual(['-12.34'])
+    expect(build(rows, { from: '2025-03-01', to: '' }, options).payload?.rows.map((row) => row.amount)).toEqual([
+      '-12.34',
+    ])
   })
 })

@@ -35,7 +35,10 @@ const FILE: ImportFileDraft = {
 }
 
 function countOutside(dateRange: ImportDateRange, dateFormat: 'yearFirst' | null = 'yearFirst') {
-  return countImportRowsOutsideDateRange([FILE], getImportDateRangeFilter({ columnMap: COLUMN_MAP, dateFormat, dateRange }))
+  return countImportRowsOutsideDateRange(
+    [FILE],
+    getImportDateRangeFilter({ columnMap: COLUMN_MAP, dateFormat, dateRange }),
+  )
 }
 
 describe('changing the chosen dates', () => {
@@ -115,8 +118,12 @@ describe('offering the day after the latest transaction as the start', () => {
 describe('the reason the chosen dates hold Commit import off', () => {
   it('names a date only partly typed, a start after the end, and nothing otherwise', () => {
     expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: null, to: '' })).toBe(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
-    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: null })).toBe(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
-    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: '2025-03-01' })).toBe(IMPORT_DATE_RANGE_CROSSED_ERROR)
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: null })).toBe(
+      IMPORT_DATE_RANGE_INCOMPLETE_ERROR,
+    )
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: '2025-03-01' })).toBe(
+      IMPORT_DATE_RANGE_CROSSED_ERROR,
+    )
     expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-01', to: '2025-03-31' })).toBeNull()
     expect(getImportDateRangeBlockReason(COLUMN_MAP, WHOLE_FILE_DATE_RANGE)).toBeNull()
   })
@@ -129,12 +136,20 @@ describe('the reason the chosen dates hold Commit import off', () => {
 
 describe('explaining the rows outside the chosen dates', () => {
   it('speaks of one row in the singular', () => {
-    expect(getRowsOutsideDateRangeExplanation(1, false)).toBe('1 row is dated outside the chosen dates, so it won\'t be imported.')
-    expect(getRowsOutsideDateRangeExplanation(1, true)).toBe('1 row was dated outside the chosen dates, so it wasn\'t imported.')
+    expect(getRowsOutsideDateRangeExplanation(1, false)).toBe(
+      "1 row is dated outside the chosen dates, so it won't be imported.",
+    )
+    expect(getRowsOutsideDateRangeExplanation(1, true)).toBe(
+      "1 row was dated outside the chosen dates, so it wasn't imported.",
+    )
   })
 
   it('speaks of several rows in the plural', () => {
-    expect(getRowsOutsideDateRangeExplanation(2, false)).toBe('2 rows are dated outside the chosen dates, so they won\'t be imported.')
-    expect(getRowsOutsideDateRangeExplanation(2, true)).toBe('2 rows were dated outside the chosen dates, so they weren\'t imported.')
+    expect(getRowsOutsideDateRangeExplanation(2, false)).toBe(
+      "2 rows are dated outside the chosen dates, so they won't be imported.",
+    )
+    expect(getRowsOutsideDateRangeExplanation(2, true)).toBe(
+      "2 rows were dated outside the chosen dates, so they weren't imported.",
+    )
   })
 })

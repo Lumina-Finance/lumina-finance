@@ -128,7 +128,13 @@ describe('the upload card in the File step', () => {
 
   // A new reading can leave a later file refused, and another can be added without removing it
   it('stays when a later file is left with an error, so another can be added', () => {
-    const left = { ...GOOD_FILE, id: 'file-3', name: 'Chequing.csv', rows: [], error: 'Its columns don\'t match the first file.' }
+    const left = {
+      ...GOOD_FILE,
+      id: 'file-3',
+      name: 'Chequing.csv',
+      rows: [],
+      error: "Its columns don't match the first file.",
+    }
     const staged = renderStep([GOOD_FILE, left])
     expect(staged).toContain('Chequing.csv')
     expect(staged).toContain('Add more CSV files')
