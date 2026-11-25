@@ -37,7 +37,10 @@ function renderBlock(
   items: BankReviewItem[],
   expanded: boolean,
   overrides: Partial<
-    Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure' | 'selection' | 'ruleActions'>
+    Pick<
+      Parameters<typeof BankReviewBlock>[0],
+      'itemsFailure' | 'backlogFailure' | 'selection' | 'ruleActions' | 'categoryIconFor'
+    >
   > = {},
 ): string {
   return renderToStaticMarkup(
@@ -47,6 +50,7 @@ function renderBlock(
       itemsFailure: null,
       itemsRetryRef: null,
       accountFor: () => ({ name: 'Everyday', currency: 'USD' }),
+      categoryIconFor: () => undefined,
       showAccountNames: true,
       today: '2026-10-05',
       backlogNotice: null,
@@ -249,7 +253,7 @@ describe('the offer to apply the rules again', () => {
   })
 })
 
-describe('the values a rule gave a waiting row', () => {
+describe('a waiting row', () => {
   const rule = { id: 'rule-1', name: 'Pay' }
   const fillOf = (merchantName: string | null, categoryName: string | null) => ({
     merchant: merchantName ? { id: 'm', name: merchantName, rule } : null,
@@ -258,23 +262,56 @@ describe('the values a rule gave a waiting row', () => {
     category_left_out: null,
     tags_left_out: null,
   })
-  const detailsOf = (item: BankReviewItem) =>
-    /data-testid="review-item-details"[^>]*>(.*?)<\/p>/s.exec(renderBlock([item], false))?.[1].replace(/<[^>]+>/g, '')
 
-  it('shows the merchant and the category in the plain muted line under the description, with no label of its own', () => {
+  /** The row's icon, its merchant's and category's places and its date and account, as text */
+  function partsOf(item: BankReviewItem, icons: Record<string, string> = {}) {
+    const markup = renderBlock([item], false, { categoryIconFor: (id) => icons[id] })
+    // The details close the merchant's line and the text column with them
+    const part = (testId: string, end = '</span>(?=<span|</span>)') =>
+      new RegExp(`data-testid="${testId}"[^>]*>(.*?)${end}`, 's')
+        .exec(markup)?.[1]
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    return {
+      icon: part('review-item-icon'),
+      name: part('review-item-name'),
+      heading: part('review-item-heading'),
+      details: part('review-item-details', '</span></span></span>'),
+    }
+  }
+
+  it("shows the rules' category with its icon and their merchant, as a ledger row does, with nothing more", () => {
     const matched = createReviewItem('matched', 'new', 'everyday', { rule_fill: fillOf('Market', 'Groceries') })
 
-    expect(detailsOf(matched)).toBe('Sep 21 · Everyday · Market · Groceries')
-    expect(renderBlock([matched], false)).not.toContain('Filled in')
+    expect(partsOf(matched, { c: '🛒' })).toEqual({
+      icon: '🛒',
+      name: 'Market',
+      heading: 'Groceries',
+      details: '· Sep 21 · Everyday',
+    })
+    expect(renderBlock([matched], false)).not.toMatch(/Needs|Filled in|>New</)
   })
 
-  it('shows what is still missing after the values it gives, and leaves an unmatched row as it was', () => {
-    expect(detailsOf(createReviewItem('part', 'new', 'everyday', { rule_fill: fillOf('Market', null) }))).toBe(
-      'Sep 21 · Everyday · Market · Needs category',
-    )
-    expect(detailsOf(createReviewItem('plain', 'new', 'everyday'))).toBe(
-      'Sep 21 · Everyday · Needs merchant and category',
-    )
+  it('shows the stand-in icon, Uncategorized and the description where the rules gave no category or merchant', () => {
+    expect(partsOf(createReviewItem('plain', 'new', 'everyday'))).toEqual({
+      icon: '🏷️',
+      name: 'GROCER plain',
+      heading: 'Uncategorized',
+      details: '· Sep 21 · Everyday',
+    })
+    expect(partsOf(createReviewItem('part', 'new', 'everyday', { rule_fill: fillOf('Market', null) }))).toEqual({
+      icon: '🏷️',
+      name: 'Market',
+      heading: 'Uncategorized',
+      details: '· Sep 21 · Everyday',
+    })
+  })
+
+  it("shows the stand-in icon for a category whose icon isn't loaded", () => {
+    const matched = createReviewItem('matched', 'new', 'everyday', { rule_fill: fillOf(null, 'Groceries') })
+
+    expect(partsOf(matched).icon).toBe('🏷️')
   })
 })
 

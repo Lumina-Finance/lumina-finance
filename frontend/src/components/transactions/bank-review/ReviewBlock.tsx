@@ -14,17 +14,16 @@ import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhras
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { BANK_BOX_CLASS, BANK_BOX_EDGE_CLASS, REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import {
+  DEFAULT_TRANSACTION_CATEGORY_ICON,
   ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL,
   TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL_WIDTH,
 } from '@/components/transactions/constants/transactionList'
 import { useFocusAfterRetry } from '@/components/transactions/hooks/useFocusAfterRetry'
 import {
-  REVIEW_KIND_LABELS,
-  describeReviewItem,
+  describeReviewRow,
   formatReviewDate,
   getReviewItemAmount,
-  getRuleFilledValues,
   type BacklogNotice,
 } from '@/components/transactions/utils/bankReview'
 
@@ -79,6 +78,9 @@ type BankReviewBlockProps = {
   /** Takes the button that reads the items again. A Needs review marker focuses it while they can't load */
   itemsRetryRef: Ref<HTMLButtonElement>
   accountFor: (accountId: string) => ReviewItemAccount
+
+  /** The icon of a category the user has, or undefined while categories load or for one since deleted */
+  categoryIconFor: (categoryId: string) => string | undefined
 
   /** Left out on an account's own page, since every item there is that account's */
   showAccountNames: boolean
@@ -152,6 +154,7 @@ export function BankReviewBlock({
   itemsFailure,
   itemsRetryRef,
   accountFor,
+  categoryIconFor,
   showAccountNames,
   today,
   backlogNotice,
@@ -381,12 +384,9 @@ export function BankReviewBlock({
             const rowShape = index === visibleItems.length - 1 ? 'rounded-b-lg' : ''
             const account = accountFor(item.account_id)
             const amount = getReviewItemAmount(item, account.currency, formatMovedCurrency)
-            const details = [
-              formatReviewDate(item.bank.date, today),
-              showAccountNames && account.name,
-              ...getRuleFilledValues(item),
-              describeReviewItem(item),
-            ]
+            const text = describeReviewRow(item)
+            const icon = (text.categoryId && categoryIconFor(text.categoryId)) || DEFAULT_TRANSACTION_CATEGORY_ICON
+            const details = [formatReviewDate(item.bank.date, today), showAccountNames && account.name]
 
             // In selection mode a new item's row ticks it, and every row makes room for the box so
             // the text of corrections and removals lines up with the rest. A range being picked takes the
@@ -402,36 +402,49 @@ export function BankReviewBlock({
                   : undefined
 
             const content = (
-              // The name runs the row's full width, so its label fits beside it wherever the line has room.
-              // The amount sits on the details line, level with its first line of text
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
-                {/* The label runs inline after the text, so a wrapped description keeps it beside its last word */}
-                <p
-                  data-testid="review-item-name"
-                  className="col-span-2 break-words text-sm font-medium"
-                  style={{ color: 'var(--app-text)' }}
+              // Laid out as a ledger row is, with its sizes at each width: the category's icon, the lines of
+              // text and the amount. From 750px wide the category sits over the merchant, the date and the
+              // account follow the merchant on its line, since the block's rows aren't grouped under days,
+              // and the amount centres on the two lines. On a phone the merchant comes first with the
+              // amount level with it, then the category and then the date and the account, each on a line
+              // of its own as the ledger's phone rows are. One set of elements serves both widths: on a
+              // phone the merchant's line holder steps aside, so each of the three takes a whole line, and
+              // each may narrow below its longest word so a long bank reference wraps rather than run under the amount
+              <div className="grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 py-2.5 min-[750px]:grid-cols-[2.75rem_minmax(0,1fr)_max-content] min-[750px]:items-center min-[750px]:gap-x-3">
+                <span
+                  data-testid="review-item-icon"
+                  aria-hidden
+                  className="pt-0.5 text-[1.35rem] leading-none min-[750px]:pt-0 min-[750px]:text-2xl"
                 >
-                  {item.bank.description}
-                  {/* An 8px space rather than a margin before the label, since a line break drops a space, so a
-                      label wrapped onto its own line starts at the text's edge */}
-                  <span className="text-[0px] [word-spacing:0.5rem]"> </span>
+                  {icon}
+                </span>
+                <span className="flex min-w-0 flex-wrap gap-y-0.5">
                   <span
-                    className="inline-block whitespace-nowrap rounded-full border px-1.5 py-0.5 align-[1px] text-xs font-medium leading-none"
-                    style={{ borderColor: 'var(--app-review-border)', color: 'var(--app-warning-text)' }}
+                    data-testid="review-item-heading"
+                    className="order-2 min-w-0 basis-full break-words text-sm leading-[1.125rem] text-(--app-text-muted) min-[750px]:order-1 min-[750px]:text-[0.9375rem] min-[750px]:font-medium min-[750px]:leading-5 min-[750px]:text-(--app-text)"
                   >
-                    {REVIEW_KIND_LABELS[item.kind]}
+                    {text.heading}
                   </span>
-                </p>
-                <p
-                  data-testid="review-item-details"
-                  className="mt-0.5 text-xs"
-                  style={{ color: 'var(--app-text-muted)' }}
-                >
-                  <DetailPhrases phrases={details} />
-                </p>
+                  <span className="contents min-[750px]:order-2 min-[750px]:block min-[750px]:min-w-0 min-[750px]:basis-full min-[750px]:break-words min-[750px]:text-sm min-[750px]:leading-[1.125rem] min-[750px]:text-(--app-text-muted)">
+                    <span
+                      data-testid="review-item-name"
+                      className="order-1 min-w-0 basis-full break-words text-[0.9375rem] font-medium leading-5 text-(--app-text) min-[750px]:font-normal min-[750px]:text-sm min-[750px]:leading-[1.125rem] min-[750px]:text-(--app-text-muted)"
+                    >
+                      {text.name}
+                    </span>
+                    <span
+                      data-testid="review-item-details"
+                      className="order-3 min-w-0 basis-full text-sm leading-[1.125rem] text-(--app-text-muted)"
+                    >
+                      {/* The dot holds to the merchant before it, where the two share a line */}
+                      <span className="hidden min-[750px]:inline">&nbsp;· </span>
+                      <DetailPhrases phrases={details} />
+                    </span>
+                  </span>
+                </span>
                 <span
                   data-testid="review-item-amount"
-                  className="font-financial text-sm font-medium tabular-nums"
+                  className="text-right font-financial text-[0.9375rem] font-semibold leading-5 tabular-nums min-[750px]:text-base"
                   style={{
                     color:
                       amount.sign > 0

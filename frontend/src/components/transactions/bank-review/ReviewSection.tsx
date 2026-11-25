@@ -8,6 +8,7 @@ import {
   type BankReviewItem,
   type BankReviewPage,
 } from '@/api/bank-sync'
+import { useCategories } from '@/api/categories'
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
 import { useToast } from '@/hooks/useToast'
@@ -122,6 +123,14 @@ export const BankReviewSection = memo(function BankReviewSection({
   const { user } = useAuth()
   const today = useTodayYmd()
   const { accounts, accountIds, isInScope, accountById, accountFor } = useBankItemScope(listAccountIds)
+
+  // A row shows its category's icon as a ledger row does, read from the categories the list already
+  // holds, and the stand-in icon until they load
+  const { data: categories } = useCategories()
+  const categoryIconFor = useCallback(
+    (categoryId: string) => categories?.find((category) => category.id === categoryId)?.icon ?? undefined,
+    [categories],
+  )
   const {
     data: pages,
     errorUpdateCount: itemsErrorCount,
@@ -331,6 +340,7 @@ export const BankReviewSection = memo(function BankReviewSection({
                 itemsFailure={itemsFailure}
                 itemsRetryRef={itemsRetryRef}
                 accountFor={accountFor}
+                categoryIconFor={categoryIconFor}
                 showAccountNames={!isFixedAccount}
                 today={today}
                 backlogNotice={backlogNotice}

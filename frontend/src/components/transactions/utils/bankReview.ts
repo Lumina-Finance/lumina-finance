@@ -61,37 +61,41 @@ function joinWithAnd(names: string[]): string {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
 
-/**
- * Says what a review item asks of the user, on the line under its description, or null when it asks
- * nothing
- *
- * A new item needs a merchant and a category unless the user's import rules gave them, and an amount
- * too when the bank sent more decimal places than the account's currency holds, since that amount can't
- * be stored as sent
- */
-export function describeReviewItem(item: BankReviewItem): string | null {
-  if (item.kind === 'removal') return 'The bank no longer reports this transaction'
-  if (item.kind === 'new') {
-    const needs = [
-      item.bank.amount === null && 'amount',
-      !item.rule_fill?.merchant && 'merchant',
-      !item.rule_fill?.category && 'category',
-    ].filter((name): name is string => name !== false)
-    return needs.length > 0 ? `Needs ${joinWithAnd(needs)}` : null
-  }
-  const changed = CHANGED_FIELD_NAMES.filter(([field]) => item.changed_fields.includes(field)).map(([, name]) => name)
-  return changed.length > 0 ? `The bank changed the ${joinWithAnd(changed)}` : 'The bank changed this transaction'
+/** What a waiting row shows where a ledger row shows its category and its merchant */
+export type ReviewRowText = {
+  /** The category's place: the category a new item takes, or what a correction or removal is about */
+  heading: string
+
+  /** The merchant's place: the merchant a new item takes, or else the bank's description */
+  name: string
+
+  /** The category whose icon the row shows, or null for the row's stand-in icon */
+  categoryId: string | null
 }
 
 /**
- * The merchant and the category the user's import rules gave a new item, in the order a ledger row
- * shows them, for the plain line under the item's description. Empty for an item no rule gave either
+ * Says what a waiting row shows, the way a ledger row shows a transaction. A new item shows the
+ * category and the merchant the user's import rules gave it, or "Uncategorized" and the bank's
+ * description where they gave none. A correction or removal says what the bank changed in the
+ * category's place, since the row stands for a change to a transaction already in the ledger
  */
-export function getRuleFilledValues(item: BankReviewItem): string[] {
-  if (item.kind !== 'new' || !item.rule_fill) return []
-  return [item.rule_fill.merchant?.name, item.rule_fill.category?.name].filter(
-    (name): name is string => name !== undefined,
-  )
+export function describeReviewRow(item: BankReviewItem): ReviewRowText {
+  if (item.kind === 'new') {
+    return {
+      heading: item.rule_fill?.category?.name ?? 'Uncategorized',
+      name: item.rule_fill?.merchant?.name ?? item.bank.description,
+      categoryId: item.rule_fill?.category?.id ?? null,
+    }
+  }
+  if (item.kind === 'removal') {
+    return { heading: 'The bank no longer reports this transaction', name: item.bank.description, categoryId: null }
+  }
+  const changed = CHANGED_FIELD_NAMES.filter(([field]) => item.changed_fields.includes(field)).map(([, name]) => name)
+  return {
+    heading: changed.length > 0 ? `The bank changed the ${joinWithAnd(changed)}` : 'The bank changed this transaction',
+    name: item.bank.description,
+    categoryId: null,
+  }
 }
 
 /** Why Approve all is unavailable while no waiting item holds a merchant and a category it can take */

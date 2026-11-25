@@ -4,7 +4,6 @@ import {
   asUser,
   countLedgerTransactions,
   createAccount,
-  createCategory,
   daysFromTodayInTestTimezone,
   listLedgerTransactions,
   signUpUser,
@@ -51,14 +50,14 @@ async function create(request: APIRequestContext, user: TestUser, path: string, 
 
 /**
  * Signs up with Everyday linked to the bank above and the rule "Cafes", giving the merchant Corner Cafe
- * and the category Coffee shops to every description containing CAFE, then opens the transactions page
+ * and the category Coffee shops, with its ☕ icon, to every description containing CAFE, then opens the transactions page
  * once the four items wait
  */
 async function start(page: Page, request: APIRequestContext) {
   const user = await signUpUser(request)
   const everyday = await createAccount(request, user, { name: 'Everyday' })
   const merchantId = await create(request, user, 'merchants', { name: 'Corner Cafe' })
-  const categoryId = await createCategory(request, user, { name: 'Coffee shops' })
+  const categoryId = await create(request, user, 'categories', { name: 'Coffee shops', kind: 'expense', icon: '☕' })
   const ruleId = await create(request, user, 'import-rules', {
     name: 'Cafes',
     match: 'all',
@@ -112,7 +111,22 @@ async function widthsAroundPress(page: Page, button: Locator, pathEnd: string) {
   return { before, during }
 }
 
-const row = (page: Page, description: string) => reviewBlock(page).getByRole('listitem').filter({ hasText: description })
+const row = (page: Page, text: string) => reviewBlock(page).getByRole('listitem').filter({ hasText: text })
+
+// A filled row shows the rule's merchant where the bank's description would be, as the ledger shows a
+// transaction, so the first cafe's row is found by its amount
+const CAFE_01 = '$5.00'
+
+/**
+ * Expects a waiting row to read as a ledger row: its category in the first line, with the category's
+ * icon or the stand-in one, and its merchant, or the bank's description, starting the line under it
+ */
+async function expectRow(page: Page, text: string, category: string, name: string) {
+  const item = row(page, text)
+  await expect(item.getByTestId('review-item-heading')).toHaveText(category)
+  await expect(item.getByTestId('review-item-name')).toHaveText(name)
+  await expect(item.getByTestId('review-item-icon')).toHaveText(category === 'Uncategorized' ? '🏷️' : '☕')
+}
 
 const OFFER = 'Your import rules changed after these items arrived.'
 
@@ -134,8 +148,8 @@ test('the rules fill items as they arrive, and Reapply updated rules and Approve
   const { user, accountId, ruleId, categoryId } = await start(page, request)
 
   await test.step('items arrive filled in by the rule, with no offer', async () => {
-    await expect(row(page, 'CAFE 01')).toContainText('Corner Cafe · Coffee shops')
-    await expect(row(page, UNMATCHED)).toContainText('Needs merchant and category')
+    await expectRow(page, CAFE_01, 'Coffee shops', 'Corner Cafe')
+    await expectRow(page, UNMATCHED, 'Uncategorized', UNMATCHED)
     await expect(page.getByText(OFFER)).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Approve all', exact: true })).not.toHaveAttribute(
       'aria-disabled',
@@ -147,7 +161,7 @@ test('the rules fill items as they arrive, and Reapply updated rules and Approve
     await changeRule(page, request, user, ruleId)
 
     await expect(page.getByText(OFFER)).toBeVisible()
-    await expect(row(page, 'CAFE 01')).toContainText('Corner Cafe · Coffee shops')
+    await expectRow(page, CAFE_01, 'Coffee shops', 'Corner Cafe')
     await expect(page.getByRole('button', { name: 'Approve all', exact: true })).not.toHaveAttribute(
       'aria-disabled',
       'true',
@@ -161,7 +175,7 @@ test('the rules fill items as they arrive, and Reapply updated rules and Approve
     expect(Math.abs(widths.during - widths.before)).toBeLessThanOrEqual(0.5)
 
     await expect(page.getByText(`Updated ${MATCHED} waiting items with your import rules.`)).toBeVisible()
-    await expect(row(page, 'CAFE 01')).toContainText('Espresso Bar · Coffee shops')
+    await expectRow(page, CAFE_01, 'Coffee shops', 'Espresso Bar')
     await expect(page.getByText(OFFER)).toHaveCount(0)
     expect(await countLedgerTransactions(request, user)).toBe(0)
   })
@@ -234,7 +248,7 @@ test('ends Approve all and the tinted offer where the rows end, with Reapply upd
       page.getByRole('button', { name: 'Reapply updated rules', exact: true }),
       sentence,
       sentence.locator('../..'),
-      row(page, 'CAFE 01').getByTestId('review-item-amount'),
+      row(page, CAFE_01).getByTestId('review-item-amount'),
     ].map(async (part) => (await part.boundingBox())!),
   )
   const right = (box: { x: number; width: number }) => box.x + box.width
