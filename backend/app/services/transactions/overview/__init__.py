@@ -58,15 +58,17 @@ async def get_transactions_overview(
 
     Raises:
         HTTPException: Raised with 422 when a date is outside the window, ``from_date`` is after
-            ``to_date`` or both are set and cover over 20 years
+            ``to_date`` or a range with a start covers over 20 years, reading a missing end as
+            today as ``require_optional_report_range`` does
     """
-    require_optional_report_range(from_date, to_date)
+    today = get_current_user_date(user)
+    require_optional_report_range(from_date, to_date, today)
 
     transaction_filters = build_overview_transaction_filters(
         user.id,
         from_date=from_date,
         to_date=to_date,
-        today=get_current_user_date(user),
+        today=today,
         account_id=account_id,
     )
 
