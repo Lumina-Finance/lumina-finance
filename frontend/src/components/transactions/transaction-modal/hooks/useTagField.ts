@@ -125,7 +125,7 @@ export function useTagField({
     search: tagReferenceSearch.search,
     setSearch: tagReferenceSearch.setSearch,
     setActiveSearch: tagReferenceSearch.setActiveSearch,
-    searchSettled: tagReferenceSearch.isSettled,
+    searchSettled: tagReferenceSearch.isSettled && tagReference.answersSearch,
     showLoading: tagReference.showLoading,
     loadingText: tagReference.loadingText,
     showInitialLoading: tagReference.showInitialLoading,

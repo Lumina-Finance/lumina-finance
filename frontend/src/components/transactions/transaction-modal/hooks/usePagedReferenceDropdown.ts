@@ -20,6 +20,9 @@ interface PagedReferenceDropdownOptions<TItem extends { id: string }> {
 interface PagedReferenceDropdownState<TItem> {
   fetchedItems: TItem[]
   visibleItems: TItem[]
+
+  /** True once the items on show belong to the active search, not to the search before it */
+  answersSearch: boolean
   showInitialLoading: boolean
   showFetchingMore: boolean
   showLoading: boolean
@@ -37,7 +40,10 @@ export function usePagedReferenceDropdown<TItem extends { id: string }>({
   fetchingMoreMinMs,
   idleLoadingText,
 }: PagedReferenceDropdownOptions<TItem>): PagedReferenceDropdownState<TItem> {
-  const [visibleItems, setVisibleItems] = useState<TItem[]>([])
+  // The items on show and the search text they answer, set together so a render never holds one of the
+  // two from before a search and the other from after it
+  const [visible, setVisible] = useState<{ items: TItem[]; searchText: string }>({ items: [], searchText: '' })
+  const { items: visibleItems, searchText: visibleSearchText } = visible
   const visibleItemCountRef = useRef(0)
   const initialFetchStartedAtRef = useRef<number | null>(null)
   const fetchMoreStartedAtRef = useRef<number | null>(null)
@@ -65,7 +71,7 @@ export function usePagedReferenceDropdown<TItem extends { id: string }>({
         return
       }
 
-      setVisibleItems([])
+      setVisible({ items: [], searchText: activeSearchText })
       visibleItemCountRef.current = 0
       initialFetchStartedAtRef.current = performance.now()
       fetchMoreStartedAtRef.current = null
@@ -77,16 +83,16 @@ export function usePagedReferenceDropdown<TItem extends { id: string }>({
   useLayoutEffect(() => {
     if (activeSearchText) return
     if (query.isFetchingNextPage || fetchMoreStartedAtRef.current !== null) return
-    if (fetchedItemKey === visibleItemKey) return
+    if (fetchedItemKey === visibleItemKey && visibleSearchText === activeSearchText) return
 
     const frame = window.requestAnimationFrame(() => {
-      setVisibleItems(fetchedItems)
+      setVisible({ items: fetchedItems, searchText: activeSearchText })
       visibleItemCountRef.current = fetchedItems.length
       initialFetchStartedAtRef.current = null
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [activeSearchText, fetchedItemKey, fetchedItems, query.isFetchingNextPage, visibleItemKey])
+  }, [activeSearchText, fetchedItemKey, fetchedItems, query.isFetchingNextPage, visibleItemKey, visibleSearchText])
 
   useEffect(() => {
     if (query.isLoading) {
@@ -101,7 +107,7 @@ export function usePagedReferenceDropdown<TItem extends { id: string }>({
   }, [query.isFetchingNextPage])
 
   useEffect(() => {
-    if (fetchedItemKey === visibleItemKey) return undefined
+    if (fetchedItemKey === visibleItemKey && visibleSearchText === activeSearchText) return undefined
 
     const isAppendingPage = fetchedItems.length > visibleItemCountRef.current && visibleItemCountRef.current > 0
     const isInitialPage = fetchedItems.length > 0 && visibleItemCountRef.current === 0
@@ -110,13 +116,21 @@ export function usePagedReferenceDropdown<TItem extends { id: string }>({
     const elapsed = fetchStartedAt === null ? minimumVisibleMs : performance.now() - fetchStartedAt
     const delayMs = Math.max(minimumVisibleMs - elapsed, 0)
     const timeoutId = window.setTimeout(() => {
-      setVisibleItems(fetchedItems)
+      setVisible({ items: fetchedItems, searchText: activeSearchText })
       if (isInitialPage) initialFetchStartedAtRef.current = null
       if (isAppendingPage) fetchMoreStartedAtRef.current = null
     }, delayMs)
 
     return () => window.clearTimeout(timeoutId)
-  }, [fetchedItemKey, fetchedItems, fetchingMoreMinMs, searchLoadingMinMs, visibleItemKey])
+  }, [
+    activeSearchText,
+    fetchedItemKey,
+    fetchedItems,
+    fetchingMoreMinMs,
+    searchLoadingMinMs,
+    visibleItemKey,
+    visibleSearchText,
+  ])
 
   const loadMore = useCallback(() => {
     if (!query.hasNextPage || query.isFetchingNextPage || showFetchingMore) return
@@ -126,6 +140,7 @@ export function usePagedReferenceDropdown<TItem extends { id: string }>({
   return {
     fetchedItems,
     visibleItems,
+    answersSearch: visibleSearchText === activeSearchText,
     showInitialLoading,
     showFetchingMore,
     showLoading,

@@ -931,8 +931,21 @@ test('chooses no merchant from an Enter pressed before the Merchant search has n
   await page.keyboard.press('Alt+KeyM')
   await expect(dialog.getByPlaceholder('Search merchants...')).toBeFocused()
   await expect(dialog.getByRole('option', { name: 'Alpha Shop', exact: true })).toBeVisible()
+  // The list is hidden or cleared a frame or an instant after a search starts, and a slow runner can take long to
+  // get there. Stretching the frames and the zero-delay timers keeps the old list on show long enough for the
+  // second Enter below to land on it
+  await page.evaluate(() => {
+    const setTimer = window.setTimeout.bind(window)
+    window.requestAnimationFrame = (callback) => setTimer(() => callback(performance.now()), 2_000)
+    window.setTimeout = ((callback: TimerHandler, delay?: number, ...args: unknown[]) =>
+      setTimer(callback, delay === 0 ? 2_000 : delay, ...args)) as typeof window.setTimeout
+  })
   await page.keyboard.type('Bak')
+  // The first Enter starts the search, and the second answers while the list still shows every merchant, led
+  // by Alpha Shop
   await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await expect(dialog.getByRole('combobox', { expanded: true })).toHaveCount(1)
   await expect(dialog.getByRole('option')).toHaveCount(1)
   await expect(merchant).toHaveText(unchosen)
 

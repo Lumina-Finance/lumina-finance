@@ -192,7 +192,7 @@ export function useMerchantField({
     search: merchantReferenceSearch.search,
     setSearch: merchantReferenceSearch.setSearch,
     setActiveSearch: merchantReferenceSearch.setActiveSearch,
-    searchSettled: merchantReferenceSearch.isSettled,
+    searchSettled: merchantReferenceSearch.isSettled && merchantReference.answersSearch,
     showLoading: merchantReference.showLoading,
     loadingText: merchantReference.loadingText,
     showInitialLoading: merchantReference.showInitialLoading,
