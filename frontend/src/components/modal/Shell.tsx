@@ -107,6 +107,21 @@ export function ModalShell({
 
   useDialogFocus(open, panelRef, token, onClose, closeDisabled)
 
+  // A browser sends the click that ends a press to the closest element holding both the press and the
+  // release. A press inside the panel released on the backdrop, such as selecting text past the panel's
+  // edge, therefore clicks the backdrop, and so does a press on the backdrop released inside the panel.
+  // The click alone cannot tell either from a real click on the backdrop, so the press and the release
+  // are each checked for landing on the backdrop itself. Every click a pointer sends follows a press that
+  // sets the record first, while a click sent with no press, such as by a script, is ignored after a press
+  // inside the window
+  const pressStayedOnBackdrop = useRef(true)
+
+  const dismissFromBackdrop = () => {
+    const dismissed = pressStayedOnBackdrop.current
+    pressStayedOnBackdrop.current = true
+    if (dismissed) onClose()
+  }
+
   const dialogAttributes = {
     role: 'dialog',
     'aria-modal': true,
@@ -136,7 +151,13 @@ export function ModalShell({
       {open && (
         <motion.div
           className={`app-modal-backdrop ${appearance.className}`}
-          onClick={closeDisabled ? undefined : onClose}
+          onPointerDown={(event) => {
+            pressStayedOnBackdrop.current = event.target === event.currentTarget
+          }}
+          onPointerUp={(event) => {
+            if (event.target !== event.currentTarget) pressStayedOnBackdrop.current = false
+          }}
+          onClick={closeDisabled ? undefined : dismissFromBackdrop}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
