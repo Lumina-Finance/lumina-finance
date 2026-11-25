@@ -41,6 +41,57 @@ async def test_create_recurring_budget_from_2024_makes_a_period_for_each_month_t
     assert await _count_periods(resp.json()["id"]) == 29
 
 
+# Counted from the furthest-ahead calendar's today, 5 May 2026, so the window ends on 5 May 2036
+LAST_WINDOW_DAY = "2036-05-05"
+
+
+async def test_create_recurring_budget_on_the_windows_last_day_makes_its_one_period(client):
+    """A start ten years ahead is taken and makes its one period"""
+    headers = _get_auth_header(await _create_user(client))
+    category_id = await _create_category(client, headers)
+
+    resp = await _create_base_budget(
+        client, headers, category_ids=[category_id], recurs=True, period_start=LAST_WINDOW_DAY, recurrence_dom=5, overall_limit=75000
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert await _count_periods(resp.json()["id"]) == 1, "The one period starting on the window's last day is made"
+
+
+async def test_create_recurring_budget_from_the_windows_first_day_is_refused_by_the_period_limit_without_making_periods(client):
+    """1 January 1900 is inside the window, so a weekly budget from it is refused by the 1,200 period limit"""
+    headers = _get_auth_header(await _create_user(client))
+    category_id = await _create_category(client, headers)
+    weekly = {"recurrence_freq": "weekly", "recurrence_weekday": 0, "recurrence_dom": None, "recurs": True, "overall_limit": 75000}
+
+    resp = await _create_base_budget(client, headers, category_ids=[category_id], period_start="1900-01-01", **weekly)
+
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["detail"] == "A budget can go back at most 1,200 periods. Please choose a later start date"
+    assert (await client.get("/base-budgets", headers=headers)).json() == []
+
+
+async def test_create_recurring_yearly_budget_from_the_windows_first_day_makes_a_period_for_each_year(client):
+    """A yearly budget fits the period limit from 1 January 1900, so its 127 periods to 2026 are made"""
+    headers = _get_auth_header(await _create_user(client))
+    category_id = await _create_category(client, headers)
+
+    resp = await _create_base_budget(
+        client,
+        headers,
+        category_ids=[category_id],
+        recurs=True,
+        period_start="1900-01-01",
+        recurrence_freq="yearly",
+        recurrence_dom=1,
+        recurrence_month=1,
+        overall_limit=75000,
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert await _count_periods(resp.json()["id"]) == 127
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
