@@ -392,6 +392,10 @@ export const IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR = 'Enter the whole date, o
 /** Said beside Commit import while either date is only partly typed */
 export const IMPORT_DATE_RANGE_INCOMPLETE_ERROR = "Finish the chosen dates, or clear any you don't need."
 
+/** Said beside Commit import while either date is outside the window every date the app takes must sit in */
+export const IMPORT_DATE_RANGE_WINDOW_ERROR =
+  'Please choose dates from Jan 1, 1900 to ten years from today, or clear them.'
+
 /** Said where a file has rows, but none of them is dated within the chosen dates */
 export const IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR = 'No rows in this import fall within the chosen dates.'
 

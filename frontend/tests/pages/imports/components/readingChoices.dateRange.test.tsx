@@ -42,6 +42,7 @@ function renderChoices(
   disabled = false,
   dateRange: ImportDateRange = { from: '', to: '' },
   isDateRangeCrossed = false,
+  dateWindowErrors: Record<keyof ImportDateRange, string | null> = { from: null, to: null },
 ) {
   return renderToStaticMarkup(
     <ImportReadingChoices
@@ -50,6 +51,7 @@ function renderChoices(
       hasDateColumn={hasDateColumn}
       dateRange={dateRange}
       isDateRangeCrossed={isDateRangeCrossed}
+      dateWindowErrors={dateWindowErrors}
       startSuggestion={startSuggestion}
       onDelimiterChange={() => {}}
       onHeaderRowChange={() => {}}
@@ -98,6 +100,17 @@ describe('the dates to import in the File step', () => {
     const markup = renderChoices(true, null, false, { from: null, to: '2025-03-10' }, true)
     expect(markup).toContain('Enter the whole date, or clear it')
     expect(markup).not.toContain('Must be on or before the end date')
+  })
+
+  it('say on each date that falls outside the window, ahead of the crossed message', () => {
+    const markup = renderChoices(true, '2025-06-02', false, { from: '0001-01-01', to: '9999-12-31' }, true, {
+      from: 'Must be on or after Jan 1, 1900',
+      to: 'Must be within ten years of today',
+    })
+    expect(markup).toContain('Must be on or after Jan 1, 1900')
+    expect(markup).toContain('Must be within ten years of today')
+    expect(markup).not.toContain('Must be on or before the end date')
+    expect(markup).not.toContain('Latest recorded transaction')
   })
 
   // Not shown disabled beforehand, since a range is read through the date column

@@ -90,6 +90,36 @@ test('imports only the rows from the start date to the end date', async ({ page,
   await expect(page.getByRole('button', { name: /^Clear (start|end) date$/ })).toHaveCount(0)
 })
 
+// A date outside the window every date must sit in is read through no rows, so it is refused on its
+// own field and holds the import off. Only the page's own state can show that
+test('refuses a typed date outside the window on its field and holds the import off', async ({ page, request }) => {
+  await uploadYear(page, request)
+  const commit = page.getByRole('button', { name: 'Commit import', exact: true })
+  await expect(commit).toBeEnabled()
+
+  const start = await typeDate(page, 'Start date', '1899-12-31')
+  const end = await typeDate(page, 'End date', '9999-12-31')
+  await expect(page.getByText(/^Must be on or after Jan\s1,\s1900$/)).toBeVisible()
+  await expect(page.getByText('Must be within ten years of today', { exact: true })).toBeVisible()
+  await expect(start.getByRole('textbox', { name: 'Year', exact: true })).toHaveAttribute('aria-invalid', 'true')
+  await expect(end.getByRole('textbox', { name: 'Year', exact: true })).toHaveAttribute('aria-invalid', 'true')
+  await applyImportDates(page)
+  await expect(commit).toBeDisabled()
+
+  // The first day of the window is taken, and the end date's refusal holds the import until it is fixed
+  await showImportSetup(page)
+  await typeDate(page, 'Start date', '1900-01-01')
+  await expect(page.getByText(/^Must be on or after Jan\s1,\s1900$/)).toHaveCount(0)
+  await applyImportDates(page)
+  await expect(commit).toBeDisabled()
+
+  await showImportSetup(page)
+  await typeDate(page, 'End date', '2025-03-31')
+  await expect(page.getByText('Must be within ten years of today', { exact: true })).toHaveCount(0)
+  await applyImportDates(page)
+  await expect(commit).toBeEnabled()
+})
+
 // The page takes the dates only once editing ends, so the fields and their messages stay quick, and
 // then it takes them once. Focus moving from the start date to the end date is not the end
 test('updates the preview and the counts once the dates are left', async ({ page, request }) => {

@@ -99,7 +99,8 @@ async def get_transactions_overview(
         Aggregated transaction overview metrics for the selected filters
 
     Raises:
-        HTTPException: Raised with 422 when ``from_date`` is after ``to_date``
+        HTTPException: Raised with 422 when a date is outside the window, ``from_date`` is after
+            ``to_date`` or a range with a start covers over 20 years, reading a missing end as today
     """
     return await get_transactions_overview_response(
         db,

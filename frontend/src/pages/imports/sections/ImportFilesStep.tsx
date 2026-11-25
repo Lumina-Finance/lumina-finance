@@ -24,6 +24,7 @@ type ImportFilesStepProps = Pick<
   | 'columnMap'
   | 'dateRange'
   | 'isDateRangeCrossed'
+  | 'dateWindowErrors'
   | 'latestStartSuggestion'
   | 'setDateRangeEnd'
   | 'removeFile'
@@ -60,6 +61,7 @@ export function ImportFilesStep({
   columnMap,
   dateRange,
   isDateRangeCrossed,
+  dateWindowErrors,
   latestStartSuggestion,
   setDateRangeEnd,
   removeFile,
@@ -89,7 +91,8 @@ export function ImportFilesStep({
           rather than ruled out */}
       {!isAddingFiles && (
         <ImportInfoCard title="Files are read as UTF-8">
-          Other encodings are not supported yet, so a file saved as ISO-8859-1 or UTF-16 may not import correctly. Look for a UTF-8 option when saving your file as CSV.
+          Other encodings are not supported yet, so a file saved as ISO-8859-1 or UTF-16 may not import correctly. Look
+          for a UTF-8 option when saving your file as CSV.
         </ImportInfoCard>
       )}
 
@@ -140,10 +143,7 @@ export function ImportFilesStep({
           {uploadArea}
           {/* The upload card says the file is being read, so the empty state would contradict it */}
           {!isProcessingFiles && (
-            <EmptyState
-              title="No files staged"
-              description="The uploaded files will appear here."
-            />
+            <EmptyState title="No files staged" description="The uploaded files will appear here." />
           )}
         </>
       ) : (
@@ -152,7 +152,11 @@ export function ImportFilesStep({
               rows drop their side padding to do it, rather than being pulled out with a negative margin,
               since the section scrolls and a box wider than it slides sideways */}
           <div ref={stagedListRef}>
-            <ImportStagedFileList isFlush files={files} onRemove={isImportFinished ? undefined : (file) => removeFileKeepingFocus(file.id)} />
+            <ImportStagedFileList
+              isFlush
+              files={files}
+              onRemove={isImportFinished ? undefined : (file) => removeFileKeepingFocus(file.id)}
+            />
           </div>
           {/* Adding files sits with the list it adds to, above the settings they all share. A finished
               import's card is the start of the next import, so it sits last */}
@@ -165,6 +169,7 @@ export function ImportFilesStep({
               hasDateColumn={Boolean(columnMap.dt)}
               dateRange={dateRange}
               isDateRangeCrossed={isDateRangeCrossed}
+              dateWindowErrors={dateWindowErrors}
               startSuggestion={latestStartSuggestion}
               onDelimiterChange={changeDelimiter}
               onHeaderRowChange={changeHeaderRow}

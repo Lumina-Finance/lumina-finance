@@ -4,11 +4,13 @@ from datetime import UTC, datetime
 
 import pytest
 
+from app.routes.users import date_helpers
 from app.utils import date_window
 from tests.routes.support import _create_account, _create_user, _get_auth_header
 
-# The window then ends on 10 June 2036 for the furthest-ahead calendar
-FROZEN_MOMENT = datetime(2026, 6, 9, 23, 30, tzinfo=UTC)
+# It is already 10 June in UTC and on the furthest-ahead calendar, but still 9 June in Toronto. So the
+# window ends on 10 June 2036 while the user's own today is 9 June, and a test reading the wrong one fails
+FROZEN_MOMENT = datetime(2026, 6, 10, 2, 0, tzinfo=UTC)
 
 # The route that carries every case, since all of them share one check
 CASH_FLOW_PATH = "/insights/cash-flow"
@@ -27,8 +29,9 @@ OTHER_RANGE_PATHS = [
 
 @pytest.fixture(autouse=True)
 def frozen_clock(freeze_now) -> None:
-    """Fix the moment the window's last day is counted from"""
+    """Fix the moment the window's last day and the user's own today are counted from"""
     freeze_now(date_window, FROZEN_MOMENT)
+    freeze_now(date_helpers, FROZEN_MOMENT)
 
 
 @pytest.fixture
@@ -89,14 +92,58 @@ async def test_report_range_of_exactly_20_years_is_refused(client, headers):
     assert taken.status_code == 200
 
 
-async def test_overview_with_one_end_open_is_held_to_the_window_only(client, headers):
-    """An overview with only a start date can reach back to 1900 but not before it"""
-    taken = await client.get("/transactions/overview", params={"from_date": "1900-01-01"}, headers=headers)
-    refused = await client.get("/transactions/overview", params={"to_date": "2099-01-01"}, headers=headers)
+@pytest.mark.parametrize("path", OTHER_RANGE_PATHS)
+async def test_every_report_route_takes_the_window_edge_and_refuses_a_day_past_it(client, headers, path):
+    """Each route taking a report range answers one ending on the window's last day and refuses one a day later"""
+    on_the_edge = await client.get(path, params={"from_date": "2016-06-11", "to_date": "2036-06-10"}, headers=headers)
+    past_the_edge = await client.get(path, params={"from_date": "2030-01-01", "to_date": "2036-06-11"}, headers=headers)
 
-    assert taken.status_code == 200
-    assert refused.status_code == 422
-    assert refused.json()["detail"] == "End date must be within ten years of today"
+    assert on_the_edge.status_code == 200, "A range ending on the window's last day is taken"
+    assert past_the_edge.status_code == 422, "An end a day past the window is refused"
+    assert past_the_edge.json()["detail"] == "End date must be within ten years of today"
+
+
+@pytest.mark.parametrize(
+    ("params", "expected_status"),
+    [
+        # Only a start date: the range ends today, 9 June 2026 in the user's timezone
+        ({"from_date": "2006-06-10"}, 200),
+        ({"from_date": "2006-06-09"}, 422),
+        ({"from_date": "1900-01-01"}, 422),
+        ({"from_date": "2036-06-10"}, 200),
+        ({"from_date": "2036-06-11"}, 422),
+        # Only an end date: the report reads all data up to it, so only the window holds
+        ({"to_date": "1900-01-01"}, 200),
+        ({"to_date": "2020-01-01"}, 200),
+        ({"to_date": "2036-06-10"}, 200),
+        ({"to_date": "2036-06-11"}, 422),
+        # No dates is the user's whole history
+        ({}, 200),
+    ],
+)
+async def test_overview_holds_a_lone_start_to_20_years_to_today_and_a_lone_end_to_the_window(client, headers, params, expected_status):
+    """A lone start date reaches at most 20 years to today, and a lone end date only has to sit in the window"""
+    response = await client.get("/transactions/overview", params=params, headers=headers)
+
+    assert response.status_code == expected_status
+
+
+@pytest.mark.parametrize(
+    ("params", "detail"),
+    [
+        ({"from_date": "1900-01-01"}, "Range can cover at most 20 years"),
+        ({"from_date": "1850-01-01"}, "Start date must be on or after 1 January 1900"),
+        ({"to_date": "1850-01-01"}, "End date must be on or after 1 January 1900"),
+        ({"from_date": "2099-01-01"}, "Start date must be within ten years of today"),
+        ({"to_date": "2099-01-01"}, "End date must be within ten years of today"),
+    ],
+)
+async def test_overview_with_one_end_open_refuses_with_the_reason_on_the_field_at_fault(client, headers, params, detail):
+    """The overview says why a lone date is refused, as a span over 20 years or as the date outside the window"""
+    response = await client.get("/transactions/overview", params=params, headers=headers)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == detail
 
 
 @pytest.mark.parametrize(

@@ -51,6 +51,7 @@ import {
   countImportRowsOutsideDateRange,
   getImportDateRangeBlockReason,
   getImportDateRangeFilter,
+  getImportDateWindowErrors,
   getLatestStartSuggestion,
   getLatestTransactionFilters,
   excludeRefusedRows,
@@ -234,7 +235,8 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
 
   // Read from the dates on screen, not the ones the page has taken, so Commit import is greyed out
   // for as long as a date is wrong, including while the user is still in the field
-  const dateRangeBlockReason = getImportDateRangeBlockReason(columnMap, shownDateRange)
+  const dateRangeBlockReason = getImportDateRangeBlockReason(columnMap, shownDateRange, timeZone)
+  const dateWindowErrors = getImportDateWindowErrors(columnMap, shownDateRange, timeZone)
 
   // Offered rather than filled in, so the start stays empty unless the user asks for it
   const todayYmd = useTodayYmd()
@@ -1568,6 +1570,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     setDateFormat,
     dateRange: shownDateRange,
     isDateRangeCrossed,
+    dateWindowErrors,
     dateRangeBlockReason,
     outsideRangeRowCount,
     setDateRangeEnd,

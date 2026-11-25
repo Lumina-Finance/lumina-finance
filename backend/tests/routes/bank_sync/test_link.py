@@ -244,6 +244,21 @@ async def test_link_with_days_outside_the_range_or_crossed_saves_nothing(client,
     assert await _queued_jobs() == []
 
 
+async def test_link_with_a_day_outside_the_window_is_refused_on_that_field_before_the_providers_range(client):
+    """Year 1 start and a year 9999 end are outside the window every date sits in, each said on its own field"""
+    headers, _, account_id, connection = await _linkable(client)
+
+    refused = await _link_range(client, headers, account_id, connection.id, date(1, 1, 1), date(9999, 12, 31))
+
+    assert refused.status_code == 422, refused.text
+    assert [(error["loc"], error["msg"]) for error in refused.json()["detail"]] == [
+        (["body", "start_date"], "Date must be on or after 1 January 1900"),
+        (["body", "end_date"], "Date must be within ten years of today"),
+    ]
+    assert await _stored_links() == []
+    assert await _queued_jobs() == []
+
+
 async def _waiting_to_choose_again(client) -> tuple[dict, str, BankConnection, uuid.UUID, date]:
     """Sign up with Everyday's link to ACT-1 waiting in Choose bank account, its connection now listing ACT-2 instead
 

@@ -223,6 +223,19 @@ async def test_range_import_with_days_outside_what_the_provider_reaches_or_cross
     assert await _queued() == []
 
 
+async def test_range_import_with_a_day_outside_the_window_is_refused_on_that_field_before_the_providers_range(client):
+    """Year 1 is outside the window every date sits in, which is said on the field, not as the provider's range"""
+    headers, account_id, _, link = await _link_everyday(client, **_SYNCED)
+
+    response = await _import_range(client, headers, account_id, first_day="0001-01-01", last_day="2026-03-31")
+
+    assert response.status_code == 422, response.text
+    [error] = response.json()["detail"]
+    assert (error["loc"], error["msg"]) == (["body", "first_day"], "Date must be on or after 1 January 1900")
+    assert await _stored_range(link) == (None, None, None, None, False)
+    assert await _queued() == []
+
+
 async def test_unlinking_ends_the_range_and_forgets_how_the_last_one_ended(client):
     """Everyday's range runs and its last one was refused. Unlinking clears both, so nothing fetches into the account again"""
     headers, account_id, _, link = await _link_everyday(client, **_SYNCED, **_RUNNING, range_outcome="The date range import stopped")

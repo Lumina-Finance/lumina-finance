@@ -13,6 +13,7 @@ import {
   getUnansweredDirectionValuesError,
   IMPORT_DATE_RANGE_CROSSED_ERROR,
   IMPORT_DATE_RANGE_INCOMPLETE_ERROR,
+  IMPORT_DATE_RANGE_WINDOW_ERROR,
   IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR,
   MAX_IMPORT_MAPPINGS,
   NO_OUTFLOWS_WARNING,
@@ -49,7 +50,12 @@ import { buildImportMerchantMappings } from './merchantMatching'
 import { buildImportTagPayload, type ImportTagAnswers } from './tagMatching'
 import { getImportDirectionValues } from './columnMapping'
 import { getImportRowId, includeEveryImportRow, joinImportSummaryParts } from './common'
-import { getImportDateRangeFilter, isImportDateRangeCrossed, isImportDateRangeIncomplete } from './dateRange'
+import {
+  getImportDateRangeFilter,
+  isImportDateRangeCrossed,
+  isImportDateRangeIncomplete,
+  isImportDateRangeOutsideWindow,
+} from './dateRange'
 import { labelStagedFiles } from './stagedFiles'
 import { getAmountArrangementClashError, getMissingRequiredColumnLabels } from './workflowOptions'
 import {
@@ -203,6 +209,7 @@ export function buildTransactionImportPayload({
   // bad dates rather than one unanswered question
   if (columnMap.dt && !dateFormat) addError('Choose the date format this import is written in.')
   if (isImportDateRangeIncomplete(columnMap, dateRange)) addError(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
+  if (isImportDateRangeOutsideWindow(columnMap, dateRange, timeZone)) addError(IMPORT_DATE_RANGE_WINDOW_ERROR)
   if (isImportDateRangeCrossed(columnMap, dateRange)) addError(IMPORT_DATE_RANGE_CROSSED_ERROR)
   if ((columnMap.amount || columnMap.amount_out || columnMap.amount_in) && !amountFormat) {
     addError('Choose the amount format this import is written in.')

@@ -15,6 +15,7 @@ from app.schemas.limits import (
     SignedMinorUnits,
 )
 from app.schemas.names import TrimmedName
+from app.utils.date_window import WindowDate
 
 # Running while a sync is fetching the import's next part or could fetch it now. Waiting while a
 # failed attempt waits to retry, the bank needs a sign-in, or the provider refused the connection's
@@ -378,16 +379,17 @@ class LinkBankAccountRequest(BaseModel):
     # Calendar days in the user's profile timezone, inside the account's import range. Without an end
     # date, or with today, the import runs from the start to today. An earlier end date imports the
     # start through the end date as a date range, and syncing picks up from today, so the days
-    # between them stay as the ledger has them
-    start_date: date
-    end_date: date | None = None
+    # between them stay as the ledger has them. The window comes first, so a day outside it is
+    # refused on its field before the account's range is looked at
+    start_date: WindowDate
+    end_date: WindowDate | None = None
 
 
 class ImportBankRangeRequest(BaseModel):
     """The days a linked account imports from its bank as a date range, both included, in the user's profile timezone"""
 
-    first_day: date
-    last_day: date
+    first_day: WindowDate
+    last_day: WindowDate
 
     # Whether items dismissed before, dated inside the range, wait for review again
     restores_dismissed: bool = False
@@ -542,6 +544,9 @@ class BankLinkResponse(BankAccountLinkResponse):
 class DismissHistoryReminderRequest(BaseModel):
     """The history reminder the user dismissed, as it showed, so a newer one raised meanwhile stays"""
 
+    # The dates a dismissal sends back are the ones the server showed, compared with what the link
+    # holds and never walked or stored, so they take no window: a day the bank returned outside it
+    # must still be dismissible
     requested_start: date
     earliest_returned: date | None
 

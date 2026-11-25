@@ -58,26 +58,27 @@ def _require_in_window(value: date) -> date:
 WindowDate = Annotated[date, AfterValidator(_require_in_window)]
 
 
-def require_optional_report_range(from_date: date | None, to_date: date | None) -> None:
-    """Refuse a report range with ends that are set and outside the window
+def require_optional_report_range(from_date: date | None, to_date: date | None, today: date) -> None:
+    """Refuse a report range whose set ends sit outside the window or whose span is over 20 years
 
-    A range with one end open is held to the window only, and one with both ends set to everything
-    ``require_report_range`` checks
+    A report with no start reads all of the user's own data up to its end, so it is held to the
+    window only. A report with a start and no end reads through today, so it is held to a span of 20
+    years from the start to today. A start after today has no span, since the report finds no rows
 
     Args:
         from_date: Inclusive first date of the range, or None for no lower end
         to_date: Inclusive last date of the range, or None for no upper end
+        today: Today in the user's profile timezone
 
     Raises:
         HTTPException: 422 with a message naming the field at fault
     """
-    if from_date is not None and to_date is not None:
-        require_report_range(from_date, to_date)
-        return
-    for label, value in (("Start date", from_date), ("End date", to_date)):
-        error = get_window_error(value) if value is not None else None
+    if from_date is None:
+        error = None if to_date is None else get_window_error(to_date)
         if error is not None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"{label} {error}")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"End date {error}")
+        return
+    require_report_range(from_date, max(from_date, today) if to_date is None else to_date)
 
 
 def require_report_range(from_date: date, to_date: date) -> None:

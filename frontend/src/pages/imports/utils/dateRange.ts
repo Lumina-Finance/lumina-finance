@@ -1,7 +1,12 @@
 import type { ColumnMap, ImportDateRange, ImportFileDraft, ImportRowFilter } from '@/pages/imports/types'
 import type { TransactionFilters } from '@/api/transactions'
-import { addDays, formatYmd, isDateRangeCrossed, parseYmd } from '@/utils/date'
-import { IMPORT_DATE_RANGE_CROSSED_ERROR, IMPORT_DATE_RANGE_INCOMPLETE_ERROR } from '@/pages/imports/constants'
+import { addDays, formatYmd, getTodayYmd, isDateRangeCrossed, parseYmd } from '@/utils/date'
+import { getDateWindowError } from '@/utils/dateWindow'
+import {
+  IMPORT_DATE_RANGE_CROSSED_ERROR,
+  IMPORT_DATE_RANGE_INCOMPLETE_ERROR,
+  IMPORT_DATE_RANGE_WINDOW_ERROR,
+} from '@/pages/imports/constants'
 import { includeEveryImportRow } from './common'
 import { readImportRowDate } from './rowResolution'
 import type { ImportDateFormat, ImportDateSeparator } from './valueParsers'
@@ -26,13 +31,40 @@ export function isImportDateRangeIncomplete(columnMap: ColumnMap, { from, to }: 
 }
 
 /**
+ * Says why each whole chosen date is outside the window every date the app takes must sit in, null
+ * for a date inside it, one not yet whole and any date while no date column is mapped
+ *
+ * @param timeZone - The profile's zone, whose today decides where the window ends
+ */
+export function getImportDateWindowErrors(
+  columnMap: ColumnMap,
+  { from, to }: ImportDateRange,
+  timeZone?: string,
+): Record<keyof ImportDateRange, string | null> {
+  if (!columnMap.dt) return { from: null, to: null }
+
+  const todayYmd = getTodayYmd(timeZone)
+  return {
+    from: from ? getDateWindowError(from, todayYmd) : null,
+    to: to ? getDateWindowError(to, todayYmd) : null,
+  }
+}
+
+/** Reports whether either chosen date is outside the window. That blocks the import as a crossed range does */
+export function isImportDateRangeOutsideWindow(columnMap: ColumnMap, dateRange: ImportDateRange, timeZone?: string) {
+  const errors = getImportDateWindowErrors(columnMap, dateRange, timeZone)
+  return errors.from !== null || errors.to !== null
+}
+
+/**
  * Says why the chosen dates hold Commit import off, or null when they do not
  *
  * Read from the range the fields show rather than the one the page has taken, so the button is
  * greyed out the moment a date is wrong and stays so while the user is still in the field
  */
-export function getImportDateRangeBlockReason(columnMap: ColumnMap, dateRange: ImportDateRange) {
+export function getImportDateRangeBlockReason(columnMap: ColumnMap, dateRange: ImportDateRange, timeZone?: string) {
   if (isImportDateRangeIncomplete(columnMap, dateRange)) return IMPORT_DATE_RANGE_INCOMPLETE_ERROR
+  if (isImportDateRangeOutsideWindow(columnMap, dateRange, timeZone)) return IMPORT_DATE_RANGE_WINDOW_ERROR
   if (isImportDateRangeCrossed(columnMap, dateRange)) return IMPORT_DATE_RANGE_CROSSED_ERROR
   return null
 }
@@ -45,8 +77,8 @@ export function getImportDateRangeBlockReason(columnMap: ColumnMap, dateRange: I
  *
  * @returns Every row while no range is chosen or no date column is mapped, and null while a chosen
  *   range cannot be applied: before the date format is settled, while a date is only partly typed,
- *   or while its ends are crossed. Which rows fall outside is then unknown, which is not the same as
- *   none
+ *   while its ends are crossed, or while a date is outside the window. Which rows fall outside is
+ *   then unknown, and unknown is not the same as none
  */
 export function getImportDateRangeFilter({
   columnMap,
@@ -64,6 +96,7 @@ export function getImportDateRangeFilter({
   const { from, to } = dateRange
   if (!columnMap.dt) return includeEveryImportRow
   if (from === null || to === null || isDateRangeCrossed({ from, to })) return null
+  if (isImportDateRangeOutsideWindow(columnMap, dateRange, timeZone)) return null
   if (!from && !to) return includeEveryImportRow
   if (!dateFormat) return null
 

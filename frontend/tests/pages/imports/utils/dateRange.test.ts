@@ -3,18 +3,20 @@
  * upload kept from an interrupted save is not taken for one sent with other answers, and the rows the
  * range leaves out are unknown rather than none while it cannot be applied
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   EMPTY_COLUMN_MAP,
   getRowsOutsideDateRangeExplanation,
   IMPORT_DATE_RANGE_CROSSED_ERROR,
   IMPORT_DATE_RANGE_INCOMPLETE_ERROR,
+  IMPORT_DATE_RANGE_WINDOW_ERROR,
 } from '@/pages/imports/constants'
 import type { ImportDateRange, ImportFileDraft } from '@/pages/imports/types'
 import {
   countImportRowsOutsideDateRange,
   getImportDateRangeBlockReason,
   getImportDateRangeFilter,
+  getImportDateWindowErrors,
   getLatestStartSuggestion,
   getLatestTransactionFilters,
   getNextImportDateRange,
@@ -35,7 +37,10 @@ const FILE: ImportFileDraft = {
 }
 
 function countOutside(dateRange: ImportDateRange, dateFormat: 'yearFirst' | null = 'yearFirst') {
-  return countImportRowsOutsideDateRange([FILE], getImportDateRangeFilter({ columnMap: COLUMN_MAP, dateFormat, dateRange }))
+  return countImportRowsOutsideDateRange(
+    [FILE],
+    getImportDateRangeFilter({ columnMap: COLUMN_MAP, dateFormat, dateRange }),
+  )
 }
 
 describe('changing the chosen dates', () => {
@@ -115,26 +120,98 @@ describe('offering the day after the latest transaction as the start', () => {
 describe('the reason the chosen dates hold Commit import off', () => {
   it('names a date only partly typed, a start after the end, and nothing otherwise', () => {
     expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: null, to: '' })).toBe(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
-    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: null })).toBe(IMPORT_DATE_RANGE_INCOMPLETE_ERROR)
-    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: '2025-03-01' })).toBe(IMPORT_DATE_RANGE_CROSSED_ERROR)
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: null })).toBe(
+      IMPORT_DATE_RANGE_INCOMPLETE_ERROR,
+    )
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-31', to: '2025-03-01' })).toBe(
+      IMPORT_DATE_RANGE_CROSSED_ERROR,
+    )
     expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2025-03-01', to: '2025-03-31' })).toBeNull()
     expect(getImportDateRangeBlockReason(COLUMN_MAP, WHOLE_FILE_DATE_RANGE)).toBeNull()
   })
 
   it('holds nothing off while no date column is mapped, since the fields are not shown', () => {
+    expect(getImportDateRangeBlockReason(EMPTY_COLUMN_MAP, { from: '0001-01-01', to: '9999-12-31' })).toBeNull()
     expect(getImportDateRangeBlockReason(EMPTY_COLUMN_MAP, { from: null, to: '' })).toBeNull()
     expect(getImportDateRangeBlockReason(EMPTY_COLUMN_MAP, { from: '2025-03-31', to: '2025-03-01' })).toBeNull()
   })
 })
 
+describe('the window every chosen date must sit in', () => {
+  // Today is 9 June 2026 in UTC, so the window ends on 9 June 2036
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-09T12:00:00Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('takes both edges and refuses the day past each, saying so on the date at fault', () => {
+    expect(getImportDateWindowErrors(COLUMN_MAP, { from: '1900-01-01', to: '2036-06-09' }, 'UTC')).toEqual({
+      from: null,
+      to: null,
+    })
+    const refused = getImportDateWindowErrors(COLUMN_MAP, { from: '1899-12-31', to: '2036-06-10' }, 'UTC')
+
+    // The label keeps its date on one line with non-breaking spaces, so they are read as plain ones here
+    expect(refused.from?.replace(/\s/g, ' ')).toBe('Must be on or after Jan 1, 1900')
+    expect(refused.to).toBe('Must be within ten years of today')
+  })
+
+  it('holds a lone date to the window as it does one of two, whichever end it is', () => {
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '1899-12-31', to: '' }, 'UTC')).toBe(
+      IMPORT_DATE_RANGE_WINDOW_ERROR,
+    )
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '', to: '2036-06-10' }, 'UTC')).toBe(
+      IMPORT_DATE_RANGE_WINDOW_ERROR,
+    )
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '', to: '2036-06-09' }, 'UTC')).toBeNull()
+  })
+
+  it('counts the window from today in the profile zone, so it reaches a day further where the date is later', () => {
+    // 12:00 UTC is already 10 June in Auckland
+    expect(getImportDateWindowErrors(COLUMN_MAP, { from: '', to: '2036-06-10' }, 'Pacific/Auckland').to).toBeNull()
+    expect(getImportDateWindowErrors(COLUMN_MAP, { from: '', to: '2036-06-11' }, 'Pacific/Auckland').to).not.toBeNull()
+  })
+
+  it('says nothing of a date only partly typed or empty, which the field answers for itself', () => {
+    expect(getImportDateWindowErrors(COLUMN_MAP, { from: null, to: '' }, 'UTC')).toEqual({ from: null, to: null })
+  })
+
+  it('holds Commit import off ahead of a crossed range, and leaves the rows unknown rather than none', () => {
+    const outside = { from: '0001-01-01', to: '2025-03-01' }
+
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, outside, 'UTC')).toBe(IMPORT_DATE_RANGE_WINDOW_ERROR)
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '2036-06-10', to: '2025-03-01' }, 'UTC')).toBe(
+      IMPORT_DATE_RANGE_WINDOW_ERROR,
+    )
+    expect(
+      getImportDateRangeFilter({ columnMap: COLUMN_MAP, dateFormat: 'yearFirst', timeZone: 'UTC', dateRange: outside }),
+    ).toBeNull()
+  })
+
+  it('leaves a range on the edges of the window applied', () => {
+    expect(getImportDateRangeBlockReason(COLUMN_MAP, { from: '1900-01-01', to: '2036-06-09' }, 'UTC')).toBeNull()
+  })
+})
+
 describe('explaining the rows outside the chosen dates', () => {
   it('speaks of one row in the singular', () => {
-    expect(getRowsOutsideDateRangeExplanation(1, false)).toBe('1 row is dated outside the chosen dates, so it won\'t be imported.')
-    expect(getRowsOutsideDateRangeExplanation(1, true)).toBe('1 row was dated outside the chosen dates, so it wasn\'t imported.')
+    expect(getRowsOutsideDateRangeExplanation(1, false)).toBe(
+      "1 row is dated outside the chosen dates, so it won't be imported.",
+    )
+    expect(getRowsOutsideDateRangeExplanation(1, true)).toBe(
+      "1 row was dated outside the chosen dates, so it wasn't imported.",
+    )
   })
 
   it('speaks of several rows in the plural', () => {
-    expect(getRowsOutsideDateRangeExplanation(2, false)).toBe('2 rows are dated outside the chosen dates, so they won\'t be imported.')
-    expect(getRowsOutsideDateRangeExplanation(2, true)).toBe('2 rows were dated outside the chosen dates, so they weren\'t imported.')
+    expect(getRowsOutsideDateRangeExplanation(2, false)).toBe(
+      "2 rows are dated outside the chosen dates, so they won't be imported.",
+    )
+    expect(getRowsOutsideDateRangeExplanation(2, true)).toBe(
+      "2 rows were dated outside the chosen dates, so they weren't imported.",
+    )
   })
 })
