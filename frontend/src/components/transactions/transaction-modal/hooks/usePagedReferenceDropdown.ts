@@ -86,13 +86,7 @@ export function usePagedReferenceDropdown<TItem extends { id: string }>({
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [
-    activeSearchText,
-    fetchedItemKey,
-    fetchedItems,
-    query.isFetchingNextPage,
-    visibleItemKey,
-  ])
+  }, [activeSearchText, fetchedItemKey, fetchedItems, query.isFetchingNextPage, visibleItemKey])
 
   useEffect(() => {
     if (query.isLoading) {
@@ -111,12 +105,8 @@ export function usePagedReferenceDropdown<TItem extends { id: string }>({
 
     const isAppendingPage = fetchedItems.length > visibleItemCountRef.current && visibleItemCountRef.current > 0
     const isInitialPage = fetchedItems.length > 0 && visibleItemCountRef.current === 0
-    const fetchStartedAt = isAppendingPage
-      ? fetchMoreStartedAtRef.current
-      : initialFetchStartedAtRef.current
-    const minimumVisibleMs = isAppendingPage
-      ? fetchingMoreMinMs
-      : searchLoadingMinMs
+    const fetchStartedAt = isAppendingPage ? fetchMoreStartedAtRef.current : initialFetchStartedAtRef.current
+    const minimumVisibleMs = isAppendingPage ? fetchingMoreMinMs : searchLoadingMinMs
     const elapsed = fetchStartedAt === null ? minimumVisibleMs : performance.now() - fetchStartedAt
     const delayMs = Math.max(minimumVisibleMs - elapsed, 0)
     const timeoutId = window.setTimeout(() => {
@@ -126,13 +116,7 @@ export function usePagedReferenceDropdown<TItem extends { id: string }>({
     }, delayMs)
 
     return () => window.clearTimeout(timeoutId)
-  }, [
-    fetchedItemKey,
-    fetchedItems,
-    fetchingMoreMinMs,
-    searchLoadingMinMs,
-    visibleItemKey,
-  ])
+  }, [fetchedItemKey, fetchedItems, fetchingMoreMinMs, searchLoadingMinMs, visibleItemKey])
 
   const loadMore = useCallback(() => {
     if (!query.hasNextPage || query.isFetchingNextPage || showFetchingMore) return
