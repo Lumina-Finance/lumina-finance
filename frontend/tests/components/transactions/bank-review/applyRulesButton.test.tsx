@@ -1,16 +1,13 @@
 /**
- * Covers the Apply rules button in the offer under the block's first line
+ * Covers the Reapply updated rules link in the offer under the block's first line
  *
- * These tests catch a button that can be pressed again while its press runs, one that stays live
- * while Approve all runs, and a busy mark or a reason showing on the button that only waits. The width
- * it keeps while the spinner shows is measured in the browser
+ * These tests catch a link that can be pressed again while its press runs, one that stays live
+ * while Approve all runs, and a busy mark or a reason showing on the link that only waits. The width
+ * it keeps while its press runs is measured in the browser
  */
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
-
-// The crossfade needs a browser to mount, so the button's content is drawn without its animated layers
-vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
+import { describe, expect, it } from 'vitest'
 
 import { ApplyRulesButton } from '@/components/transactions/bank-review/ApplyRulesButton'
 
@@ -20,11 +17,11 @@ function render(state: { isApplying?: boolean; isHeldOff?: boolean } = {}): stri
   )
 }
 
-describe('the Apply rules button', () => {
+describe('the Reapply updated rules button', () => {
   it('is live and not busy when nothing runs', () => {
     const markup = render()
 
-    expect(markup).toContain('>Apply rules<')
+    expect(markup).toContain('>Reapply updated rules<')
     expect(markup).toContain('aria-busy="false"')
     expect(markup).not.toMatch(/<button[^>]* disabled=""/)
   })

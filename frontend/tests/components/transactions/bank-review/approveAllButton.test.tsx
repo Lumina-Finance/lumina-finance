@@ -3,7 +3,7 @@
  *
  * These tests catch the button staying live when no waiting item holds a merchant and a category,
  * giving the old reasons, hiding the reason from a screen reader, a button that can be pressed again
- * while its press is running, and one that stays live or shows a reason while Apply rules runs. The width
+ * while its press is running, and one that stays live or shows a reason while Reapply updated rules runs. The width
  * it keeps while the spinner shows is measured in the browser
  */
 import { createElement } from 'react'
@@ -52,7 +52,7 @@ describe('the Approve all button', () => {
     expect(markup).not.toContain('No waiting item')
   })
 
-  it('is held off with no reason and not busy while Apply rules runs, even with nothing to add', () => {
+  it('is held off with no reason and not busy while Reapply updated rules runs, even with nothing to add', () => {
     for (const anyAddable of [true, false]) {
       const markup = render(anyAddable, { isHeldOff: true })
 

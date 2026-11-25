@@ -14,7 +14,7 @@
  * dismissal taking out an item it skipped, leaving its count too high for a decided item on a page not
  * loaded yet, reloading the ledger for a dismissal or never reading the inbox again for the items
  * skipped, a press of Approve all leaving an added item in a loaded page or its count, or writing
- * to the ledger when nothing was added, a press of Apply rules leaving the rows or the offer stale
+ * to the ledger when nothing was added, a press of Reapply updated rules leaving the rows or the offer stale
  * or settling before the list has read them again, a restored bank value leaving the inbox showing the ledger value it replaced or the balance panel's ledger stale, a link change settling
  * before the views that show it have refetched, and a deleted account's own bank views asking about
  * it again while its page still shows them
@@ -479,7 +479,7 @@ describe('a press of Approve all', () => {
   })
 })
 
-describe('a press of Apply rules', () => {
+describe('a press of Reapply updated rules', () => {
   const accountScopeKey = bankSyncKeys.reviewItems(['account-1'])
 
   beforeEach(() => {

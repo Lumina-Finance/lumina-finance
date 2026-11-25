@@ -791,7 +791,7 @@ export type ApproveAllResult = {
 }
 
 /**
- * What a press of Apply rules did to the waiting items
+ * What a press of Reapply updated rules did to the waiting items
  */
 export type ApplyRulesResult = {
   /** How many waiting items hold different values after the press */

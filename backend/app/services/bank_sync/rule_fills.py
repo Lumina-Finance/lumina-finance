@@ -1,6 +1,6 @@
 """Putting a waiting bank item through the user's import rules
 
-A sync does it as an item arrives and a press of Apply rules does it again, both from the same shared
+A sync does it as an item arrives and a press of Reapply updated rules does it again, both from the same shared
 loader, matcher and fill a file import uses. Every item is turned into the facts the matcher
 compares, given the rules' answer, and held to what a transaction takes. The answer is saved on the
 item as ids with the digest of the rules that gave it, and saved_fills.py reads it back

@@ -6,7 +6,7 @@
  * These tests catch Dismiss running over a ledger transaction, Edit opening over an item missing its
  * amount, Apply counting only one kind toward the cap, a bulk add sending a note taken off or tags it
  * can't replace, a toast hiding the items that were skipped, a press of Approve all saying nothing
- * of the items it left to add or naming the old button, and a press of Apply rules miscounting the
+ * of the items it left to add or naming the old button, and a press of Reapply updated rules miscounting the
  * waiting items it updated or giving no word when it changed none
  */
 import { describe, expect, it } from 'vitest'
@@ -175,7 +175,7 @@ describe('the toasts after a bulk decision', () => {
     expect(describeApproveAllAnswer({ added_ids: [], more_to_add: false })).toBe(describeApprovedAll(0, false))
   })
 
-  it('says how many waiting items a press of Apply rules updated, and that none changed when none did', () => {
+  it('says how many waiting items a press of Reapply updated rules updated, and that none changed when none did', () => {
     expect(describeAppliedRules(12)).toBe('Updated 12 waiting items with your import rules.')
     expect(describeAppliedRules(1)).toBe('Updated 1 waiting item with your import rules.')
     expect(describeAppliedRules(0)).toBe('Your import rules changed nothing on the waiting items.')

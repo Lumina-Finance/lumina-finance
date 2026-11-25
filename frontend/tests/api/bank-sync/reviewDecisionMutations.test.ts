@@ -4,7 +4,7 @@
  * These tests catch an item decided in another tab or on another device, or withdrawn by the bank,
  * staying in the review block after a decision on it fails here, whether that was Add to ledger, a
  * bulk add or dismissal, a press of Approve all or any other decision, and the waiting counts beside
- * the block staying as they were. A refused press of Apply rules changes nothing, so it must leave
+ * the block staying as they were. A refused press of Reapply updated rules changes nothing, so it must leave
  * the list as it is, offer included, and a press that went through must read the list again
  */
 import { MutationObserver, QueryClient, type QueryKey } from '@tanstack/react-query'
@@ -119,7 +119,7 @@ describe('a review decision the server refuses', () => {
   })
 })
 
-describe('a press of Apply rules', () => {
+describe('a press of Reapply updated rules', () => {
   const press = () => new MutationObserver(queryClient, applyRulesToReviewItemsMutationOptions(queryClient)).mutate()
 
   it('leaves the list, and so the offer, as it is when the server refuses it', async () => {

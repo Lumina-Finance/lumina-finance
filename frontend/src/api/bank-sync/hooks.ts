@@ -633,7 +633,7 @@ export function useApproveAllReviewItems() {
 }
 
 /**
- * How a press of Apply rules runs. It settles once the review list has read the saved values again,
+ * How a press of Reapply updated rules runs. It settles once the review list has read the saved values again,
  * so the rows, the offer and Approve all follow together. A refusal changes nothing, so the list and
  * its offer stay as they are
  */

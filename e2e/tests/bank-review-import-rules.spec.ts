@@ -26,7 +26,7 @@ import { API_BASE_URL } from '../support/target'
 // each press saved is read back through the API, the same at every size
 
 // The rule saves its merchant and category on each waiting item as the item arrives. Approve all adds
-// what is saved. After the rule changes the block offers Apply rules, and a press saves the new values.
+// what is saved. After the rule changes the block offers Reapply updated rules, and a press saves the new values.
 // Everyday links to an empty bank account on the fake SimpleFIN Bridge. The bridge sends four items:
 // three the rule "Cafes" matches and one it doesn't
 
@@ -127,7 +127,7 @@ async function changeRule(page: Page, request: APIRequestContext, user: TestUser
   await openPage(page, '/transactions')
 }
 
-test('the rules fill items as they arrive, and Apply rules and Approve all each do their own work', NEEDS_BANK_SYNC, async ({
+test('the rules fill items as they arrive, and Reapply updated rules and Approve all each do their own work', NEEDS_BANK_SYNC, async ({
   page,
   request,
 }) => {
@@ -143,7 +143,7 @@ test('the rules fill items as they arrive, and Apply rules and Approve all each 
     )
   })
 
-  await test.step('a changed rule leaves the old values on the rows and offers Apply rules', async () => {
+  await test.step('a changed rule leaves the old values on the rows and offers Reapply updated rules', async () => {
     await changeRule(page, request, user, ruleId)
 
     await expect(page.getByText(OFFER)).toBeVisible()
@@ -154,9 +154,9 @@ test('the rules fill items as they arrive, and Apply rules and Approve all each 
     )
   })
 
-  await test.step('Apply rules saves the new values and the offer goes', async () => {
+  await test.step('Reapply updated rules saves the new values and the offer goes', async () => {
     // The button keeps its width while its press runs
-    const apply = page.getByRole('button', { name: 'Apply rules', exact: true })
+    const apply = page.getByRole('button', { name: 'Reapply updated rules', exact: true })
     const widths = await widthsAroundPress(page, apply, '/bank-review/items/apply-rules')
     expect(Math.abs(widths.during - widths.before)).toBeLessThanOrEqual(0.5)
 
@@ -216,8 +216,8 @@ test('the rules fill items as they arrive, and Apply rules and Approve all each 
   })
 })
 
-// The phone's narrow tint is where the offer's button moves under its sentence, so the places are read at every size
-test('ends Approve all and the tinted offer where the rows end, with Apply rules inside the tint and across its width on a phone', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({
+// The phone's narrow tint is where the offer's link moves under its sentence, so the places are read at every size
+test('ends Approve all and the tinted offer where the rows end, with Reapply updated rules as the tint\'s link', AT_EVERY_SIZE_NEEDS_BANK_SYNC, async ({
   page,
   request,
 }) => {
@@ -226,23 +226,26 @@ test('ends Approve all and the tinted offer where the rows end, with Apply rules
   const sentence = page.getByText(OFFER, { exact: true })
   await expect(sentence).toBeVisible()
 
-  // The icon and the sentence share a box, and the tinted box holds that and the button
+  // The tinted box holds the icon and a box with the sentence and the link
   const [header, approve, apply, words, tinted, amount] = await Promise.all(
     [
       reviewBlock(page).getByRole('heading', { name: 'Waiting for review' }),
       page.getByRole('button', { name: 'Approve all', exact: true }),
-      page.getByRole('button', { name: 'Apply rules', exact: true }),
-      sentence.locator('..'),
+      page.getByRole('button', { name: 'Reapply updated rules', exact: true }),
+      sentence,
       sentence.locator('../..'),
       row(page, 'CAFE 01').getByTestId('review-item-amount'),
     ].map(async (part) => (await part.boundingBox())!),
   )
   const right = (box: { x: number; width: number }) => box.x + box.width
   const bottom = (box: { y: number; height: number }) => box.y + box.height
-  const INSET = 6
+  const INSET = 12
+
+  // An inline link keeps 2px either side of its label for its focus ring
+  const LINK_FOCUS_ROOM = 2
 
   // The icon sits 4px before the sentence's first letter and centres on its capitals, measured from the drawing
-  const beside = await measureIconBesideText(sentence.locator('..').locator('svg'), sentence, 'before')
+  const beside = await measureIconBesideText(sentence.locator('../..').locator('svg'), sentence, 'before')
   expect(Math.abs(beside.offCentre)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
   expect(Math.abs(beside.gap - ICON_GAP_PX)).toBeLessThanOrEqual(ICON_ALIGNMENT_TOLERANCE_PX)
 
@@ -250,18 +253,17 @@ test('ends Approve all and the tinted offer where the rows end, with Apply rules
   expect(Math.abs(right(approve) - right(amount))).toBeLessThanOrEqual(1)
   expect(Math.abs(right(tinted) - right(amount))).toBeLessThanOrEqual(1)
 
-  // Inside the tint, the same way in from its right and bottom edges at every size
-  expect(Math.abs(right(tinted) - right(apply) - INSET)).toBeLessThanOrEqual(0.5)
-  expect(Math.abs(bottom(tinted) - bottom(apply) - INSET)).toBeLessThanOrEqual(0.5)
+  expect(apply.y).toBeGreaterThanOrEqual(tinted.y)
+  expect(bottom(apply)).toBeLessThanOrEqual(bottom(tinted))
 
   if (page.viewportSize()!.width < 640) {
-    // Under the sentence, across the tint's width
+    // Under the sentence, its label starting where the sentence starts
     expect(apply.y).toBeGreaterThanOrEqual(bottom(words))
-    expect(Math.abs(apply.x - tinted.x - INSET)).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(apply.x + LINK_FOCUS_ROOM - words.x)).toBeLessThanOrEqual(0.5)
   } else {
-    // After the sentence, on its line, as far in from the tint's top as from its bottom
+    // After the sentence on its line, its label as far in from the tint's right edge as the icon is from its left
     expect(apply.x).toBeGreaterThanOrEqual(right(words))
-    expect(Math.abs(apply.y - tinted.y - INSET)).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(right(tinted) - (right(apply) - LINK_FOCUS_ROOM) - INSET)).toBeLessThanOrEqual(0.5)
     expect(Math.abs(apply.y + apply.height / 2 - (words.y + words.height / 2))).toBeLessThanOrEqual(1)
   }
 })

@@ -1,4 +1,4 @@
-"""Pressing Apply rules puts every waiting new item through the person's import rules as they stand now
+"""Pressing Reapply updated rules puts every waiting new item through the person's import rules as they stand now
 
 The press replaces the values saved on each item, clearing the ones the rules no longer give, and
 saves the digest of the rules with them. It covers every waiting new item the person owns, whatever
@@ -45,7 +45,7 @@ _STALE = "b" * 64
 
 
 async def _apply(client, headers):
-    """Press Apply rules"""
+    """Press Reapply updated rules"""
     return await client.post("/bank-review/items/apply-rules", headers=headers)
 
 

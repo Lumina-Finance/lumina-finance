@@ -1,40 +1,33 @@
-import { PendingLabel } from '@/components/loading/PendingLabel'
-import { useFittedButtonWidth } from '@/hooks/useFittedButtonWidth'
-
 type ApplyRulesButtonProps = {
-  /** Set while this press runs. The button is held off and shows a spinner */
+  /** Set while this press runs. The link is held off and dims, and a screen reader hears it is busy */
   isApplying: boolean
 
-  /** Set while the other press of the block runs. The button is held off with no spinner */
+  /** Set while the other press of the block runs. The link is held off and dims */
   isHeldOff: boolean
   onApply: () => void
 }
 
-const LABEL = 'Apply rules'
+const LABEL = 'Reapply updated rules'
 
 /**
  * Puts the waiting items through the import rules as they stand now and saves what the rules give.
- * It is the same small secondary button as Approve all, with the same width kept while it is busy
+ * It is drawn as the retry of the block's failure notice is, as a link at the end of the tinted line,
+ * so the line reads as one notice rather than holding a second button beside Approve all. It keeps its
+ * label while busy, so its width never changes
  */
 export function ApplyRulesButton({ isApplying, isHeldOff, onApply }: ApplyRulesButtonProps) {
-  const { buttonRef, style, measure } = useFittedButtonWidth(LABEL)
-
-  // The padding matches Approve all, so the label is whole while it fades out under the spinner. On a
-  // phone the button spans its line, under the sentence it answers
+  // The focus ring takes the selected navigation item's focus colour, since the usual one is under 3:1 on
+  // the warning tint. On a phone the link starts a line of its own, and its 2px of room for that ring comes
+  // off its left, so its label starts where the sentence above it does
   return (
     <button
-      ref={buttonRef}
       type="button"
-      className="app-secondary-button relative h-8 w-full shrink-0 whitespace-nowrap px-3.5 text-sm sm:w-(--fit-width)"
-      style={style}
+      className="app-inline-link -ml-0.5 shrink-0 whitespace-nowrap font-medium sm:ml-0 underline underline-offset-2 transition-control focus-visible:outline-(--app-accent-nav-focus-border) disabled:cursor-default disabled:opacity-50"
       aria-busy={isApplying}
       disabled={isApplying || isHeldOff}
       onClick={onApply}
     >
-      {measure}
-      <PendingLabel pending={isApplying} name={LABEL}>
-        {LABEL}
-      </PendingLabel>
+      {LABEL}
     </button>
   )
 }

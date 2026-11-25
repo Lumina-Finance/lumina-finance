@@ -292,33 +292,34 @@ export function BankReviewBlock({
         {offersApplyRules && ruleActions && (
           <motion.div key="rules-offer" {...notice}>
             <div className="px-3 pb-2" style={PAST_THE_RAIL}>
-              {/* The tint holds the sentence and the button that answers it, the button 6px from the tint's
-                  edges and the sentence 12px from its left as in the other notices. On a phone the button
-                  takes the line under the sentence, across the tint's whole width */}
+              {/* Padded as the backlog notice is, with the link that answers the sentence at the line's end,
+                  its label 12px in from the right as the icon is from the left. The link's own 2px of room
+                  for its focus ring comes off the right padding. On a phone the link takes the line under
+                  the sentence, its label starting where the sentence starts */}
               <div
-                className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg p-1.5 text-xs"
+                className="flex items-start gap-1 rounded-lg py-2 pr-2.5 pl-3 text-xs"
                 style={{ background: 'var(--app-warning-soft)', color: 'var(--app-text)' }}
               >
-                <div className="flex min-w-0 flex-1 basis-64 items-start gap-1 p-1.5">
-                  {/* The list's lines end 2 of the icon's 24 units short of its box, 1.17px at 14px, so pulling
-                      the box that far over the 4px gap puts the drawn glyph 4px from the sentence. A 0.8px drop
-                      centres the drawing on the capitals of the sentence's first line, where 1px sat 0.2px low */}
-                  <ListOrdered
-                    size={14}
-                    aria-hidden
-                    className="mt-[0.8px] -mr-[1.17px] shrink-0"
-                    style={{ color: 'var(--app-warning-text)' }}
-                  />
+                {/* The list's lines end 2 of the icon's 24 units short of its box, 1.17px at 14px, so pulling
+                    the box that far over the 4px gap puts the drawn glyph 4px from the sentence. A 0.8px drop
+                    centres the drawing on the capitals of the sentence's first line, where 1px sat 0.2px low */}
+                <ListOrdered
+                  size={14}
+                  aria-hidden
+                  className="mt-[0.8px] -mr-[1.17px] shrink-0"
+                  style={{ color: 'var(--app-warning-text)' }}
+                />
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
                   {/* A polite status, so a screen reader hears it arrive */}
-                  <p role="status" className="min-w-0">
+                  <p role="status" className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
                     Your import rules changed after these items arrived.
                   </p>
+                  <ApplyRulesButton
+                    isApplying={ruleActions.busy === 'apply'}
+                    isHeldOff={ruleActions.busy === 'approve'}
+                    onApply={ruleActions.onApplyRules}
+                  />
                 </div>
-                <ApplyRulesButton
-                  isApplying={ruleActions.busy === 'apply'}
-                  isHeldOff={ruleActions.busy === 'approve'}
-                  onApply={ruleActions.onApplyRules}
-                />
               </div>
             </div>
           </motion.div>

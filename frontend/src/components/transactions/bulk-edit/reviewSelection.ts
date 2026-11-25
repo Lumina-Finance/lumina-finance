@@ -141,7 +141,7 @@ export function describeApproveAllAnswer(answer: Pick<ApproveAllResult, 'added_i
 }
 
 /**
- * What the toast says once a press of Apply rules has gone through
+ * What the toast says once a press of Reapply updated rules has gone through
  *
  * @param changed - How many waiting items hold different values after the press, as the server counted them
  */

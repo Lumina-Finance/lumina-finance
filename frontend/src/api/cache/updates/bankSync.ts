@@ -249,7 +249,7 @@ export async function applyApproveAllOutcome(
 }
 
 /**
- * Reads every scope of the inbox again after a press of Apply rules, settling once the active one has
+ * Reads every scope of the inbox again after a press of Reapply updated rules, settling once the active one has
  * answered. The press changed values saved on waiting items and nothing in the ledger, so the rows,
  * the offer and Approve all follow from that read alone
  */

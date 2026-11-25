@@ -3,7 +3,7 @@
  *
  * These tests catch the review list losing its place between pages, a body losing the field names
  * the backend reads, such as the credential a reconnect sends, a press of Approve all still sending
- * the version of the rules the server no longer reads, or a press of Apply rules sending a body, a request that waits on the bank
+ * the version of the rules the server no longer reads, or a press of Reapply updated rules sending a body, a request that waits on the bank
  * provider failing at the shared request limit while the server is still finishing it, and a read
  * that keeps going after the load that asked for it was abandoned
  */

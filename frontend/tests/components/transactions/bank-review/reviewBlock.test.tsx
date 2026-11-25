@@ -189,8 +189,8 @@ describe('the offer to apply the rules again', () => {
 
     expect(offer).toBeGreaterThan(first)
     expect(offer).toBeLessThan(markup.indexOf('role="list"'))
-    expect(markup.slice(offer, markup.indexOf('role="list"'))).toContain('>Apply rules<')
-    expect(buttonsNamed(markup, 'Apply rules')).toHaveLength(1)
+    expect(markup.slice(offer, markup.indexOf('role="list"'))).toContain('>Reapply updated rules<')
+    expect(buttonsNamed(markup, 'Reapply updated rules')).toHaveLength(1)
     // The line is a polite status, so a screen reader hears it arrive
     expect(markup).toMatch(/role="status"[^>]*>Your import rules changed/)
   })
@@ -233,8 +233,8 @@ describe('the offer to apply the rules again', () => {
   })
 
   it.each([
-    ['approve', 'Approve all', 'Apply rules'],
-    ['apply', 'Apply rules', 'Approve all'],
+    ['approve', 'Approve all', 'Reapply updated rules'],
+    ['apply', 'Reapply updated rules', 'Approve all'],
   ] as const)('holds the other button off while %s runs, never both busy', (busy, running, waiting) => {
     const markup = renderBlock(ITEMS, false, { ruleActions: { ...ruleActions, busy } })
     const named = (name: string) => buttonsNamed(markup, name)
