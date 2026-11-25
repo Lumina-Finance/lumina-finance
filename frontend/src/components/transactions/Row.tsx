@@ -123,8 +123,8 @@ interface TransactionRowProps {
   // Marks the row as a toggle, for a list where pressing a row picks it instead of opening it
   pressed?: boolean
 
-  // Holds the row off while it can't be used and describes it for a screen reader with its reason, as for a greyed out
-  // button. The row draws no reason text of its own, so the caller shows the reason, such as in a line under the row
+  // Holds the row off while it can't be used, with its reason in the shared tooltip on hover, keyboard focus and tap
+  // and described for a screen reader, as for a greyed out button. The row's own reason text is not drawn
   disabledReason?: DisabledReasonState
   selection?: TransactionRowSelection
 

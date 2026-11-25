@@ -80,7 +80,12 @@ test('folds away the refunds that no longer fit and brings them back as rows are
   await expect(foldedRow(picker)).toHaveAttribute('aria-expanded', 'true')
   const greyed = picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
   await expect(greyed).toHaveCount(1)
-  await expect(greyed).toContainText(OVER_THE_EXPENSE)
+  // The reason is the shared tooltip's on hover and its description for a screen reader, never written into the row
+  const tooltip = page.getByTestId('disabled-reason-tooltip').filter({ hasText: /\S/ })
+  await press('$37.19').hover()
+  await expect(tooltip).toHaveText(OVER_THE_EXPENSE)
+  await expect(tooltip).toHaveCSS('opacity', '1')
+  await expect(greyed).not.toContainText(OVER_THE_EXPENSE)
   await expect(press('$37.19')).toHaveAccessibleDescription(
     new RegExp(`^\\+\\$37\\.19 .*${OVER_THE_EXPENSE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
   )
@@ -105,7 +110,9 @@ test('folds away the refunds that no longer fit and brings them back as rows are
   await expectRows(picker, ['+$20.00', '+$15.00'], 2)
   await expect(foldedRow(picker)).toHaveText("2 can't be linked, each more than what's left")
   await expect(greyed).toHaveCount(2)
-  await expect(greyed.nth(1)).toContainText('This refund is more than the $2.13 left to refund')
+  await expect(greyed.nth(1).getByRole('button')).toHaveAccessibleDescription(
+    /This refund is more than the \$2\.13 left to refund$/,
+  )
   await expect(press('$20.00')).toHaveAttribute('aria-pressed', 'true')
   await expect(press('$15.00')).toHaveAttribute('aria-pressed', 'true')
   await expect(linkButton).toBeEnabled()
@@ -588,12 +595,14 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   const greyedRow = picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
   const greyed = greyedRow.getByRole('button')
   await expect(greyed).toBeFocused()
-  await expect(greyedRow).toHaveCSS('outline-style', 'solid')
-  await expect(greyedRow).not.toHaveCSS('outline-color', 'rgba(0, 0, 0, 0)')
-  await expect(greyedRow).toHaveCSS('opacity', '1')
+  const ringed = greyedRow.locator('.app-transaction-row')
+  await expect(ringed).toHaveCSS('outline-style', 'solid')
+  await expect(ringed).not.toHaveCSS('outline-color', 'rgba(0, 0, 0, 0)')
+  await expect(ringed).toHaveCSS('opacity', '1')
   await expect(greyed).toHaveCSS('opacity', '1')
-  // The $15.00 pick leaves $22.13, and the reason measures the row against that
-  await expect(greyedRow.getByText('This refund is more than the $22.13 left to refund')).toBeVisible()
+  // The $15.00 pick leaves $22.13, and the reason the focus shows measures the row against that
+  const reason = 'This refund is more than the $22.13 left to refund'
+  await expect(page.getByTestId('disabled-reason-tooltip').filter({ hasText: reason })).toHaveCSS('opacity', '1')
 })
 
 /** The colour a fill token computes to on the page, for waiting until a row's fill has eased into it */
