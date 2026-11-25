@@ -314,25 +314,16 @@ describe('groupLinkCandidates', () => {
 })
 
 describe('describeUnlinkable', () => {
-  const expense = { amount: -42000 }
-  const refund = { amount: 13500 }
-
   it('says why the refunds an expense cannot take are held back', () => {
-    expect(describeUnlinkable(expense, [7500, 7500])).toBe("2 refunds can't be linked: each is more than what's left")
-    expect(describeUnlinkable(expense, [7500])).toBe("1 refund can't be linked: it's more than what's left")
-    expect(describeUnlinkable(expense, [0, 0, 0])).toBe("3 refunds can't be linked: nothing is left to refund")
+    expect(describeUnlinkable(true, [13500, 13500])).toBe("2 can't be linked, each more than what's left")
+    expect(describeUnlinkable(true, [7500])).toBe("1 can't be linked, more than what's left")
+    expect(describeUnlinkable(true, [0, 0, 0])).toBe("3 can't be linked, nothing is left to refund")
   })
 
-  it('says why the expenses a refund cannot go to are held back, even when what each has left differs', () => {
-    expect(describeUnlinkable(refund, [1500, 200])).toBe(
-      "2 expenses can't be linked: each has less left than this refund",
-    )
-    expect(describeUnlinkable(refund, [1500, 0])).toBe(
-      "2 expenses can't be linked: each has less left than this refund",
-    )
-    expect(describeUnlinkable(refund, [200])).toBe("1 expense can't be linked: it has less left than this refund")
-    expect(describeUnlinkable(refund, [0])).toBe("1 expense can't be linked: it's already fully refunded")
-    expect(describeUnlinkable(refund, [0, 0])).toBe("2 expenses can't be linked: each is already fully refunded")
+  it('says why the expenses a refund cannot go to are held back, and only the count when they differ', () => {
+    expect(describeUnlinkable(false, [1500, 200])).toBe("2 can't be linked, each with less than this refund left")
+    expect(describeUnlinkable(false, [0])).toBe("1 can't be linked, already refunded in full")
+    expect(describeUnlinkable(false, [1500, 0])).toBe("2 can't be linked")
   })
 })
 
