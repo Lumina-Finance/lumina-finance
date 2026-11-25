@@ -122,7 +122,7 @@ export function InstitutionDropdown({
       loadingMinMs={0}
       hideOptionsWhileLoading={paged.showInitialLoading}
       autoHighlightFirstOption
-      selectHighlightedOnSearchEnter={search.isSettled}
+      selectHighlightedOnSearchEnter={search.isSettled && paged.answersSearch}
       hasMore={!!query.hasNextPage}
       onLoadMore={paged.loadMore}
       onCreateNew={onCreate}
