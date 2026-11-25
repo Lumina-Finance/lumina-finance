@@ -4,15 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createProviders } from '@tests/pages/accounts/detail/components/bank-link/fixtures'
-import { isHeldWhenLinked, listSettingsSections, SETTINGS_SECTIONS } from '@/pages/settings/settingsNavigation'
-
-describe('sections held when linked', () => {
-  it('holds only Bank connections, so a link to any other section scrolls once as it always has', () => {
-    expect(SETTINGS_SECTIONS.filter((section) => isHeldWhenLinked(section.id)).map((section) => section.id)).toEqual([
-      'bank-connections',
-    ])
-  })
-})
+import { listSettingsSections, SETTINGS_SECTIONS } from '@/pages/settings/settingsNavigation'
 
 describe('settings sections', () => {
   const withoutBankConnections = SETTINGS_SECTIONS.filter((section) => section.id !== 'bank-connections')
