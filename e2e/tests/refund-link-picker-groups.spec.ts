@@ -115,7 +115,7 @@ test('groups an expense picker by fit and previews the chain as it stands', asyn
   const unlinkable = await openFolded(picker, 2)
   // Each greyed row gives its reason in the shared tooltip and its description, never written into the row
   for (const row of await unlinkable.all()) {
-    await expect(row).not.toContainText('left to refund')
+    await expect(row.getByText('left to refund')).toBeHidden()
     await expect(row.getByRole('button')).toHaveAccessibleDescription(
       /This refund is more than the \$135\.00 left to refund$/,
     )

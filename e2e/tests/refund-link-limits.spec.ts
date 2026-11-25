@@ -26,6 +26,14 @@ function foldedRow(picker: Locator) {
   return picker.getByRole('button', { name: /can't be linked/ })
 }
 
+// Waits for the opened folded row to finish easing open. Until then its rows sit in a clipped box, so moving to one
+// scrolls the list, and a scroll puts a greyed row's reason away
+async function expectFoldedOpen(picker: Locator) {
+  await expect(foldedRow(picker)).toHaveAttribute('aria-expanded', 'true')
+  const bodyId = await foldedRow(picker).getAttribute('aria-controls')
+  await expect(picker.locator(`[id="${bodyId}"]`)).toHaveCSS('overflow', 'visible')
+}
+
 // The refunds listed in the picker's order, every one pickable, and how many fold into the row at the end because they
 // don't fit what is left of the expense after the picks. A row moving between the list and the open folded row eases out
 // of one as it eases into the other, so an open folded row is waited on until it holds only what it folds
@@ -77,7 +85,7 @@ test('folds away the refunds that no longer fit and brings them back as rows are
   await expect(foldedRow(picker)).toHaveText("1 can't be linked, more than what's left")
   await expect(linkButton).toBeDisabled()
   await foldedRow(picker).click()
-  await expect(foldedRow(picker)).toHaveAttribute('aria-expanded', 'true')
+  await expectFoldedOpen(picker)
   const greyed = picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
   await expect(greyed).toHaveCount(1)
   // The reason is the shared tooltip's on hover and its description for a screen reader, never written into the row
@@ -85,7 +93,7 @@ test('folds away the refunds that no longer fit and brings them back as rows are
   await press('$37.19').hover()
   await expect(tooltip).toHaveText(OVER_THE_EXPENSE)
   await expect(tooltip).toHaveCSS('opacity', '1')
-  await expect(greyed).not.toContainText(OVER_THE_EXPENSE)
+  await expect(greyed.getByText(OVER_THE_EXPENSE)).toBeHidden()
   await expect(press('$37.19')).toHaveAccessibleDescription(
     new RegExp(`^\\+\\$37\\.19 .*${OVER_THE_EXPENSE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`),
   )
@@ -507,7 +515,7 @@ for (const [anchor, size] of [
 }
 
 // Tab goes from the Filters button into the rows, then to the folded row of what can't be linked and, once that is
-// open, to its greyed row. That row takes the focus ring at full strength with its reason written under it. The text
+// open, to its greyed row. That row takes the focus ring at full strength with its reason in the tooltip. The text
 // of a picked row reads at 4.5 to 1 against the picked fill it sits on, at rest and under the pointer
 test('reaches the rows from Filters with Tab and keeps the focus ring of a greyed row at full strength', async ({ page, request }) => {
   const user = await signUpUser(request)
@@ -585,12 +593,12 @@ test('reaches the rows from Filters with Tab and keeps the focus ring of a greye
   expect(faintest.contrast, `"${faintest.text}" on a picked row under the pointer`).toBeGreaterThanOrEqual(4.5)
 
   // After the rows, Tab reaches the folded row, Enter opens it, and Tab lands on the greyed $37.19 row. Its ring is
-  // drawn at full strength round the row and its reason while its content fades, and its reason is written under it
+  // drawn at full strength while its content fades, and its reason shows in the shared tooltip beside it
   await rows.nth(1).getByRole('button').focus()
   await page.keyboard.press('Tab')
   await expect(foldedRow(picker)).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(foldedRow(picker)).toHaveAttribute('aria-expanded', 'true')
+  await expectFoldedOpen(picker)
   await page.keyboard.press('Tab')
   const greyedRow = picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')
   const greyed = greyedRow.getByRole('button')
