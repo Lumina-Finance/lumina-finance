@@ -1,5 +1,5 @@
 import { Check, KeyRound, Pencil, Trash2, X } from 'lucide-react'
-import { useId, useState } from 'react'
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { Passkey } from '@/api/passkeys'
 import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
@@ -41,6 +41,37 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
   const renameRefusal = useRefusedSubmit({ name: draftName.trim() ? undefined : 'Name is required' }, RENAME_FIELDS, {
     name: nameId,
   })
+  const menuTriggerRef = useRef<HTMLButtonElement>(null)
+  const shouldFocusMenuRef = useRef(false)
+
+  // Save and Cancel leave with the rename fields, so the focused control goes off the page, and the menu
+  // button that replaces them is a new element. It takes focus once it is there and the row lets it be pressed
+  useEffect(() => {
+    if (isRenaming || disabled || !shouldFocusMenuRef.current) return
+
+    shouldFocusMenuRef.current = false
+    menuTriggerRef.current?.focus({ preventScroll: true })
+  }, [isRenaming, disabled])
+
+  function endRename() {
+    shouldFocusMenuRef.current = true
+    setIsRenaming(false)
+  }
+
+  function cancelRename() {
+    setDraftName(passkey.name)
+    setError(null)
+    renameRefusal.reset()
+    endRename()
+  }
+
+  // Held here so Escape only ends the rename and does not also close the dialogue the row sits in
+  function handleRenameKeyDown(event: KeyboardEvent) {
+    if (event.key !== 'Escape') return
+
+    event.preventDefault()
+    cancelRename()
+  }
 
   /**
    * Saves a trimmed, non-empty new label and returns the card to its resting state
@@ -52,7 +83,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
     setError(null)
     try {
       await onRename(trimmed)
-      setIsRenaming(false)
+      endRename()
     } catch {
       setError('Could not rename this passkey.')
     }
@@ -123,7 +154,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" onKeyDown={handleRenameKeyDown}>
                   <input
                     id={nameId}
                     className={`app-input min-w-0 flex-1 ${renameRefusal.errors.name ? 'app-input-error' : ''}`}
@@ -146,12 +177,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
                   </DisabledReasonButton>
                   <button
                     type="button"
-                    onClick={() => {
-                      setDraftName(passkey.name)
-                      setError(null)
-                      renameRefusal.reset()
-                      setIsRenaming(false)
-                    }}
+                    onClick={cancelRename}
                     className="app-secondary-button shrink-0"
                     aria-label="Cancel rename"
                   >
@@ -186,6 +212,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
                 <OverflowMenu
                   label={`Options for ${passkey.name}`}
                   disabled={disabled}
+                  triggerRef={menuTriggerRef}
                   items={[
                     {
                       label: 'Rename',
