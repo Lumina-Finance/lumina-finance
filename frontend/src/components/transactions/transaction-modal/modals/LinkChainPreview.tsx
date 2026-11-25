@@ -8,14 +8,9 @@ import {
   RefundChainFooter,
   RefundChainGap,
   RefundChainLead,
-  RefundChainNote,
   RefundChainRow,
 } from '@/components/transactions/transaction-modal/sections/RefundChain'
-import {
-  REFUND_STATUS_LABELS,
-  describeLinkedRefunds,
-  getRefundStatus,
-} from '@/components/transactions/transaction-modal/utils/refund'
+import { REFUND_STATUS_LABELS, getRefundStatus } from '@/components/transactions/transaction-modal/utils/refund'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 
 interface LinkChainPreviewProps {
@@ -24,9 +19,6 @@ interface LinkChainPreviewProps {
 
   /** The rows picked so far, in the order they were picked */
   picked: Transaction[]
-
-  /** On an expense, the refunds the window already has, saved and held. Ignored on a refund */
-  linkedCount: number
 
   /** On an expense, what is left to refund before the picks, undefined while it loads. Ignored on a refund */
   refundRoom: number | undefined
@@ -37,30 +29,19 @@ interface LinkChainPreviewProps {
 }
 
 /**
- * The chain linking would make, pinned above the picker's buttons in the look of the Refunds section: the expense, a
- * line for the refunds it already has, each picked refund marked New, and what is left to refund with its badge. A
- * refund with no expense picked yet shows itself alone, marked New. A screen reader hears what is left each time a
- * pick changes it, from a live region present from the start, so the first pick is read too
+ * The chain linking would make, pinned above the picker's buttons in the look of the Refunds section: the expense, each
+ * picked refund marked New, and what is left to refund with its badge. The refunds the expense already has stay out,
+ * since what is left already counts them. A refund with no expense picked yet shows itself alone, marked New. A screen
+ * reader hears what is left each time a pick changes it, from a live region present from the start, so the first pick
+ * is read too
  */
-export default function LinkChainPreview({
-  transaction,
-  picked,
-  linkedCount,
-  refundRoom,
-  iconOf,
-  kindOf,
-}: LinkChainPreviewProps) {
+export default function LinkChainPreview({ transaction, picked, refundRoom, iconOf, kindOf }: LinkChainPreviewProps) {
   const { formatCurrency } = useMoneyFormatters()
   const picksRefund = transaction.amount < 0
   const expense = picksRefund ? transaction : picked[0]
 
   // A refund being linked again to the expense it was on is not among that expense's refunds a second time
   const refunds = picksRefund ? picked : [transaction]
-  const alreadyLinked = !expense
-    ? 0
-    : picksRefund
-      ? linkedCount
-      : expense.refund_transaction_ids.filter((id) => id !== transaction.id).length
   const roomBefore = !expense ? undefined : picksRefund ? refundRoom : -expense.amount - (expense.refunded_amount ?? 0)
   const room =
     roomBefore === undefined ? undefined : roomBefore - refunds.reduce((total, refund) => total + refund.amount, 0)
@@ -105,12 +86,9 @@ export default function LinkChainPreview({
                 currency={expense.currency}
                 lineBelow
               />
-              {alreadyLinked > 0 && (
-                <RefundChainNote lineBelow={refunds.length > 0}>{describeLinkedRefunds(alreadyLinked)}</RefundChainNote>
-              )}
               {/* The lead eases with the first pick, so the chain's height never snaps beside an easing row */}
               <AnimatePresence initial={false}>
-                {refunds.length > 0 && alreadyLinked === 0 && (
+                {refunds.length > 0 && (
                   <RevealRow key="lead" spacingClassName="">
                     <RefundChainLead />
                   </RevealRow>

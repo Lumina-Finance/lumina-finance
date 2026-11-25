@@ -50,9 +50,6 @@ interface LinkRefundPickerProps {
   /** What is left to refund, sent with the list while the window holds links or refunds the server can't count */
   leftToRefund: number | undefined
 
-  /** How many refunds the open expense has in the window, saved and held */
-  linkedCount: number
-
   /** The round icon an expense and its refunds share */
   iconOf: (expense: Transaction) => ReactNode
 
@@ -78,7 +75,6 @@ export default function TransactionModalLinkRefundPicker({
   unlinkedIds,
   refundRoom,
   leftToRefund,
-  linkedCount,
   iconOf,
   onPick,
 }: LinkRefundPickerProps) {
@@ -260,7 +256,6 @@ export default function TransactionModalLinkRefundPicker({
             <LinkChainPreview
               transaction={transaction}
               picked={picked}
-              linkedCount={linkedCount}
               refundRoom={refundRoom}
               iconOf={iconOf}
               kindOf={kindOf}

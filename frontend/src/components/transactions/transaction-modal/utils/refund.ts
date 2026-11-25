@@ -199,11 +199,6 @@ export function describeUnlinkable(picksRefund: boolean, rooms: readonly number[
   return count
 }
 
-/** Says how many refunds a chain already holds, for the line the link preview folds them into under its expense */
-export function describeLinkedRefunds(count: number): string {
-  return count === 1 ? '1 refund linked' : `${count} refunds linked`
-}
-
 /**
  * The note a refund starts with, naming what it refunds so the two read as a pair in the list
  */

@@ -502,7 +502,6 @@ export default function TransactionModalLinkedRefundsSection({
         unlinkedIds={pending.unlinkedRefundIds}
         refundRoom={refundRoom}
         leftToRefund={leftToRefund}
-        linkedCount={refundCount}
         iconOf={iconOf}
         onPick={(picked) => {
           picked.forEach(pending.addLink)

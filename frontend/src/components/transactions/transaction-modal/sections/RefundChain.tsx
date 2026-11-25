@@ -89,21 +89,6 @@ export function RefundChainLead() {
   )
 }
 
-/** A short muted line on the dashed line, standing for rows the chain folds away, such as "2 refunds linked" */
-export function RefundChainNote({ children, lineBelow = true }: { children: ReactNode; lineBelow?: boolean }) {
-  return (
-    <div className="flex gap-3">
-      <span className="flex w-9 shrink-0 flex-col items-center self-stretch">
-        <ChainSegment drawn />
-        <ChainSegment drawn={lineBelow} below />
-      </span>
-      <p className="py-1 text-xs leading-4" style={{ color: 'var(--app-text-muted)' }} data-testid="refund-chain-note">
-        {children}
-      </p>
-    </div>
-  )
-}
-
 /** Follows the Refunds heading with how many refunds the chain holds */
 export function RefundCount({ count }: { count: number }) {
   return (

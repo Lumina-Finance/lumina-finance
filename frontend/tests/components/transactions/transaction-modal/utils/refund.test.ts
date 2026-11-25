@@ -10,7 +10,6 @@ import { buildCreateTransactionPayload } from '@/components/transactions/transac
 import {
   buildRefundNote,
   canLinkAsRefund,
-  describeLinkedRefunds,
   describeUnlinkable,
   getLinkedTransactionIds,
   getRefundAccounts,
@@ -324,12 +323,5 @@ describe('describeUnlinkable', () => {
     expect(describeUnlinkable(false, [1500, 200])).toBe("2 can't be linked, each with less than this refund left")
     expect(describeUnlinkable(false, [0])).toBe("1 can't be linked, already refunded in full")
     expect(describeUnlinkable(false, [1500, 0])).toBe("2 can't be linked")
-  })
-})
-
-describe('describeLinkedRefunds', () => {
-  it('counts the refunds a chain already holds', () => {
-    expect(describeLinkedRefunds(1)).toBe('1 refund linked')
-    expect(describeLinkedRefunds(2)).toBe('2 refunds linked')
   })
 })
