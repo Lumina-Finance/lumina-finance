@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type UIEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import { useMinimumVisibleFlag } from '@/hooks/useMinimumVisibleFlag'
 import { FETCHING_MORE_TEXT_MIN_MS, LOADING_TEXT_MIN_MS } from '@/utils/timing'
 
@@ -10,10 +10,15 @@ const SCROLL_BOTTOM_THRESHOLD_PX = 4
 // page so the next row lands in view instead of jumping past it
 const LOAD_MORE_CLICK_SCROLL_FRACTION = 0.45
 
+function isScrolledToBottom(list: HTMLElement) {
+  return list.scrollTop + list.clientHeight >= list.scrollHeight - SCROLL_BOTTOM_THRESHOLD_PX
+}
+
 interface InfiniteListQueryResult<TItem> {
   data?: { pages: TItem[][] }
   error: unknown
   isError: boolean
+  isFetching: boolean
   isLoading: boolean
   isFetchingNextPage: boolean
   hasNextPage?: boolean
@@ -41,6 +46,10 @@ interface UsePaginatedSettingsListParams<TItem extends { id: string }> {
  * Whether new data counts as an appended page is tracked by a flag set when the caller asks for
  * more, rather than inferred from a growing list, so a background refetch that happens to grow
  * the row count is not mistaken for a requested page
+ *
+ * A refresh of the loaded pages, after an edit that moves or removes rows, replaces them all once
+ * it ends. A next page requested meanwhile would cancel it and sit beside pages that are out of
+ * date, so the request waits and is made when the refresh ends, if the list is still at its end
  */
 export function usePaginatedSettingsList<TItem extends { id: string }>({
   useInfiniteListQuery,
@@ -59,6 +68,8 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
   const listRef = useRef<HTMLDivElement | null>(null)
   const initialFetchStartedAtRef = useRef<number | null>(null)
   const fetchMoreStartedAtRef = useRef<number | null>(null)
+  const nextPageWaitingRef = useRef(false)
+  const wasFetchingNextPageRef = useRef(false)
 
   const locallyDeletedIdSet = useMemo(() => new Set(locallyDeletedIds), [locallyDeletedIds])
   const fetchedItems = useMemo(() => {
@@ -88,7 +99,8 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
     FETCHING_MORE_TEXT_MIN_MS,
   )
   const hasMore = !!listQuery.hasNextPage
-  const canFetchMore = hasMore && !listQuery.isFetchingNextPage && !showFetchingMore
+  const isRefreshing = listQuery.isFetching && !listQuery.isFetchingNextPage
+  const canFetchMore = hasMore && !listQuery.isFetchingNextPage && !showFetchingMore && !isRefreshing
   const shouldScroll =
     visibleItems.length >= visibleRowCount && (hasMore || visibleItems.length > visibleRowCount || showFetchingMore)
   const showListMoreIndicator = shouldScroll && !listAtBottom && !showFetchingMore
@@ -109,6 +121,7 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
     // its own timer below
     initialFetchStartedAtRef.current = null
     fetchMoreStartedAtRef.current = null
+    nextPageWaitingRef.current = false
 
     const frame = window.requestAnimationFrame(() => {
       setListAtBottom(false)
@@ -174,26 +187,45 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
       const list = listRef.current
       if (!list) return
 
-      const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - SCROLL_BOTTOM_THRESHOLD_PX
-      if (atBottom) setListAtBottom(true)
+      if (isScrolledToBottom(list)) setListAtBottom(true)
     })
 
     return () => window.cancelAnimationFrame(frame)
   }, [hasMore, shouldScroll, visibleItems.length])
 
+  const { fetchNextPage } = listQuery
+  const startNextPage = useCallback(() => {
+    fetchMoreStartedAtRef.current = performance.now()
+    setPageFetchPending(true)
+    fetchNextPage()
+  }, [fetchNextPage])
+
+  // A refresh that starts while a next page is loading cancels that page, and a next page asked for
+  // during a refresh is held back. Either way it is asked for again once the refresh ends, if the
+  // list is still at its end
+  useEffect(() => {
+    const nextPageCancelled = wasFetchingNextPageRef.current && isRefreshing
+    wasFetchingNextPageRef.current = listQuery.isFetchingNextPage
+    if (nextPageCancelled) nextPageWaitingRef.current = true
+    if (isRefreshing || !nextPageWaitingRef.current) return
+
+    nextPageWaitingRef.current = false
+    const list = listRef.current
+    if (hasMore && !listQuery.isFetchingNextPage && list && isScrolledToBottom(list)) startNextPage()
+  }, [hasMore, isRefreshing, listQuery.isFetchingNextPage, startNextPage])
+
   const handleListScroll = (event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget
-    const atBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - SCROLL_BOTTOM_THRESHOLD_PX
-    if (!atBottom) {
+    if (!isScrolledToBottom(target)) {
       setListAtBottom(false)
       return
     }
 
     if (canFetchMore) {
-      fetchMoreStartedAtRef.current = performance.now()
-      setPageFetchPending(true)
-      listQuery.fetchNextPage()
+      startNextPage()
       setListAtBottom(false)
+    } else if (hasMore && isRefreshing) {
+      nextPageWaitingRef.current = true
     } else if (!hasMore && !showFetchingMore) {
       setListAtBottom(true)
     }
@@ -207,11 +239,8 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
 
       const maxScrollTop = list.scrollHeight - list.clientHeight
       if (list.scrollTop >= maxScrollTop - SCROLL_BOTTOM_THRESHOLD_PX) {
-        if (canFetchMore) {
-          fetchMoreStartedAtRef.current = performance.now()
-          setPageFetchPending(true)
-          listQuery.fetchNextPage()
-        }
+        if (canFetchMore) startNextPage()
+        else if (hasMore && isRefreshing) nextPageWaitingRef.current = true
         return
       }
 

@@ -603,3 +603,23 @@ export async function countLedgerTransactions(request: APIRequestContext, user: 
     if (page.length < 50) return count
   }
 }
+
+/**
+ * Creates one row for each name in a list that takes only a name, such as tags or merchants
+ *
+ * @param request - Playwright request context
+ * @param user - Owner of the rows
+ * @param endpoint - The list's path under the API, such as `tags`
+ * @param names - Names to create, in the order given
+ */
+export async function seedNamedRows(
+  request: APIRequestContext,
+  user: TestUser,
+  endpoint: string,
+  names: string[],
+): Promise<void> {
+  for (const name of names) {
+    const created = await request.post(`${API_BASE_URL}/${endpoint}`, { headers: asUser(user), data: { name } })
+    expect(created.status()).toBe(201)
+  }
+}
