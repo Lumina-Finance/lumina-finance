@@ -254,7 +254,7 @@ export default function TransactionModalLinkRefundPicker({
         <>
           {/* Stays in view under the scrolling list, so each pick shows at once what linking would make */}
           <div
-            className={`shrink-0 border-t pt-3 ${MODAL_INSET_CLASS_NAME.stacked}`}
+            className={`shrink-0 border-t py-3 ${MODAL_INSET_CLASS_NAME.stacked}`}
             style={{ borderColor: 'var(--app-border)' }}
           >
             <LinkChainPreview
