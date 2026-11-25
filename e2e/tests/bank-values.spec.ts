@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { createAccount, daysFromTodayInTestTimezone, formatDateLabel, signUpUser, type TestUser } from '../support/api'
-import { logInViaApi, openPage } from '../support/app'
+import { logInViaApi, openPage, readSettledBox } from '../support/app'
 import { addImportedItem, editTransaction, linkToEmptyBankAccount, readTransaction } from '../support/bankSync'
 import { expectPendingAction, expectTransactionRow, MINUS, readBoxes } from '../support/selectors'
 import { AT_EVERY_SIZE_NEEDS_BANK_SYNC, NEEDS_BANK_SYNC } from '../support/bankSyncServer'
@@ -248,6 +248,15 @@ test('restores the bank amount and date under edited ones and says a restore fai
   })
 
   await test.step('greys out Restore bank value on an amount the currency can\'t hold, saying why', async () => {
+    // The Refunds section grows the dialogue once its candidates arrive, and the dialogue stays centred, so the
+    // action moves up from under a pointer that landed on it before. A busy runner answers slowly and fades slowly,
+    // so here both are slowed to put that move inside the reason's fade-in unless the test waits for it first
+    await page.route(`${API_BASE_URL}/transactions/${unstorableId}/refund-link-candidates**`, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1_500))
+      await route.fallback()
+    })
+    const slowFade = await page.addStyleTag({ content: '[data-testid="disabled-reason-tooltip"] { transition-duration: 2s !important }' })
+
     // The bank's amount shows exactly as sent, and the action shows greyed out, described by why
     const dialog = await openTransaction(page, unstorableId)
     const amount = dialog.getByRole('textbox', { name: 'Amount', exact: true })
@@ -258,10 +267,14 @@ test('restores the bank amount and date under edited ones and says a restore fai
     await expect(restore).toHaveAccessibleDescription(`Bank: ${MINUS}$42.505 ${UNSTORABLE_REASON}`)
 
     // Pointing at it shows the reason beside it, and pressing it restores nothing. Forced, because the
-    // action is marked unavailable and pressing it anyway is what is checked
+    // action is marked unavailable and pressing it anyway is what is checked. The pointer goes only once the
+    // Refunds section has shown and the dialogue has stopped growing, because a pointer stays where it lands
     const reason = page.getByTestId('disabled-reason-tooltip').filter({ hasText: UNSTORABLE_REASON })
+    await expect(dialog.getByTestId('link-prompt')).toBeVisible()
+    await readSettledBox(dialog)
     await restore.hover()
     await expect(reason).toHaveCSS('opacity', '1')
+    await slowFade.evaluate((style) => (style as HTMLElement).remove())
     await restore.click({ force: true })
     await page.mouse.move(0, 0)
     // A tap pins the reason where there is no hover, so Escape puts it away there
