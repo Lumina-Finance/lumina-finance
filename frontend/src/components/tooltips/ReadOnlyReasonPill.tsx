@@ -12,6 +12,9 @@ type ReadOnlyReasonPillProps = {
    * focus through `useReadOnlyReasonOnFocus`, so the row keeps a single stop
    */
   focusable?: boolean
+
+  // Shows a reason short enough to read whole as the pill's own text, with no tooltip
+  showsReason?: boolean
 }
 
 /** The pill's short label, beside the rows' "Archived · Read-only" and "Read-only access" */
@@ -27,10 +30,23 @@ const READ_ONLY_LABEL = 'Read-only'
  * `IconTooltip` trigger does. The pill holds the reason after its label in screen-reader-only text, so a
  * screen reader reads both, and the tooltip adds no second copy
  */
-export function ReadOnlyReasonPill({ id, reason, focusable = false }: ReadOnlyReasonPillProps) {
+export function ReadOnlyReasonPill({ id, reason, focusable = false, showsReason = false }: ReadOnlyReasonPillProps) {
   const ownId = useId()
   const pillId = id ?? ownId
   const { controlProps, handleBlockedClick, tooltip } = useDisabledReason(reason, pillId, undefined, true)
+
+  if (showsReason) {
+    return (
+      <span
+        id={pillId}
+        data-testid="read-only-reason-pill"
+        className="inline-flex w-fit min-w-0 max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
+        style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
+      >
+        <span className="min-w-0 truncate">{reason}</span>
+      </span>
+    )
+  }
 
   return (
     <>
