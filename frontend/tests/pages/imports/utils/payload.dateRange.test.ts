@@ -11,6 +11,7 @@ import {
   getImportNoRowsError,
   IMPORT_DATE_RANGE_CROSSED_ERROR,
   IMPORT_DATE_RANGE_INCOMPLETE_ERROR,
+  IMPORT_DATE_RANGE_WINDOW_ERROR,
   IMPORT_NO_ROWS_IN_DATE_RANGE_ERROR,
   MAX_IMPORT_MAPPINGS,
   ROW_AMOUNT_UNREADABLE_REASON,
@@ -182,6 +183,27 @@ describe('importing a chosen range of dates', () => {
 
     expect(result.payload).toBeNull()
     expect(result.errors).toEqual([IMPORT_DATE_RANGE_CROSSED_ERROR])
+  })
+
+  it('refuses a date outside the window with that reason alone, rather than importing the whole file', () => {
+    const result = build(rowsOn(YEAR_OF_DATES), { from: '0001-01-01', to: '2025-03-31' })
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toEqual([IMPORT_DATE_RANGE_WINDOW_ERROR])
+  })
+
+  it('names the window, then the crossed range, when a date is outside the window and the dates also cross', () => {
+    const result = build(rowsOn(YEAR_OF_DATES), { from: '9999-12-31', to: '2025-03-31' })
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toEqual([IMPORT_DATE_RANGE_WINDOW_ERROR, IMPORT_DATE_RANGE_CROSSED_ERROR])
+  })
+
+  it('refuses a lone end date outside the window', () => {
+    const result = build(rowsOn(YEAR_OF_DATES), { from: '', to: '9999-12-31' })
+
+    expect(result.payload).toBeNull()
+    expect(result.errors).toEqual([IMPORT_DATE_RANGE_WINDOW_ERROR])
   })
 
   // The limit is on what one import carries, and rows outside the dates aren't carried

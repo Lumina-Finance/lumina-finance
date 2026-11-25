@@ -95,6 +95,7 @@ function renderStep(
       columnMap={EMPTY_COLUMN_MAP}
       dateRange={{ from: '', to: '' }}
       isDateRangeCrossed={false}
+      dateWindowErrors={{ from: null, to: null }}
       latestStartSuggestion={null}
       setDateRangeEnd={() => {}}
       removeFile={() => {}}

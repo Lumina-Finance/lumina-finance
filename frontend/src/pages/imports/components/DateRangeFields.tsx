@@ -128,6 +128,7 @@ export function ImportDateRangeFields({
   isShown,
   dateRange,
   isCrossed,
+  windowErrors,
   disabled,
   startSuggestion,
   onChange,
@@ -136,6 +137,9 @@ export function ImportDateRangeFields({
   isShown: boolean
   dateRange: ImportDateRange
   isCrossed: boolean
+
+  /** Why each date is outside the window every date must sit in, said on its own label row */
+  windowErrors: Record<keyof ImportDateRange, string | null>
   disabled: boolean
 
   /** The start date the user can ask for above the field, null while there is nothing to offer */
@@ -188,9 +192,8 @@ export function ImportDateRangeFields({
               const errorText =
                 dateRange[end] === null
                   ? IMPORT_DATE_RANGE_INCOMPLETE_FIELD_ERROR
-                  : end === 'from' && isStartCrossed
-                    ? IMPORT_DATE_RANGE_CROSSED_FIELD_ERROR
-                    : null
+                  : (windowErrors[end] ??
+                    (end === 'from' && isStartCrossed ? IMPORT_DATE_RANGE_CROSSED_FIELD_ERROR : null))
               const shortcut = end === 'from' && startSuggestion && !disabled ? startSuggestion : null
               return (
                 <div key={end} className="flex min-w-0 flex-col gap-1">

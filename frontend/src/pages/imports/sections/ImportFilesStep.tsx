@@ -24,6 +24,7 @@ type ImportFilesStepProps = Pick<
   | 'columnMap'
   | 'dateRange'
   | 'isDateRangeCrossed'
+  | 'dateWindowErrors'
   | 'latestStartSuggestion'
   | 'setDateRangeEnd'
   | 'removeFile'
@@ -60,6 +61,7 @@ export function ImportFilesStep({
   columnMap,
   dateRange,
   isDateRangeCrossed,
+  dateWindowErrors,
   latestStartSuggestion,
   setDateRangeEnd,
   removeFile,
@@ -167,6 +169,7 @@ export function ImportFilesStep({
               hasDateColumn={Boolean(columnMap.dt)}
               dateRange={dateRange}
               isDateRangeCrossed={isDateRangeCrossed}
+              dateWindowErrors={dateWindowErrors}
               startSuggestion={latestStartSuggestion}
               onDelimiterChange={changeDelimiter}
               onHeaderRowChange={changeHeaderRow}

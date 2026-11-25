@@ -24,6 +24,7 @@ export function ImportReadingChoices({
   hasDateColumn,
   dateRange,
   isDateRangeCrossed,
+  dateWindowErrors,
   startSuggestion,
   onDelimiterChange,
   onHeaderRowChange,
@@ -37,6 +38,9 @@ export function ImportReadingChoices({
   hasDateColumn: boolean
   dateRange: ImportDateRange
   isDateRangeCrossed: boolean
+
+  /** Why each date is outside the window every date must sit in, null for one inside it */
+  dateWindowErrors: Record<keyof ImportDateRange, string | null>
   startSuggestion: string | null
   onDelimiterChange: (delimiter: ImportDelimiter) => void
   onHeaderRowChange: (headerRow: number) => void
@@ -98,6 +102,7 @@ export function ImportReadingChoices({
           isShown={hasDateColumn}
           dateRange={dateRange}
           isCrossed={isDateRangeCrossed}
+          windowErrors={dateWindowErrors}
           disabled={disabled}
           startSuggestion={startSuggestion}
           onChange={onDateRangeChange}
