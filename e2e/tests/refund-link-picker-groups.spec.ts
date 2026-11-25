@@ -112,6 +112,9 @@ test('groups an expense picker by fit and previews the chain as it stands', asyn
 
   await expect(folded(picker)).toHaveText("2 can't be linked, each more than what's left")
   await expect(folded(picker)).toHaveAttribute('aria-expanded', 'false')
+  // A straight divider runs the list's width above the folded row, in place of the header's own rounded top rule
+  await expect(folded(picker).locator('..')).toHaveCSS('border-top-style', 'solid')
+  await expect(folded(picker)).toHaveCSS('border-top-style', 'none')
   const unlinkable = await openFolded(picker, 2)
   // Each greyed row gives its reason in the shared tooltip and its description, never written into the row
   for (const row of await unlinkable.all()) {
@@ -339,5 +342,7 @@ test('folds an expense already refunded in full from a refund picker', async ({ 
   const picker = page.getByRole('dialog', { name: 'Link to an expense', exact: true })
   await expect(amounts(group(picker, 'other'))).toHaveText(['−$100.00'])
   await expect(folded(picker)).toHaveText("1 can't be linked, already refunded in full")
-  await expect(await openFolded(picker, 1)).toContainText('This expense is already fully refunded')
+  await expect((await openFolded(picker, 1)).getByRole('button')).toHaveAccessibleDescription(
+    /This expense is already fully refunded$/,
+  )
 })

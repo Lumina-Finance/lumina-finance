@@ -30,8 +30,11 @@ function foldedRow(picker: Locator) {
 // scrolls the list, and a scroll puts a greyed row's reason away
 async function expectFoldedOpen(picker: Locator) {
   await expect(foldedRow(picker)).toHaveAttribute('aria-expanded', 'true')
-  const bodyId = await foldedRow(picker).getAttribute('aria-controls')
-  await expect(picker.locator(`[id="${bodyId}"]`)).toHaveCSS('overflow', 'visible')
+  const body = picker.locator(`[id="${await foldedRow(picker).getAttribute('aria-controls')}"]`)
+  // The body rests unclipped at its natural height only once the ease is done. Before it starts, it is unclipped too
+  // but still at no height
+  await expect(body).toHaveAttribute('style', /height: auto/)
+  await expect(body).toHaveCSS('overflow', 'visible')
 }
 
 // The refunds listed in the picker's order, every one pickable, and how many fold into the row at the end because they
@@ -58,7 +61,7 @@ function pressRow(picker: Locator, amount: string) {
 const OVER_THE_EXPENSE = 'This refund is more than the $37.13 left to refund'
 
 // The picker folds the refunds that don't fit what is left of the expense into one row at the end. Opening it lists
-// them greyed out with their reason in text. A refund over the whole expense is folded from the start, a pick lowers
+// them greyed out with their reason in the tooltip. A refund over the whole expense is folded from the start, a pick lowers
 // what is left for the others and folds away what no longer fits, and unpicking brings it back, with the mouse and
 // the keyboard
 test('folds away the refunds that no longer fit and brings them back as rows are picked and unpicked', async ({ page, request }) => {
@@ -79,8 +82,8 @@ test('folds away the refunds that no longer fit and brings them back as rows are
   const linkButton = picker.getByRole('button', { name: 'Link', exact: true })
 
   // $37.19 is more than the whole expense, so it is folded away from the start. Opening the row lists it greyed out
-  // with its reason written under it. The reason also describes its button for a screen reader, and pressing it picks
-  // nothing
+  // with its reason in the shared tooltip. The reason also describes its button for a screen reader, and pressing it
+  // picks nothing
   await expectRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1)
   await expect(foldedRow(picker)).toHaveText("1 can't be linked, more than what's left")
   await expect(linkButton).toBeDisabled()
