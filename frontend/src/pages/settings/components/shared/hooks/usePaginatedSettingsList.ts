@@ -62,8 +62,7 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
 
   const locallyDeletedIdSet = useMemo(() => new Set(locallyDeletedIds), [locallyDeletedIds])
   const fetchedItems = useMemo(() => {
-    const items = (listQuery.data?.pages.flat() ?? [])
-      .filter((item) => !locallyDeletedIdSet.has(item.id))
+    const items = (listQuery.data?.pages.flat() ?? []).filter((item) => !locallyDeletedIdSet.has(item.id))
     return sortFetchedItems ? sortFetchedItems(items) : items
   }, [listQuery.data, locallyDeletedIdSet, sortFetchedItems])
   // Starts from rows the query already holds, so a mount with cached data never renders the empty
@@ -78,12 +77,11 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
     () => JSON.stringify(visibleItems.map(getItemIdentityKey)),
     [visibleItems, getItemIdentityKey],
   )
-  const hasUndisplayedFetchedItems = (
+  const hasUndisplayedFetchedItems =
     fetchedItemKey !== visibleItemKey &&
     fetchedItems.length > visibleItems.length &&
     visibleItems.length > 0 &&
     pageFetchPending
-  )
   const showInitialLoading = useMinimumVisibleFlag(listQuery.isLoading, LOADING_TEXT_MIN_MS)
   const showFetchingMore = useMinimumVisibleFlag(
     listQuery.isFetchingNextPage || hasUndisplayedFetchedItems,
@@ -91,10 +89,8 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
   )
   const hasMore = !!listQuery.hasNextPage
   const canFetchMore = hasMore && !listQuery.isFetchingNextPage && !showFetchingMore
-  const shouldScroll = (
-    visibleItems.length >= visibleRowCount &&
-    (hasMore || visibleItems.length > visibleRowCount || showFetchingMore)
-  )
+  const shouldScroll =
+    visibleItems.length >= visibleRowCount && (hasMore || visibleItems.length > visibleRowCount || showFetchingMore)
   const showListMoreIndicator = shouldScroll && !listAtBottom && !showFetchingMore
   const showListEnd = shouldScroll && !hasMore && listAtBottom
 
@@ -143,16 +139,11 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
   useEffect(() => {
     if (fetchedItemKey === visibleItemKey) return undefined
 
-    const isAppendingPage = (
-      fetchedItems.length > visibleItemCountRef.current &&
-      visibleItemCountRef.current > 0 &&
-      pageFetchPending
-    )
+    const isAppendingPage =
+      fetchedItems.length > visibleItemCountRef.current && visibleItemCountRef.current > 0 && pageFetchPending
     const isInitialPage = fetchedItems.length > 0 && visibleItemCountRef.current === 0
     const now = performance.now()
-    const fetchStartedAt = isAppendingPage
-      ? fetchMoreStartedAtRef.current
-      : initialFetchStartedAtRef.current
+    const fetchStartedAt = isAppendingPage ? fetchMoreStartedAtRef.current : initialFetchStartedAtRef.current
     const elapsed = fetchStartedAt === null ? LOADING_TEXT_MIN_MS : now - fetchStartedAt
     const shouldDelay = isAppendingPage || isInitialPage
     const minimumVisibleMs = isAppendingPage ? FETCHING_MORE_TEXT_MIN_MS : LOADING_TEXT_MIN_MS
