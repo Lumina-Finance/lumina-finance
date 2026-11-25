@@ -180,23 +180,29 @@ export function groupLinkCandidates<T extends Pick<RefundLinkCandidate, 'id' | '
 }
 
 /**
- * Says how many candidates can't be linked and why, when they share a reason, as in "2 can't be linked, each more than
- * what's left". On an expense each refund is held back by what is left of the expense. On a refund each expense is
- * held back by what is left of its own
+ * Says how many candidates can't be linked and why, as in "2 refunds can't be linked: each is more than the $75.00
+ * left to refund". On an expense every refund is held back by what is left of the expense. On a refund each expense is
+ * held back by what is left of its own, always less than the refund
  *
- * @param picksRefund Whether the picker is an expense's, picking its refunds
+ * @param open The transaction the picker links from
  * @param rooms What is left to refund for each candidate that can't be linked
+ * @param formatAmount Writes an amount in the open transaction's currency
  */
-export function describeUnlinkable(picksRefund: boolean, rooms: readonly number[]): string {
-  const count = `${rooms.length} can't be linked`
-  const each = rooms.length === 1 ? '' : 'each '
-  if (rooms.every((room) => room <= 0)) {
-    return `${count}, ${picksRefund ? 'nothing is left to refund' : `${each}already refunded in full`}`
+export function describeUnlinkable(
+  open: Amounted,
+  rooms: readonly number[],
+  formatAmount: (amount: number) => string,
+): string {
+  const one = rooms.length === 1
+  if (open.amount < 0) {
+    const count = `${rooms.length} ${one ? 'refund' : 'refunds'} can't be linked`
+    const room = rooms[0] ?? 0
+    if (room <= 0) return `${count}: nothing is left to refund`
+    return `${count}: ${one ? "it's" : 'each is'} more than the ${formatAmount(room)} left to refund`
   }
-  if (rooms.every((room) => room > 0)) {
-    return `${count}, ${picksRefund ? `${each}more than what's left` : `${each}with less than this refund left`}`
-  }
-  return count
+  const count = `${rooms.length} ${one ? 'expense' : 'expenses'} can't be linked`
+  if (rooms.every((room) => room <= 0)) return `${count}: ${one ? "it's" : 'each is'} already fully refunded`
+  return `${count}: ${one ? 'it has' : 'each has'} less than ${formatAmount(open.amount)} left to refund`
 }
 
 /** Says how many refunds a chain already holds, for the line the link preview folds them into under its expense */

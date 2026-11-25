@@ -110,7 +110,7 @@ test('groups an expense picker by fit and previews the chain as it stands', asyn
   await expect(group(picker, 'other').getByRole('heading')).toHaveText('Other money in')
   await expect(group(picker, 'other').getByTestId('link-candidate')).toHaveText([/Northwind Supply/])
 
-  await expect(folded(picker)).toHaveText("2 can't be linked, each more than what's left")
+  await expect(folded(picker)).toHaveText("2 refunds can't be linked: each is more than the $135.00 left to refund")
   await expect(folded(picker)).toHaveAttribute('aria-expanded', 'false')
   const unlinkable = await openFolded(picker, 2)
   for (const row of await unlinkable.all()) {
@@ -135,7 +135,7 @@ test('previews a pick that refunds in full and links the same chain', async ({ p
   await expect(preview(picker).getByTestId('refund-room')).toHaveText('$0.00')
   // The rows that no longer fit fold away while the picked one stays in its group
   await expect(amounts(group(picker, 'likely'))).toHaveText(['+$135.00'])
-  await expect(folded(picker)).toHaveText("4 can't be linked, nothing is left to refund")
+  await expect(folded(picker)).toHaveText("4 refunds can't be linked: nothing is left to refund")
   for (const row of await (await openFolded(picker, 4)).all()) {
     await expect(row).toContainText('Nothing is left to refund on this expense')
   }
@@ -158,13 +158,13 @@ test('folds the rows a partial pick leaves no room for and brings them back', as
   await expect(totals).toHaveAttribute('aria-atomic', 'true')
   await expect(totals).toContainText('Partly refunded')
   await expect(totals).toContainText('$75.00')
-  await expect(folded(picker)).toHaveText("4 can't be linked, each more than what's left")
+  await expect(folded(picker)).toHaveText("4 refunds can't be linked: each is more than the $75.00 left to refund")
   await expect(amounts(group(picker, 'likely'))).toHaveText(['+$60.00'])
   await expect(group(picker, 'other')).toHaveCount(0)
 
   await credit.click()
   await expect(totals).toContainText('$135.00')
-  await expect(folded(picker)).toHaveText("2 can't be linked, each more than what's left")
+  await expect(folded(picker)).toHaveText("2 refunds can't be linked: each is more than the $135.00 left to refund")
   await expect(amounts(group(picker, 'likely'))).toHaveText(['+$135.00', '+$60.00'])
   await expect(amounts(group(picker, 'other'))).toHaveText(['+$130.00'])
 })
@@ -189,7 +189,7 @@ test('groups a refund picker by fit and previews the picked expense chain', asyn
   await expect(amounts(group(picker, 'likely'))).toHaveText(['−$420.00', '−$135.00', '−$1,000.00'])
   await expect(group(picker, 'other').getByRole('heading')).toHaveText('Other expenses')
   await expect(amounts(group(picker, 'other'))).toHaveText(['−$200.00'])
-  await expect(folded(picker)).toHaveText("1 can't be linked, with less than this refund left")
+  await expect(folded(picker)).toHaveText("1 expense can't be linked: it has less than $135.00 left to refund")
   await expect(await openFolded(picker, 1)).toContainText('This expense has only $50.00 left to refund')
 
   // Before a pick the preview shows this refund alone, marked New, and its live region is already there to read the
@@ -299,7 +299,7 @@ test('previews several picks together on an expense with nothing linked', async 
   await expect(preview(picker).getByTestId('refund-chain-note')).toHaveCount(0)
   await expect(preview(picker).getByTestId('refund-status')).toHaveText('Partly refunded')
   await expect(preview(picker).getByTestId('refund-room')).toHaveText('$30.00')
-  await expect(folded(picker)).toHaveText("1 can't be linked, more than what's left")
+  await expect(folded(picker)).toHaveText("1 refund can't be linked: it's more than the $30.00 left to refund")
 })
 
 // A link the window holds but hasn't saved counts toward what is left, so the next picker's likely matches and its
@@ -334,6 +334,6 @@ test('folds an expense already refunded in full from a refund picker', async ({ 
   await dialog.getByTestId('link-existing').click()
   const picker = page.getByRole('dialog', { name: 'Link to an expense', exact: true })
   await expect(amounts(group(picker, 'other'))).toHaveText(['−$100.00'])
-  await expect(folded(picker)).toHaveText("1 can't be linked, already refunded in full")
+  await expect(folded(picker)).toHaveText("1 expense can't be linked: it's already fully refunded")
   await expect(await openFolded(picker, 1)).toContainText('This expense is already fully refunded')
 })

@@ -17,7 +17,11 @@ import LinkChainPreview from '@/components/transactions/transaction-modal/modals
 import TransactionModalLinkRefundFilters from '@/components/transactions/transaction-modal/modals/LinkRefundFilters'
 import UnlinkableCandidates from '@/components/transactions/transaction-modal/modals/UnlinkableCandidates'
 import { NO_MERCHANT } from '@/components/transactions/transaction-modal/sections/RefundChain'
-import { getRefusedRooms, groupLinkCandidates } from '@/components/transactions/transaction-modal/utils/refund'
+import {
+  describeUnlinkable,
+  getRefusedRooms,
+  groupLinkCandidates,
+} from '@/components/transactions/transaction-modal/utils/refund'
 import { toTransactionListAccount, type TransactionListFilters } from '@/components/transactions/types/transactionList'
 import { normalizeTransactionFilters } from '@/components/transactions/utils/normalizeTransactionFilters'
 import { formatShortDateRangeLabel } from '@/utils/date'
@@ -330,7 +334,13 @@ export default function TransactionModalLinkRefundPicker({
               <AnimatePresence initial={false}>
                 {groups.unlinkable.length > 0 && (
                   <RevealRow key="unlinkable" spacingClassName="">
-                    <UnlinkableCandidates picksRefund={picksRefund} rooms={groups.unlinkable.map(({ room }) => room)}>
+                    <UnlinkableCandidates
+                      label={describeUnlinkable(
+                        transaction,
+                        groups.unlinkable.map(({ room }) => room),
+                        (amount) => formatCurrency(amount, transaction.currency),
+                      )}
+                    >
                       <AnimatePresence initial={false}>
                         {groups.unlinkable.map(({ candidate, room }) =>
                           renderRow(candidate, refusalFor(room, candidate)),

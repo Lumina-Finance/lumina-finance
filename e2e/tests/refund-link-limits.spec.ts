@@ -34,7 +34,7 @@ async function expectRows(picker: Locator, listed: string[], folded: number) {
   await expect(rows.getByTestId('transaction-amount')).toHaveText(listed)
   await expect(rows.locator('button[aria-disabled="true"]')).toHaveCount(0)
   if (folded === 0) await expect(foldedRow(picker)).toHaveCount(0)
-  else await expect(foldedRow(picker)).toHaveText(new RegExp(`^${folded} can't be linked`))
+  else await expect(foldedRow(picker)).toHaveText(new RegExp(`^${folded} refunds? can't be linked`))
   if (folded > 0 && (await foldedRow(picker).getAttribute('aria-expanded')) === 'true') {
     await expect(picker.getByTestId('unlinkable-candidates').getByTestId('link-candidate')).toHaveCount(folded)
   }
@@ -74,7 +74,7 @@ test('folds away the refunds that no longer fit and brings them back as rows are
   // with its reason written under it. The reason also describes its button for a screen reader, and pressing it picks
   // nothing
   await expectRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1)
-  await expect(foldedRow(picker)).toHaveText("1 can't be linked, more than what's left")
+  await expect(foldedRow(picker)).toHaveText("1 refund can't be linked: it's more than the $37.13 left to refund")
   await expect(linkButton).toBeDisabled()
   await foldedRow(picker).click()
   await expect(foldedRow(picker)).toHaveAttribute('aria-expanded', 'true')
@@ -103,7 +103,7 @@ test('folds away the refunds that no longer fit and brings them back as rows are
   await expectRows(picker, ['+$20.00', '+$15.00', '+$12.00'], 1)
   await press('$15.00').click()
   await expectRows(picker, ['+$20.00', '+$15.00'], 2)
-  await expect(foldedRow(picker)).toHaveText("2 can't be linked, each more than what's left")
+  await expect(foldedRow(picker)).toHaveText("2 refunds can't be linked: each is more than the $2.13 left to refund")
   await expect(greyed).toHaveCount(2)
   await expect(greyed.nth(1)).toContainText('This refund is more than the $2.13 left to refund')
   await expect(press('$20.00')).toHaveAttribute('aria-pressed', 'true')

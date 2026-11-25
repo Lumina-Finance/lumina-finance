@@ -382,7 +382,7 @@ test('lists the closest amounts first and links the row that is picked', async (
   const folded = picker.getByRole('button', { name: /can't be linked/ })
   await expect(rows).toHaveCount(3)
   await expect(rows.getByTestId('transaction-amount')).toHaveText(['+$50.00', '+$49.00', '+$48.00'])
-  await expect(folded).toHaveText("1 can't be linked, more than what's left")
+  await expect(folded).toHaveText("1 refund can't be linked: it's more than the $50.00 left to refund")
   await expect(linkButton).toBeDisabled()
 
   // Pressing a row picks it. Pressing it again clears the pick
@@ -391,7 +391,7 @@ test('lists the closest amounts first and links the row that is picked', async (
 
   // The $49.00 pick leaves $1.00. None of the others fit that, so they fold away with the $90.00
   await expect(rows).toHaveCount(1)
-  await expect(folded).toHaveText("3 can't be linked, each more than what's left")
+  await expect(folded).toHaveText("3 refunds can't be linked: each is more than the $1.00 left to refund")
   await expect(picked.getByRole('button')).toHaveAttribute('aria-pressed', 'true')
   await expect(linkButton).toBeEnabled()
 
@@ -415,7 +415,7 @@ test('lists the closest amounts first and links the row that is picked', async (
   await filtersButton.click()
   await picked.getByRole('button').click()
   await expect(rows).toHaveCount(3)
-  await expect(folded).toHaveText("1 can't be linked, more than what's left")
+  await expect(folded).toHaveText("1 refund can't be linked: it's more than the $50.00 left to refund")
   await expect(rows.nth(1).getByRole('button')).toHaveAttribute('aria-pressed', 'false')
   await expect(linkButton).toBeDisabled()
 
