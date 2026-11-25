@@ -29,9 +29,10 @@ export default function UnlinkableCandidates({ picksRefund, rooms, children }: U
       bodyClassName="pt-1"
       // The list eases in a box that clips at its edges, so the header draws its focus ring inside them, as the rows
       // above do. The ring then sits on the header's hover fill, so the header takes the rows' lighter fill and the
-      // ring keeps 3:1 against it
+      // ring keeps 3:1 against it. Its fill and ring take the rows' rounded corners
       headerStyle={
         {
+          borderRadius: 'var(--radius-lg)',
           outlineOffset: 'calc(var(--app-focus-offset) * -1)',
           '--collapsible-header-hover-fill': 'var(--app-hover-soft)',
         } as CSSProperties
