@@ -4,14 +4,9 @@ import LoadFailure from '@/components/errors/LoadFailure'
 import { CurrencyUnavailableTooltip } from '@/components/currency/CurrencyUnavailableTooltip'
 import { useMoneyInput } from '@/hooks/useMoneyInput'
 import { getSymbolInputStyle } from '@/utils/formatCurrency'
-import {
-  type CurrencyListState,
-} from '@/utils/currencyStatus'
+import { type CurrencyListState } from '@/utils/currencyStatus'
 import { EDIT_ACCOUNT_IDENTITY_FIELD_IDS } from '@/pages/accounts/detail/constants/accountDetail'
-import type {
-  IdentityFieldErrors,
-  IdentityFormValues,
-} from '@/pages/accounts/detail/utils/identityForm'
+import type { IdentityFieldErrors, IdentityFormValues } from '@/pages/accounts/detail/utils/identityForm'
 import type { SetIdentityFormField } from '@/pages/accounts/detail/components/edit-identity/types'
 import { EditModalSection } from '@/pages/accounts/detail/components/edit-identity/layout/Section'
 import { AccountIdentityFieldLabelRow } from '@/pages/accounts/detail/components/edit-identity/controls/FieldLabelRow'
@@ -22,6 +17,8 @@ type AccountDetailsSectionProps = {
   canLinkTaxAdvantagedCategory: boolean
   isRevolving: boolean
   isCreditLimitLocked: boolean
+  /** Holds every field back in the transaction form's muted look, for an account that can't change */
+  readOnly: boolean
 
   // Explains why the authoritative own-currency lock applies
   currencyState: CurrencyListState
@@ -43,6 +40,7 @@ export function AccountDetailsSection({
   canLinkTaxAdvantagedCategory,
   isRevolving,
   isCreditLimitLocked,
+  readOnly,
   currencyState,
   selectedCurrencySymbol,
   creditLimitExponent,
@@ -73,15 +71,12 @@ export function AccountDetailsSection({
             placeholder="Select category..."
             searchable
             searchPlaceholder="Search categories..."
+            disabled={readOnly}
           />
           {/* Beside the dropdown rather than in place of the form, since the category is optional
               and the rest of the account can still be edited without it */}
           {taxAdvantagedCategoriesFailed && (
-            <LoadFailure
-              className="pt-3"
-              error={taxAdvantagedCategoriesError}
-              subject="Tax-advantaged categories"
-            />
+            <LoadFailure className="pt-3" error={taxAdvantagedCategoriesError} subject="Tax-advantaged categories" />
           )}
         </div>
       )}
@@ -90,12 +85,16 @@ export function AccountDetailsSection({
         <div>
           <AccountIdentityFieldLabelRow
             htmlFor={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimit}
-            label={(
+            label={
               <span className="inline-flex items-center gap-2">
                 Credit limit
-                <CurrencyUnavailableTooltip unavailable={isCreditLimitLocked} currencyState={currencyState} label="Credit limit unavailable" />
+                <CurrencyUnavailableTooltip
+                  unavailable={isCreditLimitLocked}
+                  currencyState={currencyState}
+                  label="Credit limit unavailable"
+                />
               </span>
-            )}
+            }
             error={fieldErrors.credit_limit}
             errorId={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimitError}
           />
@@ -115,7 +114,7 @@ export function AccountDetailsSection({
               aria-invalid={fieldErrors.credit_limit ? true : undefined}
               aria-describedby={fieldErrors.credit_limit ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.creditLimitError : undefined}
               placeholder="Optional"
-              disabled={isCreditLimitLocked}
+              disabled={isCreditLimitLocked || readOnly}
               {...creditLimitInput}
             />
           </div>

@@ -98,7 +98,7 @@ async def get_base_budget(
         HTTPException: User lacks read access
     """
     base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.READ)
-    return await get_base_budget_response(db, base_budget)
+    return await get_base_budget_response(db, user, base_budget)
 
 
 @router.get("/{base_budget_id}/utilizations", response_model=list[BudgetUtilizationResponse])
@@ -143,7 +143,7 @@ async def get_base_budgets(
     Returns:
         Base budget responses visible through ownership, group admin membership, or explicit permission
     """
-    return await get_visible_base_budget_responses(db, user.id)
+    return await get_visible_base_budget_responses(db, user)
 
 
 @router.post("", response_model=BaseBudgetResponse, status_code=status.HTTP_201_CREATED)
@@ -192,6 +192,7 @@ async def create_budget_instance(
         Created budget instance response
 
     Raises:
-        HTTPException: User lacks admin access, period start is invalid, or period overlaps
+        HTTPException: User lacks admin access, the budget is read-only, period start is invalid,
+            or period overlaps
     """
-    return await create_budget_instance_and_get_response(db, user.id, base_budget_id, data)
+    return await create_budget_instance_and_get_response(db, user, base_budget_id, data)

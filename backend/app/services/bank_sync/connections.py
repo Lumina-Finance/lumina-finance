@@ -25,6 +25,7 @@ from app.schemas.bank_sync import (
     ConnectionBankAccountResponse,
     UpdateBankConnectionRequest,
 )
+from app.services.allowance.currency import find_read_only_reason
 from app.services.bank_sync.action_needed import ActionNeededKind, read_actions_needed
 from app.services.bank_sync.availability import (
     LIVE_LINK,
@@ -87,14 +88,14 @@ async def read_listed_bank_accounts(db: AsyncSession, connection_ids: Sequence[u
 
 async def build_connection_responses(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    user: User,
     connections: Sequence[BankConnection],
 ) -> list[BankConnectionResponse]:
     """Describe connections with their bank accounts, a fixed number of queries however many there are
 
     Args:
         db: Active database session
-        user_id: The connections' owner
+        user: The connections' owner
         connections: The connections to describe, in the order to return them
 
     Returns:
@@ -107,7 +108,7 @@ async def build_connection_responses(
     connection_ids = [connection.id for connection in connections]
 
     bank_accounts = await read_listed_bank_accounts(db, connection_ids)
-    linked_to = await read_linked_bank_accounts(db, user_id)
+    linked_to = await read_linked_bank_accounts(db, user.id)
     discovering = await read_discovering_connections(db, connection_ids)
 
     # A bank account reached through two connections shows a sign-in only on the one its link goes
@@ -137,9 +138,10 @@ async def build_connection_responses(
             )
 
     budgets = await read_request_budgets(db, connections, now=now)
-    candidates = await list_link_candidates(db, user_id)
+    # A read-only account takes no link, so it is never offered one
+    candidates = [account for account in await list_link_candidates(db, user.id) if await find_read_only_reason(db, user, account) is None]
     providers = {connection.provider for connection in connections}
-    allowances = {provider: await get_institution_allowance(db, user_id, provider) for provider in providers}
+    allowances = {provider: await get_institution_allowance(db, user.id, provider) for provider in providers}
 
     responses = []
     for connection in connections:
@@ -214,7 +216,7 @@ async def list_connections(db: AsyncSession, user: User) -> list[BankConnectionR
     connections = await db.scalars(
         select(BankConnection).where(BankConnection.owner_id == user.id).order_by(BankConnection.created_at, BankConnection.id)
     )
-    return await build_connection_responses(db, user.id, connections.all())
+    return await build_connection_responses(db, user, connections.all())
 
 
 async def get_own_connection(
@@ -266,4 +268,4 @@ async def rename_connection(
     connection.nickname = read_nickname(request.nickname)
     await mark_user_cache_changed(db, user.id)
     await db.commit()
-    return (await build_connection_responses(db, user.id, [connection]))[0]
+    return (await build_connection_responses(db, user, [connection]))[0]

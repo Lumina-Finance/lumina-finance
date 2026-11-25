@@ -29,6 +29,7 @@ due without touching ingestion
 """
 
 import uuid
+from collections.abc import Collection
 from datetime import datetime, timedelta
 from secrets import randbelow
 
@@ -66,18 +67,22 @@ def next_daily_sync(started_at: datetime) -> datetime:
     return started_at + DAILY_SYNC_INTERVAL + spread
 
 
-async def schedule_next_sync(db: AsyncSession, connection: BankConnection, *, now: datetime) -> None:
+async def schedule_next_sync(db: AsyncSession, connection: BankConnection, *, now: datetime, skipped: Collection[uuid.UUID] = ()) -> None:
     """Set the connection's next scheduled sync to the earliest time any of its links is due
 
     A link waiting for its bank account to be chosen again is due the connection's next daily
-    listing, a day after the last one was sent, whether it worked or failed. A connection with no
-    link due has no next scheduled sync, so the due scan passes it by until a link is due again
-    through a sync of its own, such as the one a lifted review pause queues
+    listing, a day after the last one was sent, whether it worked or failed. A link a sync just left
+    out, as its account is read-only, records no attempt and so stays due, and is looked at again no
+    sooner than the next daily sync, so it resumes within a day once its account can change again
+    without a sync queued every scan meanwhile. A connection with no link due has no next scheduled
+    sync, so the due scan passes it by until a link is due again through a sync of its own, such as
+    the one a lifted review pause queues
 
     Args:
         db: The connection owner's session, committed by the caller
         connection: The connection, locked by the caller
         now: The current time, when a link with no next attempt set is due
+        skipped: The links the ending sync left out as read-only
     """
     # A provider no longer installed is sent nothing, so nothing is scheduled for it
     adapter = adapter_for(connection.provider)
@@ -87,7 +92,12 @@ async def schedule_next_sync(db: AsyncSession, connection: BankConnection, *, no
     links = (await db.scalars(select(BankAccountLink).where(BankAccountLink.connection_id == connection.id, LIVE_LINK))).all()
     timezone = resolve_timezone(await db.scalar(select(User.tz).where(User.id == connection.owner_id)))
     overlap_days = adapter.revisit_overlap_days
-    due = [due_at for link in links if (due_at := next_due_at(link, now=now, timezone=timezone, overlap_days=overlap_days)) is not None]
+    looked_at_again = next_daily_sync(now)
+    due = [
+        max(due_at, looked_at_again) if link.id in skipped else due_at
+        for link in links
+        if (due_at := next_due_at(link, now=now, timezone=timezone, overlap_days=overlap_days)) is not None
+    ]
     if any(link.state == BankLinkState.CHOOSE_ACCOUNT for link in links):
         listed = [at for at in (connection.discovered_at, connection.discovery_failed_at) if at is not None]
         due.append(next_daily_sync(max(listed, default=now)))

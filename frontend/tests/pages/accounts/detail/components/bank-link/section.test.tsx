@@ -18,7 +18,8 @@
  * sentences ending without the full stop the others of two have, held back by a bank
  * sign-in, left greyed once its requests free up, spinning while bank sync isn't set up, even for this
  * window's press, held back by the sync its own press started rather than reading Sync underway, or
- * dropping the focus it holds or the width it measures while the sync starts. Opening the flow, the tooltip,
+ * dropping the focus it holds or the width it measures while the sync starts, and a read-only account
+ * offered a link, a sync, a date range import or a balance match without its reason. Opening the flow, the tooltip,
  * unlinking, pressing Sync now and dismissing a reminder run in the browser
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -804,5 +805,66 @@ describe('the import start reminder', () => {
     expect(markup).not.toContain(escaped(REMINDER))
     expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
     expect(markup).toContain('The import is still in progress')
+  })
+})
+
+// Nothing a sync brings in reaches an account the server keeps read-only, so the section marks it once with a
+// "Read-only" pill and holds back every action that would write to the account. Unlinking stays open
+describe('the bank link of a read-only account', () => {
+  const REASON = 'Records in USD are read-only. They can be archived or deleted'
+  const readOnly = () => createAccount({ currency: 'USD', read_only_reason: REASON })
+
+  it("refuses a first link, with the reason in the button's tooltip rather than lasting text", () => {
+    const markup = renderSection(readOnly())
+    const button = getButton(markup, 'Link bank account')
+    const reasonId = button.match(/aria-describedby="([^"]+)"/)?.[1]
+
+    expect(button).toContain('aria-disabled="true"')
+    // The button's own hidden description reads the reason, and nothing prints it under the button
+    expect(markup).toMatch(new RegExp(`id="${reasonId}"[^>]*hidden=""[^>]*>${REASON}<`))
+    expect(markup).not.toContain(`<p id="${reasonId}"`)
+    expect(markup).not.toContain('Open bank connections')
+  })
+
+  it('marks the link read-only in a pill, and holds back Sync now and Import a date range with its reason', () => {
+    read.status = linkSynced()
+    const markup = renderSection(readOnly())
+    const reasonId = markup.match(/<span id="([^"]+)" data-testid="read-only-reason-pill" tabindex="0"/)?.[1]
+    const range = getButton(markup, 'Import a date range')
+
+    expect(reasonId).toBeDefined()
+    // The pill holds the reason for a screen reader, and no lasting sentence shows
+    expect(markup).toContain(`<span class="sr-only">. ${REASON}</span>`)
+    expect(markup).not.toContain(`<span id="${reasonId}">${REASON}</span>`)
+    expect(getSyncNowButton(markup)).toContain('aria-disabled="true"')
+    expect(range).toContain('aria-disabled="true"')
+    expect(range).toContain(`aria-describedby="${reasonId}"`)
+    expect(getButton(markup, 'Unlink')).not.toBe('')
+    expect(getButton(markup, 'Unlink')).not.toContain('aria-disabled')
+  })
+
+  it('offers no balance match, since matching records an adjustment', () => {
+    read.status = createStatus({
+      link: createLink({ sync: createSync({ state: 'synced' }) }),
+      balance: {
+        amount: 125000,
+        available: null,
+        available_unreadable: false,
+        balance_date: '2026-10-03T22:00:00Z',
+        ledger_balance: 100000,
+        difference: -25000,
+      },
+      balance_match: { amount: 25000, waiting_amount: 0, adjustment_date: '2026-05-31' },
+    })
+
+    expect(renderSection(readOnly())).not.toContain('Adds a balance adjustment')
+  })
+
+  it('holds nothing back on an account that takes writes', () => {
+    read.status = linkSynced()
+    const markup = renderSection(createAccount({ read_only_reason: null }))
+
+    expect(getSyncNowButton(markup)).not.toContain('aria-disabled')
+    expect(markup).not.toContain(REASON)
   })
 })

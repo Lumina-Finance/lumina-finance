@@ -337,6 +337,7 @@ export const BankReviewSection = memo(function BankReviewSection({
           onClose={() => setIsReviewOpen(false)}
           item={reviewItem}
           currency={reviewAccount.currency}
+          readOnlyReason={reviewAccount.read_only_reason}
         />
       )}
     </>

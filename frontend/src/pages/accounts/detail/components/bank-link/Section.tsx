@@ -27,6 +27,7 @@ import { revealInScrollArea } from '@/components/modal/scrollArea'
 import { StepTransition } from '@/components/two-factor/StepTransition'
 import { useAuth } from '@/hooks/useAuth'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
 import { BalanceMatchOffer } from '@/pages/accounts/detail/components/bank-link/BalanceMatchOffer'
 import { BalancePanel } from '@/pages/accounts/detail/components/bank-link/BalancePanel'
 import { ImportProgress } from '@/pages/accounts/detail/components/bank-link/ImportProgress'
@@ -78,6 +79,9 @@ type LinkedViewProps = {
   connection: BankConnection | undefined
   providers: BankProvidersResponse | undefined
   initialFocus: InitialFocusProps
+
+  /** Why the account's currency keeps it read-only. Nothing the bank would bring in reaches the account while a reason is given */
+  readOnlyReason?: string | null
   onChooseBankAccount: () => void
   onAdjustmentRecorded?: () => void
   onImportRange: () => void
@@ -105,6 +109,7 @@ function LinkedView({
   connection,
   providers,
   initialFocus,
+  readOnlyReason,
   onChooseBankAccount,
   onAdjustmentRecorded,
   onImportRange,
@@ -114,8 +119,9 @@ function LinkedView({
   const viewRef = useRef<HTMLDivElement>(null)
   const actionsRef = useRef<HTMLDivElement>(null)
   const notSetUpReasonId = useId()
+  const readOnlyReasonId = useId()
   const syncNotSetUp = describeSyncNowBlock(link, connection, providers) === BANK_SYNC_NOT_SET_UP_REASON
-  const rangeImportBlock = describeRangeImportBlock(link, connection, providers)
+  const rangeImportBlock = readOnlyReason ?? describeRangeImportBlock(link, connection, providers)
   const shownImport = useLingeringImport(link.import, link.state)
   const { state, paused, review_warning: warned } = link.sync
   const waiting = link.sync.waiting_new_count.toLocaleString()
@@ -159,6 +165,15 @@ function LinkedView({
       </IdentityFacts>
 
       <AnimatePresence initial={false}>
+        {/* Syncs bring nothing into a read-only account, so its "Read-only" pill comes before anything else
+            about the link, holding the reason the held-back actions point at */}
+        {readOnlyReason && (
+          <Unfold key="read-only">
+            <span className="flex min-w-0">
+              <ReadOnlyReasonPill id={readOnlyReasonId} reason={readOnlyReason} focusable />
+            </span>
+          </Unfold>
+        )}
         {showsImport && (
           <Unfold key="import">
             <ImportProgress progress={shownImport} range={link.range_import} />
@@ -285,7 +300,9 @@ function LinkedView({
               currency={currency}
               providerName={link.provider_name}
               footer={
-                balanceMatch && (
+                // Matching the bank's balance records an adjustment. A read-only account takes none
+                balanceMatch &&
+                !readOnlyReason && (
                   <BalanceMatchOffer
                     accountId={link.account_id}
                     offer={balanceMatch}
@@ -309,6 +326,7 @@ function LinkedView({
           providers={providers}
           focusProps={{ ...ACTION_PROPS, ...initialFocus }}
           notSetUpReasonId={notSetUpReasonId}
+          readOnlyReason={readOnlyReason}
         />
         {/* Held back, it takes no initial focus, since focus would open its reason over the section */}
         <DisabledReasonButton
@@ -316,7 +334,13 @@ function LinkedView({
           {...ACTION_PROPS}
           {...(rangeImportBlock === null ? initialFocus : {})}
           disabledReason={rangeImportBlock}
-          reasonShownById={rangeImportBlock === BANK_SYNC_NOT_SET_UP_REASON ? notSetUpReasonId : undefined}
+          reasonShownById={
+            readOnlyReason
+              ? readOnlyReasonId
+              : rangeImportBlock === BANK_SYNC_NOT_SET_UP_REASON
+                ? notSetUpReasonId
+                : undefined
+          }
           onClick={onImportRange}
         >
           <CalendarRange size={14} aria-hidden />
@@ -385,14 +409,14 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
   const link = status?.link ?? null
   const previous = status?.previous_link ?? null
   const linkingPaused = isBankSyncNotSetUp(providers)
-  // Both reasons last, so the one that holds the button back is printed under it, with the tooltip
-  // and the button's description pointing at that text
+  // Archiving and paused bank sync last, so either one holding the button back is printed under it, with
+  // the tooltip and the button's description pointing at that text. A read-only account's reason only
+  // needs learning once, so it stays in the button's own tooltip
   const blockReasonId = useId()
   const linkBlockReason = account.is_archived
     ? ARCHIVED_REASON
-    : linkingPaused
-      ? BANK_SYNC_NOT_SET_UP_REASON
-      : undefined
+    : (account.read_only_reason ?? (linkingPaused ? BANK_SYNC_NOT_SET_UP_REASON : undefined))
+  const linkBlockReasonShown = account.is_archived || (linkingPaused && !account.read_only_reason)
 
   const openLinkFlow = () => {
     setLinkFlowKey((key) => key + 1)
@@ -484,7 +508,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
                     {...ACTION_PROPS}
                     {...initialFocus}
                     disabledReason={linkBlockReason}
-                    reasonShownById={linkBlockReason ? blockReasonId : undefined}
+                    reasonShownById={linkBlockReasonShown ? blockReasonId : undefined}
                     onClick={openLinkFlow}
                   >
                     <Link2 size={16} aria-hidden />
@@ -492,7 +516,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
                   </DisabledReasonButton>
                   {account.is_archived ? (
                     <p id={blockReasonId} className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                      {ARCHIVED_REASON}
+                      {linkBlockReason}
                     </p>
                   ) : (
                     linkingPaused && <BankSyncNotSetUp id={blockReasonId} />
@@ -509,6 +533,7 @@ export function BankLinkSection({ account, sectionNumber, autoFocus = false, onF
                   connection={connections?.find((connection) => connection.id === link.connection_id)}
                   providers={providers}
                   initialFocus={initialFocus}
+                  readOnlyReason={account.read_only_reason}
                   onChooseBankAccount={openLinkFlow}
                   onAdjustmentRecorded={onFinished}
                   onImportRange={() => {

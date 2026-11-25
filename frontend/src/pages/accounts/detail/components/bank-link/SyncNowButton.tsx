@@ -30,6 +30,9 @@ type SyncNowButtonProps = {
 
   /** The id of the line under the actions that prints the reason bank sync isn't set up */
   notSetUpReasonId: string
+
+  /** Why the account's currency keeps it read-only. The sync waits while a reason is given */
+  readOnlyReason?: string | null
 }
 
 /**
@@ -44,9 +47,16 @@ type SyncNowButtonProps = {
  * worded again each minute until then, so when more requests are available stays current. When bank
  * sync isn't set up the reason is printed under the actions, so the button points at that line
  */
-export function SyncNowButton({ link, connection, providers, focusProps, notSetUpReasonId }: SyncNowButtonProps) {
+export function SyncNowButton({
+  link,
+  connection,
+  providers,
+  focusProps,
+  notSetUpReasonId,
+  readOnlyReason = null,
+}: SyncNowButtonProps) {
   const { buttonRef, style, measure } = useFittedButtonWidth(SYNC_NOW_LABEL, renderLabel)
-  const { status, block, busy, syncNow } = useSyncNow(link, connection, providers)
+  const { status, block, busy, syncNow } = useSyncNow(link, connection, providers, readOnlyReason)
   const { 'data-modal-initial-focus': initialFocus, ...actionProps } = focusProps
 
   return (

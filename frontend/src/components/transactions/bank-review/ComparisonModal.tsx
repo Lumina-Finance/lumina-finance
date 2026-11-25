@@ -57,6 +57,9 @@ type BankComparisonModalProps = {
 
   /** The currency of the item's account. Both its amounts are in it */
   currency: string
+
+  /** Why the server keeps the item's account read-only, or null. A correction's Accept waits on it */
+  readOnlyReason?: string | null
   onClose: () => void
 }
 
@@ -71,7 +74,7 @@ type BankComparisonModalProps = {
  * modal with its toast once the ledger and the review block show it, and one that fails says why in
  * the modal, leaving the item waiting
  */
-export function BankComparisonModal({ open, item, currency, onClose }: BankComparisonModalProps) {
+export function BankComparisonModal({ open, item, currency, readOnlyReason, onClose }: BankComparisonModalProps) {
   const titleId = useId()
   const { formatMovedCurrency } = useMoneyFormatters()
   const { showToast } = useToast()
@@ -130,6 +133,8 @@ export function BankComparisonModal({ open, item, currency, onClose }: BankCompa
             tone={isRemoval ? 'danger' : 'primary'}
             loading={pendingResolution === apply.resolution}
             disabled={isLocked}
+            // Accepting a correction changes the transaction. Removing one deletes it, and a delete stays open
+            disabledReason={isRemoval ? undefined : (readOnlyReason ?? undefined)}
             onClick={() => decide(apply)}
           />
           <ReviewDecisionButton

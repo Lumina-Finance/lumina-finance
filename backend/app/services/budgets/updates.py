@@ -1,17 +1,21 @@
 """Budget update services"""
+
 from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import BaseBudget, Budget
+from app.models.user import User
 from app.schemas.budget import BudgetResponse
+from app.services.allowance.currency import require_writable_record
 from app.services.budgets.response_helpers import get_budget_response
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
 async def update_budget_instance(
     db: AsyncSession,
+    user: User,
     budget: Budget,
     base_budget: BaseBudget,
     updates: dict[str, Any],
@@ -20,6 +24,7 @@ async def update_budget_instance(
 
     Args:
         db: Active database session
+        user: Authenticated user updating the budget instance
         budget: Budget instance row to update
         base_budget: Parent base budget row used for cache scope and response building
         updates: Fields present in the PATCH request body
@@ -28,10 +33,10 @@ async def update_budget_instance(
         Updated budget instance response
 
     Raises:
-        HTTPException: Update fields are invalid
+        HTTPException: Update fields are invalid, or the budget's currency keeps it read-only
     """
     if not updates:
-        return await get_budget_response(db, budget, base_budget)
+        return await get_budget_response(db, user, budget, base_budget)
 
     # An archived base budget freezes its instances so the current-period limit cannot change while archived
     if base_budget.is_archived:
@@ -39,6 +44,7 @@ async def update_budget_instance(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot update a budget instance for an archived base budget",
         )
+    await require_writable_record(db, user, base_budget)
 
     # Reject explicit null because overall_limit is non-nullable on the model
     if "overall_limit" in updates and updates["overall_limit"] is None:
@@ -53,4 +59,4 @@ async def update_budget_instance(
     await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
     await db.refresh(budget)
-    return await get_budget_response(db, budget, base_budget)
+    return await get_budget_response(db, user, budget, base_budget)

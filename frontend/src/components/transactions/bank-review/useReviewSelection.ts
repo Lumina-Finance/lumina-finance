@@ -29,7 +29,20 @@ export function useReviewSelection(listAccountIds: string[] | undefined, limit: 
         : [],
     [pages, isInScope, accountById],
   )
-  const rows = useMemo(() => newItems.map((item) => ({ id: item.id, isReadOnly: false })), [newItems])
+  // An item in an account the server keeps read-only can't be added, so a bulk edit can't take it
+  const readOnlyReasons = useMemo(() => {
+    const reasons = new Map<string, string>()
+    for (const item of newItems) {
+      const reason = accountById.get(item.account_id)?.read_only_reason
+      if (reason) reasons.set(item.id, reason)
+    }
+    return reasons
+  }, [newItems, accountById])
+  const readOnlyReasonFor = useCallback((itemId: string) => readOnlyReasons.get(itemId), [readOnlyReasons])
+  const rows = useMemo(
+    () => newItems.map((item) => ({ id: item.id, isReadOnly: readOnlyReasons.has(item.id) })),
+    [newItems, readOnlyReasons],
+  )
   const requestKey = JSON.stringify(accountIds ?? 'all')
   const selection = useBulkSelection(rows, requestKey, !isFetching, limit)
 
@@ -41,18 +54,19 @@ export function useReviewSelection(listAccountIds: string[] | undefined, limit: 
 
   const { markFor, toggle, handlePointerEnter, handlePointerLeaveList } = selection
   const isSelectable = useCallback(
-    (itemId: string) => isRowSelectable(itemId, selectedIdsSet, false, limit),
-    [selectedIdsSet, limit],
+    (itemId: string) => isRowSelectable(itemId, selectedIdsSet, readOnlyReasonFor(itemId) !== undefined, limit),
+    [selectedIdsSet, limit, readOnlyReasonFor],
   )
   const rowSelection = useMemo<ReviewRowSelection>(
     () => ({
       markFor,
       isSelectable,
+      readOnlyReasonFor,
       onToggle: toggle,
       onPointerEnter: handlePointerEnter,
       onPointerLeaveList: handlePointerLeaveList,
     }),
-    [markFor, isSelectable, toggle, handlePointerEnter, handlePointerLeaveList],
+    [markFor, isSelectable, readOnlyReasonFor, toggle, handlePointerEnter, handlePointerLeaveList],
   )
 
   // The first page counts every new item in scope, loaded or not

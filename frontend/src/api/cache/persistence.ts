@@ -45,7 +45,9 @@ const TIMED_SAVE_INTERVAL_MS = 1000
 // periods only. Version 11 adds the reason every FX status and transaction row gives for amounts left out
 // of a total because converting them is refused
 // Version 12 adds the profile deletion wait, in seconds, every linked sign-in list carries
-const PERSISTED_CACHE_SHAPE = '12'
+// Version 13 adds the reason every account, budget and tax-advantaged category gives while its currency
+// keeps it read-only
+const PERSISTED_CACHE_SHAPE = '13'
 
 /**
  * What local storage holds: the saved cache sealed under the user's key, and in plain text only what

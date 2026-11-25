@@ -82,6 +82,7 @@ from app.models.account import Account
 from app.models.bank_connection import BankAccountLink, BankConnection, BankExternalAccount, BankLinkState, ProviderRequestPurpose
 from app.models.bank_sync_job import BankSyncJob, ProviderErrorKind
 from app.models.user import User
+from app.services.allowance.currency import find_foreign_currencies_reason, is_other_currency
 from app.services.allowance.require import find_feature_refusal
 from app.services.bank_sync.action_needed import (
     ActionEmail,
@@ -187,7 +188,8 @@ async def run_sync_job(job: ClaimedJob) -> None:
         deferred, requested = (
             await db.execute(select(BankSyncJob.deferred_link_ids, BankSyncJob.requested_link_ids).where(BankSyncJob.id == job.id))
         ).one()
-        timezone = resolve_timezone(await db.scalar(select(User.tz).where(User.id == job.owner_id)))
+        tz, base_currency = (await db.execute(select(User.tz, User.base_currency).where(User.id == job.owner_id))).one()
+        timezone = resolve_timezone(tz)
         currency_exponents = await get_all_currency_exponents(db)
 
     # The emails of each save that committed, until they are sent
@@ -214,6 +216,7 @@ async def run_sync_job(job: ClaimedJob) -> None:
                 deferred=deferred,
                 requested=requested,
                 timezone=timezone,
+                base_currency=base_currency,
                 currency_exponents=currency_exponents,
                 now=now,
             )
@@ -272,6 +275,7 @@ class _JobRun:
         deferred: Collection[uuid.UUID],
         requested: Collection[uuid.UUID],
         timezone: ZoneInfo,
+        base_currency: str,
         currency_exponents: Mapping[str, int],
         now: datetime,
     ) -> None:
@@ -279,6 +283,16 @@ class _JobRun:
         self.job = job
         self.connection = connection
         self.adapter = adapter
+        self.base_currency = base_currency
+
+        # The check's sentence while it keeps the owner's records in another currency read-only, asked
+        # once for the job when it first reads a link to an account in another currency
+        self.read_only_reason: str | None = None
+        self.asked_read_only = False
+
+        # The links to read-only accounts, left out of the whole job: it brings nothing into them,
+        # records no attempt for them and emails nobody about them
+        self.skipped: set[uuid.UUID] = set()
 
         # The action-needed emails of each save once it commits, sent right after it and logged as
         # unsent by the caller when the job is cancelled first
@@ -470,18 +484,30 @@ class _JobRun:
         return running is None and part.last_day == self.today
 
     async def _read_links(self) -> list[BankAccountLink]:
-        """Return every link on the connection, as committed now, noting each linked account's currency and its bank login"""
+        """Return every link on the connection the job may sync, as committed now, noting each linked account's currency and its bank login
+
+        A link to a read-only account is left out and dropped from the links the job plans last or
+        syncs now, so no part of the job reaches it
+        """
         async with async_session() as db:
             rows = await db.execute(
-                select(BankAccountLink, Account.currency, BankExternalAccount.login_key)
+                select(BankAccountLink, Account.currency, Account.group_id, BankExternalAccount.login_key)
                 .join(Account, Account.id == BankAccountLink.account_id)
                 .outerjoin(BankExternalAccount, LINK_LISTING)
                 .where(BankAccountLink.connection_id == self.connection.id)
             )
             links = rows.all()
-        self.account_currencies = {link.account_id: currency for link, currency, _ in links}
-        self.bank_logins = {link.external_account_id: login for link, _, login in links}
-        return [link for link, *_ in links]
+        self.account_currencies = {link.account_id: currency for link, currency, *_ in links}
+        self.bank_logins = {link.external_account_id: login for link, *_, login in links}
+        other_currency = {link.id for link, currency, group_id, _ in links if is_other_currency(self.base_currency, currency, group_id)}
+        if other_currency and not self.asked_read_only:
+            self.read_only_reason = await find_foreign_currencies_reason(self.job.owner_id)
+            self.asked_read_only = True
+        if self.read_only_reason is not None:
+            self.skipped = other_currency
+            self.requested -= other_currency
+            self.deferred -= other_currency
+        return [link for link, *_ in links if link.id not in self.skipped]
 
     def _needs_discovery(self, links: list[BankAccountLink]) -> bool:
         """Return whether the job lists the bank accounts first: flagged to, a link waits in Choose bank account, or the listing is old
@@ -921,6 +947,7 @@ class _JobRun:
             failed=failed,
             attempted_at=attempted_at,
             retry_overdue=retry_overdue,
+            skipped=self.skipped,
             started_at=self.now,
             outbox=self.outbox,
         )
@@ -1036,6 +1063,7 @@ async def _end_job(
     failed: Sequence[BankAccountLink] = (),
     attempted_at: datetime | None = None,
     retry_overdue: bool = False,
+    skipped: Collection[uuid.UUID] = (),
     started_at: datetime,
     outbox: list[ActionEmail],
 ) -> None:
@@ -1060,6 +1088,8 @@ async def _end_job(
         failed: The links the error failed an attempt for, as the caller read them
         attempted_at: When the failed attempt's request was sent, or now when not given
         retry_overdue: Whether the job left a link whose retry was due
+        skipped: The links to read-only accounts the job left out, scheduled no sooner than the
+            next daily sync
         started_at: When the job's attempt started. It found the links due at that time
         outbox: Where the emails the step recorded wait to be sent
 
@@ -1091,7 +1121,7 @@ async def _end_job(
                 requested_link_ids=requested,
             )
         await queue_next_retry(db, connection, ended_by=error, overdue=retry_overdue, started_at=started_at, now=now)
-        await schedule_next_sync(db, connection, now=now)
+        await schedule_next_sync(db, connection, now=now, skipped=skipped)
         await finish_job(db, job, error)
         await mark_user_status_changed(db, job.owner_id)
         await db.commit()

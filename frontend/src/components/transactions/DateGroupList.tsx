@@ -279,6 +279,9 @@ export default function TransactionDateGroupList({
                       category={category}
                       currency={transaction.currency}
                       readOnlyReason={readOnlyReason}
+                      hidesReadOnlyReason={
+                        readOnlyReason !== undefined && readOnlyReason === rowAccount?.read_only_reason
+                      }
                       fxNote={
                         isTransactionAmountUnconverted(transaction, fixedAccount)
                           ? isUpcoming

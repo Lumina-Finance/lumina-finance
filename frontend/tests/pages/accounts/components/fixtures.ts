@@ -26,6 +26,7 @@ export function createPlan(overrides: Partial<TaxAdvantagedCategory> = {}): TaxA
     lifetime_contributions: 0,
     lifetime_withdrawals: 0,
     created_at: '2026-01-01T00:00:00Z',
+    read_only_reason: null,
     ...overrides,
   }
 }
@@ -48,6 +49,7 @@ export function createForeignAccount(overrides: Partial<AccountsOverview> = {}):
     credit_limit: null,
     can_write: true,
     is_archived: false,
+    read_only_reason: null,
     ...overrides,
   }
 }

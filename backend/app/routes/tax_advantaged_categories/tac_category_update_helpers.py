@@ -5,12 +5,14 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import TaxAdvantagedCategory
+from app.models.user import User
 from app.routes.tax_advantaged_categories.tac_category_helpers import (
     apply_tac_category_updates,
     get_owned_tax_advantaged_category_or_404,
     validate_tac_category_updates,
 )
 from app.schemas.tax_advantaged_category import UpdateTaxAdvantagedCategoryRequest
+from app.services.allowance.currency import attach_read_only_reasons, require_writable_record
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.tax_advantaged_categories import attach_tax_advantaged_category_metrics, get_category_owner_timezones
 
@@ -18,7 +20,7 @@ from app.services.tax_advantaged_categories import attach_tax_advantaged_categor
 async def update_tax_advantaged_category_with_metrics(
     db: AsyncSession,
     tax_advantaged_category_id: uuid.UUID,
-    owner_id: uuid.UUID,
+    user: User,
     data: UpdateTaxAdvantagedCategoryRequest,
 ) -> TaxAdvantagedCategory:
     """Update an owned tax-advantaged category with current-year metrics
@@ -26,21 +28,22 @@ async def update_tax_advantaged_category_with_metrics(
     Args:
         db: Active database session
         tax_advantaged_category_id: Tax-advantaged category identifier to update
-        owner_id: Authenticated owner identifier
+        user: Authenticated owner
         data: Partial tax-advantaged category update payload
 
     Returns:
         Updated tax-advantaged category with current-year metrics attached
 
     Raises:
-        HTTPException: Tax-advantaged category is inaccessible, a supplied field is invalid, the owner
-            row cannot be read, or its stored timezone is not a zone the app recognizes
+        HTTPException: Tax-advantaged category is inaccessible or read-only, a supplied field is
+            invalid, the owner row cannot be read, or its stored timezone is not a zone the app recognizes
     """
-    tax_advantaged_category = await get_owned_tax_advantaged_category_or_404(db, tax_advantaged_category_id, owner_id)
+    tax_advantaged_category = await get_owned_tax_advantaged_category_or_404(db, tax_advantaged_category_id, user.id)
     previous_group_id = tax_advantaged_category.group_id
     updates = data.model_dump(exclude_unset=True)
     if updates:
-        await validate_tac_category_updates(db, updates, owner_id)
+        await require_writable_record(db, user, tax_advantaged_category)
+        await validate_tac_category_updates(db, updates, user.id)
 
     # Resolved before the category is changed, since the response metrics are read after the commit
     # and a refusal there would leave the category updated and the request failed
@@ -48,6 +51,7 @@ async def update_tax_advantaged_category_with_metrics(
 
     if not updates:
         await attach_tax_advantaged_category_metrics(db, [tax_advantaged_category], owner_timezones)
+        await attach_read_only_reasons(db, user, [tax_advantaged_category])
         return tax_advantaged_category
 
     apply_tac_category_updates(tax_advantaged_category, updates)
@@ -66,4 +70,5 @@ async def update_tax_advantaged_category_with_metrics(
     await db.commit()
     await db.refresh(tax_advantaged_category)
     await attach_tax_advantaged_category_metrics(db, [tax_advantaged_category], owner_timezones)
+    await attach_read_only_reasons(db, user, [tax_advantaged_category])
     return tax_advantaged_category

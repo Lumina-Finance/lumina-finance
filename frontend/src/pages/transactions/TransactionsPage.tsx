@@ -7,7 +7,7 @@ import { buildImportOriginState } from '@/utils/importOrigin'
 import { isLoadingFirstAnswer } from '@/utils/queryLoading'
 import { useAuth } from '@/hooks/useAuth'
 import { useAccounts } from '@/api/accounts'
-import { getCreateBlockReason } from '@/components/transactions/utils/createBlockReason'
+import { getCreateBlockReason, isOnReadOnlyAccount } from '@/components/transactions/utils/createBlockReason'
 import { useLoadTransaction, useTransactionsOverview, type Transaction } from '@/api/transactions'
 import TransactionListSection from '@/components/transactions/ListSection'
 import CreateTransactionModal from '@/components/transactions/transaction-modal/Modal'
@@ -184,11 +184,11 @@ export default function TransactionsPage() {
   }
 
   const transactionAccounts = useMemo(() => (accounts ?? []).map(toTransactionListAccount), [accounts])
-  const editingTransactionReadOnly = useMemo(() => {
-    if (!editingTransaction) return false
-
-    return Boolean(accounts?.find((account) => account.id === editingTransaction.account_id)?.is_archived)
-  }, [accounts, editingTransaction])
+  // An archived account's transactions open read-only, and so do those of an account the server keeps read-only
+  const editingTransactionReadOnly = useMemo(
+    () => (editingTransaction ? isOnReadOnlyAccount(editingTransaction.account_id, accounts) : false),
+    [accounts, editingTransaction],
+  )
   const handleSettledTransactionsChange = useCallback((transactions: Transaction[]) => {
     latestTransactionsRef.current = transactions
   }, [])

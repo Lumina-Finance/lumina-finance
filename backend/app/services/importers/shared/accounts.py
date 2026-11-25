@@ -22,6 +22,7 @@ from app.services.importers.shared.account_creation_helpers import (
 )
 from app.services.importers.shared.stats import ImportStats
 from app.services.importers.shared.validation_helpers import strip_import_text_or_raise
+from app.services.transactions.accounts import require_writable_account
 
 
 @dataclass
@@ -200,7 +201,8 @@ async def get_existing_import_account(
         Writable, non-archived account row
 
     Raises:
-        HTTPException: Raised with 422 when the account is archived
+        HTTPException: Raised with 422 when the account is archived, and 403 with the check's
+            sentence when its currency keeps it read-only
     """
     account = await check_account_access(
         db,
@@ -209,8 +211,7 @@ async def get_existing_import_account(
         PermissionLevel.WRITE,
         access_lookup=access_lookup,
     )
-    if account.is_archived:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account is archived")
+    await require_writable_account(db, user, account)
     return account
 
 

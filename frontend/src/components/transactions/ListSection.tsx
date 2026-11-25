@@ -57,6 +57,7 @@ import {
 } from '@/components/transactions/bulk-edit/selection'
 import { useBulkSelection } from '@/components/transactions/bulk-edit/useBulkSelection'
 import { getTransactionReadOnlyReason } from '@/components/transactions/utils/rowEditability'
+import { getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
 import { getImportBlockReason, isImportableAccount } from '@/utils/importableAccount'
 import {
   TRANSACTION_CHECKBOX_RAIL_DURATION_S,
@@ -218,7 +219,7 @@ export default function TransactionListSection({
     () => (isUpcomingExpanded ? [...upcomingTransactions, ...pastTransactions] : pastTransactions),
     [isUpcomingExpanded, upcomingTransactions, pastTransactions],
   )
-  const createDisabledReason = fixedAccount?.is_archived ? 'Archived accounts are read-only' : createBlockReason
+  const createDisabledReason = getAccountWriteBlockReason(fixedAccount) ?? createBlockReason
   const createDisabled = Boolean(createDisabledReason)
 
   // A row's Needs review marker asks the review block to go to the row's waiting item

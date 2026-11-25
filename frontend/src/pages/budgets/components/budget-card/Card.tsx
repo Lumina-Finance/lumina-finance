@@ -1,4 +1,7 @@
+import { useId } from 'react'
 import type { BaseBudget, Budget, BudgetUtilization } from '@/api/budgets'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
+import { useReadOnlyReasonOnFocus } from '@/hooks/useReadOnlyReasonOnFocus'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import BudgetCategoryRow from '@/pages/budgets/components/budget-card/CategoryRow'
 import ArchivedPill from '@/pages/budgets/components/shared/ArchivedPill'
@@ -38,6 +41,14 @@ export default function BudgetCard({
     : 0
   const attention = attentionState(latestPeriod, utilization)
   const upcomingPeriods = nextBudgetPeriods(baseBudget, latestPeriod)
+  // The card is the control, so its pill takes no tab stop and the card shows the reason on keyboard focus.
+  // Enter or Space then opens the budget from the card alone
+  const readOnlyPillId = useId()
+  const readOnlyFocus = useReadOnlyReasonOnFocus(baseBudget.read_only_reason, readOnlyPillId)
+
+  // A read-only budget starts no new period, so its card looks archived, with its own pill in the status's place.
+  // It stays fully opaque, since fading it would leave the pill's small text below the contrast minimum
+  const looksArchived = isArchived || Boolean(baseBudget.read_only_reason)
 
   return (
     <article
@@ -45,13 +56,14 @@ export default function BudgetCard({
       className={`app-card app-budget-card flex w-full min-w-0 cursor-pointer flex-col hover:-translate-y-0.5 ${
         isArchived
           ? 'opacity-80 transition-[translate,opacity] hover:opacity-100'
-          : 'min-h-[21.5rem] transition-transform'
+          : looksArchived
+            ? 'transition-transform'
+            : 'min-h-[21.5rem] transition-transform'
       }`}
-      style={{
-        borderTop: `5px solid ${isArchived ? 'var(--app-text-muted)' : attention.indicatorColor}`,
-      }}
+      style={{ borderTop: `5px solid ${looksArchived ? 'var(--app-text-muted)' : attention.indicatorColor}` }}
       role="button"
       tabIndex={0}
+      {...(baseBudget.read_only_reason ? readOnlyFocus.focusProps : null)}
       onClick={onOpen}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -66,7 +78,12 @@ export default function BudgetCard({
             <h2 className="truncate text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
               {baseBudget.name}
             </h2>
-            <BudgetFxStatusBadge fxStatus={utilization?.fx_status} label="Budget FX status" stopPropagation />
+            <BudgetFxStatusBadge
+              fxStatus={utilization?.fx_status}
+              label="Budget FX status"
+              stopPropagation
+              readOnly={Boolean(baseBudget.read_only_reason)}
+            />
           </div>
           <p className="mt-1 truncate text-sm" style={{ color: 'var(--app-text-subtle)' }}>
             {budgetCadenceLabel(baseBudget)} · {baseBudget.group_id ? 'Shared' : 'Personal'} · {baseBudget.currency}
@@ -74,6 +91,11 @@ export default function BudgetCard({
         </div>
         {isArchived ? (
           <ArchivedPill />
+        ) : baseBudget.read_only_reason ? (
+          // As tall as the name's line, so the pill centres on the name as the status pill does
+          <span className="flex h-7 min-w-0 shrink-0 items-center">
+            <ReadOnlyReasonPill id={readOnlyPillId} reason={baseBudget.read_only_reason} />
+          </span>
         ) : (
           <span
             className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-medium"
@@ -86,7 +108,7 @@ export default function BudgetCard({
       </div>
 
       {/* An archived budget no longer tracks a live period, so an over or left reading would be stale noise */}
-      {!isArchived && (
+      {!looksArchived && (
         <div className="mt-5">
           <div className="app-budget-card-summary">
             <p
@@ -153,6 +175,7 @@ export default function BudgetCard({
           </div>
         </div>
       </div>
+      {readOnlyFocus.tooltip}
     </article>
   )
 }

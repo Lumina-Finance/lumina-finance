@@ -2,6 +2,9 @@
 export type ImportableAccountFacts = {
   can_write: boolean
   is_archived?: boolean
+
+  // Why the account's currency keeps it read-only, when it does
+  read_only_reason?: string | null
 }
 
 /**
@@ -18,19 +21,22 @@ export type ImportableAccountFacts = {
  * @param account - The account, or null where none has been loaded, which is not importable either
  */
 export function isImportableAccount(account: ImportableAccountFacts | null | undefined): boolean {
-  return account?.can_write === true && !account.is_archived
+  return account?.can_write === true && !account.is_archived && !account.read_only_reason
 }
 
 /**
  * Says why an import cannot be written to this account, or nothing where it can
  *
  * Archived accounts are read-only until they are restored, and an account shared at read level
- * stays read-only whatever its state. Archiving is named first, as the transaction rows name it
+ * stays read-only whatever its state, as does one whose currency keeps it read-only. Archiving is
+ * named first, as the transaction rows name it
  *
  * @param account - The account, or null where the control has no one account to import into, which
  *   has no reason to give
  */
 export function getImportBlockReason(account: ImportableAccountFacts | null | undefined): string | undefined {
   if (!account || isImportableAccount(account)) return undefined
-  return account.is_archived ? 'Archived accounts are read-only' : 'Read-only access'
+  if (account.is_archived) return 'Archived accounts are read-only'
+  if (account.can_write !== true) return 'Read-only access'
+  return account.read_only_reason ?? undefined
 }

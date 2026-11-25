@@ -1,90 +1,94 @@
-import type { FxStatus } from '@/api/shared/fx';
+import type { FxStatus } from '@/api/shared/fx'
 
-export type RecurrenceFreq = 'weekly' | 'monthly' | 'yearly';
+export type RecurrenceFreq = 'weekly' | 'monthly' | 'yearly'
 
 export interface BaseBudget {
-  id: string;
-  owner_id: string | null;
-  group_id: string | null;
-  name: string;
-  currency: string;
-  recurrence_freq: RecurrenceFreq;
-  instance_length: number;
-  recurrence_weekday: number | null;
-  recurrence_dom: number | null;
-  recurrence_month: number | null;
-  recurs: boolean;
-  created_at: string;
+  id: string
+  owner_id: string | null
+  group_id: string | null
+  name: string
+  currency: string
+  recurrence_freq: RecurrenceFreq
+  instance_length: number
+  recurrence_weekday: number | null
+  recurrence_dom: number | null
+  recurrence_month: number | null
+  recurs: boolean
+  created_at: string
 
   // True while the budget is hidden and the backend has paused generating new periods
-  is_archived: boolean;
-  category_ids: string[];
+  is_archived: boolean
+  category_ids: string[]
+
+  // The installed check's sentence while the budget's currency keeps it read-only, or null. Left out,
+  // the budget can change
+  read_only_reason?: string | null
 }
 
 export interface Budget {
-  id: string;
-  base_budget_id: string;
-  period_start: string;
-  period_end: string;
-  overall_limit: number;
-  created_at: string;
-  base_budget: BaseBudget;
+  id: string
+  base_budget_id: string
+  period_start: string
+  period_end: string
+  overall_limit: number
+  created_at: string
+  base_budget: BaseBudget
 }
 
 export interface BudgetCategoryUtilization {
-  category_id: string;
-  spent: number;
+  category_id: string
+  spent: number
 }
 
 export interface BudgetUtilization {
-  budget_id: string;
-  period_start: string;
-  period_end: string;
-  overall_limit: number;
-  total_spent: number;
-  categories: BudgetCategoryUtilization[];
-  fx_status: FxStatus;
+  budget_id: string
+  period_start: string
+  period_end: string
+  overall_limit: number
+  total_spent: number
+  categories: BudgetCategoryUtilization[]
+  fx_status: FxStatus
 }
 
 export interface LatestBudgetUtilization extends BudgetUtilization {
-  base_budget_id: string;
-  name: string;
-  currency: string;
+  base_budget_id: string
+  name: string
+  currency: string
 }
 
 export interface CreateBaseBudgetPayload {
-  name: string;
-  currency: string;
-  recurrence_freq: RecurrenceFreq;
-  instance_length: number;
-  recurrence_weekday: number | null;
-  recurrence_dom: number | null;
-  recurrence_month: number | null;
-  recurs: boolean;
-  category_ids: string[];
-  period_start?: string;
-  overall_limit?: number;
+  name: string
+  currency: string
+  recurrence_freq: RecurrenceFreq
+  instance_length: number
+  recurrence_weekday: number | null
+  recurrence_dom: number | null
+  recurrence_month: number | null
+  recurs: boolean
+  category_ids: string[]
+  period_start?: string
+  overall_limit?: number
 }
 
 export interface CreateBudgetPayload {
-  baseBudgetId: string;
-  period_start: string;
-  overall_limit: number;
+  baseBudgetId: string
+  period_start: string
+  overall_limit: number
 }
 
 export interface UpdateBaseBudgetPayload {
-  id: string;
+  id: string
   patch: {
-    name?: string;
-    recurs?: boolean;
-    category_ids?: string[];
-    is_archived?: boolean;
-  };
+    name?: string
+    recurs?: boolean
+    category_ids?: string[]
+    is_archived?: boolean
+  }
 }
 
 export interface UpdateBudgetPayload {
-  id: string;
+  id: string
   patch: {
-    overall_limit?: number;
-  };
+    overall_limit?: number
+  }
 }

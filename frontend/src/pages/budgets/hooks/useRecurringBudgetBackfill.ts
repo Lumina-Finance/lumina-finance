@@ -26,22 +26,27 @@ export function useRecurringBudgetBackfill({
     if (!enabled) return
 
     // Remember attempted base/start pairs so rerenders do not duplicate mutation attempts
-    const missingPeriods = budgetCards.flatMap(({ baseBudget, latestPeriod }) => {
-      if (!latestPeriod) return []
+    const missingPeriods = budgetCards
+      .flatMap(({ baseBudget, latestPeriod }) => {
+        if (!latestPeriod) return []
 
-      // Archiving pauses period generation on the backend, so the client must not recreate the skipped periods
-      if (baseBudget.is_archived) return []
-      return missingRecurringPeriodStarts(baseBudget, latestPeriod, today).map((periodStart) => ({
-        key: `${baseBudget.id}:${periodStart}`,
-        baseBudgetId: baseBudget.id,
-        period_start: periodStart,
-        overall_limit: latestPeriod.overall_limit,
-      }))
-    }).filter((period) => {
-      if (backfilledKeys.current.has(period.key)) return false
-      backfilledKeys.current.add(period.key)
-      return true
-    })
+        // Archiving pauses period generation on the backend, so the client must not recreate the skipped periods
+        if (baseBudget.is_archived) return []
+
+        // A read-only budget takes no new period, so the client leaves its schedule where it stopped
+        if (baseBudget.read_only_reason) return []
+        return missingRecurringPeriodStarts(baseBudget, latestPeriod, today).map((periodStart) => ({
+          key: `${baseBudget.id}:${periodStart}`,
+          baseBudgetId: baseBudget.id,
+          period_start: periodStart,
+          overall_limit: latestPeriod.overall_limit,
+        }))
+      })
+      .filter((period) => {
+        if (backfilledKeys.current.has(period.key)) return false
+        backfilledKeys.current.add(period.key)
+        return true
+      })
 
     if (missingPeriods.length === 0) return
 
@@ -61,7 +66,6 @@ export function useRecurringBudgetBackfill({
           })
           shouldRefetch = true
         } catch (error) {
-
           // A 409 means another request already created the period, so refetch to converge local query data with the backend
           if (error instanceof ApiError && error.status === 409) {
             shouldRefetch = true

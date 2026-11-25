@@ -215,6 +215,7 @@ export default function BudgetDetailsModal({
                     fxStatus={utilizationHistoryFxStatus}
                     label="Historical utilization FX status"
                     getMessage={getHistoricalBudgetUtilizationFxStatusMessage}
+                    readOnly={Boolean(baseBudget.read_only_reason)}
                   />
                 </div>
                 <p className="mt-1 text-sm" style={{ color: 'var(--app-text-subtle)' }}>

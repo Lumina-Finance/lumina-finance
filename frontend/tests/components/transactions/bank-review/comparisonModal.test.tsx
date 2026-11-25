@@ -76,12 +76,17 @@ const COUNTDOWN = createReviewItem('countdown', 'correction', 'everyday', {
   changed_fields: ['amount'],
 })
 
-function render(item: BankReviewItem, currency = 'USD'): string {
+function render(item: BankReviewItem, currency = 'USD', readOnlyReason?: string): string {
   return renderToStaticMarkup(
     <QueryClientProvider client={new QueryClient()}>
-      <BankComparisonModal open item={item} currency={currency} onClose={() => {}} />
+      <BankComparisonModal open item={item} currency={currency} readOnlyReason={readOnlyReason} onClose={() => {}} />
     </QueryClientProvider>,
   )
+}
+
+/** The opening tag of the button named `label` */
+function buttonTag(markup: string, label: string): string {
+  return new RegExp(`<button\\b[^>]*\\saria-label="${label}"[^>]*>`).exec(markup)?.[0] ?? ''
 }
 
 /** A tag's style attribute read into its properties, so a check doesn't depend on how React writes it */
@@ -231,5 +236,35 @@ describe('a removal', () => {
 
     expect(toneOf(markup, 'Keep transaction')).toBe('secondary')
     expect(toneOf(markup, 'Remove from ledger')).toBe('danger')
+  })
+})
+
+// Accepting a correction changes the transaction, and the server refuses a change on a read-only account.
+// Keeping it and removing it change nothing the server holds back
+describe('on an account the server keeps read-only', () => {
+  const READ_ONLY = 'Records in USD are read-only. They can be archived or deleted'
+
+  it('holds Accept bank change back with the reason, and leaves Keep current value open', () => {
+    const markup = render(COUNTDOWN, 'USD', READ_ONLY)
+
+    expect(buttonTag(markup, 'Accept bank change')).toContain('aria-disabled="true"')
+    expect(markup).toContain(READ_ONLY)
+    expect(buttonTag(markup, 'Keep current value')).not.toContain('aria-disabled')
+  })
+
+  it('leaves both decisions on a removal open', () => {
+    const markup = render(
+      createReviewItem('uber', 'removal', 'everyday', { current: LEDGER, bank: LEDGER }),
+      'USD',
+      READ_ONLY,
+    )
+
+    expect(buttonTag(markup, 'Remove from ledger')).not.toContain('aria-disabled')
+    expect(buttonTag(markup, 'Keep transaction')).not.toContain('aria-disabled')
+    expect(markup).not.toContain(READ_ONLY)
+  })
+
+  it('holds nothing back on an account that takes writes', () => {
+    expect(buttonTag(render(COUNTDOWN), 'Accept bank change')).not.toContain('aria-disabled')
   })
 })

@@ -53,8 +53,11 @@ export type ReviewRowSelection = {
   /** How a new item's row is marked once any pending shift-click is taken into account */
   markFor: (itemId: string) => RowSelectionMark
 
-  /** False once the selection is full and the item isn't in it */
+  /** False once the selection is full and the item isn't in it, or while the server keeps its account read-only */
   isSelectable: (itemId: string) => boolean
+
+  /** Why the server keeps the item's account read-only, or undefined */
+  readOnlyReasonFor?: (itemId: string) => string | undefined
   onToggle: (itemId: string, withShift: boolean) => void
   onPointerEnter: (itemId: string) => void
   onPointerLeaveList: () => void
@@ -420,7 +423,7 @@ export function BankReviewBlock({
                   <span
                     className="absolute inset-y-0 left-0 z-10 flex items-center justify-center"
                     style={{ width: TRANSACTION_CHECKBOX_RAIL_WIDTH }}
-                    title={isSelectable ? undefined : describeTickLimit(true)}
+                    title={isSelectable ? undefined : (tick.readOnlyReasonFor?.(item.id) ?? describeTickLimit(true))}
                   >
                     <Checkbox
                       checked={mark === 'selected'}

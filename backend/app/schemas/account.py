@@ -38,6 +38,9 @@ class AccountsOverview(BaseModel):
     can_write: bool
     is_archived: bool
 
+    # The installed check's sentence while the account's currency keeps it read-only, or None
+    read_only_reason: str | None
+
     model_config = {"from_attributes": True}
 
 
@@ -67,6 +70,9 @@ class AccountResponse(BaseModel):
     # Whether a transaction is dated after the viewer's today, which blocks archiving until it is
     # moved or deleted
     has_transactions_after_today: bool
+
+    # The installed check's sentence while the account's currency keeps it read-only, or None
+    read_only_reason: str | None
 
     model_config = {"from_attributes": True}
 

@@ -54,6 +54,16 @@ export function getIdentityFieldErrors(form: IdentityFormValues, isRevolving: bo
 }
 
 /**
+ * Returns why Save changes is held back on a read-only account, or null while it can save
+ *
+ * Its fields are held back, so the only change Save can carry is archiving or bringing it back
+ */
+export function getReadOnlySaveReason(account: Account, form: IdentityFormValues): string | null {
+  if (!account.read_only_reason || form.is_archived !== account.is_archived) return null
+  return account.read_only_reason
+}
+
+/**
  * Builds the update payload with only fields the account type is allowed to send
  *
  * The credit limit is left out entirely when the account's currency is not in the table. The field is

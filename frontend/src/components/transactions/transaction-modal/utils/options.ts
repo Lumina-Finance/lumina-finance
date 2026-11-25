@@ -1,5 +1,6 @@
 import type { AccountsOverview } from '@/api/accounts'
 import type { Currency } from '@/api/currency'
+import { getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 
 /**
@@ -8,14 +9,9 @@ import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
  * An existing transaction keeps its currency, so only accounts holding that same currency can
  * carry it, while creating a transaction still offers every account and adopts its currency
  */
-export function buildAccountOptions(
-  selectableAccounts: AccountsOverview[],
-  editing: boolean,
-  currency: string,
-) {
-  const eligibleAccounts = editing && currency
-    ? selectableAccounts.filter((account) => account.currency === currency)
-    : selectableAccounts
+export function buildAccountOptions(selectableAccounts: AccountsOverview[], editing: boolean, currency: string) {
+  const eligibleAccounts =
+    editing && currency ? selectableAccounts.filter((account) => account.currency === currency) : selectableAccounts
   return eligibleAccounts.map((account) => ({ value: account.id, label: account.name }))
 }
 
@@ -35,16 +31,20 @@ export function buildCounterpartyAccountOptions(
 ) {
   // Money cannot move from an account to itself, so the account holding the transfer is left out
   // rather than offered and then refused
-  const eligibleAccounts = accounts
-    .filter((account) => account.id !== recordedAccountId && !account.is_archived)
-    .map((account) => ({ value: account.id, label: account.name }))
+  const eligibleAccounts = accounts.filter((account) => account.id !== recordedAccountId && !account.is_archived)
+  const toOptions = (eligible: AccountsOverview[]) =>
+    eligible.map((account) => ({ value: account.id, label: account.name }))
 
   // Ticking the checkbox makes this the account the matching transaction is written to, and there
-  // is nowhere outside the app to write one, so the entry is not offered there
-  if (isSymmetricTransfer) return eligibleAccounts
+  // is nowhere outside the app to write one, so the entry is not offered there. Nor is an account the
+  // server keeps read-only, as it takes no new transaction. Naming one without the checkbox only records
+  // where the money went, so the plain list keeps it
+  if (isSymmetricTransfer) {
+    return toOptions(eligibleAccounts.filter((account) => getAccountWriteBlockReason(account) === undefined))
+  }
 
   // First, because it is the one answer that is not a search through the account list
-  return [{ value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL }, ...eligibleAccounts]
+  return [{ value: OUTSIDE_ACCOUNT_VALUE, label: OUTSIDE_ACCOUNT_LABEL }, ...toOptions(eligibleAccounts)]
 }
 
 /**

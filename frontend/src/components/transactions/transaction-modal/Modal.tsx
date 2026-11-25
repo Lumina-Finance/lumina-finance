@@ -27,6 +27,7 @@ import {
   buildReviewItemForm,
 } from '@/components/transactions/transaction-modal/utils/initialForm'
 import { buildCurrencyOptions } from '@/components/transactions/transaction-modal/utils/options'
+import { describeReadOnlyAccount, getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
 import {
   getTransactionProblems,
   isSymmetricTransferForm,
@@ -40,6 +41,7 @@ import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { usePendingLinks } from '@/components/transactions/transaction-modal/hooks/usePendingLinks'
 import { useRefundRoom } from '@/components/transactions/transaction-modal/hooks/useRefundRoom'
 import { revealIfHidden } from '@/components/transactions/transaction-modal/utils/reveal'
+import { getReviewSubmitHold } from '@/components/transactions/transaction-modal/utils/reviewSubmit'
 import { getBankDeleteRefusal } from '@/components/transactions/transaction-modal/utils/bankDelete'
 import { getBankMoveRefusal } from '@/components/transactions/transaction-modal/utils/bankMove'
 import { getBankValueCaptions, getReviewAmountNote } from '@/components/transactions/transaction-modal/utils/bankValues'
@@ -84,6 +86,7 @@ import {
   buildRefundNote,
   canLinkAsRefund,
   getRefundAccounts,
+  getSelectableAccounts,
   getLinkedTransactionIds,
   isRefundable,
 } from '@/components/transactions/transaction-modal/utils/refund'
@@ -138,10 +141,10 @@ export default function CreateTransactionModal({
   const { data: currencies = [] } = useCurrencies()
   const linksByAccount = useBankLinksByAccount()
   const currencyState = useCurrencyListState()
-  const selectableAccounts = useMemo(() => {
-    const unarchived = accounts.filter((account) => !account.is_archived)
-    return refundOf ? getRefundAccounts(unarchived, refundOf.currency) : unarchived
-  }, [accounts, refundOf])
+  const selectableAccounts = useMemo(
+    () => getSelectableAccounts(accounts, reviewItem?.account_id, refundOf?.currency),
+    [accounts, refundOf?.currency, reviewItem?.account_id],
+  )
   const prefersReducedMotion = useReducedMotion()
   const reviewAccount = reviewItem && accounts.find((account) => account.id === reviewItem.account_id)
   const reviewCurrency = reviewAccount?.currency ?? ''
@@ -197,7 +200,7 @@ export default function CreateTransactionModal({
     () => accounts.find((account) => account.id === form.counterparty_account_id),
     [accounts, form.counterparty_account_id],
   )
-  const readOnly = editing && (readOnlyProp || Boolean(selectedAccount?.is_archived))
+  const readOnly = editing && (readOnlyProp || getAccountWriteBlockReason(selectedAccount) !== undefined)
 
   // A restored bank value is already saved, so the transaction as the restore answered it is the one a
   // save compares the form with, and its bank source says which fields are still edited. The form
@@ -335,6 +338,7 @@ export default function CreateTransactionModal({
   // So is a bank transaction moved out of its linked account. The account field shows it at once
   if (bankMoveRefusal && !problems.account_id) problems.account_id = bankMoveRefusal
   const refusal = useRefusedSubmit(problems, fieldLayout.order, suffixControlIds(fieldLayout.controlIds, idSuffix))
+  const reviewHold = getReviewSubmitHold(reviewAccount, refusal.blockedReason, readOnly)
   const showError = (field: keyof TransactionFormFieldErrors) => refusal.errors[field]
 
   // Going on to the next item swaps the item under the open modal, so the form starts over from it and
@@ -421,7 +425,7 @@ export default function CreateTransactionModal({
     resetRefusal: refusal.reset,
     setSubmitError,
     setSubmitErrorTitle,
-    readOnly,
+    readOnly: reviewHold.submitReadOnly,
     accounts,
     selectedAccount,
     selectedCurrencyExponent,
@@ -579,7 +583,7 @@ export default function CreateTransactionModal({
     <TransactionReviewFooter
       isPending={isPending}
       submitLoading={submitLoading}
-      submitBlockedReason={refusal.blockedReason}
+      submitBlockedReason={reviewHold.submitBlockedReason}
       dismissLoading={dismissLoading}
       keepOpen={keepOpenAfterCreate}
       onKeepOpenChange={setKeepOpenAfterCreate}
@@ -613,7 +617,8 @@ export default function CreateTransactionModal({
                     ? buildRefundNote(refundOf?.merchant_name ?? null)
                     : `${KIND_LABELS[form.kind]} transaction`
             }
-            headerStatus={readOnly ? 'Archived account' : undefined}
+            // An account the server keeps read-only isn't archived, so the header says read-only instead
+            headerStatus={readOnly ? describeReadOnlyAccount(selectedAccount) : undefined}
             headerAction={
               canOfferRefund ? (
                 <RefundButton

@@ -13,6 +13,7 @@ from app.routes.base_budgets.category_helpers import update_tracked_category_lin
 from app.routes.base_budgets.instance_helpers import resume_budget_generation_at_current_period
 from app.routes.base_budgets.response_helpers import get_base_budget_response
 from app.schemas.budget import BaseBudgetResponse, UpdateBaseBudgetRequest
+from app.services.allowance.currency import find_read_only_reason, require_writable_record
 from app.services.budgets.limits import ensure_one_off_budget_can_repeat
 from app.services.cache_state import mark_cache_changed_for_scope
 
@@ -42,7 +43,7 @@ async def update_base_budget_and_get_response(
     base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.ADMIN)
     changed_fields = data.model_dump(exclude_unset=True)
     if not changed_fields:
-        response = await get_base_budget_response(db, base_budget)
+        response = await get_base_budget_response(db, user, base_budget)
         return response
 
     # Evaluate the stored archived state before applying the patch so an unarchive request is not self-permitting
@@ -54,6 +55,10 @@ async def update_base_budget_and_get_response(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot edit an archived base budget",
         )
+
+    # Archiving and unarchiving stay open on a read-only budget, so it can always be put away
+    if fields_other_than_archived_flag:
+        await require_writable_record(db, user, base_budget)
 
     # Handle tracked categories separately from simple field updates
     new_category_ids = changed_fields.pop("category_ids", None)
@@ -77,13 +82,14 @@ async def update_base_budget_and_get_response(
             today,
         )
 
-    # Resume generation only after the archived flag is cleared so the guard permits the current period
-    if is_unarchiving:
+    # Resume generation only after the archived flag is cleared so the guard permits the current period.
+    # A read-only budget takes no new period, so unarchiving one only brings it back
+    if is_unarchiving and await find_read_only_reason(db, user, base_budget) is None:
         await resume_budget_generation_at_current_period(db, base_budget, today)
 
     await mark_cache_changed_for_scope(db, user_id=base_budget.owner_id, group_id=base_budget.group_id)
     await db.commit()
     await db.refresh(base_budget)
 
-    response = await get_base_budget_response(db, base_budget)
+    response = await get_base_budget_response(db, user, base_budget)
     return response

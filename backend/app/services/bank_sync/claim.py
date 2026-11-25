@@ -132,7 +132,7 @@ async def save_claimed_connection(
 
     # Loads the times the database set. The response states them
     await db.refresh(connection)
-    return (await build_connection_responses(db, user.id, [connection]))[0]
+    return (await build_connection_responses(db, user, [connection]))[0]
 
 
 @within_time_budget
@@ -245,7 +245,7 @@ async def save_reconnected_connection(
     await mark_user_cache_changed(db, user.id)
     await db.commit()
     response = ReconnectBankConnectionResponse(
-        connection=(await build_connection_responses(db, user.id, [connection]))[0],
+        connection=(await build_connection_responses(db, user, [connection]))[0],
         resumed_account_ids=resumed if listed else [],
         choose_again_account_ids=choose_again if listed else [],
         accounts_pending=not listed,

@@ -3,6 +3,8 @@ import { AnimatePresence } from 'motion/react'
 import type { Account } from '@/api/accounts'
 import { useBankConnections } from '@/api/bank-sync'
 import type { TaxAdvantagedCategory } from '@/api/tax-advantaged-categories'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
+import { FADED_ROW_COLOURS } from '@/contexts/FadedRowsContext'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { InstitutionLogo } from '@/pages/accounts/components/InstitutionLogo'
 import { isLinkStillUnread } from '@/pages/accounts/detail/components/bank-link/status'
@@ -61,7 +63,12 @@ export default function AccountIdentityCard({
   ]
 
   return (
-    <section className="app-card relative flex flex-col min-[750px]:min-h-[440px]">
+    // A read-only account is greyed out with its reason. Its edit button stays, since archiving and
+    // deleting it are in the dialogue the button opens
+    <section
+      className="app-card relative flex flex-col min-[750px]:min-h-[440px]"
+      style={account.read_only_reason ? FADED_ROW_COLOURS : undefined}
+    >
       <button
         type="button"
         aria-label="Edit account"
@@ -77,6 +84,11 @@ export default function AccountIdentityCard({
       <p className="mt-1 min-h-5 text-sm" style={{ color: 'var(--app-text-muted)' }}>
         {institutionName}
       </p>
+      {account.read_only_reason && (
+        <span className="mt-2 flex min-w-0">
+          <ReadOnlyReasonPill reason={account.read_only_reason} focusable />
+        </span>
+      )}
 
       <IdentityFacts facts={identityFacts}>
         {/* A way into the edit modal's Bank link section. Everything about the link is managed there */}
@@ -88,7 +100,16 @@ export default function AccountIdentityCard({
               sync={syncLabel}
               onOpen={onOpenBankSync}
               fades
-              action={link && <SyncNowIconButton link={link} connection={linkConnection} providers={providers} />}
+              action={
+                link && (
+                  <SyncNowIconButton
+                    link={link}
+                    connection={linkConnection}
+                    providers={providers}
+                    readOnlyReason={account.read_only_reason}
+                  />
+                )
+              }
             />
           )}
         </AnimatePresence>

@@ -6,6 +6,7 @@ import {
   buildCounterpartyAccountOptions,
 } from '@/components/transactions/transaction-modal/utils/options'
 import type { TransactionFormValues } from '@/components/transactions/transaction-modal/types'
+import { getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
 
 interface UseAccountFieldOptions {
   accounts: AccountsOverview[]
@@ -54,8 +55,11 @@ export function useAccountField({
     () => buildCounterpartyAccountOptions(counterpartyAccounts, form.account_id, form.symmetric_transfer),
     [counterpartyAccounts, form.account_id, form.symmetric_transfer],
   )
+  // An archived or read-only account is off the list, so the transaction's own account is supplied as its own option
   const selectedArchivedAccountOption =
-    editing && selectedAccount?.is_archived ? { value: selectedAccount.id, label: selectedAccount.name } : undefined
+    editing && selectedAccount && getAccountWriteBlockReason(selectedAccount)
+      ? { value: selectedAccount.id, label: selectedAccount.name }
+      : undefined
 
   // An account archived after the transfer was recorded is off the list above, so the stored answer
   // is supplied as its own option. Without it the field would read as unanswered, and every edit
@@ -86,7 +90,7 @@ export function useAccountField({
 
   /** Reports whether an account can hold the matching transaction the ticked checkbox writes */
   const canReceivePairedTransaction = (accountId: string) =>
-    accounts.some((account) => account.id === accountId && !account.is_archived)
+    accounts.some((account) => account.id === accountId && !getAccountWriteBlockReason(account))
 
   const handleSymmetricTransferChange = (value: boolean) => {
     setForm((f) => ({

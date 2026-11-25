@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank_sync_job import BankSyncJobKind
 from app.models.user import User
 from app.schemas.bank_sync import BankLinkResponse, ImportBankRangeRequest
+from app.services.allowance.currency import require_writable_record
 from app.services.bank_sync.account_link import describe_links
 from app.services.bank_sync.availability import adapter_for, require_bank_linking
 from app.services.bank_sync.connections import get_own_connection
@@ -59,8 +60,9 @@ async def import_bank_range(db: AsyncSession, user: User, account_id: uuid.UUID,
             is after the last
         HTTPException 429: The connection's request budget is spent, saying when a request frees up
     """
-    _, link = await lock_live_link(db, user, account_id)
+    account, link = await lock_live_link(db, user, account_id)
     await require_bank_linking(user.id)
+    await require_writable_record(db, user, account)
     if link.range_next_day is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=RANGE_RUNNING)
 

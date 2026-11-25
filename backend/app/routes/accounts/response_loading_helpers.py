@@ -1,4 +1,5 @@
 """Account response loading helpers"""
+
 import uuid
 from datetime import date
 
@@ -13,6 +14,7 @@ from app.permissions import check_account_access
 from app.permissions.accounts import attach_account_write_capabilities
 from app.routes.accounts.balance_field_helpers import attach_account_balance_fields
 from app.services.accounts.balance_adjustments import has_transactions_after
+from app.services.allowance.currency import attach_read_only_reasons
 
 
 async def get_account_response_for_user(
@@ -37,6 +39,7 @@ async def get_account_response_for_user(
     """
     account = await check_account_access(db, account_id, user.id, PermissionLevel.READ)
     await attach_account_write_capabilities(db, [account], user.id)
+    await attach_read_only_reasons(db, user, [account])
     await attach_account_balance_fields(db, [account], user, as_of_date)
     account.has_transactions_after_today = await has_transactions_after(db, account.id, as_of_date)
     return account
@@ -62,11 +65,7 @@ async def get_account_for_response(
     Returns:
         Account prepared for route response serialization
     """
-    query = (
-        select(Account)
-        .where(Account.id == account_id)
-        .options(selectinload(Account.institution))
-    )
+    query = select(Account).where(Account.id == account_id).options(selectinload(Account.institution))
     if refresh_cached_account:
         query = query.execution_options(populate_existing=True)
 
@@ -74,6 +73,7 @@ async def get_account_for_response(
     result = await db.execute(query)
     account = result.scalar_one()
     await attach_account_write_capabilities(db, [account], user.id)
+    await attach_read_only_reasons(db, user, [account])
     await attach_account_balance_fields(db, [account], user, as_of_date)
     account.has_transactions_after_today = await has_transactions_after(db, account.id, as_of_date)
     return account

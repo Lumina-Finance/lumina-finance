@@ -12,9 +12,7 @@ from app.schemas.transaction import CreateTransactionRequest, TransactionRespons
 from app.services.accounts.snapshots import recompute_account_snapshots, refuse_unstorable_balance
 from app.services.bank_sync.manual_entries import refuse_days_a_bank_supplies
 from app.services.cache_state import mark_cache_changed_for_scope
-from app.services.transactions.accounts import (
-    validate_transaction_account_is_not_archived,
-)
+from app.services.transactions.accounts import require_writable_account
 from app.services.transactions.links import validate_refund_original
 from app.services.transactions.response_helpers import get_transaction_response
 from app.services.transactions.tags import replace_transaction_tag_assignments
@@ -91,7 +89,7 @@ async def insert_transaction(
     Returns:
         The new transaction, flushed
     """
-    validate_transaction_account_is_not_archived(account)
+    await require_writable_account(db, user, account)
     refuse_unstorable_balance(account.name, data.amount)
 
     # Check currency and account currency inputs before any transaction row is inserted

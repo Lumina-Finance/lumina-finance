@@ -18,6 +18,8 @@ import {
 } from '@/components/transactions/constants/transactionList'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { FxStatusBadge } from '@/components/tooltips/FxStatusBadge'
+import { ReadOnlyReasonPill } from '@/components/tooltips/ReadOnlyReasonPill'
+import { useReadOnlyReasonOnFocus } from '@/hooks/useReadOnlyReasonOnFocus'
 import { NOT_CONVERTED_NOTE } from '@/utils/fxStatus'
 import { FADED_ROW_COLOURS, FadedRowsContext } from '@/contexts/FadedRowsContext'
 import { getRefundLinkLabel } from '@/components/transactions/utils/refundLink'
@@ -102,6 +104,9 @@ interface TransactionRowProps {
   category: Category | undefined
   currency: string
   readOnlyReason?: string
+  // A reason too long for the pill, such as the account's own sentence, shows as "Read-only" with the reason
+  // in its tooltip. Every other reason shows whole in the pill
+  hidesReadOnlyReason?: boolean
   // The amount could not be converted into the currency the list totals in, so the day's total leaves it out
   fxNote?: TransactionFxNote
   // The sentence saying converting this amount is refused. The note shows it instead of its own
@@ -213,18 +218,6 @@ function AccountLogo({
           $
         </span>
       )}
-    </span>
-  )
-}
-
-function ReadOnlyReasonPill({ id, reason }: { id: string; reason: string }) {
-  return (
-    <span
-      id={id}
-      className="inline-flex w-fit max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
-      style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
-    >
-      <span className="min-w-0 truncate">{reason}</span>
     </span>
   )
 }
@@ -411,6 +404,7 @@ export function TransactionRowView({
   accountInstitution,
   category,
   readOnlyReason,
+  hidesReadOnlyReason = false,
   fxNote,
   fxWithheldReason,
   transaction,
@@ -526,6 +520,11 @@ export function TransactionRowView({
   // Only the phone layout draws the note apart from the amount. The wide layout's amount holds it
   const phoneFxNoteId = `${descriptionId}-fx-narrow`
   const readOnlyId = (layout: RowLayout) => `${descriptionId}-read-only-${layout}`
+  // The pill takes no tab stop of its own, so the title shows its reason beside the row on keyboard focus,
+  // unless a reason holding the row off already shows there
+  // The row's own short reasons show whole in the pill, so only a reason the pill hides needs the focus tooltip
+  const showsReason = !hidesReadOnlyReason
+  const readOnlyFocus = useReadOnlyReasonOnFocus(isHeldOff || showsReason ? null : readOnlyReason, readOnlyId('wide'))
   // The phone layout has room for the icons alone, each described by its own id
   const phoneIconIds: NoteAndTagIconIds = {
     refund: `${descriptionId}-refund-narrow`,
@@ -568,6 +567,7 @@ export function TransactionRowView({
       // controls doing the same thing
       tabIndex={selection ? -1 : undefined}
       {...titleReasonProps}
+      {...(readOnlyReason && !isHeldOff ? readOnlyFocus.focusProps : null)}
       aria-describedby={[...describingIds(layout), dateHeadingId, titleReasonProps['aria-describedby']]
         .filter(Boolean)
         .join(' ')}
@@ -725,7 +725,9 @@ export function TransactionRowView({
                       </span>
                     )}
                   </span>
-                  {readOnlyReason && <ReadOnlyReasonPill id={readOnlyId('wide')} reason={readOnlyReason} />}
+                  {readOnlyReason && (
+                    <ReadOnlyReasonPill id={readOnlyId('wide')} reason={readOnlyReason} showsReason={showsReason} />
+                  )}
                 </>
               )}
             </span>
@@ -868,7 +870,9 @@ export function TransactionRowView({
                     )}
                   </span>
                 )}
-                {readOnlyReason && <ReadOnlyReasonPill id={readOnlyId('narrow')} reason={readOnlyReason} />}
+                {readOnlyReason && (
+                  <ReadOnlyReasonPill id={readOnlyId('narrow')} reason={readOnlyReason} showsReason={showsReason} />
+                )}
               </span>
               {/* As tall as the line's text, so the icons centre on the first line however many the account
                   column holds, and the bank marker's Needs review pill fits it exactly */}
@@ -889,6 +893,7 @@ export function TransactionRowView({
           )}
         </span>
       </div>
+      {readOnlyFocus.tooltip}
     </motion.div>
   )
 }

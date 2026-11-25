@@ -10,11 +10,12 @@ import { ARIA_SUBMIT_SHORTCUT } from '@/components/transactions/transaction-moda
 
 afterEach(() => vi.unstubAllGlobals())
 
-function render(): string {
+function render(submitBlockedReason?: string): string {
   // The buttons' label crossfade asks the window whether motion is reduced
   vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) })
   return renderToStaticMarkup(
     <TransactionReviewFooter
+      submitBlockedReason={submitBlockedReason}
       isPending={false}
       submitLoading={false}
       dismissLoading={false}
@@ -34,6 +35,16 @@ describe('the bank review footer', () => {
     expect(submit).toContain(`aria-keyshortcuts="${ARIA_SUBMIT_SHORTCUT}"`)
     expect(dismiss).not.toContain('aria-keyshortcuts')
     expect(markup).toContain('app-shortcut-hints-save')
+  })
+
+  // The form hands the footer a read-only account's reason. Adding writes to the account, and dismissing doesn't
+  it('holds Add to ledger back with the reason it is given, and leaves Dismiss open', () => {
+    const reason = 'Records in USD are read-only. They can be archived or deleted'
+    const markup = render(reason)
+
+    expect(markup.match(/<button\b[^>]*data-testid="transaction-submit"[^>]*>/)?.[0]).toContain('aria-disabled="true"')
+    expect(markup.match(/<button\b[^>]*aria-label="Dismiss"[^>]*>/)?.[0]).not.toContain('aria-disabled')
+    expect(markup).toContain(reason)
   })
 
   it('draws the keep open choice as main does, a native checkbox inside a label holding its hint', () => {

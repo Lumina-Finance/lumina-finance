@@ -1,4 +1,5 @@
 """Account tax-advantaged category link validation helpers"""
+
 import uuid
 from collections.abc import Mapping
 from typing import Any

@@ -7,21 +7,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import BaseBudget, Budget, BudgetPermission
 from app.models.group import GroupMember
+from app.models.user import User
 from app.schemas.budget import BudgetResponse
+from app.services.allowance.currency import attach_read_only_reasons
 from app.services.budgets.response_helpers import build_budget_response, load_tracked_categories
 
 
-async def get_visible_budget_responses(db: AsyncSession, user_id: uuid.UUID) -> list[BudgetResponse]:
+async def get_visible_budget_responses(db: AsyncSession, user: User) -> list[BudgetResponse]:
     """Return the latest budget instance of each base budget visible to a user
 
     Args:
         db: Active database session
-        user_id: Authenticated user identifier
+        user: Authenticated user requesting budget instances
 
     Returns:
         One budget instance response per base budget visible through ownership, group admin
         membership, or explicit permission, being the instance with the greatest period start
     """
+    user_id = user.id
     # A budget's full history grows without bound, so the list carries only each base's latest instance
     latest_start = select(Budget.base_budget_id, func.max(Budget.period_start).label("period_start")).group_by(Budget.base_budget_id).subquery()
 
@@ -54,6 +57,7 @@ async def get_visible_budget_responses(db: AsyncSession, user_id: uuid.UUID) -> 
         db,
         list({base_budget.id for _, base_budget in budget_rows}),
     )
+    await attach_read_only_reasons(db, user, [base_budget for _, base_budget in budget_rows])
     return [
         build_budget_response(
             budget,

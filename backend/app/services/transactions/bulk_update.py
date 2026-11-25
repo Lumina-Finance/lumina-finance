@@ -41,7 +41,7 @@ from app.services.bank_sync.manual_entries import (
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
 from app.services.transactions.access_helpers import accessible_account_ids_subquery
-from app.services.transactions.accounts import validate_transaction_account_is_not_archived
+from app.services.transactions.accounts import require_writable_account
 from app.services.transactions.bank_transaction_ids import BankTransactionKey, find_held_bank_transactions
 from app.services.transactions.bulk_access import load_locked_transactions, load_writable_accounts
 from app.services.transactions.links import refuse_broken_links
@@ -105,6 +105,8 @@ async def bulk_update_transactions(
 
     transaction_ids = [transaction.id for transaction in transactions]
     source_accounts = await load_writable_accounts(db, user, {t.account_id for t in transactions})
+    for account in source_accounts:
+        await require_writable_account(db, user, account)
     source_accounts_by_id = {account.id: account for account in source_accounts}
 
     target_account = None
@@ -224,7 +226,7 @@ async def _load_move_target(db: AsyncSession, user: User, account_id: uuid.UUID)
         HTTPException: The account refuses the write or is archived
     """
     account = await check_account_access(db, account_id, user.id, PermissionLevel.WRITE, lock_against_delete=True)
-    validate_transaction_account_is_not_archived(account)
+    await require_writable_account(db, user, account)
     return account
 
 

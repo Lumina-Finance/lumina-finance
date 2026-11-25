@@ -19,6 +19,7 @@ export function getTransactionReadOnlyReason(
   const rowAccount = fixedAccount ?? accountMap.get(transaction.account_id)
   if (rowAccount?.is_archived) return 'Archived · Read-only'
   if (rowAccount?.can_write !== true) return 'Read-only access'
+  if (rowAccount.read_only_reason) return rowAccount.read_only_reason
   if (!categoryMap.has(transaction.category_id)) return 'Uses a category you cannot open'
   return undefined
 }

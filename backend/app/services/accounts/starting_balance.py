@@ -13,6 +13,7 @@ from app.models.user import User
 from app.schemas.account import RecordStartingBalanceRequest
 from app.services.accounts.access import get_account_meeting, own_or_administered_account_condition
 from app.services.accounts.balance_adjustments import record_account_starting_balance
+from app.services.allowance.currency import require_writable_record
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.utils.dates import ACCOUNT_OWNER_PROFILE, resolve_timezone
 
@@ -70,6 +71,7 @@ async def record_starting_balance_for_user(
     )
     if not data.amount:
         return
+    await require_writable_record(db, user, account)
 
     await record_account_starting_balance(
         db,

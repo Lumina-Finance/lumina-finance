@@ -26,6 +26,7 @@ from app.models.bank_sync_job import BankSyncJob, BankSyncJobKind, BankSyncJobSt
 from app.models.user import User
 from app.schemas.bank_sync import BankLinkResponse, BankSyncState, BankSyncStatusResponse
 from app.services.accounts.access import get_own_personal_account
+from app.services.allowance.currency import require_writable_record
 from app.services.bank_sync.account_link import describe_links
 from app.services.bank_sync.availability import LINK_NOT_OWN_DETAIL, LIVE_LINK, PROVIDER_GONE_DETAIL, adapter_for, require_bank_linking
 from app.services.bank_sync.connections import get_own_connection
@@ -88,6 +89,7 @@ async def sync_account_now(db: AsyncSession, user: User, account_id: uuid.UUID) 
 
     # Asked before the import-waiting branch below, since that branch starts an import at once
     await require_bank_linking(user.id)
+    await require_writable_record(db, user, account)
 
     # Shared, so a disconnect waits until the sync is queued and then deletes it with the connection
     connection = await get_own_connection(db, user.id, link.connection_id, lock={"read": True, "key_share": True})

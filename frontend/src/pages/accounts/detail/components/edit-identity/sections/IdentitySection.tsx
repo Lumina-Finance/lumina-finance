@@ -14,6 +14,8 @@ type AccountIdentitySectionProps = {
   setField: SetIdentityFormField
   onCreateInstitution: (name: string) => void
   onCorrectInstitution: (institution: Institution) => void
+  /** Holds every field back in the transaction form's muted look, for an account that can't change */
+  readOnly: boolean
 }
 
 /**
@@ -26,6 +28,7 @@ export function AccountIdentitySection({
   setField,
   onCreateInstitution,
   onCorrectInstitution,
+  readOnly,
 }: AccountIdentitySectionProps) {
   return (
     <EditModalSection number="01" title="Identity">
@@ -38,9 +41,10 @@ export function AccountIdentitySection({
         />
         <input
           id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.name}
-          className={`app-input ${fieldErrors.name ? 'app-input-error' : ''}`}
+          className={`app-input disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.name ? 'app-input-error' : ''}`}
           aria-invalid={fieldErrors.name ? true : undefined}
           aria-describedby={fieldErrors.name ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.nameError : undefined}
+          disabled={readOnly}
           value={form.name}
           onChange={(event) => setField('name', event.target.value)}
           maxLength={256}
@@ -56,6 +60,7 @@ export function AccountIdentitySection({
           selectedInstitution={accountInstitution}
           onCreate={onCreateInstitution}
           onCorrect={onCorrectInstitution}
+          disabled={readOnly}
         />
       </div>
 
@@ -68,9 +73,10 @@ export function AccountIdentitySection({
         />
         <textarea
           id={EDIT_ACCOUNT_IDENTITY_FIELD_IDS.notes}
-          className={`app-input h-auto resize-none py-2 ${fieldErrors.notes ? 'app-input-error' : ''}`}
+          className={`app-input h-auto resize-none py-2 disabled:cursor-not-allowed disabled:opacity-60 ${fieldErrors.notes ? 'app-input-error' : ''}`}
           aria-invalid={fieldErrors.notes ? true : undefined}
           aria-describedby={fieldErrors.notes ? EDIT_ACCOUNT_IDENTITY_FIELD_IDS.notesError : undefined}
+          disabled={readOnly}
           placeholder="Optional"
           rows={3}
           value={form.notes}

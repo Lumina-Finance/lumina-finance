@@ -24,6 +24,7 @@ import { IMPORT_ACCOUNT_PARAM } from '@/constants/importAccountParam'
 import TransactionListSection from '@/components/transactions/ListSection'
 import { toTransactionListAccount } from '@/components/transactions/types/transactionList'
 import CreateTransactionModal from '@/components/transactions/transaction-modal/Modal'
+import { getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
 import { useCurrencyGuard } from '@/hooks/useCurrencyGuard'
 import { useSkeletonVisibility } from '@/pages/accounts/detail/hooks/useSkeletonVisibility'
 
@@ -129,7 +130,7 @@ export default function AccountDetailPage() {
   const skeletonFadeSeconds = prefersReducedMotion ? 0 : ACCOUNT_SKELETON_FADE_MS / 1000
 
   const openCreateTransaction = () => {
-    if (visibleAccount?.is_archived) return
+    if (getAccountWriteBlockReason(visibleAccount)) return
 
     requireCurrencies(() => {
       setEditingTransaction(null)
@@ -283,7 +284,7 @@ export default function AccountDetailPage() {
             transaction={editingTransaction ?? undefined}
             defaultAccountId={visibleAccount.id}
             defaultCurrency={visibleAccount.currency}
-            readOnly={Boolean(editingTransaction && visibleAccount.is_archived)}
+            readOnly={Boolean(editingTransaction && getAccountWriteBlockReason(visibleAccount))}
           />
 
           <EditAccountIdentityModal

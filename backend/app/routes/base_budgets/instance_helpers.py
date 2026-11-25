@@ -9,11 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import PermissionLevel
 from app.models.budget import BaseBudget, Budget
+from app.models.user import User
 from app.permissions import check_base_budget_access
-from app.routes.base_budgets.response_helpers import get_budget_instance_response
 from app.schemas.budget import BudgetResponse, CreateBudgetRequest
+from app.services.allowance.currency import require_writable_record
 from app.services.budgets.limits import lock_base_budget_periods, remove_oldest_periods_for_new_one
 from app.services.budgets.periods import compute_period_end, iter_period_starts_through, validate_period_start
+from app.services.budgets.response_helpers import get_budget_response
 from app.services.cache_state import mark_cache_changed_for_scope
 
 
@@ -84,15 +86,17 @@ def add_initial_budget_instances(
 
 async def create_budget_instance_and_get_response(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    user: User,
     base_budget_id: uuid.UUID,
     data: CreateBudgetRequest,
 ) -> BudgetResponse:
     """Create a budget instance and return its API response
 
+    A read-only budget takes no new period, its scheduled next one included
+
     Args:
         db: Active database session
-        user_id: Authenticated user identifier
+        user: Authenticated user creating the budget instance
         base_budget_id: Base budget identifier receiving the budget instance
         data: Budget instance creation request body
 
@@ -100,10 +104,12 @@ async def create_budget_instance_and_get_response(
         Created budget instance response
 
     Raises:
-        HTTPException: User lacks admin access, period start is invalid, or period overlaps
+        HTTPException: User lacks admin access, the budget's currency keeps it read-only, period
+            start is invalid, or period overlaps
     """
-    base_budget = await check_base_budget_access(db, base_budget_id, user_id, PermissionLevel.ADMIN)
+    base_budget = await check_base_budget_access(db, base_budget_id, user.id, PermissionLevel.ADMIN)
     _raise_if_base_budget_archived(base_budget)
+    await require_writable_record(db, user, base_budget)
     _validate_budget_instance_period_start(base_budget, data)
     period_end = compute_period_end(
         data.period_start,
@@ -130,7 +136,7 @@ async def create_budget_instance_and_get_response(
     await db.commit()
     await db.refresh(budget)
 
-    response = await get_budget_instance_response(db, budget, base_budget)
+    response = await get_budget_response(db, user, budget, base_budget)
     return response
 
 

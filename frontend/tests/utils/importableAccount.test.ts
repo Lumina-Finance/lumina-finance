@@ -56,6 +56,13 @@ describe('why an import cannot be written to an account', () => {
     expect(getImportBlockReason({ ...WRITABLE_ACCOUNT, can_write: false })).toBe('Read-only access')
   })
 
+  it('gives the sentence an account in another currency is read-only for', () => {
+    const account = { ...WRITABLE_ACCOUNT, read_only_reason: 'This server allows no more of these' }
+
+    expect(isImportableAccount(account)).toBe(false)
+    expect(getImportBlockReason(account)).toBe('This server allows no more of these')
+  })
+
   it('names archiving first on an archived account the user can only read', () => {
     expect(getImportBlockReason({ can_write: false, is_archived: true })).toBe('Archived accounts are read-only')
   })

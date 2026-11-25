@@ -124,6 +124,9 @@ class BaseBudgetResponse(BaseModel):
     created_at: datetime
     category_ids: list[uuid.UUID] = []  # Currently active tracked categories
 
+    # The installed check's sentence while the budget's currency keeps it read-only, or None
+    read_only_reason: str | None
+
     model_config = {"from_attributes": True}
 
 
