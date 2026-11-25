@@ -10,7 +10,7 @@ import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -57,3 +57,35 @@ def notify_profile_deletion(deletion: ProfileDeletion) -> None:
             # the deletion nor keep the others from hearing of it. Only the class is logged, in step with
             # the email change observers
             logger.warning("A profile deletion observer failed: %s", type(error).__name__)
+
+
+# How long a deleted profile waits before its data goes. No wait deletes at once, and a change applies to
+# requests made after it
+_wait = timedelta(0)
+
+
+def set_profile_deletion_wait(wait: timedelta) -> None:
+    """Make a profile deletion wait before it removes anything, so its owner can still cancel it
+
+    With a wait set, confirming the deletion marks the profile and signs the user out everywhere. The
+    user can sign in again until the end of the wait, only to cancel, and the data goes once it has
+    passed. A wait changed later applies only to requests made after the change
+
+    Args:
+        wait: How long the deletion waits. No time at all, the default, deletes at once
+
+    Raises:
+        TypeError: The value is not a timedelta
+        ValueError: The wait is negative
+    """
+    global _wait
+    if not isinstance(wait, timedelta):
+        raise TypeError("set_profile_deletion_wait takes a timedelta")
+    if wait < timedelta(0):
+        raise ValueError("A profile deletion cannot wait a negative time")
+    _wait = wait
+
+
+def profile_deletion_wait() -> timedelta:
+    """Return how long a profile deletion waits, no time at all by default"""
+    return _wait

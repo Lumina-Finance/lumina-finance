@@ -35,6 +35,7 @@ from app.services.maintenance import expired_records
 from app.services.maintenance.expired_records import ExpiredRecordKind, prune_expired_records
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_connection
+from tests.routes.support.profile_deletion_helpers import _commit_user, _stored_marks
 from tests.routes.support.query_cost_helpers import SLACK, _avoid_full_scans, _rows_read
 
 
@@ -331,6 +332,41 @@ async def test_a_failing_kind_is_logged_and_the_kinds_around_it_still_commit(mon
     assert warning.exc_info is not None
     assert await _remaining_ids(MfaChallenge, "jti") == set()
     assert await _remaining_ids(WebauthnChallenge) == set()
+
+
+async def test_a_pass_reminds_waiting_profiles_close_to_their_date_and_deletes_the_ones_due(sent_action_emails):
+    """One pass sends the reminder of a profile three days or less from its date, deletes a profile past it, and leaves one further off"""
+    now = datetime.now(UTC)
+    reminded = await _commit_user("reminded@example.com", requested_at=now - timedelta(days=8), due_at=now + timedelta(days=2))
+    due = await _commit_user("due@example.com", requested_at=now - timedelta(days=8), due_at=now - timedelta(hours=1), with_account=True)
+    waiting = await _commit_user("waiting@example.com", requested_at=now - timedelta(days=1), due_at=now + timedelta(days=6))
+
+    await prune_expired_records(ScopedSession)
+
+    assert sorted((recipient, message.subject) for recipient, message in sent_action_emails) == [
+        ("due@example.com", "Your profile was deleted"),
+        ("reminded@example.com", "Your profile will be deleted in 3 days or less"),
+    ]
+    assert await _stored_marks(due) is None
+    assert (await _stored_marks(reminded))[2] is not None
+    assert await _stored_marks(waiting) == (waiting.deletion_requested_at, waiting.deletion_due_at, None)
+
+
+async def test_a_pass_whose_reminders_fail_still_deletes_the_profiles_due(monkeypatch, caplog):
+    """A failure listing the reminders is logged, and the deletions after it still run"""
+
+    async def fail(session_factory):
+        raise RuntimeError("cannot list")
+
+    monkeypatch.setattr(expired_records, "send_due_reminders", fail)
+    now = datetime.now(UTC)
+    due = await _commit_user("due@example.com", requested_at=now - timedelta(days=8), due_at=now - timedelta(hours=1), with_account=True)
+
+    with caplog.at_level(logging.WARNING, logger=expired_records.__name__):
+        await prune_expired_records(ScopedSession)
+
+    assert "Profile deletion reminders could not be sent" in caplog.text
+    assert await _stored_marks(due) is None
 
 
 async def test_the_schedule_keeps_pruning_until_cancelled(monkeypatch):

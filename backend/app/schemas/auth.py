@@ -158,6 +158,7 @@ class UserInfo(ProfilePreferences):
     base_currency: str
     created_at: datetime
     second_factor_reenrollment_required: bool  # true holds the client to the forced re-enrolment screen
+    deletion_due_at: datetime | None  # set while the profile waits to be deleted, so the client shows only the cancel screen
 
 
 class AuthResponse(BaseModel):
@@ -213,6 +214,14 @@ class StepUpRequest(BaseModel):
     password: PasswordText
     code: str | None = Field(None, max_length=MAX_SECOND_FACTOR_CODE_LENGTH)  # a current TOTP code
     passkey: dict[str, Any] | None = None  # a passkey assertion, taking priority over a code
+
+
+class ProfileDeletionResponse(BaseModel):
+    """What a confirmed profile deletion answers with"""
+
+    # When the deletion is due, or None when the profile is being deleted at once. The sign-in screen
+    # tells the user the date from this
+    deletion_due_at: datetime | None
 
 
 class RequestEmailChangeRequest(BaseModel):
@@ -463,6 +472,10 @@ class OidcIdentitiesResponse(BaseModel):
 
     identities: list[OidcIdentitySummary]
     has_password: bool
+
+    # Whole seconds a confirmed profile deletion waits before the data goes, 0 when it goes at once. The
+    # delete profile dialogue adds it to the current time to show the date the deletion would be due
+    profile_deletion_wait_seconds: int = 0
 
 
 class PasskeyRegisterResponse(BaseModel):

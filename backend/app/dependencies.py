@@ -26,6 +26,9 @@ _security = HTTPBearer()
 _TOKEN_AUTH_HEADERS = {"WWW-Authenticate": "Bearer"}
 
 
+_SCHEDULED_FOR_DELETION_DETAIL = "Your profile is scheduled for deletion"
+
+
 async def get_authenticated_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_security)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -34,7 +37,8 @@ async def get_authenticated_user(
 
     Decodes the bearer token with the access key its header names, checks the access token and session are
     allowlisted, then loads the user. Only the routes a restricted session may reach should depend
-    on this directly, since get_current_user adds the restriction check
+    on this directly, since get_current_user adds the restriction check. A user whose profile is marked
+    for deletion is refused, so a session made while the deletion waits reaches no route that uses this
 
     Args:
         credentials: Bearer token from the Authorization header
@@ -45,7 +49,46 @@ async def get_authenticated_user(
 
     Raises:
         HTTPException 401: Token is missing, invalid, expired, not allowlisted, or the user is gone
+        HTTPException 403: The user's profile is marked for deletion
     """
+    user = await _load_authenticated_user(credentials, db)
+    if user.deletion_requested_at is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_SCHEDULED_FOR_DELETION_DETAIL)
+
+    return user
+
+
+async def get_user_who_may_cancel_deletion(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_security)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> User:
+    """Validate the access JWT and load the user, letting a profile marked with a due time through
+
+    The one route that cancels a deletion depends on this instead of get_authenticated_user. A marked
+    profile with a due time passes whether that time is ahead or behind, so the route can tell a user who
+    came too late why. A marked profile with no due time goes at once and is refused as every other
+    marked profile is
+
+    Args:
+        credentials: Bearer token from the Authorization header
+        db: Async database session
+
+    Returns:
+        The authenticated user, marked for deletion or not
+
+    Raises:
+        HTTPException 401: Token is missing, invalid, expired, not allowlisted, or the user is gone
+        HTTPException 403: The user's profile is marked for deletion with no due time
+    """
+    user = await _load_authenticated_user(credentials, db)
+    if user.deletion_requested_at is not None and user.deletion_due_at is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=_SCHEDULED_FOR_DELETION_DETAIL)
+
+    return user
+
+
+async def _load_authenticated_user(credentials: HTTPAuthorizationCredentials, db: AsyncSession) -> User:
+    """Validate the access JWT and load the user whatever the state of their profile"""
     try:
         payload = jwt.decode(
             credentials.credentials,

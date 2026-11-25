@@ -4,6 +4,7 @@ export type {
   ChangePasswordPayload,
   FeatureGrants,
   GrantableFeature,
+  ProfileDeletionResult,
   RatesStatus,
   RequestEmailChangePayload,
   RunwayAccountBalance,
@@ -16,6 +17,7 @@ export type {
 } from '@/api/user/types'
 
 export {
+  cancelProfileDeletion,
   changePassword,
   deleteProfile,
   endOtherSessions,

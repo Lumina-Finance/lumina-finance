@@ -75,6 +75,7 @@ const AUTH: AuthContextValue = {
     date_format: 'month-day-year',
     created_at: '2026-09-01T12:00:00Z',
     second_factor_reenrollment_required: false,
+    deletion_due_at: null,
   },
   accessToken: 'token',
   loading: false,

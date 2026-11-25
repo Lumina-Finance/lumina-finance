@@ -1,0 +1,3 @@
+Your {{ app_name }} profile and all its data will be deleted on {{ due_date }}.
+
+Please sign in and cancel before then.

@@ -1,0 +1,1 @@
+Your {{ app_name }} profile and all its data have been deleted.

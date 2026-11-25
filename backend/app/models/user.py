@@ -1,7 +1,7 @@
 """User model"""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import VARCHAR, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -49,10 +49,24 @@ class User(Base):
     # under an earlier number becomes unreadable. The key itself is derived from the number, never stored
     saved_copy_key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
-    # Set when the user asks to delete their profile. From then on the user can't sign in, nothing syncs
-    # since the same request deletes every bank connection, and app.services.profile_deletion removes
-    # their data and then this row
+    # Set when the user asks to delete their profile, and the profile is marked from then on. A marked
+    # profile syncs nothing and every route but the ones that cancel, refresh and log out refuses it. With
+    # no due time the same request has already deleted every bank connection and signed the user out for
+    # good, and app.services.profile_deletion removes their data and then this row. With a due time the
+    # user can still sign in until then, only to cancel, and the bank connections stay
     deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # When a marked profile's data may start to go, set when a waiting period applies. None on a marked
+    # profile means it goes at once. Cancelling the deletion clears it with the mark
+    deletion_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # When the reminder of a waiting profile's deletion was sent, so it goes at most once. Cleared with the mark
+    deletion_reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def is_waiting_to_be_deleted(self) -> bool:
+        """Whether the profile is marked and its due time is still ahead, so its owner can cancel the deletion"""
+        return self.deletion_requested_at is not None and self.deletion_due_at is not None and self.deletion_due_at > datetime.now(UTC)
 
 
 class UserCreditExcludedAccount(Base):

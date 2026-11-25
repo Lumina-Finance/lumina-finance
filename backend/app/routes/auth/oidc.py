@@ -56,6 +56,7 @@ from app.services.auth import (
 )
 from app.services.auth.account_lockout import get_password_credential
 from app.services.auth.mfa_challenge import issue_reauth_stepup_proof
+from app.services.profile_deletion import profile_deletion_wait_seconds
 
 router = APIRouter(prefix="/oidc", tags=["auth"])
 
@@ -230,6 +231,7 @@ async def list_oidc_identities_route(
     return OidcIdentitiesResponse(
         identities=[_build_identity_summary(identity, provider) for identity, provider in identity_pairs],
         has_password=has_password,
+        profile_deletion_wait_seconds=profile_deletion_wait_seconds(),
     )
 
 

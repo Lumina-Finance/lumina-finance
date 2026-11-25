@@ -17,6 +17,7 @@ from sqlalchemy import func, select, text, update
 
 from app.models.bank_connection import BankConnection
 from app.models.bank_sync_job import BankSyncHeartbeat, BankSyncJob, BankSyncJobKind, BankSyncJobStatus
+from app.models.user import User
 from app.services.bank_sync.jobs import ClaimedJob, JobNotHeld, claim_bank_sync_job, enqueue_bank_sync_job, finish_job, lock_held_job
 from tests.conftest import ScopedSession, TestSession
 from tests.routes.support.bank_sync_helpers import _build_bank_connection, _job_states, _seed_job
@@ -322,6 +323,39 @@ async def test_list_due_bank_connections_returns_due_ones_across_owners_by_id(co
         (connections[1].id, connections[1].owner_id),
         (connections[0].id, connections[0].owner_id),
     ]
+
+
+async def _mark_for_deletion(connection: BankConnection) -> None:
+    """Mark the connection's owner for deletion, as a request with a waiting period does, leaving every connection in place"""
+    async with TestSession() as session:
+        await session.execute(update(User).where(User.id == connection.owner_id).values(deletion_requested_at=datetime.now(UTC)))
+        await session.commit()
+
+
+async def test_list_due_bank_connections_skips_the_connections_of_an_owner_marked_for_deletion(connections):
+    """A marked owner's due connection waits, and the connections of owners not marked still come back"""
+    now = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
+    async with TestSession() as session:
+        await session.execute(update(BankConnection).values(next_sync_at=now - timedelta(minutes=5), discovered_at=now - timedelta(days=1)))
+        await session.commit()
+    await _mark_for_deletion(connections[0])
+
+    assert {connection_id for connection_id, _ in await _list_due(now)} == {connection.id for connection in connections[1:]}
+
+
+async def test_claim_skips_the_queued_and_expired_jobs_of_an_owner_marked_for_deletion(connections):
+    """A marked owner's queued job and a job whose lease ran out stay unclaimed, while the other owners' jobs are claimed"""
+    marked_queued = await _seed_job(connections[0], BankSyncJobKind.MANUAL)
+    expired = datetime.now(UTC) - timedelta(minutes=8)
+    await _seed_job(connections[1], BankSyncJobKind.SCHEDULED, status=BankSyncJobStatus.RUNNING, attempt=1, lease_expires_at=expired)
+    other = await _seed_job(connections[2], BankSyncJobKind.SCHEDULED)
+    await _mark_for_deletion(connections[0])
+    await _mark_for_deletion(connections[1])
+
+    claimed = await _claim(10)
+
+    assert [row.job_id for row in claimed] == [other.id]
+    assert (await _job_states())[marked_queued.id] == ("queued", 0)
 
 
 @pytest.mark.parametrize(

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { deleteProfile } from '@/api/user'
+import { deleteProfile, type ProfileDeletionResult } from '@/api/user'
 import type { StepUpCredentials } from '@/components/two-factor/StepUpModal'
 import { useAuth } from '@/hooks/useAuth'
 import { useProviderReauth } from '@/pages/settings/hooks/useProviderReauth'
 import { getEndOtherSessionsBlockedReason } from '@/pages/settings/utils/endOtherSessions'
 import { noteProfileDeleted } from '@/utils/profileDeletedNotice'
+import { formatDeletionDateAfterWait, formatDeletionDueDate } from '@/utils/profileDeletion'
 
 /**
  * Drives Delete profile: the dialogue the user types "delete" in, then the identity check, then the sign-out
@@ -13,11 +14,17 @@ import { noteProfileDeleted } from '@/utils/profileDeletedNotice'
  * An account with a password confirms in the step-up. A passwordless account re-confirms with a linked
  * provider instead and returns here, where the deletion finishes. Once the server answers, the app signs
  * out locally and lands on the sign-in screen. Signing out also drops this browser's saved copy
+ *
+ * Where a wait applies, the deletion only schedules, and the sign-in screen names the date the server
+ * answered with. The dialogue names the date the wait would end on, from the wait alone
+ *
+ * @param hasPassword - Whether the account confirms with a password rather than a linked provider
+ * @param waitSeconds - Seconds a deletion waits, 0 when it runs at once
  */
-export function useDeleteProfile(hasPassword: boolean) {
+export function useDeleteProfile(hasPassword: boolean, waitSeconds: number) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const reauth = useProviderReauth()
   const [dialogueOpen, setDialogueOpen] = useState(false)
   // Counts the openings, so each one starts a fresh dialogue that asks for the word again
@@ -29,11 +36,17 @@ export function useDeleteProfile(hasPassword: boolean) {
   )
   const [error, setError] = useState<string | null>(null)
 
-  // Signing out takes the app to the sign-in screen. That screen reads the flag and shows the deletion message
-  const finish = useCallback(async () => {
-    noteProfileDeleted()
-    await logout()
-  }, [logout])
+  const scheduledFor = waitSeconds > 0 ? formatDeletionDateAfterWait(waitSeconds, user?.tz) : null
+
+  // Signing out takes the app to the sign-in screen. That screen reads the notice and shows the deletion
+  // message, with the date the server scheduled when there is one
+  const finish = useCallback(
+    async ({ deletion_due_at }: ProfileDeletionResult) => {
+      noteProfileDeleted(deletion_due_at ? formatDeletionDueDate(deletion_due_at, user?.tz) : null)
+      await logout()
+    },
+    [logout, user?.tz],
+  )
 
   // A passwordless reauth returns here to finish the deletion, then clears the state so a reload does
   // not run it again
@@ -70,14 +83,15 @@ export function useDeleteProfile(hasPassword: boolean) {
   }
 
   const verify = async (credentials: StepUpCredentials) => {
-    await deleteProfile(credentials)
+    const result = await deleteProfile(credentials)
     setStepUpOpen(false)
-    await finish()
+    await finish(result)
   }
 
   return {
     dialogueOpen,
     dialogueKey: openings,
+    scheduledFor,
     open,
     cancel: () => setDialogueOpen(false),
     confirmTyped,

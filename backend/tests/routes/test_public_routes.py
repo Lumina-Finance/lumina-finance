@@ -9,8 +9,11 @@ A route a test module adds to the app is left out, since it is no part of the AP
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 
-from app.dependencies import get_authenticated_user
+from app.dependencies import get_authenticated_user, get_user_who_may_cancel_deletion
 from tests.routes.support.route_helpers import served_routes
+
+# The dependencies that check the access token. The second lets a profile waiting to be deleted through to cancel
+ACCESS_TOKEN_CHECKS = {get_authenticated_user, get_user_who_may_cancel_deletion}
 
 # Every route that answers without an access token. Some take another proof instead, such as a refresh cookie,
 # a one-time token in the body or a sign-in step's challenge, and some are open to everyone
@@ -60,7 +63,7 @@ MIN_ROUTES_SEEN = 100
 
 def _needs_access_token(dependant: Dependant) -> bool:
     """Return whether the route or any dependency beneath it checks the access token"""
-    return dependant.call is get_authenticated_user or any(_needs_access_token(inner) for inner in dependant.dependencies)
+    return dependant.call in ACCESS_TOKEN_CHECKS or any(_needs_access_token(inner) for inner in dependant.dependencies)
 
 
 def _api_routes() -> list[tuple[str, APIRoute]]:

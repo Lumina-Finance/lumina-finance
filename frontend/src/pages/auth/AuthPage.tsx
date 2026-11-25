@@ -7,6 +7,7 @@ import { MAINTENANCE_MESSAGE, useRegistrationStatus } from '@/api/auth'
 import { useCurrencies } from '@/api/currency'
 import { useOidcProviders } from '@/api/oidc'
 import { useServerNotice } from '@/api/version'
+import { ProfileDeletedMessage } from '@/components/profile-deletion/ProfileDeletedMessage'
 import { MfaChallenge } from '@/components/two-factor/MfaChallenge'
 import { AuthAnimatedTitle } from '@/pages/auth/components/AnimatedTitle'
 import { CurrencyRetryWarning } from '@/pages/auth/components/feedback/CurrencyRetryWarning'
@@ -27,7 +28,7 @@ import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton
 import { getBrowserTimeZone } from '@/utils/date'
 import { focusWhenShown } from '@/utils/focusWhenShown'
 import { isNativeSignIn, rememberNativeChallenge } from '@/utils/nativeHandoff'
-import { clearProfileDeletedNotice, wasProfileJustDeleted } from '@/utils/profileDeletedNotice'
+import { clearProfileDeletedNotice, readProfileDeletedNotice } from '@/utils/profileDeletedNotice'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 const DETECTED_TZ = getBrowserTimeZone()
@@ -48,7 +49,7 @@ const AuthPage = () => {
   const handoff = location.state as { prefillEmail?: string; registrationClosed?: boolean } | null
 
   // A profile deleted a moment ago signs out to here. The page then shows the deletion message once
-  const [profileDeleted] = useState(wasProfileJustDeleted)
+  const [profileDeletedNotice] = useState(readProfileDeletedNotice)
   useEffect(() => clearProfileDeletedNotice(), [])
   const prefillEmail = handoff?.prefillEmail
   const isLogin = mode === 'login'
@@ -181,13 +182,13 @@ const AuthPage = () => {
           </div>
         )}
 
-        {profileDeleted && isLogin && (
+        {profileDeletedNotice && isLogin && (
           <div
             role="status"
             className="mt-4 rounded-lg border px-3 py-2 text-sm"
             style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
           >
-            Your profile and data were deleted.
+            <ProfileDeletedMessage scheduledFor={profileDeletedNotice.scheduledFor} />
           </div>
         )}
 

@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from collections.abc import AsyncIterator, Callable, Iterator
-from datetime import datetime
+from datetime import datetime, timedelta
 from types import ModuleType, SimpleNamespace
 from uuid import uuid4
 
@@ -277,6 +277,13 @@ def email_changes(monkeypatch) -> list[EmailChange]:
     changes: list[EmailChange] = []
     observe_email_changes(changes.append)
     return changes
+
+
+@pytest.fixture
+def profile_deletion_wait(monkeypatch) -> Callable[[timedelta], None]:
+    """Return the setter for how long a profile deletion waits, with the wait restored after the test"""
+    monkeypatch.setattr(profile_deletion_hook, "_wait", profile_deletion_hook._wait)
+    return profile_deletion_hook.set_profile_deletion_wait
 
 
 @pytest.fixture
