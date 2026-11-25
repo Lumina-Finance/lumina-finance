@@ -21,7 +21,9 @@ type ReadOnlyReasonPillProps = {
 const READ_ONLY_LABEL = 'Read-only'
 
 /**
- * Marks a record that can't change with a short "Read-only" pill, and shows why in its tooltip
+ * Marks a record that can't change with a short "Read-only" pill, and shows why in its tooltip. A reason
+ * short enough to read whole, such as a transaction row's "Archived · Read-only", shows as the pill's own text
+ * with no tooltip
  *
  * The pill is positioned, so it sits above a row's press layer and takes the hover and tap itself
  *
@@ -40,7 +42,7 @@ export function ReadOnlyReasonPill({ id, reason, focusable = false, showsReason 
       <span
         id={pillId}
         data-testid="read-only-reason-pill"
-        className="inline-flex w-fit min-w-0 max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
+        className="inline-flex w-fit max-w-full rounded-full border px-1.5 py-0.5 text-[0.6875rem] leading-none"
         style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
       >
         <span className="min-w-0 truncate">{reason}</span>

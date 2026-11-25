@@ -72,6 +72,7 @@ function render(readOnlyReason: string | undefined, inSelection: boolean): strin
       transaction={TRANSACTION}
       accountName="Chase Sapphire"
       readOnlyReason={readOnlyReason}
+      hidesReadOnlyReason={readOnlyReason !== undefined}
       selection={inSelection ? selection(readOnlyReason === undefined) : undefined}
       dateHeadingId="day-heading"
       onOpen={() => {}}
