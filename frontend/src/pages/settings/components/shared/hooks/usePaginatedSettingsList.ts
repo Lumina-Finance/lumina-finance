@@ -49,7 +49,8 @@ interface UsePaginatedSettingsListParams<TItem extends { id: string }> {
  *
  * A refresh of the loaded pages, after an edit that moves or removes rows, replaces them all once
  * it ends. A next page requested meanwhile would cancel it and sit beside pages that are out of
- * date, so the request waits and is made when the refresh ends, if the list is still at its end
+ * date, so the request waits and is made when the refresh ends. A page the refresh cancelled on its
+ * way is asked for again the same way
  */
 export function usePaginatedSettingsList<TItem extends { id: string }>({
   useInfiniteListQuery,
@@ -201,17 +202,27 @@ export function usePaginatedSettingsList<TItem extends { id: string }>({
   }, [fetchNextPage])
 
   // A refresh that starts while a next page is loading cancels that page, and a next page asked for
-  // during a refresh is held back. Either way it is asked for again once the refresh ends, if the
-  // list is still at its end
+  // during a refresh is held back. Either way it is asked for again once the refresh ends. The
+  // position of the list is not read then, since the loading text under the rows can leave it a
+  // few pixels short of its end although the person has not moved
   useEffect(() => {
     const nextPageCancelled = wasFetchingNextPageRef.current && isRefreshing
     wasFetchingNextPageRef.current = listQuery.isFetchingNextPage
     if (nextPageCancelled) nextPageWaitingRef.current = true
-    if (isRefreshing || !nextPageWaitingRef.current) return
+    if (isRefreshing || !nextPageWaitingRef.current) return undefined
 
-    nextPageWaitingRef.current = false
-    const list = listRef.current
-    if (hasMore && !listQuery.isFetchingNextPage && list && isScrolledToBottom(list)) startNextPage()
+    // A page already on its way, or no page left, settles the request
+    if (!hasMore || listQuery.isFetchingNextPage) {
+      nextPageWaitingRef.current = false
+      return undefined
+    }
+
+    // Kept until the frame runs, so a refresh starting before then still finds the request waiting
+    const frame = window.requestAnimationFrame(() => {
+      nextPageWaitingRef.current = false
+      startNextPage()
+    })
+    return () => window.cancelAnimationFrame(frame)
   }, [hasMore, isRefreshing, listQuery.isFetchingNextPage, startNextPage])
 
   const handleListScroll = (event: UIEvent<HTMLDivElement>) => {

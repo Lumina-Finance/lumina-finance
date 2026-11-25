@@ -154,8 +154,8 @@ test('shows each tag once, as the server has it, after scrolling to the end once
   await expect.poll(() => shownNames(list)).toEqual(expected)
 })
 
-// A refresh that starts while the next page is still loading cancels that page. The person is still at
-// the end of the list, so the page is asked for again once the refresh ends
+// A refresh that starts while the next page is still loading cancels that page. The person asked for
+// it, so the page is asked for again once the refresh ends
 test('loads the next tags page again when a refresh cancels it on its way', async ({ page, request }) => {
   const user = await signUpUser(request)
   const prefix = `Paging ${crypto.randomUUID()}`
@@ -197,7 +197,7 @@ test('loads the next tags page again when a refresh cancels it on its way', asyn
   await scrollToEnd(list)
   await nextPageReached
 
-  // The last row on screen is the one renamed, so the list stays at its end
+  // The renamed row is the last one loaded, so the refresh moves it past the rows still to come
   const refreshRequested = page.waitForRequest(
     (req) => req.method() === 'GET' && new URL(req.url()).pathname === tagsPath && offsetOf(req.url()) === '0',
   )
