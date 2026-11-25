@@ -338,7 +338,6 @@ export default function TransactionModalLinkRefundPicker({
                       label={describeUnlinkable(
                         transaction,
                         groups.unlinkable.map(({ room }) => room),
-                        (amount) => formatCurrency(amount, transaction.currency),
                       )}
                     >
                       <AnimatePresence initial={false}>
