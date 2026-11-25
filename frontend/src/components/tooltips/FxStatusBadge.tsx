@@ -52,8 +52,16 @@ export function FxStatusBadge({
     ? (withheldMessage ?? withheldReason)
     : (getMessage(fxStatus) ?? FX_STATUS_FALLBACK_MESSAGE)
   const fxTone = isOnlyWithheld ? withheldTone : (tone ?? getFxStatusTone(fxStatus))
-  const showsReasonAfter =
-    Boolean(withheldReason) && !hidesWithheldReason && (!isOnlyWithheld || withheldMessage !== undefined)
+  // A caller hiding the reason still says what was left out after a failure message, in its own sentence
+  const afterMessage = !withheldReason
+    ? undefined
+    : hidesWithheldReason
+      ? isOnlyWithheld
+        ? undefined
+        : withheldMessage
+      : isOnlyWithheld && withheldMessage === undefined
+        ? undefined
+        : withheldReason
 
   return (
     <IconTooltip
@@ -66,7 +74,7 @@ export function FxStatusBadge({
       clearsStickyBars={clearsStickyBars}
     >
       <span className="block">{message}</span>
-      {showsReasonAfter && <span className="mt-2 block">{withheldReason}</span>}
+      {afterMessage && <span className="mt-2 block">{afterMessage}</span>}
       {fxStatus.missing_pairs.length > 0 && (
         <span className="mt-2 block text-xs" style={{ color: 'var(--app-text-muted)' }}>
           Missing: {formatMissingFxPairs(fxStatus.missing_pairs)}

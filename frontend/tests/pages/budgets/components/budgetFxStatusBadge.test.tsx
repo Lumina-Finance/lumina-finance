@@ -36,6 +36,18 @@ describe('a budget’s FX badge', () => {
     expect(markup).not.toContain(REASON)
   })
 
+  it('says spending was left out after a missing rate, with no read-only reason', () => {
+    const markup = render({
+      state: 'incomplete',
+      missing_pairs: [{ base: 'EUR', quote: 'CAD' }],
+      withheld_reason: REASON,
+    })
+
+    expect(markup).toContain(MESSAGE)
+    expect(markup).toContain('Missing:')
+    expect(markup).not.toContain(REASON)
+  })
+
   it('keeps its usual tone and message when nothing was left out', () => {
     const markup = render({ state: 'complete', missing_pairs: [] })
 
