@@ -182,9 +182,7 @@ async def writable_accounts_scope(db: AsyncSession, user: User) -> list[ColumnEl
         user: The user reviewing
     """
     holds_other_currency = await db.scalar(
-        select(
-            exists().where(own_personal_account_condition(user.id), Account.currency != user.base_currency)
-        )
+        select(exists().where(own_personal_account_condition(user.id), Account.currency != user.base_currency))
     )
     if not holds_other_currency or await find_session_foreign_currencies_reason(db, user.id) is None:
         return []
@@ -328,7 +326,5 @@ async def read_page_rules(
         read_only_reason = None
         if any_waiting and not addable and writable and await any_addable(db, user_id, scope):
             read_only_reason = await find_session_foreign_currencies_reason(db, user_id)
-        rules = BankReviewRulesResponse(
-            any_addable=addable, changed=await rules_changed(db, user_id), read_only_reason=read_only_reason
-        )
+        rules = BankReviewRulesResponse(any_addable=addable, changed=await rules_changed(db, user_id), read_only_reason=read_only_reason)
     return PageRules(fills, rules)
