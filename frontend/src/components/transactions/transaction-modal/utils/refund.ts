@@ -111,8 +111,9 @@ export function getSelectableAccounts<
 
 /**
  * The candidates a press can't pick now, with what is left to refund for each, so the picker greys them out and
- * says why instead of letting a press be refused. An expense is offered refunds against what is left of it after the
- * refunds already picked, and a picked row is never refused. A refund is offered expenses by their own room
+ * says why. The picker also refuses a press on one, for a row still easing into the folded row. An expense is offered
+ * refunds against what is left of it after the refunds already picked, and a picked row is never refused. A refund
+ * is offered expenses by their own room
  *
  * @param anchor The transaction the window edits
  * @param candidates What the server says linking would accept
