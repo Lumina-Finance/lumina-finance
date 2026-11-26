@@ -23,3 +23,14 @@ export function isInsideFloatingLayer(target: EventTarget | null): boolean {
 export function isFloatingLayerOpen(): boolean {
   return document.querySelector(`[${FLOATING_LAYER_ATTRIBUTE}]`) !== null
 }
+
+/**
+ * Marks an element as an open floating layer, or stops it counting as one, for a layer that stays on the page while
+ * it fades out after closing, so the surface under it answers Escape at once
+ *
+ * @param element - The layer's root, or null before it is on the page
+ * @param open - Whether the layer is open
+ */
+export function markFloatingLayer(element: Element | null, open: boolean): void {
+  element?.toggleAttribute(FLOATING_LAYER_ATTRIBUTE, open)
+}

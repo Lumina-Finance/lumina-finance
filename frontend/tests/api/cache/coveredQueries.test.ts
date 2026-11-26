@@ -13,6 +13,7 @@ import {
   dashboardKeys,
   heldBankTransactionKeys,
   importLayoutKeys,
+  importRuleKeys,
   importSourceKeys,
   insightsKeys,
   institutionKeys,
@@ -45,6 +46,8 @@ describe('which answers the change check covers', () => {
     ['the institutions', institutionKeys.infinite({}, 20)],
     ['the saved insight range pages', insightsKeys.savedRangesPages(20)],
     ['the import layouts', importLayoutKeys.all],
+    ['the import rules', importRuleKeys.infinite(20)],
+    ['a search of the import rules', importRuleKeys.searched(20, 'shell')],
     ['the import sources', importSourceKeys.all],
     ['the saved insight ranges', insightsKeys.savedRanges()],
     ['a tax-advantaged category', taxAdvantagedCategoryKeys.limits('category-1')],
@@ -108,6 +111,7 @@ const MARKINGS: Array<[name: string, key: readonly unknown[], dependsOnDate: boo
   ['the tags', tagKeys.infinite({}, 20), false],
   ['the institutions', institutionKeys.infinite({}, 20), false],
   ['the import layouts', importLayoutKeys.all, false],
+  ['the import rules', importRuleKeys.infinite(20), false],
   ['the import sources', importSourceKeys.all, false],
 ]
 

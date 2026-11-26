@@ -15,6 +15,7 @@ import {
 } from '@/api/cache/updates/transactions'
 import type {
   AccountBankStatus,
+  ApproveAllResult,
   BankConnection,
   BankLink,
   BankReviewCounts,
@@ -214,14 +215,73 @@ export async function applyBulkReviewOutcome(
   decided: BankReviewItem[],
   { wroteLedger }: { wroteLedger: boolean },
 ): Promise<void> {
-  const decidedIds = new Set(decided.map((item) => item.id))
+  await settleDecidedItems(queryClient, scope, {
+    decidedIds: new Set(decided.map((item) => item.id)),
+    removed: countByKind(decided),
+    ledgerAccountIds: wroteLedger ? [...new Set(decided.map((item) => item.account_id))] : null,
+  })
+}
+
+/**
+ * Brings the inbox and the ledger views up to date after a press of Approve all
+ *
+ * The added items leave the inbox as a bulk add's do. Every item added was a new one, so the block's
+ * scope counts them out whether a loaded page holds them or not. A press that added nothing wrote
+ * nothing, so only the inbox is read again. That read brings the facts about the rules up to date too
+ *
+ * @param scope - The accounts the block's list is read for
+ * @param result - What the server answered the press with
+ */
+export async function applyApproveAllOutcome(
+  queryClient: QueryClient,
+  scope: string[] | undefined,
+  result: ApproveAllResult,
+): Promise<void> {
+  if (result.added_ids.length === 0) {
+    invalidateTargets(queryClient, [{ queryKey: bankSyncKeys.reviewItemsAll }])
+    return
+  }
+  await settleDecidedItems(queryClient, scope, {
+    decidedIds: new Set(result.added_ids),
+    removed: { new: result.added_ids.length, correction: 0, removal: 0 },
+    ledgerAccountIds: result.account_ids,
+  })
+}
+
+/**
+ * Reads every scope of the inbox again after a press of Reapply updated rules, settling once the active one has
+ * answered. The press changed values saved on waiting items and nothing in the ledger, so the rows,
+ * the offer and Approve all follow from that read alone
+ */
+export async function applyRulesOutcome(queryClient: QueryClient): Promise<void> {
+  await queryClient.invalidateQueries({ queryKey: bankSyncKeys.reviewItemsAll, refetchType: 'active' })
+}
+
+type DecidedItems = {
+  decidedIds: ReadonlySet<string>
+
+  /** How many items of each kind were decided, loaded or not */
+  removed: BankReviewCounts
+
+  /** The accounts whose ledgers changed, or null when the decision left every ledger as it was */
+  ledgerAccountIds: string[] | null
+}
+
+/**
+ * Takes decided items out of the cached inbox once what they change has refetched, so the block and
+ * the ledger show a decision in the same render, then reads the inbox again behind the scenes
+ */
+async function settleDecidedItems(
+  queryClient: QueryClient,
+  scope: string[] | undefined,
+  { decidedIds, removed, ledgerAccountIds }: DecidedItems,
+): Promise<void> {
   const isDecided = (item: BankReviewItem) => decidedIds.has(item.id)
-  if (wroteLedger)
-    await refetchLedgerAndWaitingCounts(queryClient, [...new Set(decided.map((item) => item.account_id))])
+  if (ledgerAccountIds) await refetchLedgerAndWaitingCounts(queryClient, ledgerAccountIds)
   else await refetchWaitingCounts(queryClient)
   queryClient.setQueryData<CachedReviewPages>(
     bankSyncKeys.reviewItems(scope),
-    (data) => data && withoutReviewItems(data, isDecided, countByKind(decided)),
+    (data) => data && withoutReviewItems(data, isDecided, removed),
   )
   removeReviewItemsFromPages(queryClient, isDecided)
   invalidateBankSyncStatus(queryClient)

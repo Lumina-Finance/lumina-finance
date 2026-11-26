@@ -1,5 +1,5 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
-import { invalidateTags, invalidateTransactions } from '@/api/cache/invalidation'
+import { invalidateImportRules, invalidateTags, invalidateTransactions } from '@/api/cache/invalidation'
 import { tagKeys } from '@/api/cache/queryKeys'
 import {
   isInfiniteReferenceLookupQueryKey,
@@ -13,6 +13,9 @@ import type { Tag } from '@/api/tags/types'
  */
 function invalidateTagUsageQueries(queryClient: QueryClient) {
   invalidateTags(queryClient)
+
+  // A rule's row shows the tags it adds by name, and a merge moves the rule to the replacement
+  invalidateImportRules(queryClient)
   invalidateTransactions(queryClient)
 }
 

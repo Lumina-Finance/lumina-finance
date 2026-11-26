@@ -1,27 +1,30 @@
 /**
- * Covers how the review block words and scopes waiting bank items: the line each kind asks with, the
- * amount it shows, its date, the backlog notice, the accounts whose items it reads, and the order
- * new items are reviewed in
+ * Covers how the review block words and scopes waiting bank items: what each kind's row shows in a
+ * ledger row's category and merchant places, the amount it shows, its date, the backlog notice, the
+ * accounts whose items it reads, and the order new items are reviewed in
  *
  * These tests catch a correction naming its changed fields in another order than "amount and date",
  * or saying nothing when it names none the block knows, a new item with an amount its currency can't
- * hold losing decimal places or not asking for an amount, a bank amount that isn't a number vanishing,
+ * hold losing decimal places, a bank amount that isn't a number vanishing,
  * a removal showing the bank's amount rather than the ledger's, a date in this year carrying its year,
  * a warning shown over a pause, accounts named out of the order given, a scoped list
  * asking for a group or shared account's items (the server refuses it), Keep window open
- * going on to a correction, skipping a new item, or ending while a new item before it still waits
+ * going on to a correction, skipping a new item, or ending while a new item before it still waits, a
+ * row missing the merchant or category a rule gave it or showing one a rule left out, and the
+ * wrong reason on Reapply updated rules while it is unavailable
  */
 import { describe, expect, it } from 'vitest'
 import type { BankReviewBacklog, BankReviewItem, BankReviewItemKind } from '@/api/bank-sync/types'
 import type { Currency } from '@/api/currency'
 import {
   describeBacklogNotice,
-  describeReviewItem,
+  describeReviewRow,
   findNextNewItem,
   formatBankAmount,
   formatReviewDate,
   getReviewAccountIds,
   getReviewItemAmount,
+  getApproveAllReason,
 } from '@/components/transactions/utils/bankReview'
 import { formatMovedCurrency } from '@/utils/formatCurrency'
 
@@ -52,6 +55,7 @@ function createReviewItem(kind: BankReviewItemKind, overrides: Partial<BankRevie
     current: kind === 'new' ? null : { ...bank, amount: -1800 },
     changed_fields: [],
     protected_fields: [],
+    rule_fill: null,
     ...overrides,
   }
 }
@@ -74,16 +78,8 @@ const SAVINGS = { id: 'savings', name: 'Savings', owner_id: 'user-1', group_id: 
 const JOINT = { id: 'joint', name: 'Joint', owner_id: null, group_id: 'group-1' }
 const SHARED = { id: 'shared', name: 'Shared', owner_id: 'user-2', group_id: null }
 
-describe('the line under an item', () => {
+describe("what a correction or removal shows in the category's place", () => {
   it.each([
-    ['a new item', createReviewItem('new'), 'Needs merchant and category'],
-    [
-      'a new item whose amount its currency cannot hold',
-      createReviewItem('new', {
-        bank: { ...createReviewItem('new').bank, amount: null, raw_amount: '-12.345' },
-      }),
-      'Needs amount, merchant and category',
-    ],
     ['a removal', createReviewItem('removal'), 'The bank no longer reports this transaction'],
     [
       'a correction to the amount',
@@ -105,8 +101,81 @@ describe('the line under an item', () => {
       createReviewItem('correction', { changed_fields: [] }),
       'The bank changed this transaction',
     ],
-  ])('says what %s asks', (_, item, line) => {
-    expect(describeReviewItem(item)).toBe(line)
+  ])('says what %s is about, over the bank description', (_, item, heading) => {
+    expect(describeReviewRow(item)).toEqual({ heading, name: 'COUNTDOWN 123', categoryId: null })
+  })
+})
+
+describe('what a new item shows, as a ledger row shows a transaction', () => {
+  const rule = { id: 'rule-1', name: 'Pay' }
+  const merchant = { id: 'merchant-1', name: 'Acme', rule }
+  const category = { id: 'category-1', name: 'Salary', kind: 'income' as const, rule }
+  const fill = (overrides: Partial<NonNullable<BankReviewItem['rule_fill']>>) => ({
+    merchant: null,
+    category: null,
+    tags: [],
+    category_left_out: null,
+    tags_left_out: null,
+    ...overrides,
+  })
+
+  it.each([
+    [
+      'a merchant and a category',
+      fill({ merchant, category }),
+      { heading: 'Salary', name: 'Acme', categoryId: 'category-1' },
+    ],
+    ['a merchant alone', fill({ merchant }), { heading: 'Uncategorized', name: 'Acme', categoryId: null }],
+    ['a category alone', fill({ category }), { heading: 'Salary', name: 'COUNTDOWN 123', categoryId: 'category-1' }],
+    [
+      'tags alone',
+      fill({ tags: [{ id: 'tag-1', name: 'Work', rule }] }),
+      { heading: 'Uncategorized', name: 'COUNTDOWN 123', categoryId: null },
+    ],
+  ])(
+    'shows what the rules gave when they give %s, and the bank description for a missing merchant',
+    (_, ruleFill, row) => {
+      expect(describeReviewRow(createReviewItem('new', { rule_fill: ruleFill }))).toEqual(row)
+    },
+  )
+
+  it('shows an item no rule matched as Uncategorized with its bank description', () => {
+    expect(describeReviewRow(createReviewItem('new'))).toEqual({
+      heading: 'Uncategorized',
+      name: 'COUNTDOWN 123',
+      categoryId: null,
+    })
+  })
+
+  it("leaves out a category the rules gave that doesn't fit the item", () => {
+    const item = createReviewItem('new', {
+      rule_fill: fill({ merchant, category_left_out: { ...category, reason: 'income_for_money_out' } }),
+    })
+
+    expect(describeReviewRow(item)).toEqual({ heading: 'Uncategorized', name: 'Acme', categoryId: null })
+  })
+})
+
+describe('why Approve all is unavailable', () => {
+  it.each([
+    [
+      { any_addable: false, changed: false, read_only_reason: null },
+      'No waiting item is ready to add: each needs a merchant and a category',
+    ],
+    [
+      { any_addable: false, changed: true, read_only_reason: null },
+      'No waiting item is ready to add: each needs a merchant and a category',
+    ],
+    [{ any_addable: true, changed: false, read_only_reason: null }, null],
+    [{ any_addable: true, changed: true, read_only_reason: null }, null],
+  ])('gives the one reason, whatever the rules changed, for %j', (rules, reason) => {
+    expect(getApproveAllReason(rules)).toBe(reason)
+  })
+
+  it("gives the server's sentence when the only items ready sit in read-only accounts", () => {
+    const reason = 'Your plan keeps accounts in other currencies read-only.'
+
+    expect(getApproveAllReason({ any_addable: false, read_only_reason: reason })).toBe(reason)
   })
 })
 

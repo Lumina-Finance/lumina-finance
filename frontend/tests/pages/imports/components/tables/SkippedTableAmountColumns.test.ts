@@ -49,6 +49,7 @@ function renderCsvPreview(columnMap: ColumnMap) {
         rowProblems: [CSV_SKIPPED],
         rowWarnings: [CSV_WORTH_A_LOOK],
         payload: null,
+        ruleRows: [],
       },
       headers: CSV_HEADERS,
       columnMap,
@@ -59,6 +60,9 @@ function renderCsvPreview(columnMap: ColumnMap) {
       dateRangeBlockReason: null,
       importResult: null,
       completedImport: null,
+      ruleCheckState: null,
+      ruleCheckNotice: null,
+      ruleCounts: [],
     }),
   )
 }

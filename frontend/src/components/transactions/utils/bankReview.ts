@@ -5,6 +5,7 @@ import {
   type BankReviewBacklog,
   type BankReviewItem,
   type BankReviewItemKind,
+  type BankReviewRules,
   type CorrectableBankField,
 } from '@/api/bank-sync'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
@@ -60,19 +61,54 @@ function joinWithAnd(names: string[]): string {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
 
+/** What a waiting row shows where a ledger row shows its category and its merchant */
+export type ReviewRowText = {
+  /** The category's place: the category a new item takes, or what a correction or removal is about */
+  heading: string
+
+  /** The merchant's place: the merchant a new item takes, or else the bank's description */
+  name: string
+
+  /** The category whose icon the row shows, or null for the row's stand-in icon */
+  categoryId: string | null
+}
+
 /**
- * Says what a review item asks of the user, on the line under its description
- *
- * A new item always needs a merchant and a category, and an amount too when the bank sent more
- * decimal places than the account's currency holds, since that amount can't be stored as sent
+ * Says what a waiting row shows, the way a ledger row shows a transaction. A new item shows the
+ * category and the merchant the user's import rules gave it, or "Uncategorized" and the bank's
+ * description where they gave none. A correction or removal says what the bank changed in the
+ * category's place, since the row stands for a change to a transaction already in the ledger
  */
-export function describeReviewItem(item: BankReviewItem): string {
-  if (item.kind === 'removal') return 'The bank no longer reports this transaction'
+export function describeReviewRow(item: BankReviewItem): ReviewRowText {
   if (item.kind === 'new') {
-    return item.bank.amount === null ? 'Needs amount, merchant and category' : 'Needs merchant and category'
+    return {
+      heading: item.rule_fill?.category?.name ?? 'Uncategorized',
+      name: item.rule_fill?.merchant?.name ?? item.bank.description,
+      categoryId: item.rule_fill?.category?.id ?? null,
+    }
+  }
+  if (item.kind === 'removal') {
+    return { heading: 'The bank no longer reports this transaction', name: item.bank.description, categoryId: null }
   }
   const changed = CHANGED_FIELD_NAMES.filter(([field]) => item.changed_fields.includes(field)).map(([, name]) => name)
-  return changed.length > 0 ? `The bank changed the ${joinWithAnd(changed)}` : 'The bank changed this transaction'
+  return {
+    heading: changed.length > 0 ? `The bank changed the ${joinWithAnd(changed)}` : 'The bank changed this transaction',
+    name: item.bank.description,
+    categoryId: null,
+  }
+}
+
+/** Why Approve all is unavailable while no waiting item holds a merchant and a category it can take */
+export const APPROVE_ALL_NONE_ADDABLE_REASON = 'No waiting item is ready to add: each needs a merchant and a category'
+
+/**
+ * Why Approve all is unavailable, or null while it can add an item. The fact comes from the first
+ * page of the list and covers every waiting new item, never only the rows loaded. When the only items
+ * ready sit in read-only accounts, the server's sentence for those accounts says why
+ */
+export function getApproveAllReason(rules: Pick<BankReviewRules, 'any_addable' | 'read_only_reason'>): string | null {
+  if (rules.any_addable) return null
+  return rules.read_only_reason ?? APPROVE_ALL_NONE_ADDABLE_REASON
 }
 
 /**

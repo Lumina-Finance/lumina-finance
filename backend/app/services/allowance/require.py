@@ -13,6 +13,7 @@ from app.models.account import Account, TaxAdvantagedCategory, TaxAdvantagedCate
 from app.models.bank_connection import BankConnection
 from app.models.budget import BaseBudget
 from app.models.category import Category
+from app.models.import_rule import ImportRule
 from app.models.merchant import Merchant
 from app.models.saved_insights_range import SavedInsightsRange
 from app.models.tag import Tag
@@ -31,6 +32,7 @@ HELD_QUERIES: dict[AllowanceKind, Callable[[uuid.UUID], Select]] = {
     AllowanceKind.MERCHANT: lambda user_id: (
         select(func.count()).select_from(Merchant).where(Merchant.owner_id == user_id, Merchant.group_id.is_(None))
     ),
+    AllowanceKind.IMPORT_RULE: lambda user_id: select(func.count()).select_from(ImportRule).where(ImportRule.owner_id == user_id),
     AllowanceKind.TAX_ADVANTAGED_CATEGORY: lambda user_id: (
         select(func.count())
         .select_from(TaxAdvantagedCategory)

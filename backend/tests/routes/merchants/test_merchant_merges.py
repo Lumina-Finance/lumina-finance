@@ -18,17 +18,28 @@ async def test_merge_merchant_into_a_system_merchant_restamps_its_transactions(c
     source_id = (await _create_merchant(client, headers, name="Me")).json()["id"]
     system_merchant_id = await _get_system_merchant_id(client, headers)
 
-    account_resp = await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
-    }, headers=headers)
-    await client.post("/transactions", json={
-        "account_id": account_resp.json()["id"],
-        "category_id": category_id,
-        "merchant_id": source_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-    }, headers=headers)
+    account_resp = await client.post(
+        "/accounts",
+        json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": "Chequing",
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
+    await client.post(
+        "/transactions",
+        json={
+            "account_id": account_resp.json()["id"],
+            "category_id": category_id,
+            "merchant_id": source_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
 
     resp = await client.post(
         f"/merchants/{source_id}/merge",
@@ -54,18 +65,29 @@ async def test_merge_merchant_reassigns_transactions_and_deletes_source(client):
     replacement_resp = await _create_merchant(client, headers, name="New Costco")
     replacement_id = replacement_resp.json()["id"]
 
-    account_resp = await client.post("/accounts", json={
-        "account_kind": "asset", "account_type": "checking", "name": "Chequing", "currency": "CAD",
-    }, headers=headers)
+    account_resp = await client.post(
+        "/accounts",
+        json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": "Chequing",
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
     account_id = account_resp.json()["id"]
-    await client.post("/transactions", json={
-        "account_id": account_id,
-        "category_id": category_id,
-        "merchant_id": source_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-    }, headers=headers)
+    await client.post(
+        "/transactions",
+        json={
+            "account_id": account_id,
+            "category_id": category_id,
+            "merchant_id": source_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+        },
+        headers=headers,
+    )
 
     resp = await client.post(
         f"/merchants/{source_id}/merge",
@@ -109,22 +131,30 @@ async def test_merge_group_merchant_reassigns_transactions_as_admin(client):
     replacement_resp = await _create_merchant(client, admin_headers, name="New Shared Store", group_id=group_id)
     replacement_id = replacement_resp.json()["id"]
 
-    account_resp = await client.post("/accounts", json={
-        "account_kind": "asset",
-        "account_type": "checking",
-        "name": "Joint Chequing",
-        "currency": "CAD",
-        "group_id": group_id,
-    }, headers=admin_headers)
+    account_resp = await client.post(
+        "/accounts",
+        json={
+            "account_kind": "asset",
+            "account_type": "checking",
+            "name": "Joint Chequing",
+            "currency": "CAD",
+            "group_id": group_id,
+        },
+        headers=admin_headers,
+    )
     account_id = account_resp.json()["id"]
-    await client.post("/transactions", json={
-        "account_id": account_id,
-        "category_id": category_id,
-        "merchant_id": source_id,
-        "dt": "2026-03-15",
-        "amount": -5000,
-        "currency": "CAD",
-    }, headers=admin_headers)
+    await client.post(
+        "/transactions",
+        json={
+            "account_id": account_id,
+            "category_id": category_id,
+            "merchant_id": source_id,
+            "dt": "2026-03-15",
+            "amount": -5000,
+            "currency": "CAD",
+        },
+        headers=admin_headers,
+    )
 
     resp = await client.post(
         f"/merchants/{source_id}/merge",

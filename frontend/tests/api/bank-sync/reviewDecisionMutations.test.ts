@@ -3,8 +3,9 @@
  *
  * These tests catch an item decided in another tab or on another device, or withdrawn by the bank,
  * staying in the review block after a decision on it fails here, whether that was Add to ledger, a
- * bulk add or dismissal or any other decision, and the waiting counts beside the block staying as
- * they were
+ * bulk add or dismissal, a press of Approve all or any other decision, and the waiting counts beside
+ * the block staying as they were. A refused press of Reapply updated rules changes nothing, so it must leave
+ * the list as it is, offer included, and a press that went through must read the list again
  */
 import { MutationObserver, QueryClient, type QueryKey } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,6 +21,8 @@ vi.mock('@/api/client', () => ({
 import { ApiError } from '@/api/auth'
 import {
   addReviewItemMutationOptions,
+  applyRulesToReviewItemsMutationOptions,
+  approveAllReviewItemsMutationOptions,
   bulkAddReviewItemsMutationOptions,
   bulkDismissReviewItemsMutationOptions,
   resolveReviewItemMutationOptions,
@@ -73,6 +76,14 @@ const refusals = [
     new ApiError('Choose the account on the other side of this transfer', 422),
   ],
   [
+    'a press of Approve all the server could not take',
+    () =>
+      new MutationObserver(queryClient, approveAllReviewItemsMutationOptions(queryClient)).mutate({
+        scope: undefined,
+      }),
+    new ApiError('Something went wrong', 500),
+  ],
+  [
     'a bulk dismissal the server could not take',
     () =>
       new MutationObserver(queryClient, bulkDismissReviewItemsMutationOptions(queryClient)).mutate({
@@ -104,6 +115,32 @@ describe('a review decision the server refuses', () => {
 
     expect(await sent).toBe(refusal)
     expectInvalidated(reviewKeys, true)
+    expectInvalidated(untouchedKeys, false)
+  })
+})
+
+describe('a press of Reapply updated rules', () => {
+  const press = () => new MutationObserver(queryClient, applyRulesToReviewItemsMutationOptions(queryClient)).mutate()
+
+  it('leaves the list, and so the offer, as it is when the server refuses it', async () => {
+    const refusal = new ApiError('Something went wrong', 500)
+    authenticatedFetchMock.mockRejectedValue(refusal)
+
+    const sent = press().catch((error: unknown) => error)
+    await vi.runAllTimersAsync()
+
+    expect(await sent).toBe(refusal)
+    expectInvalidated(reviewKeys, false)
+  })
+
+  it('reads the list again once the server has saved the values', async () => {
+    authenticatedFetchMock.mockResolvedValue({ changed_count: 2 })
+
+    const sent = press()
+    await vi.runAllTimersAsync()
+
+    expect(await sent).toEqual({ changed_count: 2 })
+    expectInvalidated([bankSyncKeys.reviewItems(undefined)], true)
     expectInvalidated(untouchedKeys, false)
   })
 })

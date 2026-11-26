@@ -17,10 +17,16 @@ export const ICON_ALIGNMENT_TOLERANCE_PX = 0.15
  * pixels in a headless browser, too coarse for this
  *
  * @param icon - An element holding the icon's svg, or the svg itself
- * @param text - The element whose first text is the line before the icon
+ * @param text - The element whose first text is the line before the icon, or after it when the icon comes first
+ * @param side - Which side of the text the icon is on. An icon before the text is measured to the text's first
+ * letter, from the drawing's right edge
  */
-export async function measureIconBesideText(icon: Locator, text: Locator): Promise<{ offCentre: number; gap: number }> {
-  return icon.evaluate((iconElement, textElement) => {
+export async function measureIconBesideText(
+  icon: Locator,
+  text: Locator,
+  side: 'after' | 'before' = 'after',
+): Promise<{ offCentre: number; gap: number }> {
+  return icon.evaluate((iconElement, [textElement, iconSide]) => {
     const svg = iconElement instanceof SVGSVGElement ? iconElement : iconElement.querySelector('svg')!
     const shapes = [...svg.querySelectorAll('path, line, polyline, polygon, circle, ellipse, rect')].map((shape) =>
       shape.getBoundingClientRect(),
@@ -30,6 +36,7 @@ export async function measureIconBesideText(icon: Locator, text: Locator): Promi
     const drawnTop = Math.min(...shapes.map((box) => box.top)) - halfStroke
     const drawnBottom = Math.max(...shapes.map((box) => box.bottom)) + halfStroke
     const drawnLeft = Math.min(...shapes.map((box) => box.left)) - halfStroke
+    const drawnRight = Math.max(...shapes.map((box) => box.right)) + halfStroke
 
     const walker = document.createTreeWalker(textElement, NodeFilter.SHOW_TEXT, {
       acceptNode: (node) => (/\S/.test(node.textContent ?? '') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP),
@@ -54,7 +61,7 @@ export async function measureIconBesideText(icon: Locator, text: Locator): Promi
 
     return {
       offCentre: (drawnTop + drawnBottom) / 2 - (letters.top + capitalsBelowRunTop),
-      gap: drawnLeft - letters.right,
+      gap: iconSide === 'after' ? drawnLeft - letters.right : letters.left - drawnRight,
     }
-  }, (await text.elementHandle())!)
+  }, [(await text.elementHandle())!, side] as const)
 }

@@ -6,8 +6,8 @@ export interface ImportCommitCheck {
   state: 'running' | 'failed'
   message: string
 
-  /** Asks the server again, shown beside a failed check */
-  onRetry: () => void
+  /** Asks the server again, shown beside a failed check. A check whose own step offers to ask again leaves it out */
+  onRetry?: () => void
 }
 
 const COMMIT_LABELS = ['Commit import', 'Imported'] as const
@@ -104,9 +104,11 @@ export function ImportCommitFooter({
           >
             {shownCheck.message}
           </p>
-          <button type="button" className="app-secondary-button h-9" onClick={shownCheck.onRetry}>
-            Try again
-          </button>
+          {shownCheck.onRetry && (
+            <button type="button" className="app-secondary-button h-9" onClick={shownCheck.onRetry}>
+              Try again
+            </button>
+          )}
         </div>
       )}
       {importError && (

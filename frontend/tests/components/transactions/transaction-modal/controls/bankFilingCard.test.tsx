@@ -51,6 +51,7 @@ const ITEM: BankReviewItem = {
   current: null,
   changed_fields: [],
   protected_fields: [],
+  rule_fill: null,
 }
 
 function renderCard(item: BankReviewItem, isLinkKnown = true): string {

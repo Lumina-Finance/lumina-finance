@@ -7,7 +7,8 @@
  * leaving it does when it can't be brought up to date, a save that fails must not leave an older
  * copy behind for the next load to restore as fresh, and no save may write a request held while
  * offline along with what it sends, such as both passwords of a password change, the authenticator
- * secret and setup link of a setup in progress, or an emailed reset token
+ * secret and setup link of a setup in progress, or an emailed reset token. A copy saved before the
+ * waiting bank items carried the fill of the import rules is dropped rather than restored as fresh
  */
 import { focusManager, MutationObserver, onlineManager, QueryClient } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,7 +25,7 @@ import {
   takeSavedCopyKey,
 } from '@/api/cache/persistence'
 import { getCheckRecord, setCheckRecord } from '@/api/cache/cacheCheck'
-import { authKeys, twoFactorKeys } from '@/api/cache/queryKeys'
+import { authKeys, importRuleKeys, twoFactorKeys } from '@/api/cache/queryKeys'
 import { clearUserScopedCache } from '@/api/cache/session'
 import { importSavedCopyKey, openSavedCopy, sealSavedCopy } from '@/api/cache/savedCopyCipher'
 import type { TotpSetupResponse } from '@/api/two-factor'
@@ -323,6 +324,20 @@ describe('restoring the saved copy', () => {
     await reloaded.restore()
 
     expect(reloaded.client.getQueryData(['bank-sync', 'holds'])).toBeUndefined()
+    expect(reloaded.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('removes a copy saved before waiting bank items carried the fill of the import rules', async () => {
+    const stored = await savedCopyOf((client) =>
+      client.setQueryData(['bank-sync', 'review', 'items', 'all'], { pages: [{ items: [] }], pageParams: [null] }),
+    )
+    // The shape that was current before, '14'. This copy then reads as saved by it
+    stored[QUERY_CACHE_STORAGE_KEY] = JSON.stringify({ ...JSON.parse(stored[QUERY_CACHE_STORAGE_KEY]), shape: '14' })
+
+    const reloaded = loadPage(stored)
+    await reloaded.restore()
+
+    expect(reloaded.client.getQueryData(['bank-sync', 'review', 'items', 'all'])).toBeUndefined()
     expect(reloaded.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
   })
 
@@ -652,6 +667,24 @@ describe('saving the query cache', () => {
     await settleSaves()
     expect((await readSavedCopy(page)) ?? '').not.toContain(resetToken)
   })
+
+  it('never saves what the import rules give a file, which names what the file says', async () => {
+    const page = loadPage({ [SESSION_KEY]: USER_A })
+    page.client.setQueryData(['accounts'], [{ id: 'account-kept' }])
+    page.client.setQueryData(importRuleKeys.budget(), { limit: 100, used: 2 })
+    page.client.setQueryData(importRuleKeys.matches('3-abc-def'), {
+      rows: [{ merchant: { id: 'merchant-1', name: 'Corner Market Name', rule: { id: 'rule-1', name: 'Market' } } }],
+      rules: [],
+      rules_version: 'v1',
+    })
+
+    await runTimedSave()
+    const saved = (await readSavedCopy(page)) ?? ''
+
+    expect(saved).toContain('account-kept')
+    expect(saved).toContain('"used":2')
+    expect(saved).not.toContain('Corner Market Name')
+  })
 })
 
 describe('what each guard on writing and leaving stops', () => {
@@ -798,7 +831,7 @@ describe('a restore that fails', () => {
   async function entryHolding(text: string) {
     const key = await importSavedCopyKey(savedCopySession().saved_copy_key!)
     const entry = {
-      shape: '14',
+      shape: '15',
       userId: USER_A,
       keyNumber: 0,
       savedAt: Date.now(),
@@ -974,7 +1007,7 @@ describe('what the saved copy keeps of the last check', () => {
         }),
       )
       const entry = {
-        shape: '14',
+        shape: '15',
         userId: USER_A,
         keyNumber: 0,
         savedAt: Date.now(),

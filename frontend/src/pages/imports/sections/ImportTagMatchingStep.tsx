@@ -11,9 +11,11 @@ import {
   EmptyState,
   ImportLoadFailure,
   ImportNotice,
+  ImportRulesCheck,
   ImportStep,
   ImportValueMatchTable,
 } from '@/pages/imports/components'
+import type { ImportRuleCheckState } from '@/pages/imports/types'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { getImportNameAnswer, getImportTagCreateNameError, getImportTagRowState } from '@/pages/imports/utils'
 import { getNameKey } from '@/api/shared/nameKey'
@@ -24,6 +26,9 @@ type ImportTagMatchingStepProps = {
 
   /** What the step says while the import holds no tag to ask about */
   empty: { title: string; description: string }
+
+  /** Stands in for the step while the import rules are checked, for an import they apply to */
+  ruleCheckState?: ImportRuleCheckState | null
 } & Pick<
   TransactionImportWorkflow,
   | 'importedTags'
@@ -54,6 +59,7 @@ type ImportTagMatchingStepProps = {
 export function ImportTagMatchingStep({
   index,
   empty,
+  ruleCheckState,
   importedTags,
   tagMappings,
   tagCreateNames,
@@ -88,7 +94,9 @@ export function ImportTagMatchingStep({
     >
       {/* The server refuses to check more names than one import carries, so none are asked about and a
           retry is not offered for a failure that cannot clear */}
-      {importedTags.length > MAX_IMPORT_MAPPINGS ? (
+      {ruleCheckState ? (
+        <ImportRulesCheck check={ruleCheckState} />
+      ) : importedTags.length > MAX_IMPORT_MAPPINGS ? (
         <ImportNotice tone="danger" title="Too many tags to match">
           {getTooManyMappingsError('tag', importedTags.length)}
         </ImportNotice>

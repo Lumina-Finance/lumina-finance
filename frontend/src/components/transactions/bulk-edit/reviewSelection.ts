@@ -6,7 +6,7 @@
  * A new item has no merchant or category yet, so adding it in bulk needs both, and it keeps its own
  * bank amount. It isn't in the ledger, so it can be dismissed but not deleted or exported
  */
-import type { BankReviewItem, BulkAddReviewValues } from '@/api/bank-sync'
+import type { ApproveAllResult, BankReviewItem, BulkAddReviewValues } from '@/api/bank-sync'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
 import type { BulkEditFields } from '@/components/transactions/bulk-edit/selection'
 import { countNoun } from '@/utils/bankSync'
@@ -118,6 +118,36 @@ export function describeBulkAdd(added: number, skipped: number, updated: number 
   const addedText = `Added ${countNoun(added, 'item')} to your ledger`
   const updatedText = updated === null ? '' : ` and updated ${countNoun(updated, 'transaction')}`
   return `${addedText}${updatedText}.${describeSkipped(skipped, 'added')}`
+}
+
+/**
+ * What the toast says once a press of Approve all has gone through, with the sentence a bulk add has
+ * for its items, and one more when items are left to add
+ *
+ * @param added - How many items the press added to the ledger, as the server counted them
+ * @param moreToAdd - Whether more items than one press adds are left to add
+ */
+export function describeApprovedAll(added: number, moreToAdd: boolean): string {
+  if (added === 0) return 'No items were added to your ledger: none of the waiting items was ready to add any more.'
+  const more = moreToAdd ? ' More items are left to add, so please press Approve all again.' : ''
+  return `${describeBulkAdd(added, 0, null)}${more}`
+}
+
+/**
+ * What the toast says for the server's answer to a press of Approve all, whether more items are left to add included
+ */
+export function describeApproveAllAnswer(answer: Pick<ApproveAllResult, 'added_ids' | 'more_to_add'>): string {
+  return describeApprovedAll(answer.added_ids.length, answer.more_to_add)
+}
+
+/**
+ * What the toast says once a press of Reapply updated rules has gone through
+ *
+ * @param changed - How many waiting items hold different values after the press, as the server counted them
+ */
+export function describeAppliedRules(changed: number): string {
+  if (changed === 0) return 'Your import rules changed nothing on the waiting items.'
+  return `Updated ${countNoun(changed, 'waiting item')} with your import rules.`
 }
 
 /**

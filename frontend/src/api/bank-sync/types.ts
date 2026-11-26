@@ -620,6 +620,72 @@ export type BankValues = {
 
 export type BankReviewItemKind = 'new' | 'correction' | 'removal'
 
+/** The import rule a value came from */
+export type BankReviewRuleReference = {
+  id: string
+  name: string
+}
+
+/** A merchant, category or tag the import rules give a waiting item, with the rule that gave it */
+export type BankReviewGivenValue = {
+  id: string
+  name: string
+  rule: BankReviewRuleReference
+}
+
+/** A category the rules give an item, with its kind */
+export type BankReviewGivenCategory = BankReviewGivenValue & {
+  kind: 'expense' | 'income' | 'transfer'
+}
+
+/**
+ * Why a rule's category is left out of an item: a transfer category never fills, an income or expense
+ * one fills only the direction its kind names, and an amount of zero or one the bank sent unreadable
+ * has no direction
+ */
+export type CategoryLeftOutReason = 'income_for_money_out' | 'expense_for_money_in' | 'transfer' | 'no_direction'
+
+/**
+ * What the user's import rules filled in for one new item, saved on the item as it arrived or as the
+ * rules were last applied to it
+ */
+export type BankReviewRuleFill = {
+  merchant: BankReviewGivenValue | null
+
+  /** Only a category whose kind fits the item's direction */
+  category: BankReviewGivenCategory | null
+  tags: BankReviewGivenValue[]
+
+  /** The category the rules gave that doesn't fit the item, so the item isn't filled with it */
+  category_left_out: (BankReviewGivenCategory & { reason: CategoryLeftOutReason }) | null
+
+  /** The tags the rules give that together pass what one transaction carries, so none is filled in */
+  tags_left_out: {
+    /** The rules that add them, first checked first */
+    rules: BankReviewRuleReference[]
+    count: number
+    limit: number
+    reason: 'too_many'
+  } | null
+}
+
+/**
+ * What the import rules do to the waiting new items of the accounts listed, across every page
+ */
+export type BankReviewRules = {
+  /** Whether approving all would add any waiting item, going by the values saved on each */
+  any_addable: boolean
+
+  /** Whether the rules changed since a waiting item of any of the user's own accounts was put through them */
+  changed: boolean
+
+  /**
+   * The installed check's sentence when an item could be added but every such item sits in an account the
+   * check keeps read-only, or null
+   */
+  read_only_reason: string | null
+}
+
 /**
  * One item waiting in the review inbox, outside the ledger and every calculation until acted on
  */
@@ -646,6 +712,9 @@ export type BankReviewItem = {
 
   /** The fields the correction changes that the user had edited */
   protected_fields: EditableBankField[]
+
+  /** What the import rules fill in. Null on a correction or removal, and on a new item no rule matches */
+  rule_fill: BankReviewRuleFill | null
 }
 
 /**
@@ -666,6 +735,9 @@ export type BankReviewBacklog = Pick<BankLink, 'account_id'> &
 export type BankReviewPage = {
   items: BankReviewItem[]
   counts: BankReviewCounts
+
+  /** Read for the first page only, null on the pages after it */
+  rules: BankReviewRules | null
 
   /** Passed back to read the page after this one, null on the last page */
   next_cursor: string | null
@@ -703,6 +775,27 @@ export type BulkAddReviewValues = {
 export type BulkReviewResult = {
   decided_ids: string[]
   skipped_ids: string[]
+}
+
+/**
+ * What a press of Approve all added
+ */
+export type ApproveAllResult = {
+  added_ids: string[]
+
+  /** The accounts the added items went to, whose ledgers changed */
+  account_ids: string[]
+
+  /** More items than one press adds are left to add */
+  more_to_add: boolean
+}
+
+/**
+ * What a press of Reapply updated rules did to the waiting items
+ */
+export type ApplyRulesResult = {
+  /** How many waiting items hold different values after the press */
+  changed_count: number
 }
 
 /**

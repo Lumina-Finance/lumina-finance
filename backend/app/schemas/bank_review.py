@@ -7,14 +7,62 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.bank_transaction import CorrectableBankField, EditableBankField
+from app.models.base import CategoryKind
 from app.schemas.bank_sync import BankValues
+from app.schemas.import_rule import ImportRuleGivenValue, ImportRuleReference
 from app.schemas.import_run import MAX_IMPORT_NOTES_LENGTH, MAX_IMPORT_TAGS_PER_ROW
 from app.schemas.limits import Counter
 from app.schemas.transaction import MAX_BULK_UPDATE_TRANSACTIONS, TransactionEntry
 from app.utils.date_window import WindowDate
 
+# The most accounts one request to approve all names
+MAX_APPROVE_ACCOUNTS = 500
+
 # A bank transaction to add or dismiss, or a change or removal the bank reports for one already in the ledger
 ReviewItemKind = Literal["new", "correction", "removal"]
+
+# Why a rule's category is left out of an item: a transfer category never fills, and an income or
+# expense one only fills the direction its kind names. An amount of zero, or one the bank sent
+# unreadable, has no direction
+CategoryLeftOutReason = Literal["income_for_money_out", "expense_for_money_in", "transfer", "no_direction"]
+
+
+class ReviewRuleCategory(ImportRuleGivenValue):
+    """A category the rules give an item, with its kind"""
+
+    kind: CategoryKind
+
+
+class ReviewRuleCategoryLeftOut(ReviewRuleCategory):
+    """A category a rule gives that doesn't fit the item, so the item isn't filled with it"""
+
+    reason: CategoryLeftOutReason
+
+
+class ReviewRuleTagsLeftOut(BaseModel):
+    """The tags the rules give an item that together pass what one transaction carries, so none is filled in"""
+
+    # The rules that add them, first checked first
+    rules: list[ImportRuleReference]
+
+    # How many tags the rules add, and the most a transaction carries
+    count: int
+    limit: int
+    reason: Literal["too_many"]
+
+
+class ReviewItemRuleFill(BaseModel):
+    """What the user's import rules filled in for one new item when it arrived, read with the records as they are now"""
+
+    merchant: ImportRuleGivenValue | None
+
+    # Only a category whose kind fits the item's direction
+    category: ReviewRuleCategory | None
+    tags: list[ImportRuleGivenValue]
+
+    # Set when the rules' category, or their tags, were left out, and why
+    category_left_out: ReviewRuleCategoryLeftOut | None
+    tags_left_out: ReviewRuleTagsLeftOut | None
 
 
 class BankReviewItemResponse(BaseModel):
@@ -42,6 +90,9 @@ class BankReviewItemResponse(BaseModel):
     # The fields the correction changes that the user had edited
     protected_fields: list[EditableBankField]
 
+    # What the import rules fill in. Null on a correction or removal and on a new item no rule matches
+    rule_fill: ReviewItemRuleFill | None = None
+
 
 class BankReviewCountsResponse(BaseModel):
     """How many items wait of each kind, across every page"""
@@ -51,11 +102,29 @@ class BankReviewCountsResponse(BaseModel):
     removal: int
 
 
+class BankReviewRulesResponse(BaseModel):
+    """What the saved rule values of the waiting new items say, across every page"""
+
+    # Whether approving all would add any waiting item of the accounts listed
+    any_addable: bool
+
+    # Whether the rules changed since a waiting item of any of the user's own accounts was put through
+    # them, whatever accounts are listed. Applying the rules puts every one through them again
+    changed: bool
+
+    # The installed check's sentence when an item could be added but every such item sits in an account
+    # the check keeps read-only, so Approve all says why it adds nothing. None otherwise
+    read_only_reason: str | None = None
+
+
 class BankReviewPageResponse(BaseModel):
     """One page of the items waiting for review, newest first by the bank's date"""
 
     items: list[BankReviewItemResponse]
     counts: BankReviewCountsResponse
+
+    # Read for the first page only, null on the pages after it
+    rules: BankReviewRulesResponse | None = None
 
     # Sent back as the cursor to read the page after this one, null on the last page
     next_cursor: str | None
@@ -124,3 +193,29 @@ class AddReviewItemRequest(TransactionEntry):
     The item's account and its currency are where it goes. The amount, in signed minor units of
     that currency, is always sent, so an item whose bank amount the currency can't hold gets one
     """
+
+
+class ApproveAllReviewItemsRequest(BaseModel):
+    """Add every waiting new item whose saved rule values give a merchant and a fitting category, over the accounts the list shows"""
+
+    # The accounts the list is filtered to, or every one of the user's own when left out
+    account_ids: list[uuid.UUID] | None = Field(None, max_length=MAX_APPROVE_ACCOUNTS)
+
+
+class ApplyImportRulesResponse(BaseModel):
+    """What applying the import rules to the waiting items changed"""
+
+    # The waiting items whose saved values differ after the press. It is none when the rules gave every item what it held
+    changed_count: int
+
+
+class ApproveAllReviewItemsResponse(BaseModel):
+    """What approving all the waiting items added"""
+
+    added_ids: list[uuid.UUID]
+
+    # The accounts the added items went to, whose ledgers changed
+    account_ids: list[uuid.UUID]
+
+    # More items than one press adds are left to add
+    more_to_add: bool

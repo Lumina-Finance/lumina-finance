@@ -4,9 +4,11 @@ import type { Merchant } from '@/api/merchants'
 import type { TransactionImportPayload, TransactionImportResponse } from '@/api/transaction-imports'
 import { getTodayYmd } from '@/utils/date'
 import {
+  CREATE_ACCOUNT_VALUE,
   getDirectionValuesAgreeError,
   getImportAccountNameTooLongError,
   getImportNoRowsError,
+  getRowTooManyTagsReason,
   getTooManyMappingsError,
   getRowSignDisagreesWithCategoryReason,
   getRowsOutsideDateRangeSummaryPart,
@@ -35,6 +37,8 @@ import type {
   ImportFileDraft,
   ImportRowFilter,
   ImportRowProblem,
+  ImportRuleMatchLookup,
+  ImportRuleRow,
 } from '@/pages/imports/types'
 import type { Currency } from '@/api/currency'
 import { getFileAccountSourceId } from './accountMapping'
@@ -65,6 +69,7 @@ import {
   type ImportRowJudgement,
   resolveImportRow,
 } from './rowResolution'
+import { getRuleTagCountOverLimit } from './ruleMatching'
 import { type ImportDateFormat, type ImportDateSeparator } from './valueParsers'
 import { formatValueList } from '@/utils/formatList'
 
@@ -106,6 +111,7 @@ export function buildTransactionImportPayload({
   importedCategories,
   merchantAnswers,
   tagAnswers,
+  ruleMatches = null,
 }: {
   accountById: Map<string, AccountsOverview>
   accountCreateCurrencies: Record<string, string>
@@ -152,6 +158,13 @@ export function buildTransactionImportPayload({
    * there are none to answer
    */
   tagAnswers?: ImportTagAnswers
+
+  /**
+   * What the user's import rules give each row, by the row's identity, null while they have not
+   * answered. A rule's category decides which kind a row's sign is judged against, and a row the
+   * rules leave with more tags than a transaction carries is left out and listed
+   */
+  ruleMatches?: ImportRuleMatchLookup | null
 }): ImportBuildResult {
   // Two kinds of problem, kept apart because only one of them makes judging a row meaningless. An
   // unanswered mapping question leaves every row looking broken for want of the answer, while a
@@ -331,6 +344,7 @@ export function buildTransactionImportPayload({
       warnings: [],
       rowWarnings: [],
       payload: null,
+      ruleRows: [],
     }
   }
 
@@ -353,6 +367,7 @@ export function buildTransactionImportPayload({
   const rows: TransactionImportPayload['rows'] = []
   const rowProblems: ImportRowProblem[] = []
   const rowWarnings: ImportRowProblem[] = []
+  const ruleRows: ImportRuleRow[] = []
   let outsideRangeRowCount = 0
   const fileAccountSourceId = getFileAccountSourceId(files)
   const fileLabels = labelStagedFiles(files)
@@ -363,11 +378,16 @@ export function buildTransactionImportPayload({
         continue
       }
 
+      const rowId = getImportRowId(file.id, rowIndex)
       const resolved = resolveImportRow(row, fileAccountSourceId, rowContext)
-      const problem = getImportRowProblem(resolved, rowJudgement)
+      const ruleMatch = ruleMatches?.get(rowId)
+      const tagCountOverLimit = getRuleTagCountOverLimit(ruleMatch)
+      const problem =
+        getImportRowProblem(resolved, rowJudgement) ??
+        (tagCountOverLimit === null ? null : getRowTooManyTagsReason(tagCountOverLimit))
       if (problem) {
         rowProblems.push({
-          id: getImportRowId(file.id, rowIndex),
+          id: rowId,
           fileName: fileLabels[fileIndex],
           // Its position among the file's data rows, which is not the line it sits on: parsing
           // drops blank lines and folds a quoted value carrying a newline into one row
@@ -380,19 +400,23 @@ export function buildTransactionImportPayload({
 
       // One source row keeps one warning-table identity even when more than one note applies
       const warningReasons: string[] = []
-      const categoryKind = kindByCategorySource[resolved.categorySource]
+
+      // The row is filed under the category a rule gives it, where one does, so its sign and its note
+      // are judged against that one and not the file's
+      const ruleCategory = ruleMatch?.category ? categoryById.get(ruleMatch.category.id) : undefined
+      const categoryKind = ruleCategory?.kind ?? kindByCategorySource[resolved.categorySource]
       if (doesSignDisagreeWithCategoryKind(resolved.amountReading, categoryKind)) {
         // Only an expense or an income category reaches here, since the check above judges no
         // other kind, so the note can say which of the two this row is filed under
         warningReasons.push(getRowSignDisagreesWithCategoryReason(categoryKind as 'expense' | 'income'))
       }
 
-      const debtPaymentNote = getDebtPaymentImportNote(categoryBySource[resolved.categorySource])
+      const debtPaymentNote = getDebtPaymentImportNote(ruleCategory ?? categoryBySource[resolved.categorySource])
       if (debtPaymentNote) warningReasons.push(debtPaymentNote)
 
       if (warningReasons.length > 0) {
         rowWarnings.push({
-          id: getImportRowId(file.id, rowIndex),
+          id: rowId,
           fileName: fileLabels[fileIndex],
           rowNumber: rowIndex + 1,
           cells: row,
@@ -400,7 +424,24 @@ export function buildTransactionImportPayload({
         })
       }
 
-      rows.push(toPayloadRow(resolved))
+      const payloadRow = toPayloadRow(resolved)
+      rows.push(payloadRow)
+
+      // Asked about the very row sent. A new account has no id yet, so a rule's account condition
+      // can't name it, and a row filed as a transfer is left alone by the rules
+      const accountChoice = accountMappings[resolved.accountSource]
+      ruleRows.push({
+        id: rowId,
+        request: {
+          description: payloadRow.merchant_name ?? null,
+          note: payloadRow.notes ?? null,
+          amount: payloadRow.amount,
+          currency: resolved.currency,
+          account_id: accountChoice === CREATE_ACCOUNT_VALUE ? null : accountChoice,
+          is_transfer: kindByCategorySource[resolved.categorySource] === 'transfer',
+          tag_names: payloadRow.tag_names,
+        },
+      })
     }
   }
 
@@ -415,7 +456,7 @@ export function buildTransactionImportPayload({
   const warnings = getImportWarnings(rows, columnMap)
   const allErrors = [...columnErrors, ...errors]
   if (allErrors.length > 0) {
-    return { errors: allErrors, rowProblems, warnings, rowWarnings, payload: null }
+    return { errors: allErrors, rowProblems, warnings, rowWarnings, payload: null, ruleRows: [] }
   }
   return {
     errors: [],
@@ -423,6 +464,7 @@ export function buildTransactionImportPayload({
     warnings,
     rowWarnings,
     payload: { accounts, categories, merchants, tags, rows },
+    ruleRows,
   }
 }
 

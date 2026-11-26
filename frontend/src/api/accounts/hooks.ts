@@ -8,6 +8,7 @@ import {
   invalidateAccountCreditPicker,
   invalidateAccountTaxAdvantagedCategoryData,
   invalidateCreatedAccountData,
+  invalidateRenamedAccountData,
   refreshAfterInterruptedStartingBalance,
   updateCachedAccountList,
 } from '@/api/cache/updates/accounts'
@@ -98,6 +99,10 @@ export function useUpdateAccount() {
 
       if ('name' in variables.payload || 'institution_id' in variables.payload) {
         invalidateAccountCreditPicker(queryClient, previousAccount, account)
+      }
+
+      if ('name' in variables.payload) {
+        invalidateRenamedAccountData(queryClient, previousAccount, account)
       }
 
       if ('tax_advantaged_category_id' in variables.payload && previousPlanId !== account.tax_advantaged_category_id) {

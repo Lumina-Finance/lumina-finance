@@ -3865,11 +3865,13 @@
     background-clip: content-box;
   }
 
+  /* A link held off while its press runs dims, and the dim eases as a button's does */
   @media (prefers-reduced-motion: no-preference) {
     :is(a, button).underline {
       transition:
         background-size var(--app-ease-duration) cubic-bezier(0.65, 0, 0.35, 1),
         color var(--app-ease-duration) var(--app-ease-curve),
+        opacity var(--app-ease-duration) var(--app-ease-curve),
         var(--app-focus-fade);
     }
   }

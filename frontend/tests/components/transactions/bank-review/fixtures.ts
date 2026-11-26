@@ -67,6 +67,7 @@ export function createReviewItem(
     current: kind === 'new' ? null : { ...bank, amount: -1800 },
     changed_fields: kind === 'correction' ? ['amount'] : [],
     protected_fields: [],
+    rule_fill: null,
     ...overrides,
   }
 }
@@ -132,7 +133,7 @@ export function toPages(
   counts: BankReviewPage['counts'] = countOf(items),
   nextCursor: string | null = null,
 ): InfiniteData<BankReviewPage, string | null> {
-  return { pages: [{ items, counts, next_cursor: nextCursor }], pageParams: [null] }
+  return { pages: [{ items, counts, rules: null, next_cursor: nextCursor }], pageParams: [null] }
 }
 
 function countOf(items: BankReviewItem[]): BankReviewPage['counts'] {

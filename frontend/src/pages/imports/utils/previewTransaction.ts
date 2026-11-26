@@ -43,6 +43,9 @@ interface PreviewTransactionInput {
   counterpartyScope: TransferCounterpartyScope | null
   tagNames: string[]
   timestamp: string
+
+  /** Set where an import rule chose the merchant */
+  isMerchantFromRule?: boolean
 }
 
 /**
@@ -81,6 +84,7 @@ export function buildPreviewTransactionRow(input: PreviewTransactionInput): Prev
     currency: account.currency,
     dateLabel: getPreviewDateLabel(input.dt),
     counterpartyAccountName: input.counterpartyAccount?.name,
+    ...(input.isMerchantFromRule ? { isMerchantFromRule: true } : {}),
 
     // The two branches keep one amount type across the three amount fields, as the row's type requires
     transaction:

@@ -27,11 +27,13 @@ from app.schemas.bank_review import (
     BankReviewCountsResponse,
     BankReviewItemResponse,
     BankReviewPageResponse,
+    ReviewItemRuleFill,
 )
 from app.services.accounts.access import check_own_personal_accounts, own_personal_account_condition, own_personal_accounts_scope
 from app.services.bank_sync.availability import read_provider_labels
 from app.services.bank_sync.review_pause import read_review_backlogs
 from app.services.bank_sync.review_state import AWAITING_REVIEW, IS_REVIEW_ITEM, approved_description, edited_fields
+from app.services.bank_sync.saved_fills import read_page_rules, saved_item_of, writable_accounts_scope
 from app.services.bank_sync.sources import read_bank_values
 
 # The most items one page holds, so an import that leaves hundreds waiting loads a page at a time
@@ -83,7 +85,7 @@ async def list_review_items(
 
     # One row past the page says whether another page follows
     page_query = (
-        select(BankTransaction, Transaction.dt, Transaction.amount)
+        select(BankTransaction, Transaction.dt, Transaction.amount, Account.is_archived)
         .join(Account, Account.id == BankTransaction.account_id)
         .outerjoin(Transaction, Transaction.id == BankTransaction.transaction_id)
         .where(*scope)
@@ -106,11 +108,26 @@ async def list_review_items(
     )
 
     page = rows[:limit]
-    names = await read_provider_labels(db, (record.provider for record, _, _ in page))
+    names = await read_provider_labels(db, (record.provider for record, *_ in page))
+
+    # The values the rules saved on each item are read as the records stand now. The first page also
+    # says whether approving all would add any waiting item and whether the rules changed since
+    waiting = [
+        saved_item_of(record, archived) for record, _, _, archived in page if record.disposition == BankTransactionDisposition.AWAITING_REVIEW
+    ]
+    # Only the first page answers whether approving all would add anything, so only it asks which accounts are read-only
+    writable = await writable_accounts_scope(db, user) if cursor is None else []
+    page_rules = await read_page_rules(
+        db, user.id, scope, waiting, first_page=cursor is None, any_waiting=counts.get("new", 0) > 0, writable=writable
+    )
     return BankReviewPageResponse(
-        items=[build_review_item(record, ledger_date, ledger_amount, names[record.provider]) for record, ledger_date, ledger_amount in page],
+        items=[
+            build_review_item(record, ledger_date, ledger_amount, names[record.provider], page_rules.fills.get(record.id))
+            for record, ledger_date, ledger_amount, _ in page
+        ],
         counts=BankReviewCountsResponse(new=counts.get("new", 0), correction=counts.get("correction", 0), removal=counts.get("removal", 0)),
         next_cursor=_write_cursor(page[-1][0]) if len(rows) > limit else None,
+        rules=page_rules.rules,
     )
 
 
@@ -151,9 +168,13 @@ async def list_review_backlogs(
 
 
 def build_review_item(
-    record: BankTransaction, ledger_date: date | None, ledger_amount: int | None, provider_name: str
+    record: BankTransaction,
+    ledger_date: date | None,
+    ledger_amount: int | None,
+    provider_name: str,
+    rule_fill: ReviewItemRuleFill | None = None,
 ) -> BankReviewItemResponse:
-    """Return a bank transaction as a review item, given its ledger row's date and amount when it has one and its provider's name"""
+    """Return a bank transaction as a review item, given its ledger row's date and amount, its provider's name and its rule fill"""
     bank = read_bank_values(record)
     item = {
         "id": record.id,
@@ -172,6 +193,7 @@ def build_review_item(
             current=None,
             changed_fields=[],
             protected_fields=[],
+            rule_fill=rule_fill,
         )
 
     # The ledger holds the approved date and amount, and the record the description they were

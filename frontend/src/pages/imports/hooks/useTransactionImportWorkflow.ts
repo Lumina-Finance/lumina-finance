@@ -11,6 +11,7 @@ import {
 import { EMPTY_COLUMN_MAP } from '@/pages/imports/constants'
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
+import { getRuleCoveredMerchantsLine } from '@/pages/imports/constants'
 import { OUTSIDE_ACCOUNT_LABEL, OUTSIDE_ACCOUNT_VALUE } from '@/utils/transfers'
 import { LOADING_ANIMATION_MIN_MS } from '@/utils/timing'
 import type {
@@ -44,6 +45,10 @@ import {
   fileRowsUnderAnsweredMerchants,
   getImportedMerchants,
   getImportedTags,
+  countRuleRowsSent,
+  getRuleCoveredMerchantKeys,
+  getRuleCoveredMerchants,
+  leaveOutCoveredNames,
   getImportAccountRowState,
   getImportHeaders,
   getStatedCurrencyByAccountSource,
@@ -115,6 +120,7 @@ import { isImportableAccount } from '@/utils/importableAccount'
 import { waitForMilliseconds } from '@/utils/timing'
 import { useImportAccountCreateState } from './useImportAccountCreateState'
 import { useImportMerchantMatches } from './useImportMerchantMatches'
+import { useImportRulesCheck } from './useImportRulesCheck'
 import { useImportTagMatches } from './useImportTagMatches'
 import { useImportReferenceData } from './useImportReferenceData'
 import { useImportDateRange } from './useImportDateRange'
@@ -742,49 +748,6 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     [amountFormat, columnMap, directionAnswers, files, isRowIncluded],
   )
 
-  const importedMerchants = useMemo(
-    () => getImportedMerchants(files, columnMap.merchant_id, isRowIncluded),
-    [columnMap.merchant_id, files, isRowIncluded],
-  )
-
-  const {
-    matchedMerchantByKey,
-    matchesLoading,
-    matchesFailed,
-    matchesError,
-    refetchMatches,
-    merchantOptions,
-    rememberPickedMerchant,
-    merchantSearch,
-    setMerchantSearch,
-    merchantSearchLoading,
-    hasMoreMerchantResults,
-    loadMoreMerchantResults,
-  } = useImportMerchantMatches(importedMerchants)
-
-  // Answers are held under the spelling shown when each was given. A date range can leave that
-  // spelling out of the rows while another spelling of the same merchant stays, so they are read and
-  // written under the spelling the step asks about now
-  const merchantMappings = useMemo(
-    () => readNameAnswers(scopedMerchantMappings, getMerchantSourceScope, importedMerchants),
-    [getMerchantSourceScope, importedMerchants, scopedMerchantMappings],
-  )
-
-  const merchantCreateNames = useMemo(
-    () => readNameAnswers(scopedMerchantCreateNames, getMerchantSourceScope, importedMerchants),
-    [getMerchantSourceScope, importedMerchants, scopedMerchantCreateNames],
-  )
-
-  const setMerchantMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
-    setScopedMerchantMappings((current) => writeNameAnswers(current, update, getMerchantSourceScope, importedMerchants))
-  }
-
-  const setMerchantCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
-    setScopedMerchantCreateNames((current) =>
-      writeNameAnswers(current, update, getMerchantSourceScope, importedMerchants),
-    )
-  }
-
   const categoryTypesBySource = useMemo(
     () => getImportedCategoryTypes(files, columnMap, importedCategories, directionAnswers, amountFormat, isRowIncluded),
     [amountFormat, columnMap, directionAnswers, importedCategories, files, isRowIncluded],
@@ -877,7 +840,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   // Which rows the import refuses, judged without the tag answers because those are about the names
   // the rows that import carry. A row refused for any reason is not written, so the tag step asks
   // about the spellings of the rows that are
-  const refusedRowCells = useMemo(
+  const answerFreeBuild = useMemo(
     () =>
       buildTransactionImportPayload({
         accountById,
@@ -901,7 +864,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
         directionAnswers,
         files,
         importedCategories,
-      }).rowProblems.map((problem) => problem.cells),
+      }),
     [
       accountById,
       accountCreateInstitutions,
@@ -926,6 +889,79 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
       timeZone,
     ],
   )
+  const refusedRowCells = useMemo(() => answerFreeBuild.rowProblems.map((problem) => problem.cells), [answerFreeBuild])
+
+  // What the user's import rules give the rows the save would send. Asked about once the accounts and
+  // categories are answered and before the merchant and tag questions, whose answers are no part of
+  // the rows, so answering them never asks again. It stops while the import is being saved or is done,
+  // so the rows it just wrote are not asked about, and the notice keeps the answer it was saved with
+  const isRuleCheckPaused =
+    run.workflow.importOverlayOpen || run.workflow.isImportInFlight || run.workflow.importResult !== null
+  const {
+    ruleRows,
+    ruleMatches,
+    ruleCheckState,
+    ruleCheckNotice,
+    ruleCounts: askedRuleCounts,
+  } = useImportRulesCheck(answerFreeBuild.payload ? answerFreeBuild.ruleRows : null, isRuleCheckPaused)
+
+  // A merchant name whose every row takes a rule's merchant is not asked about and creates no merchant
+  const fileMerchants = useMemo(
+    () => getImportedMerchants(files, columnMap.merchant_id, isRowIncluded),
+    [columnMap.merchant_id, files, isRowIncluded],
+  )
+  const ruleCoveredMerchantKeys = useMemo(
+    () => getRuleCoveredMerchantKeys(ruleRows, ruleMatches),
+    [ruleMatches, ruleRows],
+  )
+  const importedMerchants = useMemo(
+    () => leaveOutCoveredNames(fileMerchants, ruleCoveredMerchantKeys),
+    [fileMerchants, ruleCoveredMerchantKeys],
+  )
+  const ruleCoveredMerchants = useMemo(
+    () => getRuleCoveredMerchants(fileMerchants, ruleRows, ruleMatches, ruleCoveredMerchantKeys),
+    [fileMerchants, ruleCoveredMerchantKeys, ruleMatches, ruleRows],
+  )
+  const ruleCoveredMerchantsLine = getRuleCoveredMerchantsLine(ruleCoveredMerchants, importedMerchants.length)
+  const areMerchantsCoveredByRules = fileMerchants.length > 0 && importedMerchants.length === 0
+
+  const {
+    matchedMerchantByKey,
+    matchesLoading,
+    matchesFailed,
+    matchesError,
+    refetchMatches,
+    merchantOptions,
+    rememberPickedMerchant,
+    merchantSearch,
+    setMerchantSearch,
+    merchantSearchLoading,
+    hasMoreMerchantResults,
+    loadMoreMerchantResults,
+  } = useImportMerchantMatches(importedMerchants)
+
+  // Answers are held under the spelling shown when each was given. A date range can leave that
+  // spelling out of the rows while another spelling of the same merchant stays, so they are read and
+  // written under the spelling the step asks about now
+  const merchantMappings = useMemo(
+    () => readNameAnswers(scopedMerchantMappings, getMerchantSourceScope, importedMerchants),
+    [getMerchantSourceScope, importedMerchants, scopedMerchantMappings],
+  )
+
+  const merchantCreateNames = useMemo(
+    () => readNameAnswers(scopedMerchantCreateNames, getMerchantSourceScope, importedMerchants),
+    [getMerchantSourceScope, importedMerchants, scopedMerchantCreateNames],
+  )
+
+  const setMerchantMappings: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedMerchantMappings((current) => writeNameAnswers(current, update, getMerchantSourceScope, importedMerchants))
+  }
+
+  const setMerchantCreateNames: Dispatch<SetStateAction<Record<string, string>>> = (update) => {
+    setScopedMerchantCreateNames((current) =>
+      writeNameAnswers(current, update, getMerchantSourceScope, importedMerchants),
+    )
+  }
 
   const importedTags = useMemo(
     () => getImportedTags(files, columnMap.tag_ids, excludeRefusedRows(isRowIncluded, refusedRowCells)),
@@ -1021,8 +1057,10 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
           tagMappings,
           tagCreateNames,
         },
+        ruleMatches,
       }),
     [
+      ruleMatches,
       accountById,
       accountCreateInstitutions,
       accountCreateTypes,
@@ -1055,6 +1093,12 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     ],
   )
 
+  // Counted from the rows the save sends, so a row the import leaves out is in no rule's count
+  const ruleCounts = useMemo(
+    () => countRuleRowsSent(askedRuleCounts, importBuild.ruleRows, ruleMatches),
+    [askedRuleCounts, importBuild.ruleRows, ruleMatches],
+  )
+
   // Built after the payload so both read one decision about which rows can be converted, rather
   // than the preview coercing an unreadable amount to zero beside the entry refusing that row
   const sampleRows = useMemo<PreviewTransactionRow[]>(
@@ -1081,8 +1125,10 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
         resolvedCategoryMappings,
         rowProblems: importBuild.rowProblems,
         tagAnswers: { importedTags, matchedTagByKey, tagMappings, tagCreateNames, tagLabelById },
+        ruleMatches,
       }),
     [
+      ruleMatches,
       importedTags,
       matchedTagByKey,
       tagCreateNames,
@@ -1159,7 +1205,7 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
   const canCommitImport = run.canCommit({
     hasPayload: importBuild.payload !== null,
     isProcessingFile: isProcessingFiles,
-    blockReason: dateRangeBlockReason,
+    blockReason: dateRangeBlockReason ?? ruleCheckNotice?.message ?? null,
   })
 
   const syncAutoMatchKeys = (
@@ -1638,6 +1684,11 @@ export function useTransactionImportWorkflow(fixedAccount: AccountsOverview | nu
     accountMappingSources,
     importedCategories,
     importedMerchants,
+    areMerchantsCoveredByRules,
+    ruleCoveredMerchantsLine,
+    ruleCheckState,
+    ruleCheckNotice,
+    ruleCounts,
     categoryTypesBySource,
     importedTags,
     autoFilledCategories,

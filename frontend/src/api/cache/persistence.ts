@@ -11,7 +11,7 @@ import {
 import { SESSION_KEY } from '@/api/auth/session'
 import type { AuthResponse } from '@/api/auth/types'
 import { getCheckRecord, setCheckRecord, subscribeToCheckRecord, type SavedCheck } from '@/api/cache/cacheCheck'
-import { authKeys, twoFactorKeys } from '@/api/cache/queryKeys'
+import { authKeys, importRuleKeys, twoFactorKeys } from '@/api/cache/queryKeys'
 import { importSavedCopyKey, openSavedCopy, sealSavedCopy, type SealedCopy } from '@/api/cache/savedCopyCipher'
 import { hasUncacheableFxStatus } from '@/api/shared/fxCache'
 import { readStoredValue, removeStoredValue, writeStoredValue } from '@/utils/browserStorage'
@@ -48,7 +48,9 @@ const TIMED_SAVE_INTERVAL_MS = 1000
 // Version 13 adds the reason every account, budget and tax-advantaged category gives while its currency
 // keeps it read-only
 // Version 14 adds whether each refund link candidate shares the merchant and matches the amount left
-const PERSISTED_CACHE_SHAPE = '14'
+// Version 15 adds the fill of the import rules to every waiting bank item, and the facts and version of
+// the rules to the first page of the review list
+const PERSISTED_CACHE_SHAPE = '15'
 
 /**
  * What local storage holds: the saved cache sealed under the user's key, and in plain text only what
@@ -78,19 +80,21 @@ type SessionKey = {
 
 /**
  * Persists successful query data while leaving failed FX responses, the authenticator setup
- * response and reset link checks out of the saved copy
+ * response, reset link checks and what the import rules give a file's rows out of the saved copy
  *
  * The setup response holds a new authenticator secret and its setup link, which would otherwise be
  * saved and left there by a tab closed mid-setup. Setup mints a fresh secret each time it opens, so
  * a reload loses nothing by not restoring it. A reset link check is keyed by the emailed reset
- * token, so saving one would store a working reset link
+ * token, so saving one would store a working reset link. What the rules give a file's rows holds
+ * names from the file and answers for rows that are gone with the import, so a reload asks again
  */
 function shouldDehydrateQuery(query: Query) {
   return (
     defaultShouldDehydrateQuery(query) &&
     !hasUncacheableFxStatus(query.state.data) &&
     !matchQuery({ queryKey: twoFactorKeys.setup(), exact: true }, query) &&
-    !matchQuery({ queryKey: authKeys.resetLinks() }, query)
+    !matchQuery({ queryKey: authKeys.resetLinks() }, query) &&
+    !matchQuery({ queryKey: importRuleKeys.matchesAll }, query)
   )
 }
 

@@ -27,6 +27,7 @@ class AllowanceKind(StrEnum):
     CATEGORY = "category"
     TAG = "tag"
     MERCHANT = "merchant"
+    IMPORT_RULE = "import_rule"
     TAX_ADVANTAGED_CATEGORY = "tax_advantaged_category"
 
     # Every yearly limit under the user's tax-advantaged categories, counted together

@@ -35,6 +35,9 @@ from app.models.budget import BaseBudget, Budget, BudgetTrackedCategory
 from app.models.cache_state import UserCacheState
 from app.models.category import Category
 from app.models.group import Group, GroupMember
+from app.models.import_rule import ImportRule, ImportRuleTag
+from app.models.merchant import Merchant
+from app.models.tag import Tag
 from app.models.transaction import Transaction
 from app.models.user import User, UserCreditExcludedAccount
 from tests.conftest import TestSession
@@ -807,3 +810,85 @@ async def test_bank_sync_heartbeat_is_read_by_the_app_and_written_only_by_the_wo
         assert await _count_visible(session, BankSyncHeartbeat) == 1
         with pytest.raises(ProgrammingError, match="permission denied"):
             await session.execute(text("UPDATE bank_sync_heartbeat SET last_scan_at = now()"))
+
+
+def _build_rule(owner_id, name: str, **overrides) -> ImportRule:
+    """Return an unsaved import rule with one description condition"""
+    conditions = [{"kind": "condition", "attribute": "description", "operator": "contains", "value": "market"}]
+    return ImportRule(owner_id=owner_id, name=name, position=0, match="all", conditions=conditions, **overrides)
+
+
+async def test_import_rules_and_their_tags_are_invisible_to_other_users(users):
+    """A rule and the tags it adds belong to its owner alone"""
+    user_a, user_b = users
+    tag = Tag(owner_id=user_a.id, name="review")
+    async with TestSession() as session:
+        session.add(tag)
+        await session.flush()
+        rule = _build_rule(user_a.id, "Market")
+        session.add(rule)
+        await session.flush()
+        session.add(ImportRuleTag(import_rule_id=rule.id, tag_id=tag.id))
+        await session.commit()
+
+    async with _act_as(user_a.id) as session:
+        assert (await session.scalars(select(ImportRule.id))).all() == [rule.id]
+        assert (await session.scalars(select(ImportRuleTag.tag_id))).all() == [tag.id]
+    async with _act_as(user_b.id) as session:
+        assert (await session.scalars(select(ImportRule.id))).all() == []
+        assert (await session.scalars(select(ImportRuleTag.tag_id))).all() == []
+
+
+async def test_import_rule_owned_by_another_user_is_refused(users):
+    """A user can't write a rule into another user's list"""
+    user_a, user_b = users
+    async with _act_as(user_b.id) as session:
+        session.add(_build_rule(user_a.id, "Forged"))
+        with pytest.raises(ProgrammingError, match="row-level security"):
+            await session.flush()
+
+
+async def test_import_rule_naming_another_users_merchant_or_category_is_refused(users):
+    """Foreign keys skip row-level security, so the write check is what stops a guessed merchant or category"""
+    user_a, user_b = users
+    async with TestSession() as session:
+        merchant = Merchant(owner_id=user_a.id, name="A shop")
+        category = Category(owner_id=user_a.id, name="A private", kind=CategoryKind.EXPENSE, is_system=False)
+        session.add_all([merchant, category])
+        await session.commit()
+
+    for overrides in ({"merchant_id": merchant.id}, {"category_id": category.id}):
+        async with _act_as(user_b.id) as session:
+            session.add(_build_rule(user_b.id, "Borrowed", **overrides))
+            with pytest.raises(ProgrammingError, match="row-level security"):
+                await session.flush()
+
+
+async def test_import_rule_accepts_a_system_merchant_and_category(users):
+    """The merchants and categories that ship with the app are visible to everyone, so a rule can name them"""
+    _, user_b = users
+    async with TestSession() as session:
+        system_merchant = await session.scalar(select(Merchant.id).where(Merchant.is_system.is_(True)).limit(1))
+        system_category = await session.scalar(select(Category.id).where(Category.is_system.is_(True)).limit(1))
+
+    async with _act_as(user_b.id) as session:
+        session.add(_build_rule(user_b.id, "Shared", merchant_id=system_merchant, category_id=system_category))
+        await session.flush()
+
+
+async def test_import_rule_tag_on_another_users_rule_or_naming_another_users_tag_is_refused(users):
+    """A tag link needs both its rule and its tag to be visible, so neither can be guessed"""
+    user_a, user_b = users
+    async with TestSession() as session:
+        rule_a = _build_rule(user_a.id, "A rule")
+        rule_b = _build_rule(user_b.id, "B rule")
+        tag_a = Tag(owner_id=user_a.id, name="a")
+        tag_b = Tag(owner_id=user_b.id, name="b")
+        session.add_all([rule_a, rule_b, tag_a, tag_b])
+        await session.commit()
+
+    for link in (ImportRuleTag(import_rule_id=rule_a.id, tag_id=tag_b.id), ImportRuleTag(import_rule_id=rule_b.id, tag_id=tag_a.id)):
+        async with _act_as(user_b.id) as session:
+            session.add(link)
+            with pytest.raises(ProgrammingError, match="row-level security"):
+                await session.flush()

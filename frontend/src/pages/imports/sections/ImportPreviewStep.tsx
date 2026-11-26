@@ -1,4 +1,10 @@
-import { ImportNotice, ImportRowProblemsTable, ImportRowWarningsTable } from '@/pages/imports/components'
+import {
+  ImportNotice,
+  ImportRowProblemsTable,
+  ImportRowWarningsTable,
+  ImportRulesCheck,
+  ImportRulesNotice,
+} from '@/pages/imports/components'
 import { ROWS_OUTSIDE_DATE_RANGE_TITLE } from '@/pages/imports/constants'
 import type { TransactionImportWorkflow } from '@/pages/imports/hooks'
 import { getImportAmountHeaders, getOutsideRangeRowsNote, getSkippedRowsDisplay } from '@/pages/imports/utils'
@@ -30,6 +36,9 @@ type ImportPreviewStepProps = Pick<
   | 'dateRangeBlockReason'
   | 'importResult'
   | 'completedImport'
+  | 'ruleCheckState'
+  | 'ruleCheckNotice'
+  | 'ruleCounts'
 >
 
 // How many reasons the step spells out before counting the rest. A file of unmatched categories
@@ -77,6 +86,9 @@ export function ImportPreviewStep({
   dateRangeBlockReason,
   importResult,
   completedImport,
+  ruleCheckState,
+  ruleCheckNotice,
+  ruleCounts,
 }: ImportPreviewStepProps) {
   const skipped = getSkippedRowsDisplay({ liveForecastRows: importBuild.rowProblems, completedImport })
   const amountHeaders = getImportAmountHeaders(columnMap)
@@ -89,18 +101,23 @@ export function ImportPreviewStep({
     <ImportPreviewLayout
       index="07"
       stats={importStats}
-      blocked={hasBlockingErrors ? (
-        <ImportNotice
-          tone="danger"
-          title={getBlockingErrorsTitle(importBuild.errors.length)}
-          items={hiddenErrorCount > 0 ? [...visibleErrors, getHiddenErrorSummary(hiddenErrorCount)] : visibleErrors}
-        />
-      ) : undefined}
+      blocked={
+        ruleCheckState ? (
+          <ImportRulesCheck check={ruleCheckState} />
+        ) : hasBlockingErrors ? (
+          <ImportNotice
+            tone="danger"
+            title={getBlockingErrorsTitle(importBuild.errors.length)}
+            items={hiddenErrorCount > 0 ? [...visibleErrors, getHiddenErrorSummary(hiddenErrorCount)] : visibleErrors}
+          />
+        ) : undefined
+      }
       previewGroups={previewGroups}
       emptyDescription="Mapped rows will appear here."
       importError={importError}
       importErrorLang={importErrorLang}
       buildError={dateRangeBlockReason}
+      check={ruleCheckNotice}
       imported={Boolean(importResult)}
       canCommit={canCommitImport}
       onCommit={handleCommitImport}
@@ -131,6 +148,11 @@ export function ImportPreviewStep({
         amountHeaders={amountHeaders}
         areFilesNamed={files.length > 1}
       />
+      {!ruleCheckState && ruleCounts.length > 0 && (
+        <div className="mb-4">
+          <ImportRulesNotice rules={ruleCounts} />
+        </div>
+      )}
       {/* Last of the three notices about the data, which run refusals first and then the things that
           hold nothing up. What follows is the preview itself rather than a fourth notice, so a red
           error list below this amber one is the body starting rather than the order breaking */}

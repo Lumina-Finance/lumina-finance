@@ -10,6 +10,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  getCursorTooltipPosition,
   getIconTooltipOffset,
   getIconTooltipPlacement,
   getIconTooltipSide,
@@ -166,5 +167,72 @@ describe('the side an icon’s tooltip opens on beside a stuck list bar', () => 
 
   it('opens below the icon when it asks to clear the bar', () => {
     expect(sideOf(true)).toEqual({ placement: 'bottom', shift: 0 })
+  })
+})
+
+describe('a tooltip that sits beside a control', () => {
+  // A 1280 by 800 screen, a tooltip 142px wide and 33.5px tall, and a menu item 160px wide and 40px tall. The
+  // menu, three items tall, is what the tooltip falls back to keeping clear of
+  const bounds = box(0, 0, 1280, 800)
+  const tooltip = { offsetWidth: 142, offsetHeight: 33.5 } as HTMLElement
+  const origin = { getBoundingClientRect: () => bounds, closest: () => null } as unknown as HTMLElement
+
+  function box(left: number, top: number, width: number, height: number) {
+    return { left, top, right: left + width, bottom: top + height, width, height } as DOMRect
+  }
+
+  function position(besideOf: DOMRect, keepClear: DOMRect, screen = bounds) {
+    return getCursorTooltipPosition({ origin, tooltip, clientX: 0, clientY: 0, bounds: screen, keepClear, besideOf })
+  }
+
+  it('takes the left side, level with the control and one gap away', () => {
+    const item = box(1100, 500, 160, 40)
+
+    const { x, y, flipY } = position(item, box(1100, 460, 160, 120))
+
+    expect(x + tooltip.offsetWidth).toBe(item.left - 10)
+    expect(y + flipY + tooltip.offsetHeight / 2).toBe(item.top + item.height / 2)
+  })
+
+  it('takes the right side when the left has no room', () => {
+    const item = box(20, 500, 160, 40)
+
+    const { x, y, flipY } = position(item, box(20, 460, 160, 120))
+
+    expect(x).toBe(item.right + 10)
+    expect(y + flipY + tooltip.offsetHeight / 2).toBe(item.top + item.height / 2)
+  })
+
+  it('falls back to keeping clear of the box when neither side has room', () => {
+    const narrow = box(0, 0, 300, 800)
+    const menu = box(60, 460, 160, 120)
+
+    expect(position(box(60, 500, 160, 40), menu, narrow)).toEqual(
+      getCursorTooltipPosition({ origin, tooltip, clientX: 0, clientY: 0, bounds: narrow, keepClear: menu }),
+    )
+  })
+
+  it('stays inside the bounds when the control sits at their edge', () => {
+    const { y, flipY } = position(box(1100, 0, 160, 40), box(1100, 0, 160, 120))
+
+    expect(y + flipY).toBe(8)
+  })
+
+  it('leaves a tooltip that asks for no side where it was', () => {
+    const menu = box(1100, 460, 160, 120)
+
+    // Placed from the control's lower right corner, as a tooltip with no pointer over the control is
+    const { x, y, flipY } = getCursorTooltipPosition({
+      origin,
+      tooltip,
+      clientX: menu.right,
+      clientY: menu.bottom,
+      bounds,
+      keepClear: menu,
+    })
+
+    expect(x).toBe(menu.right - tooltip.offsetWidth)
+    expect(y).toBe(menu.bottom)
+    expect(flipY).toBe(10)
   })
 })

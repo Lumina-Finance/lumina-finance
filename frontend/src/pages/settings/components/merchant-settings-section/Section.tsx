@@ -3,12 +3,7 @@ import { Plus } from 'lucide-react'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import { ApiError } from '@/api/auth'
 import { useCategories } from '@/api/categories'
-import {
-  useDeleteMerchant,
-  useMergeMerchant,
-  useRefreshMerchants,
-  type Merchant,
-} from '@/api/merchants'
+import { useDeleteMerchant, useMergeMerchant, useRefreshMerchants, type Merchant } from '@/api/merchants'
 import CreateMerchantModal from '@/components/reference-modals/CreateMerchantModal'
 import LoadingRegion from '@/components/loading/Region'
 import MerchantSettingsList from '@/pages/settings/components/merchant-settings-section/list/List'
@@ -42,31 +37,33 @@ export default function MerchantSettingsSection() {
   const [mergeDeleteMerchant, setMergeDeleteMerchant] = useState<Merchant | null>(null)
   // Held apart from the item so the panel keeps its contents while it animates out
   const [isMerchantMergeDeleteOpen, setIsMerchantMergeDeleteOpen] = useState(false)
+  // The server's reason for the refusal. It says whether transactions or an import rule are in the way
+  const [mergeDeleteReason, setMergeDeleteReason] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [locallyDeletedMerchantIds, setLocallyDeletedMerchantIds] = useState<string[]>([])
   const merchantList = useMerchantSettingsList(locallyDeletedMerchantIds)
 
-  const categoryById = useMemo(
-    () => new Map(categories.map((category) => [category.id, category])),
-    [categories],
-  )
+  const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories])
   const options = useMemo(() => categoryOptions(categories), [categories])
   // The rows and everything describing how they are laid out are held together, since a search
   // empties the live list the moment it settles while the rows on screen are still the old ones.
   // A list keeping its rows but losing its scroll cap would grow to the full height of them
-  const merchantListSnapshot = useMemo(() => ({
-    hasMore: merchantList.hasMoreMerchants,
-    merchants: merchantList.visibleMerchants,
-    shouldScroll: merchantList.shouldScrollMerchants,
-    showListEnd: merchantList.showMerchantListEnd,
-    showListMoreIndicator: merchantList.showMerchantListMoreIndicator,
-  }), [
-    merchantList.hasMoreMerchants,
-    merchantList.shouldScrollMerchants,
-    merchantList.showMerchantListEnd,
-    merchantList.showMerchantListMoreIndicator,
-    merchantList.visibleMerchants,
-  ])
+  const merchantListSnapshot = useMemo(
+    () => ({
+      hasMore: merchantList.hasMoreMerchants,
+      merchants: merchantList.visibleMerchants,
+      shouldScroll: merchantList.shouldScrollMerchants,
+      showListEnd: merchantList.showMerchantListEnd,
+      showListMoreIndicator: merchantList.showMerchantListMoreIndicator,
+    }),
+    [
+      merchantList.hasMoreMerchants,
+      merchantList.shouldScrollMerchants,
+      merchantList.showMerchantListEnd,
+      merchantList.showMerchantListMoreIndicator,
+      merchantList.visibleMerchants,
+    ],
+  )
 
   const handleDeleteRequest = (merchant: Merchant) => {
     setDeleteError(null)
@@ -84,7 +81,7 @@ export default function MerchantSettingsSection() {
     ])
 
     if (deleteResult[0].status === 'fulfilled') {
-      setLocallyDeletedMerchantIds((ids) => ids.includes(merchant.id) ? ids : [...ids, merchant.id])
+      setLocallyDeletedMerchantIds((ids) => (ids.includes(merchant.id) ? ids : [...ids, merchant.id]))
       merchantList.setVisibleMerchants((merchants) => merchants.filter((item) => item.id !== merchant.id))
       refreshMerchants()
       setConfirmingDeleteMerchantId(null)
@@ -93,6 +90,7 @@ export default function MerchantSettingsSection() {
       if (error instanceof ApiError && error.status === 409) {
         setConfirmingDeleteMerchantId(null)
         setMergeDeleteMerchant(merchant)
+        setMergeDeleteReason(error.message)
         setIsMerchantMergeDeleteOpen(true)
       } else {
         setDeleteError(error instanceof Error ? error.message : 'Failed to delete merchant.')
@@ -104,10 +102,7 @@ export default function MerchantSettingsSection() {
 
   return (
     <section id="merchants">
-      <SettingsSectionHeader
-        title="Merchants"
-        description="Manage merchant names and their default categories."
-      />
+      <SettingsSectionHeader title="Merchants" description="Manage merchant names and their default categories." />
 
       <SettingsCard>
         <div className="space-y-4">
@@ -190,6 +185,7 @@ export default function MerchantSettingsSection() {
           key={mergeDeleteMerchant.id}
           merchant={mergeDeleteMerchant}
           isPending={mergeMerchant.isPending}
+          reason={mergeDeleteReason}
           onClose={() => setIsMerchantMergeDeleteOpen(false)}
           onExitComplete={() => setMergeDeleteMerchant(null)}
           onMerge={async (replacementMerchantId) => {

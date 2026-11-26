@@ -1,4 +1,15 @@
-import { Landmark, LifeBuoy, Link2, Shield, Store, Tag, Tags, User as UserIcon, type LucideIcon } from 'lucide-react'
+import {
+  Landmark,
+  LifeBuoy,
+  Link2,
+  ListOrdered,
+  Shield,
+  Store,
+  Tag,
+  Tags,
+  User as UserIcon,
+  type LucideIcon,
+} from 'lucide-react'
 import { offersBankSync, type BankProvidersResponse } from '@/api/bank-sync'
 import type { FeatureCoverState } from '@/components/feature-cover/useFeatureCover'
 
@@ -10,6 +21,7 @@ export type SettingsSectionId =
   | 'categories'
   | 'merchants'
   | 'tags'
+  | 'import-rules'
   | 'tax-advantaged-categories'
 
 export interface SettingsSection {
@@ -26,6 +38,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { id: 'categories', label: 'Categories', icon: Tag },
   { id: 'merchants', label: 'Merchants', icon: Store },
   { id: 'tags', label: 'Tags', icon: Tags },
+  { id: 'import-rules', label: 'Import rules', icon: ListOrdered },
   { id: 'tax-advantaged-categories', label: 'Tax-advantaged categories', icon: Landmark },
 ]
 

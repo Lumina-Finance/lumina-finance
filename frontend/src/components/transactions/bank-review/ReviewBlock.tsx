@@ -1,25 +1,27 @@
 import { useId, useRef, type Ref } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ChevronDown, Landmark, PauseCircle, TriangleAlert } from 'lucide-react'
-import type { BankReviewItem } from '@/api/bank-sync'
+import { ChevronDown, Landmark, ListOrdered, PauseCircle, TriangleAlert } from 'lucide-react'
+import type { BankReviewItem, BankReviewRules } from '@/api/bank-sync'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
 import { Checkbox } from '@/components/forms/Checkbox'
 import { HintButton } from '@/components/tooltips/HintButton'
 import { CONTENT_EASE_CURVE, QUICK_EASE_S } from '@/utils/widthEase'
 import { describeTickLimit } from '@/components/transactions/bulk-edit/reviewSelection'
 import type { RowSelectionMark } from '@/components/transactions/bulk-edit/selection'
+import { ApplyRulesButton } from '@/components/transactions/bank-review/ApplyRulesButton'
+import { ApproveAllButton } from '@/components/transactions/bank-review/ApproveAllButton'
 import { DetailPhrases } from '@/components/transactions/bank-review/DetailPhrases'
 import { ReadFailureNotice, type BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import { BANK_BOX_CLASS, BANK_BOX_EDGE_CLASS, REVIEW_MOTION } from '@/components/transactions/constants/bankReview'
 import {
+  DEFAULT_TRANSACTION_CATEGORY_ICON,
   ICON_SLOT_BESIDE_THE_CHECKBOX_RAIL,
   TEXT_INSET_PAST_THE_CHECKBOX_RAIL,
   TRANSACTION_CHECKBOX_RAIL_WIDTH,
 } from '@/components/transactions/constants/transactionList'
 import { useFocusAfterRetry } from '@/components/transactions/hooks/useFocusAfterRetry'
 import {
-  REVIEW_KIND_LABELS,
-  describeReviewItem,
+  describeReviewRow,
   formatReviewDate,
   getReviewItemAmount,
   type BacklogNotice,
@@ -77,6 +79,9 @@ type BankReviewBlockProps = {
   itemsRetryRef: Ref<HTMLButtonElement>
   accountFor: (accountId: string) => ReviewItemAccount
 
+  /** The icon of a category the user has, or undefined while categories load or for one since deleted */
+  categoryIconFor: (categoryId: string) => string | undefined
+
   /** Left out on an account's own page, since every item there is that account's */
   showAccountNames: boolean
 
@@ -118,6 +123,20 @@ type BankReviewBlockProps = {
   /** Set while the transaction list is in selection mode. A new item's row then ticks it rather than opening it */
   selection?: ReviewRowSelection
 
+  /**
+   * The Approve all button and the offer to apply the rules again. Their rules come from the first
+   * page of the list and are null while that page has none. Both are left out then. Only one press
+   * runs at a time, and `busy` says which, so the other button is held off
+   */
+  ruleActions?: {
+    rules: BankReviewRules | null
+    busy: 'approve' | 'apply' | null
+    onApprove: () => void
+
+    /** Puts the waiting items through the rules again, offered once the rules changed */
+    onApplyRules: () => void
+  }
+
   prefersReducedMotion: boolean | null
 }
 
@@ -135,6 +154,7 @@ export function BankReviewBlock({
   itemsFailure,
   itemsRetryRef,
   accountFor,
+  categoryIconFor,
   showAccountNames,
   today,
   backlogNotice,
@@ -152,6 +172,7 @@ export function BankReviewBlock({
   registerRow,
   onOpenItem,
   selection,
+  ruleActions,
   prefersReducedMotion,
 }: BankReviewBlockProps) {
   const { formatMovedCurrency } = useMoneyFormatters()
@@ -172,6 +193,18 @@ export function BankReviewBlock({
     listRef.current?.querySelector<HTMLElement>('[role="listitem"]'),
   )
   useFocusAfterRetry(backlogFailure !== null, backlogFailureRef, () => backlogNoticeRef.current ?? headingRef.current)
+
+  // Beside the line under the header at every width, so the header keeps only the title, the count and
+  // the caret, and the button ends where the rows' amounts end
+  const approveButton = ruleActions?.rules && itemsFailure === null && (
+    <ApproveAllButton
+      rules={ruleActions.rules}
+      isApproving={ruleActions.busy === 'approve'}
+      isHeldOff={ruleActions.busy === 'apply'}
+      onApprove={ruleActions.onApprove}
+    />
+  )
+  const offersApplyRules = Boolean(ruleActions?.rules?.changed) && itemsFailure === null
 
   // Each notice grows in and collapses out under the title, its room kept inside it
   const notice = {
@@ -214,44 +247,86 @@ export function BankReviewBlock({
           </span>
         )}
 
-        {/* The caret opens and closes the list, up here so a long list closes from where it starts, not
-            from its end, and ends the header's first row like the chevron of the app's other collapsible
-            sections. It stays mounted as the list changes, so keyboard focus stays on it through both.
-            It turns over as they do, and its name says what pressing it does */}
-        {/* Grows in when the backlog passes the rows shown, and shrinks away when it falls back under */}
-        <AnimatePresence initial={false}>
-          {total > COLLAPSED_ITEM_COUNT && (
-            <motion.span
-              key="toggle"
-              className="ml-auto inline-flex shrink-0"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: prefersReducedMotion ? 0 : QUICK_EASE_S, ease: CONTENT_EASE_CURVE }}
-            >
-              <HintButton
-                aria-expanded={expanded}
-                aria-controls={listId}
-                aria-label={toggleLabel}
-                hint={toggleLabel}
-                onClick={onToggleExpanded}
-                className="app-icon-button"
+        <div className="ml-auto flex shrink-0 items-center">
+          {/* The caret opens and closes the list, up here so a long list closes from where it starts, not
+              from its end, and ends the header's first row like the chevron of the app's other collapsible
+              sections. It stays mounted as the list changes, so keyboard focus stays on it through both.
+              It turns over as they do, and its name says what pressing it does */}
+          {/* Grows in when the backlog passes the rows shown, and shrinks away when it falls back under */}
+          <AnimatePresence initial={false}>
+            {total > COLLAPSED_ITEM_COUNT && (
+              <motion.span
+                key="toggle"
+                className="inline-flex shrink-0"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: prefersReducedMotion ? 0 : QUICK_EASE_S, ease: CONTENT_EASE_CURVE }}
               >
-                <ChevronDown
-                  size={16}
-                  aria-hidden
-                  className={`transition-transform motion-reduce:transition-none ${expanded ? 'rotate-180' : ''}`}
-                />
-              </HintButton>
-            </motion.span>
-          )}
-        </AnimatePresence>
+                <HintButton
+                  aria-expanded={expanded}
+                  aria-controls={listId}
+                  aria-label={toggleLabel}
+                  hint={toggleLabel}
+                  onClick={onToggleExpanded}
+                  className="app-icon-button"
+                >
+                  <ChevronDown
+                    size={16}
+                    aria-hidden
+                    className={`transition-transform motion-reduce:transition-none ${expanded ? 'rotate-180' : ''}`}
+                  />
+                </HintButton>
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
-      <p className="px-3 pb-2 text-xs" style={{ color: 'var(--app-text-muted)', ...PAST_THE_RAIL }}>
-        Bank items stay out of every balance until you add them to your ledger.
-      </p>
+      <div className="flex items-center gap-3 px-3 pb-2" style={PAST_THE_RAIL}>
+        <p className="min-w-0 flex-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          Bank items stay out of every balance until you add them to your ledger.
+        </p>
+        {/* Held as a flex item, so a spinner in place of the label can't shift the button off the line a
+            label's baseline put it on */}
+        {approveButton && <div className="flex shrink-0">{approveButton}</div>}
+      </div>
 
       <AnimatePresence initial={false}>
+        {offersApplyRules && ruleActions && (
+          <motion.div key="rules-offer" {...notice}>
+            <div className="px-3 pb-2" style={PAST_THE_RAIL}>
+              {/* Padded as the backlog notice is, with the link that answers the sentence at the line's end,
+                  its label 12px in from the right as the icon is from the left. The link's own 2px of room
+                  for its focus ring comes off the right padding. On a phone the link takes the line under
+                  the sentence, its label starting where the sentence starts */}
+              <div
+                className="flex items-start gap-1 rounded-lg py-2 pr-2.5 pl-3 text-xs"
+                style={{ background: 'var(--app-warning-soft)', color: 'var(--app-text)' }}
+              >
+                {/* The list's lines end 2 of the icon's 24 units short of its box, 1.17px at 14px, so pulling
+                    the box that far over the 4px gap puts the drawn glyph 4px from the sentence. A 0.8px drop
+                    centres the drawing on the capitals of the sentence's first line, where 1px sat 0.2px low */}
+                <ListOrdered
+                  size={14}
+                  aria-hidden
+                  className="mt-[0.8px] -mr-[1.17px] shrink-0"
+                  style={{ color: 'var(--app-warning-text)' }}
+                />
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+                  {/* A polite status, so a screen reader hears it arrive */}
+                  <p role="status" className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
+                    Your import rules changed after these items arrived.
+                  </p>
+                  <ApplyRulesButton
+                    isApplying={ruleActions.busy === 'apply'}
+                    isHeldOff={ruleActions.busy === 'approve'}
+                    onApply={ruleActions.onApplyRules}
+                  />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
         {backlogNotice && (
           <motion.div key="backlog" {...notice}>
             <div className="px-3 pb-2" style={PAST_THE_RAIL}>
@@ -309,11 +384,9 @@ export function BankReviewBlock({
             const rowShape = index === visibleItems.length - 1 ? 'rounded-b-lg' : ''
             const account = accountFor(item.account_id)
             const amount = getReviewItemAmount(item, account.currency, formatMovedCurrency)
-            const details = [
-              formatReviewDate(item.bank.date, today),
-              showAccountNames && account.name,
-              describeReviewItem(item),
-            ]
+            const text = describeReviewRow(item)
+            const icon = (text.categoryId && categoryIconFor(text.categoryId)) || DEFAULT_TRANSACTION_CATEGORY_ICON
+            const details = [formatReviewDate(item.bank.date, today), showAccountNames && account.name]
 
             // In selection mode a new item's row ticks it, and every row makes room for the box so
             // the text of corrections and removals lines up with the rest. A range being picked takes the
@@ -329,36 +402,49 @@ export function BankReviewBlock({
                   : undefined
 
             const content = (
-              // The name runs the row's full width, so its label fits beside it wherever the line has room.
-              // The amount sits on the details line, level with its first line of text
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 py-2.5">
-                {/* The label runs inline after the text, so a wrapped description keeps it beside its last word */}
-                <p
-                  data-testid="review-item-name"
-                  className="col-span-2 break-words text-sm font-medium"
-                  style={{ color: 'var(--app-text)' }}
+              // Laid out as a ledger row is, with its sizes at each width: the category's icon, the lines of
+              // text and the amount. From 750px wide the category sits over the merchant, the date and the
+              // account follow the merchant on its line, since the block's rows aren't grouped under days,
+              // and the amount centres on the two lines. On a phone the merchant comes first with the
+              // amount level with it, then the category and then the date and the account, each on a line
+              // of its own as the ledger's phone rows are. One set of elements serves both widths: on a
+              // phone the merchant's line holder steps aside, so each of the three takes a whole line, and
+              // each may narrow below its longest word so a long bank reference wraps rather than run under the amount
+              <div className="grid grid-cols-[2.125rem_minmax(0,1fr)_max-content] items-start gap-x-2.5 py-2.5 min-[750px]:grid-cols-[2.75rem_minmax(0,1fr)_max-content] min-[750px]:items-center min-[750px]:gap-x-3">
+                <span
+                  data-testid="review-item-icon"
+                  aria-hidden
+                  className="pt-0.5 text-[1.35rem] leading-none min-[750px]:pt-0 min-[750px]:text-2xl"
                 >
-                  {item.bank.description}
-                  {/* An 8px space rather than a margin before the label, since a line break drops a space, so a
-                      label wrapped onto its own line starts at the text's edge */}
-                  <span className="text-[0px] [word-spacing:0.5rem]"> </span>
+                  {icon}
+                </span>
+                <span className="flex min-w-0 flex-wrap gap-y-0.5">
                   <span
-                    className="inline-block whitespace-nowrap rounded-full border px-1.5 py-0.5 align-[1px] text-xs font-medium leading-none"
-                    style={{ borderColor: 'var(--app-review-border)', color: 'var(--app-warning-text)' }}
+                    data-testid="review-item-heading"
+                    className="order-2 min-w-0 basis-full break-words text-sm leading-[1.125rem] text-(--app-text-muted) min-[750px]:order-1 min-[750px]:text-[0.9375rem] min-[750px]:font-medium min-[750px]:leading-5 min-[750px]:text-(--app-text)"
                   >
-                    {REVIEW_KIND_LABELS[item.kind]}
+                    {text.heading}
                   </span>
-                </p>
-                <p
-                  data-testid="review-item-details"
-                  className="mt-0.5 text-xs"
-                  style={{ color: 'var(--app-text-muted)' }}
-                >
-                  <DetailPhrases phrases={details} />
-                </p>
+                  <span className="contents min-[750px]:order-2 min-[750px]:block min-[750px]:min-w-0 min-[750px]:basis-full min-[750px]:break-words min-[750px]:text-sm min-[750px]:leading-[1.125rem] min-[750px]:text-(--app-text-muted)">
+                    <span
+                      data-testid="review-item-name"
+                      className="order-1 min-w-0 basis-full break-words text-[0.9375rem] font-medium leading-5 text-(--app-text) min-[750px]:font-normal min-[750px]:text-sm min-[750px]:leading-[1.125rem] min-[750px]:text-(--app-text-muted)"
+                    >
+                      {text.name}
+                    </span>
+                    <span
+                      data-testid="review-item-details"
+                      className="order-3 min-w-0 basis-full text-sm leading-[1.125rem] text-(--app-text-muted)"
+                    >
+                      {/* The dot holds to the merchant before it, where the two share a line */}
+                      <span className="hidden min-[750px]:inline">&nbsp;· </span>
+                      <DetailPhrases phrases={details} />
+                    </span>
+                  </span>
+                </span>
                 <span
                   data-testid="review-item-amount"
-                  className="font-financial text-sm font-medium tabular-nums"
+                  className="text-right font-financial text-[0.9375rem] font-semibold leading-5 tabular-nums min-[750px]:text-base"
                   style={{
                     color:
                       amount.sign > 0

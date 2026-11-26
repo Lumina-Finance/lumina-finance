@@ -23,6 +23,9 @@ export const TAG_DROPDOWN_PAGE_SIZE = 10
 export const TAG_SEARCH_DEBOUNCE_MS = 300
 export const SEGMENTED_OPTION_GAP_REM = 0.35
 
+// Where the import rules are listed and edited
+export const IMPORT_RULES_SETTINGS_PATH = '/settings#import-rules'
+
 export const TRANSACTION_MODAL_FIELD_IDS = {
   account: 'txn-account',
   counterpartyAccount: 'txn-counterparty-account',

@@ -22,6 +22,9 @@ type DisabledReasonButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
   /** Hangs the reason from the button's edge under the pointer too, so it never covers text beside the button */
   hangReasonFromControl?: boolean
+
+  /** Sits the reason beside the button, level with it, where the buttons around it must stay uncovered */
+  reasonBesideControl?: boolean
 }
 
 /**
@@ -38,6 +41,7 @@ export const DisabledReasonButton = forwardRef<HTMLButtonElement, DisabledReason
       keepReasonClearOf,
       hint,
       hangReasonFromControl,
+      reasonBesideControl,
       disabled,
       onClick,
       onMouseEnter,
@@ -52,7 +56,13 @@ export const DisabledReasonButton = forwardRef<HTMLButtonElement, DisabledReason
     },
     ref,
   ) {
-    const reason = useDisabledReason(disabledReason, reasonShownById, keepReasonClearOf, hangReasonFromControl)
+    const reason = useDisabledReason(
+      disabledReason,
+      reasonShownById,
+      keepReasonClearOf,
+      hangReasonFromControl,
+      reasonBesideControl,
+    )
     const reasonProps = getDisabledReasonProps<HTMLButtonElement>(reason, {
       'aria-describedby': describedBy,
       onClick,

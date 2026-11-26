@@ -75,6 +75,7 @@ export function createReviewItem(id: string, kind: BankReviewItemKind): BankRevi
     current: null,
     changed_fields: kind === 'correction' ? ['amount'] : [],
     protected_fields: [],
+    rule_fill: null,
   }
 }
 

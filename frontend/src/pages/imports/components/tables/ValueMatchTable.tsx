@@ -14,7 +14,8 @@ import { ImportSegmentedToggle } from './SegmentedToggle'
 /**
  * Table matching source values found in an import to an existing target or a new one, with an
  * optional detail column showing read-only text, a type toggle for a category being created, or
- * whatever control the step supplies, such as the name a new merchant is created under
+ * whatever control the step supplies, such as the name a new merchant is created under. The detail
+ * column comes after the target, since what it holds follows from the target chosen
  */
 export function ImportValueMatchTable({
   sourceLabel,
@@ -98,16 +99,16 @@ export function ImportValueMatchTable({
       <table className="import-table w-full table-fixed text-left text-[0.9375rem]">
         <colgroup>
           <col className={detailLabel ? 'w-[34%]' : 'w-[45%]'} />
-          {detailLabel && <col className="w-64" />}
           <col className={detailLabel ? undefined : 'w-[55%]'} />
+          {detailLabel && <col className="w-64" />}
         </colgroup>
         <thead style={{ color: 'var(--app-text-subtle)', background: 'var(--app-input-bg)' }}>
           <tr>
             <th className="px-4 py-2.5 font-medium">{sourceLabel}</th>
-            {detailLabel && <th className="w-64 px-4 py-2.5 font-medium">{detailLabel}</th>}
-            <th id={targetHeadingId} className="py-2.5 pl-4 pr-0 font-medium">
+            <th id={targetHeadingId} className={`py-2.5 pl-4 font-medium ${detailLabel ? 'pr-4' : 'pr-0'}`}>
               {targetLabel}
             </th>
+            {detailLabel && <th className="w-64 py-2.5 pl-4 pr-0 font-medium">{detailLabel}</th>}
           </tr>
         </thead>
         <tbody>
@@ -196,8 +197,27 @@ export function ImportValueMatchTable({
                     )}
                   </div>
                 </td>
+                <td className={`py-2 pl-4 align-middle ${detailLabel ? 'pr-4' : 'pr-0'}`}>
+                  <Dropdown
+                    labelledBy={`${targetHeadingId} ${sourceLabelId}`}
+                    options={row.options ?? options}
+                    value={row.value}
+                    onChange={row.onChange}
+                    searchable
+                    blankWhenEmpty
+                    size="compact"
+                    className={!disabled && row.autoFilled ? 'import-auto-fill-field' : undefined}
+                    disabled={disabled}
+                    searchValue={searchValue}
+                    onSearchChange={onSearchChange}
+                    filterOptions={filterOptions}
+                    isLoading={isLoading}
+                    hasMore={hasMore}
+                    onLoadMore={onLoadMore}
+                  />
+                </td>
                 {detailLabel && (
-                  <td className="px-4 py-2 align-middle">
+                  <td className="py-2 pl-4 pr-0 align-middle">
                     {/* Carries its own corner, since the glow no longer sets one and the toggle
                         inside is not a pill */}
                     <div
@@ -220,25 +240,6 @@ export function ImportValueMatchTable({
                     </div>
                   </td>
                 )}
-                <td className="py-2 pl-4 pr-0 align-middle">
-                  <Dropdown
-                    labelledBy={`${targetHeadingId} ${sourceLabelId}`}
-                    options={row.options ?? options}
-                    value={row.value}
-                    onChange={row.onChange}
-                    searchable
-                    blankWhenEmpty
-                    size="compact"
-                    className={!disabled && row.autoFilled ? 'import-auto-fill-field' : undefined}
-                    disabled={disabled}
-                    searchValue={searchValue}
-                    onSearchChange={onSearchChange}
-                    filterOptions={filterOptions}
-                    isLoading={isLoading}
-                    hasMore={hasMore}
-                    onLoadMore={onLoadMore}
-                  />
-                </td>
               </tr>
             )
           })}

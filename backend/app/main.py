@@ -31,6 +31,7 @@ from app.routes.categories import router as category_router
 from app.routes.currency import router as currency_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.groups import router as group_router
+from app.routes.import_rules import router as import_rule_router
 from app.routes.insights import router as insights_router
 from app.routes.institution import router as institution_router
 from app.routes.merchants import router as merchant_router
@@ -143,6 +144,7 @@ app.include_router(tax_advantaged_category_router)
 app.include_router(category_router)
 app.include_router(merchant_router)
 app.include_router(tag_router)
+app.include_router(import_rule_router)
 app.include_router(transaction_router)
 app.include_router(bank_sync_router)
 app.include_router(bank_link_router)

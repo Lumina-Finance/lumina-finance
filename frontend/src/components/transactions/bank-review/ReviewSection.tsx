@@ -1,8 +1,18 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useReviewBacklogs, useReviewItems, type BankReviewItem, type BankReviewPage } from '@/api/bank-sync'
+import {
+  useApplyRulesToReviewItems,
+  useApproveAllReviewItems,
+  useReviewBacklogs,
+  useReviewItems,
+  type BankReviewItem,
+  type BankReviewPage,
+} from '@/api/bank-sync'
+import { useCategories } from '@/api/categories'
 import { useAuth } from '@/hooks/useAuth'
 import { useTodayYmd } from '@/hooks/useTodayYmd'
+import { useToast } from '@/hooks/useToast'
+import { describeAppliedRules, describeApproveAllAnswer } from '@/components/transactions/bulk-edit/reviewSelection'
 import { BankComparisonModal } from '@/components/transactions/bank-review/ComparisonModal'
 import type { BankReadFailure } from '@/components/transactions/bank-review/ReadFailureNotice'
 import {
@@ -17,6 +27,7 @@ import { useInfiniteScrollTrigger } from '@/components/transactions/hooks/useInf
 import { useSkipAppendedEnter } from '@/components/transactions/hooks/useSkipAppendedEnter'
 import { describeBacklogNotice, findNextNewItem } from '@/components/transactions/utils/bankReview'
 import { isOwnPersonalAccount } from '@/utils/bankSync'
+import { getSaveFailureMessage } from '@/utils/createFailure'
 
 // How long a row stays ringed after a Needs review marker went to it
 const JUMP_HIGHLIGHT_MS = 1800
@@ -112,6 +123,14 @@ export const BankReviewSection = memo(function BankReviewSection({
   const { user } = useAuth()
   const today = useTodayYmd()
   const { accounts, accountIds, isInScope, accountById, accountFor } = useBankItemScope(listAccountIds)
+
+  // A row shows its category's icon as a ledger row does, read from the categories the list already
+  // holds, and the stand-in icon until they load
+  const { data: categories } = useCategories()
+  const categoryIconFor = useCallback(
+    (categoryId: string) => categories?.find((category) => category.id === categoryId)?.icon ?? undefined,
+    [categories],
+  )
   const {
     data: pages,
     errorUpdateCount: itemsErrorCount,
@@ -138,6 +157,33 @@ export const BankReviewSection = memo(function BankReviewSection({
 
   const items = useMemo(() => itemsOf(pages?.pages ?? [], accountById), [pages, accountById])
   const counts = pages?.pages[0]?.counts
+
+  // What the saved rule values allow for every waiting new item, read with the first page and so never
+  // only the rows loaded
+  const rules = isInScope ? (pages?.pages[0]?.rules ?? null) : null
+  const approveAll = useApproveAllReviewItems()
+  const applyRules = useApplyRulesToReviewItems()
+  const { showToast } = useToast()
+
+  // The two presses never run together, and each is ignored while either is going
+  const busy = approveAll.isPending ? 'approve' : applyRules.isPending ? 'apply' : null
+  const pressApplyRules = () => {
+    if (!rules || busy) return
+    applyRules.mutate(undefined, {
+      onSuccess: (result) => showToast({ status: 'success', text: describeAppliedRules(result.changed_count) }),
+      onError: (error) => showToast({ status: 'error', text: getSaveFailureMessage(error) }),
+    })
+  }
+  const pressApproveAll = () => {
+    if (!rules || busy) return
+    approveAll.mutate(
+      { scope: accountIds },
+      {
+        onSuccess: (result) => showToast({ status: 'success', text: describeApproveAllAnswer(result) }),
+        onError: (error) => showToast({ status: 'error', text: getSaveFailureMessage(error) }),
+      },
+    )
+  }
   const total = isInScope && counts ? counts.new + counts.correction + counts.removal : 0
 
   // The notice names accounts in the order the server lists them. That is the order they were created
@@ -294,6 +340,7 @@ export const BankReviewSection = memo(function BankReviewSection({
                 itemsFailure={itemsFailure}
                 itemsRetryRef={itemsRetryRef}
                 accountFor={accountFor}
+                categoryIconFor={categoryIconFor}
                 showAccountNames={!isFixedAccount}
                 today={today}
                 backlogNotice={backlogNotice}
@@ -311,6 +358,7 @@ export const BankReviewSection = memo(function BankReviewSection({
                 registerRow={registerRow}
                 onOpenItem={openItem}
                 selection={selection}
+                ruleActions={{ rules, busy, onApprove: pressApproveAll, onApplyRules: pressApplyRules }}
                 prefersReducedMotion={prefersReducedMotion}
               />
             </div>

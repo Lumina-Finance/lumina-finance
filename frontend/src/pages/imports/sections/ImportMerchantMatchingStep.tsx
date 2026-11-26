@@ -5,12 +5,14 @@ import {
   MERCHANT_MATCHES_LOAD_FAILURE_EXPLANATION,
   MERCHANT_MATCHES_LOAD_FAILURE_TITLE,
   MERCHANT_MATCHES_REFUSED_REASON,
+  RULE_COVERED_MERCHANTS_EMPTY,
   SKIP_MERCHANT_VALUE,
 } from '@/pages/imports/constants'
 import {
   EmptyState,
   ImportLoadFailure,
   ImportNotice,
+  ImportRulesCheck,
   ImportStep,
   ImportValueMatchTable,
 } from '@/pages/imports/components'
@@ -38,6 +40,9 @@ type ImportMerchantMatchingStepProps = Pick<
   | 'matchesError'
   | 'refetchMatches'
   | 'importResult'
+  | 'ruleCheckState'
+  | 'areMerchantsCoveredByRules'
+  | 'ruleCoveredMerchantsLine'
 >
 
 /**
@@ -64,6 +69,9 @@ export function ImportMerchantMatchingStep({
   matchesError,
   refetchMatches,
   importResult,
+  ruleCheckState,
+  areMerchantsCoveredByRules,
+  ruleCoveredMerchantsLine,
 }: ImportMerchantMatchingStepProps) {
   const isAnswerLocked = matchesLoading || Boolean(importResult)
 
@@ -79,7 +87,9 @@ export function ImportMerchantMatchingStep({
     >
       {/* The server refuses to check more names than one import carries, so none are asked about and a
           retry is not offered for a failure that cannot clear */}
-      {importedMerchants.length > MAX_IMPORT_MAPPINGS ? (
+      {ruleCheckState ? (
+        <ImportRulesCheck check={ruleCheckState} />
+      ) : importedMerchants.length > MAX_IMPORT_MAPPINGS ? (
         <ImportNotice tone="danger" title="Too many merchants to match">
           {getTooManyMappingsError('merchant', importedMerchants.length)}
         </ImportNotice>
@@ -90,7 +100,14 @@ export function ImportMerchantMatchingStep({
           onRetry={refetchMatches}
         />
       ) : importedMerchants.length === 0 ? (
-        <EmptyState title="No merchants yet" description="Map the column holding the merchant first." />
+        <EmptyState
+          title={areMerchantsCoveredByRules ? RULE_COVERED_MERCHANTS_EMPTY.title : 'No merchants yet'}
+          description={
+            areMerchantsCoveredByRules
+              ? RULE_COVERED_MERCHANTS_EMPTY.description
+              : 'Map the column holding the merchant first.'
+          }
+        />
       ) : (
         <ImportValueMatchTable
           sourceLabel="Merchant from file"
@@ -160,6 +177,11 @@ export function ImportMerchantMatchingStep({
           hasMore={hasMoreMerchantResults}
           onLoadMore={loadMoreMerchantResults}
         />
+      )}
+      {!ruleCheckState && ruleCoveredMerchantsLine && (
+        <p className="mt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          {ruleCoveredMerchantsLine}
+        </p>
       )}
     </ImportStep>
   )

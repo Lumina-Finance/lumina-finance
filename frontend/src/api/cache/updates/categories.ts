@@ -1,31 +1,34 @@
-import type { QueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query'
 import {
   invalidateAccounts,
   invalidateBudgets,
   invalidateDashboardBudgets,
   invalidateDashboardIncomeExpense,
   invalidateDashboardRecent,
+  invalidateImportRules,
   invalidateInsightsIncomeExpense,
   invalidateMerchants,
   invalidateTransactionOverview,
   invalidateTransactions,
-} from '@/api/cache/invalidation';
-import { categoryKeys } from '@/api/cache/queryKeys';
-import type { Category } from '@/api/categories/types';
+} from '@/api/cache/invalidation'
+import { categoryKeys } from '@/api/cache/queryKeys'
+import type { Category } from '@/api/categories/types'
 
 /**
  * Invalidates views whose rendered labels, rollups, or defaults depend on categories
  */
 function invalidateCategoryUsageQueries(queryClient: QueryClient) {
-  invalidateTransactions(queryClient);
-  invalidateTransactionOverview(queryClient);
-  invalidateAccounts(queryClient);
-  invalidateDashboardRecent(queryClient);
-  invalidateDashboardIncomeExpense(queryClient);
-  invalidateInsightsIncomeExpense(queryClient);
-  invalidateBudgets(queryClient);
-  invalidateDashboardBudgets(queryClient);
-  invalidateMerchants(queryClient);
+  // A rule's row shows the category it sets by name, and a merge moves the rule to the replacement
+  invalidateImportRules(queryClient)
+  invalidateTransactions(queryClient)
+  invalidateTransactionOverview(queryClient)
+  invalidateAccounts(queryClient)
+  invalidateDashboardRecent(queryClient)
+  invalidateDashboardIncomeExpense(queryClient)
+  invalidateInsightsIncomeExpense(queryClient)
+  invalidateBudgets(queryClient)
+  invalidateDashboardBudgets(queryClient)
+  invalidateMerchants(queryClient)
 }
 
 /**
@@ -34,27 +37,29 @@ function invalidateCategoryUsageQueries(queryClient: QueryClient) {
 export function updateCategoryCreateCaches(queryClient: QueryClient, category: Category) {
   queryClient.setQueryData<Category[]>(categoryKeys.list(), (categories) =>
     [...(categories ?? []), category].sort((a, b) => a.name.localeCompare(b.name)),
-  );
+  )
 }
 
 /**
  * Updates the category list cache and invalidates category usage data
  */
 export function updateCategoryUpdateCaches(queryClient: QueryClient, category: Category) {
-  queryClient.setQueryData<Category[]>(categoryKeys.list(), (categories) =>
-    categories?.map((currentCategory) => (
-      currentCategory.id === category.id ? category : currentCategory
-    )) ?? categories,
-  );
-  invalidateCategoryUsageQueries(queryClient);
+  queryClient.setQueryData<Category[]>(
+    categoryKeys.list(),
+    (categories) =>
+      categories?.map((currentCategory) => (currentCategory.id === category.id ? category : currentCategory)) ??
+      categories,
+  )
+  invalidateCategoryUsageQueries(queryClient)
 }
 
 /**
  * Removes a category from the list cache and invalidates category usage data
  */
 export function removeCategoryCaches(queryClient: QueryClient, categoryId: string) {
-  queryClient.setQueryData<Category[]>(categoryKeys.list(), (categories) =>
-    categories?.filter((category) => category.id !== categoryId) ?? categories,
-  );
-  invalidateCategoryUsageQueries(queryClient);
+  queryClient.setQueryData<Category[]>(
+    categoryKeys.list(),
+    (categories) => categories?.filter((category) => category.id !== categoryId) ?? categories,
+  )
+  invalidateCategoryUsageQueries(queryClient)
 }

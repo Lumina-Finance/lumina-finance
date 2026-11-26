@@ -56,10 +56,15 @@ BANK_DESCRIPTION = "HARBOUR COFFEE 0412"
 BANK_RECEIVED_AT = datetime(2026, 10, 4, 9, 5, tzinfo=UTC)
 
 # The review list with nothing waiting
-EMPTY_REVIEW_PAGE = {"items": [], "counts": {"new": 0, "correction": 0, "removal": 0}, "next_cursor": None}
+EMPTY_REVIEW_PAGE = {
+    "items": [],
+    "counts": {"new": 0, "correction": 0, "removal": 0},
+    "next_cursor": None,
+    "rules": {"any_addable": False, "changed": False, "read_only_reason": None},
+}
 
 # The values a dismissal clears, since a dismissed bank transaction keeps only its identity
-_DISMISSED = {"disposition": BankTransactionDisposition.DISMISSED} | dict.fromkeys(OBSERVATION_COLUMNS)
+_DISMISSED = {"disposition": BankTransactionDisposition.DISMISSED} | dict.fromkeys((*OBSERVATION_COLUMNS, "rule_fill", "rules_version"))
 
 
 async def _sign_up(client) -> tuple[dict, uuid.UUID]:

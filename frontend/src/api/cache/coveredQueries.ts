@@ -5,6 +5,7 @@ import {
   categoryKeys,
   dashboardKeys,
   importLayoutKeys,
+  importRuleKeys,
   importSourceKeys,
   insightsKeys,
   institutionKeys,
@@ -95,6 +96,9 @@ export const COVERED_QUERIES: readonly CoveredQuery[] = [
   { queryKey: tagKeys.all, dependsOnDate: false },
   { queryKey: institutionKeys.all, dependsOnDate: false },
   { queryKey: importLayoutKeys.all, dependsOnDate: false },
+
+  // Rules and their positions as stored, with the names of what they set and the accounts they read
+  { queryKey: importRuleKeys.all, dependsOnDate: false },
   { queryKey: importSourceKeys.all, dependsOnDate: false },
 ]
 

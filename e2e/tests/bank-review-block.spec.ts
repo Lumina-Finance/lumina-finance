@@ -246,14 +246,17 @@ test('shows each kind of item for the accounts the list shows, and only its own 
   const rows = block.getByRole('listitem')
   await expect(block.getByText('3', { exact: true })).toBeVisible()
   await expect(block).toContainText('Bank items stay out of every balance until you add them to your ledger.')
-  // The label follows a space, so a label wrapped onto its own line starts at the text's edge
-  await expect(rows.nth(0)).toContainText('COUNTDOWN 123 Correction')
-  await expect(rows.nth(0)).toContainText('Sep 21 · Visa · The bank changed the amount')
+  // Each row reads as a ledger row: the category, or what a change is about, over the description,
+  // the date and the account
+  const expectRow = async (row: Locator, name: string, heading: string, details: string) => {
+    await expect(row.getByTestId('review-item-name')).toHaveText(name)
+    await expect(row.getByTestId('review-item-heading')).toHaveText(heading)
+    await expect(row.getByTestId('review-item-details')).toHaveText(details)
+  }
+  await expectRow(rows.nth(0), 'COUNTDOWN 123', 'The bank changed the amount', '· Sep 21 · Visa')
   await expect(rows.nth(0)).toContainText(`${MINUS}$23.10`)
-  await expect(rows.nth(1)).toContainText('HARBOUR COFFEE New')
-  await expect(rows.nth(1)).toContainText('Sep 21 · Everyday · Needs merchant and category')
-  await expect(rows.nth(2)).toContainText('UBER TRIP Removal')
-  await expect(rows.nth(2)).toContainText('Sep 21 · Everyday · The bank no longer reports this transaction')
+  await expectRow(rows.nth(1), 'HARBOUR COFFEE', 'Uncategorized', '· Sep 21 · Everyday')
+  await expectRow(rows.nth(2), 'UBER TRIP', 'The bank no longer reports this transaction', '· Sep 21 · Everyday')
   await expect(rows.nth(2).getByText(`${MINUS}$18.00`)).toHaveCSS('text-decoration-line', 'line-through')
 
   await filterTransactions(page, 'Accounts', 'Visa')
@@ -268,7 +271,7 @@ test('shows each kind of item for the accounts the list shows, and only its own 
 
   await openPage(page, `/accounts/${visa.id}`)
   await expect(rows).toHaveCount(1)
-  await expect(rows.first()).toContainText('Sep 21 · The bank changed the amount')
+  await expect(rows.first().getByTestId('review-item-details')).toHaveText('· Sep 21')
   await expect(block).not.toContainText('Visa')
 })
 
@@ -584,7 +587,7 @@ test("goes from a ledger row's Needs review marker to its item, loading the page
 
   // The ring runs from edge to edge of the block, as the Upcoming box's rows do, clear of the text it frames
   const [blockBox, ringBox, textBox, amountBox] = await Promise.all(
-    [block, ring, item.getByTestId('review-item-name'), item.getByTestId('review-item-amount')].map(async (part) => (await part.boundingBox())!),
+    [block, ring, item.getByTestId('review-item-icon'), item.getByTestId('review-item-amount')].map(async (part) => (await part.boundingBox())!),
   )
   expect(ringBox.x).toBeCloseTo(blockBox.x, 0)
   expect(ringBox.x + ringBox.width).toBeCloseTo(blockBox.x + blockBox.width, 0)
@@ -711,7 +714,8 @@ test('sits above the list and keeps its text readable in the light and dark them
   const { everyday, visa } = await start(page, request)
   const items = [
     reviewItem('visa-1', 'correction', visa.id, { description: 'COUNTDOWN 123 WITH A LONGER BANK DESCRIPTION THAN MOST', amount: -2310 }),
-    reviewItem('everyday-1', 'new', everyday.id, { description: 'REFUND', amount: 4250 }),
+    // One word longer than a phone's text column, as a bank's payment reference can be
+    reviewItem('everyday-1', 'new', everyday.id, { description: 'SQ*REFUNDREFERENCE20260921000184736251ABCDEFG', amount: 4250 }),
     reviewItem('everyday-2', 'removal', everyday.id, { description: 'UBER TRIP' }),
     ...Array.from({ length: 3 }, (_, index) => reviewItem(`everyday-${index + 3}`, 'new', everyday.id)),
   ]
@@ -743,14 +747,29 @@ test('sits above the list and keeps its text readable in the light and dark them
       expect(blockBox.y + blockBox.height).toBeLessThanOrEqual(transactionBox.y)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
 
-      // Each name runs the row's width, its label beside it, and each amount sits below the name and
-      // beside the details rather than over either, a long description wrapping instead
+      // Each row is laid out as a ledger row at the same width: the icon first, the lines of text beside
+      // it, and the amount after them rather than over any, a long description wrapping instead. From
+      // 750px the category is over the merchant and the amount centres on both lines. On a phone the
+      // merchant is first, level with the amount, then the category, then the date and the account
+      const wide = viewportWidth >= 750
       for (const row of await rows.all()) {
-        const [name, details, amount] = await Promise.all(
-          ['review-item-name', 'review-item-details', 'review-item-amount'].map(async (id) => (await row.getByTestId(id).boundingBox())!),
+        const [icon, name, heading, details, amount] = await Promise.all(
+          ['review-item-icon', 'review-item-name', 'review-item-heading', 'review-item-details', 'review-item-amount'].map(async (id) => (await row.getByTestId(id).boundingBox())!),
         )
-        expect(amount.y).toBeGreaterThanOrEqual(name.y + name.height)
-        expect(amount.x).toBeGreaterThanOrEqual(details.x + details.width)
+        const [first, second] = wide ? [heading, name] : [name, heading]
+        for (const part of [name, heading, details]) {
+          expect(part.x).toBeGreaterThanOrEqual(icon.x + icon.width)
+          expect(amount.x).toBeGreaterThanOrEqual(part.x + part.width)
+        }
+        expect(second.y).toBeGreaterThanOrEqual(first.y + first.height - 0.5)
+        expect(details.y).toBeGreaterThanOrEqual(first.y + first.height - 0.5)
+        if (wide) expect(Math.abs(amount.y + amount.height / 2 - (first.y + details.y + details.height) / 2)).toBeLessThanOrEqual(2)
+        else {
+          expect(Math.abs(amount.y - name.y)).toBeLessThanOrEqual(1)
+          // The date and the account take a line of their own under the category
+          expect(details.y).toBeGreaterThanOrEqual(second.y + second.height - 0.5)
+          expect(details.x).toBe(heading.x)
+        }
         expect(amount.x + amount.width).toBeLessThanOrEqual(blockBox.x + blockBox.width)
       }
       // The caret ends the header's first row, a button at least 24px each way with no words to read
@@ -765,8 +784,10 @@ test('sits above the list and keeps its text readable in the light and dark them
       block.getByText('Bank items stay out of every balance until you add them to your ledger.'),
       block.getByText('Paused · 105 new to review in Everyday. Sync resumes at 50 or fewer.'),
       rows.nth(0).getByText('COUNTDOWN 123 WITH A LONGER BANK DESCRIPTION THAN MOST'),
-      rows.nth(0).getByText('Correction', { exact: true }),
-      rows.nth(0).getByText('Sep 21 · Visa · The bank changed the amount'),
+      rows.nth(0).getByText('The bank changed the amount', { exact: true }),
+      rows.nth(0).getByText('Sep 21 ·', { exact: true }),
+      rows.nth(0).getByText('Visa', { exact: true }),
+      rows.nth(1).getByText('Uncategorized', { exact: true }),
       rows.nth(0).getByText(`${MINUS}$23.10`),
       rows.nth(1).getByText('+$42.50'),
       rows.nth(2).getByText(`${MINUS}$18.00`),

@@ -144,9 +144,9 @@ describe('auth form helpers', () => {
       422,
       {
         fieldErrors: [
-          { field: 'email', message: 'value is not a valid email address' },
-          { field: 'first_name', message: 'String should have at most 100 characters' },
-          { field: 'tz', message: 'Invalid timezone' },
+          { field: 'email', path: ['email'], message: 'value is not a valid email address' },
+          { field: 'first_name', path: ['first_name'], message: 'String should have at most 100 characters' },
+          { field: 'tz', path: ['tz'], message: 'Invalid timezone' },
         ],
       },
     )
@@ -174,7 +174,7 @@ describe('auth form helpers', () => {
     expect(getAuthErrorMessage(buildApiError(500, null))).toBe(generic)
     expect(getAuthErrorMessage(buildApiError(429, { detail: 'Rate limit 5/minute exceeded' }))).toBe(generic)
     const refusal = new ApiError("Oops, the token wasn't accepted. Please check it and try again.", 422, {
-      fieldErrors: [{ field: 'token', message: 'Field required' }],
+      fieldErrors: [{ field: 'token', path: ['token'], message: 'Field required' }],
     })
     expect(getAuthErrorMessage(refusal)).toBe(generic)
   })

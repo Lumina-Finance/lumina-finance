@@ -3,12 +3,7 @@ import { Plus } from 'lucide-react'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import LoadingRegion from '@/components/loading/Region'
 import { ApiError } from '@/api/auth'
-import {
-  useDeleteTag,
-  useForgetTag,
-  useMergeTag,
-  type Tag,
-} from '@/api/tags'
+import { useDeleteTag, useForgetTag, useMergeTag, type Tag } from '@/api/tags'
 import SettingsSectionHeader from '@/pages/settings/components/SectionHeader'
 import SettingsCard from '@/pages/settings/components/Card'
 import MergeDeleteTagModal from '@/pages/settings/components/tag-settings-section/modals/MergeDeleteModal'
@@ -39,25 +34,30 @@ export default function TagSettingsSection() {
   const [mergeDeleteTag, setMergeDeleteTag] = useState<Tag | null>(null)
   // Held apart from the item so the panel keeps its contents while it animates out
   const [isTagMergeDeleteOpen, setIsTagMergeDeleteOpen] = useState(false)
+  // The server's reason for the refusal. It says whether transactions or an import rule are in the way
+  const [mergeDeleteReason, setMergeDeleteReason] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [locallyDeletedTagIds, setLocallyDeletedTagIds] = useState<string[]>([])
   const tagList = useTagSettingsList(locallyDeletedTagIds)
   // The rows and everything describing how they are laid out are held together, since a search
   // empties the live list the moment it settles while the rows on screen are still the old ones.
   // A list keeping its rows but losing its scroll cap would grow to the full height of them
-  const tagListSnapshot = useMemo(() => ({
-    hasMore: tagList.hasMoreTags,
-    shouldScroll: tagList.shouldScrollTags,
-    showListEnd: tagList.showTagListEnd,
-    showListMoreIndicator: tagList.showTagListMoreIndicator,
-    tags: tagList.visibleTags,
-  }), [
-    tagList.hasMoreTags,
-    tagList.shouldScrollTags,
-    tagList.showTagListEnd,
-    tagList.showTagListMoreIndicator,
-    tagList.visibleTags,
-  ])
+  const tagListSnapshot = useMemo(
+    () => ({
+      hasMore: tagList.hasMoreTags,
+      shouldScroll: tagList.shouldScrollTags,
+      showListEnd: tagList.showTagListEnd,
+      showListMoreIndicator: tagList.showTagListMoreIndicator,
+      tags: tagList.visibleTags,
+    }),
+    [
+      tagList.hasMoreTags,
+      tagList.shouldScrollTags,
+      tagList.showTagListEnd,
+      tagList.showTagListMoreIndicator,
+      tagList.visibleTags,
+    ],
+  )
 
   const handleDeleteCancel = () => setConfirmingDeleteTagId(null)
 
@@ -77,7 +77,7 @@ export default function TagSettingsSection() {
     ])
 
     if (deleteResult[0].status === 'fulfilled') {
-      setLocallyDeletedTagIds((ids) => ids.includes(tag.id) ? ids : [...ids, tag.id])
+      setLocallyDeletedTagIds((ids) => (ids.includes(tag.id) ? ids : [...ids, tag.id]))
       tagList.setVisibleTags((tags) => tags.filter((item) => item.id !== tag.id))
       forgetTag(tag.id)
       setConfirmingDeleteTagId(null)
@@ -86,6 +86,7 @@ export default function TagSettingsSection() {
       if (error instanceof ApiError && error.status === 409) {
         setConfirmingDeleteTagId(null)
         setMergeDeleteTag(tag)
+        setMergeDeleteReason(error.message)
         setIsTagMergeDeleteOpen(true)
       } else {
         setDeleteError(error instanceof Error ? error.message : 'Failed to delete tag.')
@@ -97,10 +98,7 @@ export default function TagSettingsSection() {
 
   return (
     <section id="tags">
-      <SettingsSectionHeader
-        title="Tags"
-        description="Manage reusable labels for transaction organization."
-      />
+      <SettingsSectionHeader title="Tags" description="Manage reusable labels for transaction organization." />
 
       <SettingsCard>
         <div className="space-y-4">
@@ -183,6 +181,7 @@ export default function TagSettingsSection() {
           key={mergeDeleteTag.id}
           tag={mergeDeleteTag}
           isPending={mergeTag.isPending}
+          reason={mergeDeleteReason}
           onClose={() => setIsTagMergeDeleteOpen(false)}
           onExitComplete={() => setMergeDeleteTag(null)}
           onMerge={async (replacementTagId) => {

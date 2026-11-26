@@ -32,12 +32,21 @@ async function openPasskeyDialog(page: Page) {
 }
 
 /**
+ * Focus can scroll the dialogue body to a button, and the scroll event arrives a frame later. Any scroll closes the
+ * menu, so this waits two frames for that event to pass before a test opens the menu
+ */
+async function waitForFocusScroll(page: Page) {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+}
+
+/**
  * Puts focus on a passkey's Options button, where a keyboard user presses Enter to open its menu
  */
 async function focusOptions(page: Page, name: string) {
   const options = page.getByRole('button', { name: `Options for ${name}` })
   await options.focus()
   await expect(options).toBeFocused()
+  await waitForFocusScroll(page)
   return options
 }
 
@@ -157,6 +166,7 @@ test('returns focus to the button when a scroll or resize closes the menu, and l
   const field = page.getByLabel('New passkey name')
   await expect(field).toBeFocused()
   await options.focus()
+  await waitForFocusScroll(page)
   await page.keyboard.press('Enter')
   await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeFocused()
   await field.focus()

@@ -47,13 +47,40 @@ describe('buildApiError', () => {
     expect(error).toMatchObject({
       message: "Oops, the credit limit and amount weren't accepted. Please check them and try again.",
       fieldErrors: [
-        { field: 'credit_limit', message: 'Input should be greater than or equal to 0' },
-        { field: 'amount', message: 'Field required' },
-        { field: '', message: 'Input should be a valid dictionary' },
+        { field: 'credit_limit', path: ['credit_limit'], message: 'Input should be greater than or equal to 0' },
+        { field: 'amount', path: ['items', 0, 'amount'], message: 'Field required' },
+        { field: '', path: [], message: 'Input should be a valid dictionary' },
       ],
       status: 422,
     })
     expect(error.detail).toBeUndefined()
+  })
+
+  // A list's rows are told apart by the index in the location, and the field's own name drops it. The
+  // import rules editor puts an error on its row by that index, and the union tags the server adds stay in
+  it('keeps the list indices and union tags of a location beside the field name', () => {
+    const error = buildApiError(422, {
+      detail: [
+        { loc: ['body', 'conditions', 2, 'condition', 'amount', 'value'], msg: 'Amount must be greater than zero' },
+        {
+          loc: ['body', 'conditions', 1, 'group', 'conditions', 0, 'description', 'value'],
+          msg: 'String should have at least 1 character',
+        },
+      ],
+    })
+
+    expect(error.fieldErrors).toEqual([
+      {
+        field: 'value',
+        path: ['conditions', 2, 'condition', 'amount', 'value'],
+        message: 'Amount must be greater than zero',
+      },
+      {
+        field: 'value',
+        path: ['conditions', 1, 'group', 'conditions', 0, 'description', 'value'],
+        message: 'String should have at least 1 character',
+      },
+    ])
   })
 
   it.each([

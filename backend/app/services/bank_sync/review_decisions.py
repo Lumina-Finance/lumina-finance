@@ -369,6 +369,7 @@ async def write_new_item(db: AsyncSession, user: User, record: BankTransaction, 
         CreateTransactionRequest(account_id=account.id, currency=account.currency, **entry.model_dump()),
     )
     record.disposition = BankTransactionDisposition.ACCEPTED
+    record.rule_fill = record.rules_version = None
     record.transaction_id = txn.id
     record.aligned_date = record.observed_date
     record.aligned_amount = record.observed_amount
@@ -382,7 +383,7 @@ async def write_dismissal(db: AsyncSession, record: BankTransaction) -> None:
     The caller has checked the item still waits and holds the locks lock_bank_transactions takes
     """
     record.disposition = BankTransactionDisposition.DISMISSED
-    for column in OBSERVATION_COLUMNS:
+    for column in (*OBSERVATION_COLUMNS, "rule_fill", "rules_version"):
         setattr(record, column, None)
     await db.flush()
 

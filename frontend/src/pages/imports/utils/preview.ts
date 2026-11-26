@@ -19,6 +19,7 @@ import type {
   ImportDateRange,
   ImportFileDraft,
   ImportRowProblem,
+  ImportRuleMatchLookup,
   PreviewTransactionRow,
 } from '@/pages/imports/types'
 import { getFileAccountSourceId, getImportAccountName } from './accountMapping'
@@ -27,6 +28,7 @@ import { findReusedImportCategory, getCategoryMatchKind } from './categoryMatchi
 import { findCurrencyExponent } from '@/utils/moneyInput'
 import { getImportDateRangeFilter } from './dateRange'
 import { getCurrencyByAccountSource, type ImportRowContext, resolveImportRow } from './rowResolution'
+import { addRuleTagNames, getRulePreviewValues } from './ruleMatching'
 import { getPreviewTagNames } from './tagMatching'
 import { getAmountArrangementClashError, getSupportedCurrencyCodes } from './workflowOptions'
 import { DEFAULT_IMPORT_AMOUNT_FORMAT, type ImportAmountFormat } from './amountFormats'
@@ -71,6 +73,9 @@ interface BuildImportPreviewRowsOptions {
 
   /** What the tag step holds, so a row shows the tags the commit will give it rather than the file's names */
   tagAnswers?: Parameters<typeof getPreviewTagNames>[1]
+
+  /** What the user's import rules give each row, by the row's identity, null while they have not answered */
+  ruleMatches?: ImportRuleMatchLookup | null
 }
 
 /**
@@ -118,6 +123,7 @@ export function buildImportPreviewRows({
   resolvedCategoryMappings,
   rowProblems,
   tagAnswers,
+  ruleMatches = null,
 }: BuildImportPreviewRowsOptions): PreviewTransactionRow[] {
   if (missingRequiredColumnLabels.length > 0) return []
 
@@ -191,14 +197,19 @@ export function buildImportPreviewRows({
       // table and there are no decimal places to convert against
       if (typeof minorUnits !== 'bigint') continue
 
-      const category = getPreviewCategory(
-        resolved.categorySource,
-        resolvedCategoryMappings,
-        categoryById,
-        categoryCreateKinds,
-        categoryRenames,
-        categoryTypesBySource,
-      )
+      // The rules' values replace the file's, as they do when the import is saved
+      const rowId = getImportRowId(file.id, rowIndex)
+      const rule = getRulePreviewValues(ruleMatches?.get(rowId), categoryById)
+      const category =
+        rule.category ??
+        getPreviewCategory(
+          resolved.categorySource,
+          resolvedCategoryMappings,
+          categoryById,
+          categoryCreateKinds,
+          categoryRenames,
+          categoryTypesBySource,
+        )
 
       // A row states its counterparty only where the file has a column for it and the row's category
       // can hold one, and the answer is whatever that source was mapped to, which can be an account
@@ -220,7 +231,7 @@ export function buildImportPreviewRows({
         buildPreviewTransactionRow({
           // Prefixed like the other imports' previews, which is how a previewed row is told apart from a
           // ledger transaction by its id
-          id: `import-preview-${getImportRowId(file.id, rowIndex)}`,
+          id: `import-preview-${rowId}`,
 
           // The row shows in the currency settled above, which holds even before the account step is answered
           account: { ...(account ?? { id: accountChoice, name: accountName, institution: null }), currency },
@@ -229,12 +240,16 @@ export function buildImportPreviewRows({
 
           // Keep the exact minor units through presentation, just as the commit keeps the cell's digits
           amount: minorUnits,
-          merchantName: resolved.merchantName ?? getStampedPreviewMerchantName(category),
+          merchantName: rule.merchantName ?? resolved.merchantName ?? getStampedPreviewMerchantName(category),
           notes: resolved.notes,
           counterpartyAccount,
           counterpartyScope: isCounterpartyAnswered ? getPreviewCounterpartyScope(category, counterpartyAccount) : null,
-          tagNames: tagAnswers ? getPreviewTagNames(resolved.tagNames, tagAnswers) : resolved.tagNames,
+          tagNames: addRuleTagNames(
+            tagAnswers ? getPreviewTagNames(resolved.tagNames, tagAnswers) : resolved.tagNames,
+            rule.tagNames,
+          ),
           timestamp,
+          isMerchantFromRule: rule.merchantName !== undefined,
         }),
       )
 

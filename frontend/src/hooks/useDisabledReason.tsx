@@ -47,6 +47,11 @@ function getReasonKey(reason: string) {
  * chart tooltips do. With no cursor, on keyboard focus or a tap, it sits beside the control, below it or
  * above when there is no room, as `IconTooltip` does
  *
+ * Pass `besideControl` for a control among others the reason must not cover, such as an item of a menu.
+ * The reason then sits beside the control, level with it, on its left while there is room and on its right
+ * otherwise, in the one place for a pointer, the keyboard and a tap. With no room at either side it is placed
+ * as `hangFromControl` and `keepClearOf` place it
+ *
  * Pass `hangFromControl` for a control beside text the reason must not cover, such as a card's title. The
  * reason then hangs from the control's edge under the pointer as well, instead of following the cursor
  * above it
@@ -68,8 +73,9 @@ export function useDisabledReason(
   shownById?: string,
   keepClearOf?: RefObject<HTMLElement | null>,
   hangFromControl = false,
+  besideControl = false,
 ) {
-  return useControlTooltip(reason, { shownById, keepClearOf, hangFromControl })
+  return useControlTooltip(reason, { shownById, keepClearOf, hangFromControl, besideControl })
 }
 
 /**
@@ -111,6 +117,9 @@ type ControlTooltipOptions = {
   // Hangs the reason from the control's edge under the pointer too, so it never covers text beside the control
   hangFromControl?: boolean
 
+  // Sits the reason beside the control, level with it, wherever it is shown from
+  besideControl?: boolean
+
   // The text only explains a control that works, so the control stays enabled, a click is never held
   // back, and a pointer that can't hover shows nothing
   advisory?: boolean
@@ -125,6 +134,7 @@ function useControlTooltip(
     shownById,
     keepClearOf,
     hangFromControl = false,
+    besideControl = false,
     advisory = false,
     isDescription = !advisory,
   }: ControlTooltipOptions,
@@ -159,6 +169,10 @@ function useControlTooltip(
     }
     return placedBesideRef.current ? control : undefined
   }, [])
+  const getBesideOf = useCallback(
+    () => (besideControl ? originRef.current?.getBoundingClientRect() : undefined),
+    [besideControl],
+  )
   const getBounds = useCallback(() => getReasonBounds(originRef.current), [])
   const {
     tooltipRef,
@@ -176,6 +190,7 @@ function useControlTooltip(
     getItemKey: getReasonKey,
     getBounds,
     getKeepClear,
+    getBesideOf,
     // A hint rises above its control and falls below only where there is no room above
     preferAbove: advisory,
   })

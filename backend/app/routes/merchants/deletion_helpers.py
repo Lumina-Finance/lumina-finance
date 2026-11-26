@@ -12,6 +12,7 @@ from app.routes.merchants.access_helpers import (
     require_group_merchant_admin,
 )
 from app.services.cache_state import mark_cache_changed_for_scope
+from app.services.import_rules.references import refuse_merchant_used_by_rule
 
 
 async def delete_merchant_for_user(
@@ -29,11 +30,15 @@ async def delete_merchant_for_user(
         user_id: Authenticated user identifier
 
     Raises:
-        HTTPException: Merchant is inaccessible, admin access is missing, or merchant is referenced
+        HTTPException: Merchant is inaccessible, admin access is missing, or merchant is used by an import rule or referenced
+            by transactions
     """
     merchant = await get_accessible_merchant_or_404(db, merchant_id, user_id)
     require_editable_merchant(merchant)
     await require_group_merchant_admin(db, merchant, user_id)
+
+    # A rule naming the merchant is refused first, so its name shows even when transactions use the merchant too
+    await refuse_merchant_used_by_rule(db, merchant.id)
 
     # Delete the merchant and let the database reject existing transaction references
     await db.delete(merchant)

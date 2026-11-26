@@ -143,6 +143,7 @@ describe('the form a new bank item opens with', () => {
       note: 'COUNTDOWN 123',
       merchant: null,
     },
+    rule_fill: null,
   }
   const withBank = (bank: Partial<BankValues>) => ({ ...item, bank: { ...item.bank, ...bank } })
 

@@ -148,6 +148,42 @@ export const tagKeys = {
   nameMatches: (names: string[]) => ['tags', 'name-matches', names] as const,
 }
 
+export const importRuleKeys = {
+  all: ['import-rules'] as const,
+
+  /** Every page of the rules, in the order they are checked, read at one page size */
+  infinite: (pageSize: number) => ['import-rules', 'infinite', pageSize] as const,
+
+  /** Every list of pages, whatever page size it was read at */
+  infiniteAll: ['import-rules', 'infinite'] as const,
+
+  /**
+   * Every page of the rules that hold some text, read at one page size. Kept apart from the whole list, whose rows a
+   * move or a delete numbers again, since a search shows only some of the rules and each keeps its own place
+   */
+  searched: (pageSize: number, search: string) => ['import-rules', 'searched', pageSize, search] as const,
+
+  /** Every list of searched pages, whatever page size or text it was read at */
+  searchedAll: ['import-rules', 'searched'] as const,
+
+  /** The conditions the rules may hold together and how many they hold */
+  budget: () => ['import-rules', 'budget'] as const,
+
+  /**
+   * Every answer to what the rules give a file's rows, whatever rows were asked. It has a root of its own, outside
+   * the app-wide change check, since an import in progress must not be asked again, and its steps swapped for a
+   * loading message, whenever a sync, another tab or another import changes app data. The writes the answer
+   * depends on mark it stale through `invalidateImportRules`
+   */
+  matchesAll: ['import-rule-matches'] as const,
+
+  /**
+   * What the rules give one list of file rows. The digest stands for the rows and never holds them, since
+   * the rows say what a statement says and the persisted query cache writes keys out to browser storage
+   */
+  matches: (rowsDigest: string) => ['import-rule-matches', rowsDigest] as const,
+}
+
 export const institutionKeys = {
   all: ['institutions'] as const,
   detail: (institutionId: string | null | undefined) => ['institutions', institutionId] as const,

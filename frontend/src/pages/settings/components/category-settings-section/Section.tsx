@@ -3,13 +3,7 @@ import { Plus } from 'lucide-react'
 import { ApiError } from '@/api/auth'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
-import {
-  useCategories,
-  useDeleteCategory,
-  useForgetCategory,
-  useMergeCategory,
-  type Category,
-} from '@/api/categories'
+import { useCategories, useDeleteCategory, useForgetCategory, useMergeCategory, type Category } from '@/api/categories'
 import CreateCategoryModal from '@/components/reference-modals/CreateCategoryModal'
 import LoadingRegion from '@/components/loading/Region'
 import CategorySettingsGroup from '@/pages/settings/components/category-settings-section/list/Group'
@@ -42,14 +36,13 @@ export default function CategorySettingsSection() {
   const [mergeDeleteCategory, setMergeDeleteCategory] = useState<Category | null>(null)
   // Held apart from the item so the panel keeps its contents while it animates out
   const [isCategoryMergeDeleteOpen, setIsCategoryMergeDeleteOpen] = useState(false)
+  // The server's reason for the refusal. It says whether transactions or an import rule are in the way
+  const [mergeDeleteReason, setMergeDeleteReason] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const {
-    expandedKinds,
-    expandKind,
-    groupedCategories,
-    hasMatches,
-    toggleKind,
-  } = useCategorySettingsGroups(categories, search)
+  const { expandedKinds, expandKind, groupedCategories, hasMatches, toggleKind } = useCategorySettingsGroups(
+    categories,
+    search,
+  )
 
   const handleDeleteRequest = (category: Category) => {
     setDeleteError(null)
@@ -75,6 +68,7 @@ export default function CategorySettingsSection() {
       if (error instanceof ApiError && error.status === 409) {
         setConfirmingDeleteCategoryId(null)
         setMergeDeleteCategory(category)
+        setMergeDeleteReason(error.message)
         setIsCategoryMergeDeleteOpen(true)
       } else {
         setDeleteError(error instanceof Error ? error.message : 'Failed to delete category.')
@@ -91,10 +85,7 @@ export default function CategorySettingsSection() {
 
   return (
     <section id="categories">
-      <SettingsSectionHeader
-        title="Categories"
-        description="Review system categories and manage custom categories."
-      />
+      <SettingsSectionHeader title="Categories" description="Review system categories and manage custom categories." />
 
       <SettingsCard>
         <div className="space-y-4">
@@ -151,25 +142,26 @@ export default function CategorySettingsSection() {
                 </p>
               ) : (
                 <div className="space-y-6">
-                  {groupedCategories.map(({ kind, items }) => (
-                    items.length > 0 && (
-                      <CategorySettingsGroup
-                        key={kind}
-                        kind={kind}
-                        expanded={expandedKinds.has(kind)}
-                        categories={items}
-                        confirmingDeleteCategoryId={confirmingDeleteCategoryId}
-                        deletingCategoryId={deletingCategoryId}
-                        editingCategoryId={editingCategoryId}
-                        onDeleteCancel={() => setConfirmingDeleteCategoryId(null)}
-                        onDeleteConfirm={handleDelete}
-                        onEdit={(category) => setEditingCategoryId(category.id)}
-                        onDeleteRequest={handleDeleteRequest}
-                        onEditCancel={() => setEditingCategoryId(null)}
-                        onToggle={() => toggleKind(kind)}
-                      />
-                    )
-                  ))}
+                  {groupedCategories.map(
+                    ({ kind, items }) =>
+                      items.length > 0 && (
+                        <CategorySettingsGroup
+                          key={kind}
+                          kind={kind}
+                          expanded={expandedKinds.has(kind)}
+                          categories={items}
+                          confirmingDeleteCategoryId={confirmingDeleteCategoryId}
+                          deletingCategoryId={deletingCategoryId}
+                          editingCategoryId={editingCategoryId}
+                          onDeleteCancel={() => setConfirmingDeleteCategoryId(null)}
+                          onDeleteConfirm={handleDelete}
+                          onEdit={(category) => setEditingCategoryId(category.id)}
+                          onDeleteRequest={handleDeleteRequest}
+                          onEditCancel={() => setEditingCategoryId(null)}
+                          onToggle={() => toggleKind(kind)}
+                        />
+                      ),
+                  )}
                 </div>
               )}
             </div>
@@ -189,6 +181,7 @@ export default function CategorySettingsSection() {
           category={mergeDeleteCategory}
           categories={categories}
           isPending={mergeCategory.isPending}
+          reason={mergeDeleteReason}
           onClose={() => setIsCategoryMergeDeleteOpen(false)}
           onExitComplete={() => setMergeDeleteCategory(null)}
           onMerge={async (replacementCategoryId) => {

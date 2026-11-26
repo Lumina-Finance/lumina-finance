@@ -4,11 +4,12 @@ import type { Currency } from '@/api/currency'
 import type { Institution } from '@/api/institutions'
 import { getOfxSkippedRowId, getOfxCategorySource, getOfxStatementsToImport } from '@/pages/imports/ofx/utils/payload'
 import type { OfxFile } from '@/pages/imports/ofx/types'
-import type { ImportAccountCreateDetails, PreviewTransactionRow } from '@/pages/imports/types'
+import type { ImportAccountCreateDetails, ImportRuleMatchLookup, PreviewTransactionRow } from '@/pages/imports/types'
 import {
   buildPreviewTransactionRow,
   findUnnamedSourceCategory,
   getPreviewCounterpartyScope,
+  getRulePreviewValues,
   resolvePreviewAccount,
   toImportMinorUnits,
 } from '@/pages/imports/utils'
@@ -24,6 +25,9 @@ export interface OfxPreviewOptions {
 
   /** Transactions the upload leaves out, which the preview leaves out too */
   skippedRowIds: ReadonlySet<string>
+
+  /** What the user's import rules give each row, by the row's skipped-row id, null while they have not answered */
+  ruleMatches?: ImportRuleMatchLookup | null
 }
 
 /**
@@ -35,6 +39,7 @@ export interface OfxPreviewOptions {
  */
 export function buildOfxPreviewRows(file: OfxFile, options: OfxPreviewOptions, limit: number): PreviewTransactionRow[] {
   const timestamp = new Date().toISOString()
+  const categoryById = new Map((options.categories ?? []).map((category) => [category.id, category]))
   const previewRows: PreviewTransactionRow[] = []
 
   for (const statement of getOfxStatementsToImport(file)) {
@@ -59,22 +64,28 @@ export function buildOfxPreviewRows(file: OfxFile, options: OfxPreviewOptions, l
       const amount = toImportMinorUnits(transaction.amount!, exponent)
       if (typeof amount !== 'bigint') continue
 
-      const category = options.categories
-        ? (findUnnamedSourceCategory(getOfxCategorySource(transaction), options.categories) ?? undefined)
-        : undefined
+      // The rules' values replace the statement's, as they do when the import is saved
+      const rowId = getOfxSkippedRowId(statement, transaction)
+      const rule = getRulePreviewValues(options.ruleMatches?.get(rowId), categoryById)
+      const category =
+        rule.category ??
+        (options.categories
+          ? (findUnnamedSourceCategory(getOfxCategorySource(transaction), options.categories) ?? undefined)
+          : undefined)
       previewRows.push(
         buildPreviewTransactionRow({
-          id: `ofx-preview-${getOfxSkippedRowId(statement, transaction)}`,
+          id: `ofx-preview-${rowId}`,
           account,
           category,
           dt: transaction.date!,
           amount,
-          merchantName: transaction.payee,
+          merchantName: rule.merchantName ?? transaction.payee,
           notes: transaction.memo,
           counterpartyAccount: null,
           counterpartyScope: getPreviewCounterpartyScope(category, null),
-          tagNames: [],
+          tagNames: rule.tagNames,
           timestamp,
+          isMerchantFromRule: rule.merchantName !== undefined,
         }),
       )
     }

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.base import TransferCounterpartyScope
 from app.models.category import Category
+from app.models.merchant import Merchant
 from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Transaction
 from app.schemas.import_run import TransactionImportMerchantMapping, TransactionImportTagMapping
@@ -44,6 +45,10 @@ class ImportedTransaction:
         counterparty_account_scope: Where the other end sits, or None for a category that records neither
         bank_transaction_hash: Hash of the bank account and the bank's ID for the transaction, or None
             where the file states no ID
+        rule_merchant: Merchant an import rule sets, which is the row's merchant in place of what the
+            file's merchant name resolves to, or None where no rule sets one
+        rule_tags: Tags import rules add beside the ones the file names, each once however many rules
+            or file tags give it. Empty where no rule adds any
     """
 
     account: Account
@@ -56,6 +61,8 @@ class ImportedTransaction:
     counterparty_account_id: uuid.UUID | None
     counterparty_account_scope: TransferCounterpartyScope | None
     bank_transaction_hash: str | None = None
+    rule_merchant: Merchant | None = None
+    rule_tags: tuple[Tag, ...] = ()
 
 
 async def write_imported_transactions(
@@ -97,10 +104,12 @@ async def write_imported_transactions(
     # INSERT_BATCH_SIZE new merchants or tags each rather than one insert per row that first mentions
     # it. A failure further down takes the whole commit with it, so nothing survives having been
     # created here
+    # A row a rule gave a merchant takes it in place of its name, so the name is neither asked about
+    # nor matched or created, unless another row carrying it takes no rule's merchant
     await create_missing_import_merchants(
         db,
         user_id,
-        (transaction.merchant_name for transaction in transactions),
+        (transaction.merchant_name for transaction in transactions if transaction.rule_merchant is None),
         merchant_mappings,
         import_lookups.merchants,
         stats,
@@ -120,10 +129,17 @@ async def write_imported_transactions(
         for imported in transactions[chunk_start : chunk_start + IMPORT_WRITE_CHUNK]:
             # Every transaction carries a merchant, so a row stating no merchant, such as a transfer leg
             # or a balance adjustment, is stamped with the shared one for its kind
-            merchant = get_import_merchant(imported.merchant_name, import_lookups.merchants, stats) or stamped_merchants.get_for_category(
-                imported.category
+            merchant = (
+                imported.rule_merchant
+                or get_import_merchant(imported.merchant_name, import_lookups.merchants, stats)
+                or stamped_merchants.get_for_category(imported.category)
             )
             tags = get_import_row_tags(imported.tag_names, import_lookups.tags, stats)
+
+            # A rule's tags join the file's, and a tag both give lands once
+            if imported.rule_tags:
+                file_tag_ids = {tag.id for tag in tags}
+                tags.extend(tag for tag in imported.rule_tags if tag.id not in file_tag_ids)
             pending.append(
                 (
                     Transaction(

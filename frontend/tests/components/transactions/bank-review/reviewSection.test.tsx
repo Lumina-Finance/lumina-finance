@@ -42,6 +42,9 @@ vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1', tz: 'America/Toronto' }, accessToken: 'token' }),
 }))
 vi.mock('@/hooks/useTodayYmd', () => ({ useTodayYmd: () => '2026-10-05' }))
+vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ showToast: () => {} }) }))
+// The crossfade of the buttons' labels needs a browser to mount, so the label is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
 
 import { BankReviewSection, type ReviewFocusRequest } from '@/components/transactions/bank-review/ReviewSection'
 
@@ -102,7 +105,7 @@ function rowWith(markup: string, text: string): string {
 }
 
 describe('the block for every account', () => {
-  it('shows each kind of item with its date, account and what it asks, counted in the header', () => {
+  it('shows each kind of item as a ledger row with its date and account, counted in the header', () => {
     client.setQueryData(bankSyncKeys.reviewItems(undefined), toPages([VISA_CORRECTION, ...EVERYDAY_ITEMS]))
 
     const markup = renderSection()
@@ -110,9 +113,8 @@ describe('the block for every account', () => {
     expect(markup).toContain('Waiting for review')
     expect(markup).toMatch(/>3<\/span>/)
     expect(markup).toContain('Bank items stay out of every balance until you add them to your ledger.')
-    expect(markup).toMatch(/COUNTDOWN 123<span[^>]*> <\/span><span[^>]*>Correction<\/span>/)
-    expect(textOf(markup)).toContain('Sep 21 · Visa · The bank changed the amount')
-    expect(textOf(markup)).toContain('Sep 21 · Everyday · Needs merchant and category')
+    expect(textOf(markup)).toMatch(/The bank changed the amountCOUNTDOWN 123\s· Sep 21 · Visa/)
+    expect(textOf(markup)).toMatch(/UncategorizedGROCER everyday-1\s· Sep 21 · Everyday/)
     expect(markup).toContain(`${MINUS}$23.10`)
   })
 
@@ -207,7 +209,10 @@ describe('the block for a filtered list or an account page', () => {
   })
 
   it("leaves the account's name off each row on its own page", () => {
-    expect(textOf(renderSection(['visa'], true))).toContain('Sep 21 · The bank changed the amount')
+    const text = textOf(renderSection(['visa'], true))
+
+    expect(text).toMatch(/The bank changed the amountCOUNTDOWN 123\s· Sep 21/)
+    expect(text).not.toContain('Sep 21 · Visa')
   })
 })
 

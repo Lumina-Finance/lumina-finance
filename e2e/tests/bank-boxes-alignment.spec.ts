@@ -155,7 +155,8 @@ test('lines the review block and the holds and pending strips up with the Upcomi
     // The review block's header is a row rather than one button, so that row stands for it
     review: await measure(review.locator(':scope > div').first(), {
       box: 'section',
-      text: '[data-testid="review-item-name"]',
+      // A waiting row starts with its category's icon, as a ledger row does, so the icon stands for its text
+      text: '[data-testid="review-item-icon"]',
       amount: '[data-testid="review-item-amount"]',
     }),
     // A hold's row is its button, whose fill layer covers it whole. A pending row has no fill

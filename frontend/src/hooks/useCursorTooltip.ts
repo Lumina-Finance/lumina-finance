@@ -28,6 +28,9 @@ type CursorTooltipOptions<TItem, TOrigin extends HTMLElement> = {
 
   // Rises above the box to keep clear while there is room, as a hint does
   preferAbove?: boolean
+
+  // A box the tooltip sits beside, level with it, where there is room at its sides
+  getBesideOf?: () => DOMRect | undefined
 }
 
 /**
@@ -41,6 +44,7 @@ export function useCursorTooltip<TItem, TOrigin extends HTMLElement = HTMLElemen
   getBounds,
   getKeepClear,
   preferAbove,
+  getBesideOf,
 }: CursorTooltipOptions<TItem, TOrigin>) {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const [tooltipItem, setTooltipItem] = useState<TItem | null>(null)
@@ -67,9 +71,10 @@ export function useCursorTooltip<TItem, TOrigin extends HTMLElement = HTMLElemen
         bounds: getBounds?.(),
         keepClear: getKeepClear?.(),
         preferAbove,
+        besideOf: getBesideOf?.(),
       })
     },
-    [getBounds, getKeepClear, preferAbove, originRef, xProperty, yProperty],
+    [getBounds, getKeepClear, getBesideOf, preferAbove, originRef, xProperty, yProperty],
   )
 
   // The first placement is measured before the item has rendered, when the tooltip is empty and a few

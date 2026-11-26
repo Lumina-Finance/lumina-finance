@@ -104,12 +104,16 @@ function ToastCard({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () =>
           <CircleCheck size={14} strokeWidth={3} aria-hidden />
         )}
       </span>
-      <span className="leading-6">{toast.text}</span>
+      {/* A message that wraps never leaves its last word alone on a line, as the server notice and tooltips don't.
+          Its lines are as far apart as a callout's, and the 2px above and below keep a one-line message as tall
+          as the icon, with its line level with the icon's middle as before */}
+      <span className="py-0.5 leading-5 text-pretty">{toast.text}</span>
+      {/* Level with the icon, so a message that wraps keeps both on its first line as a callout keeps its close */}
       <button
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss message"
-        className="app-icon-button -mr-1 h-6 w-6 shrink-0 self-center"
+        className="app-icon-button -mr-1 mt-0.5 h-6 w-6 shrink-0"
       >
         <X size={14} aria-hidden />
       </button>

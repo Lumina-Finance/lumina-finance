@@ -1,4 +1,5 @@
 """Category merge route helpers"""
+
 import uuid
 
 import sqlalchemy as sa
@@ -18,6 +19,7 @@ from app.routes.categories.access_helpers import (
 from app.routes.categories.scope_filter_helpers import get_system_or_personal_category_filter
 from app.services.cache_state import mark_cache_changed_for_scope
 from app.services.categories.transfer_rules import does_category_record_counterparty_account
+from app.services.import_rules.references import move_category_rules
 
 
 async def get_merge_replacement_category(
@@ -50,9 +52,7 @@ async def get_merge_replacement_category(
     if source_category.group_id is None:
         replacement_filter = replacement_filter & get_system_or_personal_category_filter(user_id)
     else:
-        replacement_filter = replacement_filter & (
-            Category.is_system.is_(True) | (Category.group_id == source_category.group_id)
-        )
+        replacement_filter = replacement_filter & (Category.is_system.is_(True) | (Category.group_id == source_category.group_id))
 
     # Fetch a replacement category from the scope allowed by the category being merged
     replacement_result = await db.execute(select(Category).where(replacement_filter))
@@ -107,16 +107,12 @@ async def move_category_references(
         transaction_values["counterparty_account_scope"] = None
 
     await db.execute(
-        sa.update(Transaction)
-        .where(Transaction.category_id == source_category_id)
-        .values(**transaction_values),
+        sa.update(Transaction).where(Transaction.category_id == source_category_id).values(**transaction_values),
     )
 
     # Move merchant default categories from the source category to the replacement
     await db.execute(
-        sa.update(Merchant)
-        .where(Merchant.default_category_id == source_category_id)
-        .values(default_category_id=replacement_category_id),
+        sa.update(Merchant).where(Merchant.default_category_id == source_category_id).values(default_category_id=replacement_category_id),
     )
 
     # Move tracked budget categories from the source category to the replacement
@@ -151,6 +147,7 @@ async def merge_category_into_replacement_for_user(
     await require_group_category_admin(db, category, user_id)
     replacement = await get_merge_replacement_category(db, category, replacement_category_id, user_id)
     await move_category_references(db, category.id, replacement)
+    await move_category_rules(db, category.id, replacement.id)
     await mark_cache_changed_for_scope(db, user_id=category.owner_id, group_id=category.group_id)
 
     # Delete the source category after all category references point to the replacement

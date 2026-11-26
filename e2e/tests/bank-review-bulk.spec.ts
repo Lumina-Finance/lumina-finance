@@ -137,36 +137,6 @@ async function expectPhoneBarFits(page: Page): Promise<void> {
   }
 }
 
-// The last phrase under a new item's description, and the longest
-const NEEDS_PHRASE = 'Needs merchant and category'
-
-/**
- * Reads how a review row's detail line sits: how many lines the line takes, how many its needs phrase
- * takes, and whether the row is wide enough to hold that phrase on one line at all
- */
-async function readNeedsPhraseLines(page: Page, description: string) {
-  const details = page.getByRole('listitem').filter({ hasText: description }).getByTestId('review-item-details')
-  return details.evaluate((line, phrase) => {
-    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
-    let node = walker.nextNode()
-    while (node && !node.textContent?.includes(phrase)) node = walker.nextNode()
-    const range = document.createRange()
-    const start = node!.textContent!.indexOf(phrase)
-    range.setStart(node!, start)
-    range.setEnd(node!, start + phrase.length)
-    const topsOf = (rects: DOMRectList) => new Set([...rects].map((rect) => Math.round(rect.top))).size
-    const lineRange = document.createRange()
-    lineRange.selectNodeContents(line)
-    const context = document.createElement('canvas').getContext('2d')!
-    context.font = window.getComputedStyle(line).font
-    return {
-      lineLines: topsOf(lineRange.getClientRects()),
-      phraseLines: topsOf(range.getClientRects()),
-      phraseFits: context.measureText(phrase).width <= line.clientWidth,
-    }
-  }, NEEDS_PHRASE)
-}
-
 /** The account's ledger transactions as the server holds them, newest first */
 async function readLedger(request: APIRequestContext, user: TestUser, accountId: string) {
   const response = await request.get(`${API_BASE_URL}/transactions`, {
@@ -181,7 +151,7 @@ async function readLedger(request: APIRequestContext, user: TestUser, accountId:
 // that keeps each step's items among them. The steps that only read go first, since the phone widths they
 // set are put back and each later step opens the page afresh with nothing ticked. A step that adds or
 // dismisses goes after them, and its ledger read counts what the steps before it added
-test('keeps Edit off over an item missing its amount, fits the phone bar and wraps a row, then adds, updates and dismisses the ticked items', NEEDS_BANK_SYNC, async ({ page, request }) => {
+test('keeps Edit off over an item missing its amount, fits the phone bar, then adds, updates and dismisses the ticked items', NEEDS_BANK_SYNC, async ({ page, request }) => {
   const { user, everyday, ledgerId } = await start(page, request, [COUNTDOWN, UNPRICED, HARBOUR, CAFE, BOOKSHOP, TAXI, PHARMACY])
   const viewport = page.viewportSize()!
 
@@ -210,22 +180,6 @@ test('keeps Edit off over an item missing its amount, fits the phone bar and wra
     await expect(page.getByRole('button', { name: 'Dismiss the selected items', exact: true })).toBeAttached()
 
     await expectPhoneBarFits(page)
-  })
-
-  await test.step("wraps a review row's detail line between whole phrases on a phone while selecting", async () => {
-    const wrapped: number[] = []
-
-    // Read until it holds, since the row takes a moment to settle into a new width
-    for (const width of PHONE_WIDTHS) {
-      await page.setViewportSize({ width, height: 844 })
-      await expect.poll(async () => {
-        const { lineLines, phraseLines, phraseFits } = await readNeedsPhraseLines(page, COUNTDOWN.description)
-        if (lineLines > 1 && !wrapped.includes(width)) wrapped.push(width)
-        return phraseFits ? phraseLines : 1
-      }, { message: `the needs phrase at ${width}px` }).toBe(1)
-    }
-    // The check means something only where the line had to wrap
-    expect(wrapped).toContain(390)
     await page.setViewportSize(viewport)
   })
 

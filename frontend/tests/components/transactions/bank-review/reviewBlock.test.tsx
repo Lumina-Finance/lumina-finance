@@ -5,7 +5,9 @@
  *
  * These tests catch the block hiding the toggle a long backlog needs, offering one a short backlog
  * doesn't, a removal showing anything but the ledger amount struck through, a kind of item whose row
- * a keyboard can't open, and a failed read counting nothing as zero or offering no retry. The
+ * a keyboard can't open, a failed read counting nothing as zero or offering no retry, Approve all
+ * missing from the line under the header or drawn with nothing saying what the rules do, and a row showing no
+ * merchant or category a rule gave it, or changed for one no rule matched. The
  * notice's own retry is covered with the notice, and following a Needs review marker to a failed
  * read, and opening an item, run in the browser, since they need effects and clicks
  */
@@ -24,6 +26,9 @@ vi.mock('@/hooks/useMoneyFormatters', () => ({
   }),
 }))
 
+// The crossfade of the buttons' labels needs a browser to mount, so the label is drawn without its animated layers
+vi.mock('@/components/loading/Crossfade', () => ({ Crossfade: ({ children }: { children: unknown }) => children }))
+
 import { BankReviewBlock } from '@/components/transactions/bank-review/ReviewBlock'
 
 const ITEMS = Array.from({ length: 6 }, (_, index) => createReviewItem(`item-${index}`, 'new', 'everyday'))
@@ -31,7 +36,12 @@ const ITEMS = Array.from({ length: 6 }, (_, index) => createReviewItem(`item-${i
 function renderBlock(
   items: BankReviewItem[],
   expanded: boolean,
-  overrides: Partial<Pick<Parameters<typeof BankReviewBlock>[0], 'itemsFailure' | 'backlogFailure' | 'selection'>> = {},
+  overrides: Partial<
+    Pick<
+      Parameters<typeof BankReviewBlock>[0],
+      'itemsFailure' | 'backlogFailure' | 'selection' | 'ruleActions' | 'categoryIconFor'
+    >
+  > = {},
 ): string {
   return renderToStaticMarkup(
     createElement(BankReviewBlock, {
@@ -40,6 +50,7 @@ function renderBlock(
       itemsFailure: null,
       itemsRetryRef: null,
       accountFor: () => ({ name: 'Everyday', currency: 'USD' }),
+      categoryIconFor: () => undefined,
       showAccountNames: true,
       today: '2026-10-05',
       backlogNotice: null,
@@ -122,6 +133,185 @@ describe('the rows the block shows', () => {
     expect(rows[0]).toMatch(/<button type="button"[^>]*>.*GROCER fresh/)
     expect(rows[1]).toMatch(/<button type="button"[^>]*>.*GROCER changed/)
     expect(rows[2]).toMatch(/<button type="button"[^>]*>.*GROCER gone/)
+  })
+})
+
+describe('Approve all beside the line under the header', () => {
+  const ruleActions = {
+    rules: { any_addable: true, changed: false, read_only_reason: null },
+    busy: null,
+    onApprove: () => {},
+    onApplyRules: () => {},
+  }
+
+  it('is drawn once, beside the line under the header and above the rows, at every width', () => {
+    const markup = renderBlock(ITEMS, false, { ruleActions })
+    const line = markup.indexOf('Bank items stay out of every balance')
+    const beside = markup.indexOf('Approve all', line)
+
+    expect(markup.indexOf('Approve all')).toBe(beside)
+    expect(beside).toBeGreaterThan(line)
+    expect(beside).toBeLessThan(markup.indexOf('role="list"'))
+  })
+
+  it('leaves the header to the title, the count and the toggle, so the toggle is its only control', () => {
+    const markup = renderBlock(ITEMS, false, { ruleActions })
+    const header = markup.slice(0, markup.indexOf('Bank items stay out of every balance'))
+
+    expect(header).toContain('aria-expanded=')
+    expect(header).not.toContain('Approve all')
+  })
+
+  it('is left out while the items could not load, and when nothing says what the rules do', () => {
+    expect(renderBlock([], false, { ruleActions, itemsFailure: { retry: () => {}, isRetrying: false } })).not.toContain(
+      'Approve all',
+    )
+    expect(renderBlock(ITEMS, false, { ruleActions: { ...ruleActions, rules: null } })).not.toContain('Approve all')
+    expect(renderBlock(ITEMS, false)).not.toContain('Approve all')
+  })
+})
+
+describe('the offer to apply the rules again', () => {
+  const ruleActions = {
+    rules: { any_addable: true, changed: true, read_only_reason: null },
+    busy: null as 'approve' | 'apply' | null,
+    onApprove: () => {},
+    onApplyRules: () => {},
+  }
+  const LINE = 'Your import rules changed after these items arrived.'
+
+  /** Each button of the markup named `name`, the label measured out of sight inside it included */
+  const buttonsNamed = (markup: string, name: string) =>
+    [...markup.matchAll(/<button[^>]*>(?:(?!<\/button>).)*<\/button>/g)]
+      .map((match) => match[0])
+      .filter((button) => button.includes(name))
+
+  it('shows under the first line, with its button, once the rules changed', () => {
+    const markup = renderBlock(ITEMS, false, { ruleActions })
+    const first = markup.indexOf('Bank items stay out of every balance')
+    const offer = markup.indexOf(LINE)
+
+    expect(offer).toBeGreaterThan(first)
+    expect(offer).toBeLessThan(markup.indexOf('role="list"'))
+    expect(markup.slice(offer, markup.indexOf('role="list"'))).toContain('>Reapply updated rules<')
+    expect(buttonsNamed(markup, 'Reapply updated rules')).toHaveLength(1)
+    // The line is a polite status, so a screen reader hears it arrive
+    expect(markup).toMatch(/role="status"[^>]*>Your import rules changed/)
+  })
+
+  it('draws the import rules icon before its sentence, hidden from assistive technology, and none without the offer', () => {
+    // Between the first line and the rows, the offer's icon is the only drawing, found by what it is: hidden from assistive technology
+    const hiddenDrawings = (markup: string) => {
+      const start = markup.indexOf('Bank items stay out of every balance')
+      const between = markup.slice(start, markup.indexOf('role="list"'))
+      return [...between.matchAll(/<svg[^>]*aria-hidden="true"[^>]*>/g)].map((match) => ({ at: start + match.index }))
+    }
+    const markup = renderBlock(ITEMS, false, { ruleActions })
+    const found = hiddenDrawings(markup)
+
+    expect(found).toHaveLength(1)
+    expect(found[0].at).toBeLessThan(markup.indexOf(LINE))
+
+    const unchanged = { ...ruleActions, rules: { any_addable: true, changed: false, read_only_reason: null } }
+    expect(hiddenDrawings(renderBlock(ITEMS, false, { ruleActions: unchanged }))).toHaveLength(0)
+  })
+
+  it('is left out while the rules are unchanged, unknown or the items could not load', () => {
+    const unchanged = { ...ruleActions, rules: { any_addable: true, changed: false, read_only_reason: null } }
+
+    expect(renderBlock(ITEMS, false, { ruleActions: unchanged })).not.toContain(LINE)
+    expect(renderBlock(ITEMS, false, { ruleActions: { ...ruleActions, rules: null } })).not.toContain(LINE)
+    expect(renderBlock(ITEMS, false)).not.toContain(LINE)
+    expect(renderBlock([], false, { ruleActions, itemsFailure: { retry: () => {}, isRetrying: false } })).not.toContain(
+      LINE,
+    )
+  })
+
+  it('leaves Approve all live while it shows', () => {
+    const markup = renderBlock(ITEMS, false, { ruleActions })
+
+    const buttons = buttonsNamed(markup, 'Approve all')
+
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0]).not.toMatch(/ disabled=""|aria-disabled/)
+  })
+
+  it.each([
+    ['approve', 'Approve all', 'Reapply updated rules'],
+    ['apply', 'Reapply updated rules', 'Approve all'],
+  ] as const)('holds the other button off while %s runs, never both busy', (busy, running, waiting) => {
+    const markup = renderBlock(ITEMS, false, { ruleActions: { ...ruleActions, busy } })
+    const named = (name: string) => buttonsNamed(markup, name)
+
+    expect(named(running).length).toBeGreaterThan(0)
+    for (const button of named(running)) expect(button).toContain('aria-busy="true"')
+    expect(named(waiting).length).toBeGreaterThan(0)
+    for (const button of named(waiting)) {
+      expect(button).toMatch(/ disabled=""/)
+      expect(button).toContain('aria-busy="false"')
+    }
+  })
+})
+
+describe('a waiting row', () => {
+  const rule = { id: 'rule-1', name: 'Pay' }
+  const fillOf = (merchantName: string | null, categoryName: string | null) => ({
+    merchant: merchantName ? { id: 'm', name: merchantName, rule } : null,
+    category: categoryName ? { id: 'c', name: categoryName, kind: 'expense' as const, rule } : null,
+    tags: [],
+    category_left_out: null,
+    tags_left_out: null,
+  })
+
+  /** The row's icon, its merchant's and category's places and its date and account, as text */
+  function partsOf(item: BankReviewItem, icons: Record<string, string> = {}) {
+    const markup = renderBlock([item], false, { categoryIconFor: (id) => icons[id] })
+    // The details close the merchant's line and the text column with them
+    const part = (testId: string, end = '</span>(?=<span|</span>)') =>
+      new RegExp(`data-testid="${testId}"[^>]*>(.*?)${end}`, 's')
+        .exec(markup)?.[1]
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    return {
+      icon: part('review-item-icon'),
+      name: part('review-item-name'),
+      heading: part('review-item-heading'),
+      details: part('review-item-details', '</span></span></span>'),
+    }
+  }
+
+  it("shows the rules' category with its icon and their merchant, as a ledger row does, with nothing more", () => {
+    const matched = createReviewItem('matched', 'new', 'everyday', { rule_fill: fillOf('Market', 'Groceries') })
+
+    expect(partsOf(matched, { c: '🛒' })).toEqual({
+      icon: '🛒',
+      name: 'Market',
+      heading: 'Groceries',
+      details: '· Sep 21 · Everyday',
+    })
+    expect(renderBlock([matched], false)).not.toMatch(/Needs|Filled in|>New</)
+  })
+
+  it('shows the stand-in icon, Uncategorized and the description where the rules gave no category or merchant', () => {
+    expect(partsOf(createReviewItem('plain', 'new', 'everyday'))).toEqual({
+      icon: '🏷️',
+      name: 'GROCER plain',
+      heading: 'Uncategorized',
+      details: '· Sep 21 · Everyday',
+    })
+    expect(partsOf(createReviewItem('part', 'new', 'everyday', { rule_fill: fillOf('Market', null) }))).toEqual({
+      icon: '🏷️',
+      name: 'Market',
+      heading: 'Uncategorized',
+      details: '· Sep 21 · Everyday',
+    })
+  })
+
+  it("shows the stand-in icon for a category whose icon isn't loaded", () => {
+    const matched = createReviewItem('matched', 'new', 'everyday', { rule_fill: fillOf(null, 'Groceries') })
+
+    expect(partsOf(matched).icon).toBe('🏷️')
   })
 })
 

@@ -6,6 +6,15 @@ import { describe, expect, it } from 'vitest'
 import { createProviders } from '@tests/pages/accounts/detail/components/bank-link/fixtures'
 import { listSettingsSections, SETTINGS_SECTIONS } from '@/pages/settings/settingsNavigation'
 
+describe('the Import rules section', () => {
+  it('sits after Tags and before Tax-advantaged categories, whichever way the sections are listed', () => {
+    const ids = listSettingsSections(createProviders(), 'shown').map((section) => section.id)
+
+    expect(ids.indexOf('import-rules')).toBe(ids.indexOf('tags') + 1)
+    expect(ids.indexOf('tax-advantaged-categories')).toBe(ids.indexOf('import-rules') + 1)
+  })
+})
+
 describe('settings sections', () => {
   const withoutBankConnections = SETTINGS_SECTIONS.filter((section) => section.id !== 'bank-connections')
 

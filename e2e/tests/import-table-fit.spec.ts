@@ -106,11 +106,13 @@ const ICON_ROOM = 24
 
 /**
  * How much room each row leaves between its last field and the table's right edge, in pixels, which
- * is none unless the row's table holds room for an icon
+ * is none unless the row's table holds room for an icon. A row whose last column holds only text, such
+ * as an existing category's type, has no field there and is left out
  */
 function measureRoomAfterControls(table: Locator) {
-  return table.evaluate((node) => [...node.querySelectorAll('tbody tr')].map((row) => {
-    const controls = [...row.lastElementChild!.querySelectorAll('[role="combobox"]')]
+  return table.evaluate((node) => [...node.querySelectorAll('tbody tr')].flatMap((row) => {
+    const controls = [...row.lastElementChild!.querySelectorAll('[role="combobox"], [role="radiogroup"], input')]
+    if (controls.length === 0) return []
     return {
       name: row.firstElementChild!.textContent!.trim(),
       room: Math.round(node.getBoundingClientRect().right - Math.max(...controls.map((control) => control.getBoundingClientRect().right))),

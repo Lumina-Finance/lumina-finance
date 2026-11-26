@@ -2,7 +2,8 @@
  * Covers the bank sync request functions that reshape what they send
  *
  * These tests catch the review list losing its place between pages, a body losing the field names
- * the backend reads, such as the credential a reconnect sends, a request that waits on the bank
+ * the backend reads, such as the credential a reconnect sends, a press of Approve all still sending
+ * the version of the rules the server no longer reads, or a press of Reapply updated rules sending a body, a request that waits on the bank
  * provider failing at the shared request limit while the server is still finishing it, and a read
  * that keeps going after the load that asked for it was abandoned
  */
@@ -18,6 +19,8 @@ vi.mock('@/api/client', () => ({
 
 import { createReviewItem } from '@tests/api/cache/updates/fixtures'
 import {
+  applyRulesToReviewItems,
+  approveAllReviewItems,
   bulkAddReviewItems,
   bulkDismissReviewItems,
   claimCredential,
@@ -137,6 +140,24 @@ describe('bank sync writes', () => {
         JSON.stringify({ items: sentItems, merchant_id: 'merchant-1', category_id: 'groceries', dt: '2026-10-01' }),
       ],
       ['/bank-review/items/bulk-dismiss', JSON.stringify({ items: sentItems })],
+    ])
+  })
+
+  it('sends the accounts the list shows and no version of the rules, or no accounts for every one', async () => {
+    await approveAllReviewItems({ accountIds: ['account-1', 'account-2'] })
+    await approveAllReviewItems({ accountIds: undefined })
+
+    expect(authenticatedFetchMock.mock.calls.map(([path, options]) => [path, options.method, options.body])).toEqual([
+      ['/bank-review/items/approve-all', 'POST', JSON.stringify({ account_ids: ['account-1', 'account-2'] })],
+      ['/bank-review/items/approve-all', 'POST', JSON.stringify({ account_ids: null })],
+    ])
+  })
+
+  it('puts the waiting items through the rules with no body', async () => {
+    await applyRulesToReviewItems()
+
+    expect(authenticatedFetchMock.mock.calls.map(([path, options]) => [path, options.method, options.body])).toEqual([
+      ['/bank-review/items/apply-rules', 'POST', undefined],
     ])
   })
 })

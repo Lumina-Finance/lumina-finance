@@ -5,7 +5,9 @@
  *
  * These tests catch Dismiss running over a ledger transaction, Edit opening over an item missing its
  * amount, Apply counting only one kind toward the cap, a bulk add sending a note taken off or tags it
- * can't replace, and a toast hiding the items that were skipped
+ * can't replace, a toast hiding the items that were skipped, a press of Approve all saying nothing
+ * of the items it left to add or naming the old button, and a press of Reapply updated rules miscounting the
+ * waiting items it updated or giving no word when it changed none
  */
 import { describe, expect, it } from 'vitest'
 import { MAX_BULK_EDIT_TRANSACTIONS } from '@/components/transactions/bulk-edit/constants'
@@ -13,6 +15,9 @@ import {
   NOTHING_TICKED_WITH_REVIEW,
   ONLY_REVIEW_ITEMS_DISMISSED,
   describeAddedButNotUpdated,
+  describeAppliedRules,
+  describeApproveAllAnswer,
+  describeApprovedAll,
   describeBulkAdd,
   describeBulkDismiss,
   describeTickLimit,
@@ -147,6 +152,33 @@ describe('the toasts after a bulk decision', () => {
     expect(describeBulkAdd(1, 2, 1)).toBe(
       "Added 1 item to your ledger and updated 1 transaction. 2 items couldn't be added and still wait for review.",
     )
+  })
+
+  it('says how many a press of Approve all added, and that more are left to add only when they are', () => {
+    expect(describeApprovedAll(12, false)).toBe('Added 12 items to your ledger.')
+    expect(describeApprovedAll(1, false)).toBe('Added 1 item to your ledger.')
+    expect(describeApprovedAll(1000, true)).toBe(
+      'Added 1000 items to your ledger. More items are left to add, so please press Approve all again.',
+    )
+    expect(describeApprovedAll(0, false)).toBe(
+      'No items were added to your ledger: none of the waiting items was ready to add any more.',
+    )
+  })
+
+  it("passes the server's answer to Approve all through, the count of items added and whether more are left", () => {
+    expect(describeApproveAllAnswer({ added_ids: ['a', 'b'], more_to_add: false })).toBe(
+      'Added 2 items to your ledger.',
+    )
+    expect(describeApproveAllAnswer({ added_ids: ['a', 'b'], more_to_add: true })).toBe(
+      'Added 2 items to your ledger. More items are left to add, so please press Approve all again.',
+    )
+    expect(describeApproveAllAnswer({ added_ids: [], more_to_add: false })).toBe(describeApprovedAll(0, false))
+  })
+
+  it('says how many waiting items a press of Reapply updated rules updated, and that none changed when none did', () => {
+    expect(describeAppliedRules(12)).toBe('Updated 12 waiting items with your import rules.')
+    expect(describeAppliedRules(1)).toBe('Updated 1 waiting item with your import rules.')
+    expect(describeAppliedRules(0)).toBe('Your import rules changed nothing on the waiting items.')
   })
 
   it('says the items went in when the ledger update was then refused', () => {

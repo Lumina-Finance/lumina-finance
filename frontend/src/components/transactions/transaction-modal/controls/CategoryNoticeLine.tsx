@@ -4,18 +4,21 @@ import { EASE } from '@/components/transactions/transaction-modal/constants'
 
 type CategoryNoticeLineProps = {
   show: boolean
+
+  /** The warning colour for a line that asks for attention, muted for one that only says where a value came from */
+  tone?: 'warning' | 'muted'
   children: ReactNode
 }
 
 /**
- * One line of explanation under the category dropdown, expanding and collapsing with the choice
- * that produces it
+ * One line of explanation under a field's dropdown, expanding and collapsing with the choice that
+ * produces it
  *
  * The wrapper clips only while its height is moving. Clipping is what lets the height animate
  * without the content spilling, and leaving it on afterwards would cut off a tooltip panel, which
  * is positioned outside the line's own box
  */
-export default function CategoryNoticeLine({ show, children }: CategoryNoticeLineProps) {
+export default function CategoryNoticeLine({ show, tone = 'warning', children }: CategoryNoticeLineProps) {
   // Starts clipped so the first frame of the expansion cannot spill, and goes back to clipped as
   // the collapse begins
   const [clipWhileMoving, setClipWhileMoving] = useState(true)
@@ -35,7 +38,7 @@ export default function CategoryNoticeLine({ show, children }: CategoryNoticeLin
         >
           <div
             className="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5 pt-2 text-xs leading-5"
-            style={{ color: 'var(--app-warning-text)' }}
+            style={{ color: tone === 'warning' ? 'var(--app-warning-text)' : 'var(--app-text-muted)' }}
           >
             {children}
           </div>
