@@ -74,6 +74,9 @@ const group = (picker: Locator, key: 'likely' | 'other') => picker.getByTestId(`
 const amounts = (scope: Locator) => scope.getByTestId('link-candidate').getByTestId('transaction-amount')
 const folded = (picker: Locator) => picker.getByRole('button', { name: /can't be linked/ })
 const preview = (picker: Locator) => picker.getByTestId('link-chain-preview')
+// The preview's rows in the dashed Unsaved border, and the labels on it. Picks next to each other share one label
+const unsaved = (picker: Locator) => preview(picker).locator('[data-not-saved="true"]')
+const unsavedLabels = (picker: Locator) => preview(picker).getByTestId('unsaved-label')
 
 // The eyebrow's date for a day this many days ago, such as "Nov 12", with the year only when it isn't this year's
 function eyebrowDate(daysAgo: number) {
@@ -127,18 +130,23 @@ test('groups an expense picker by fit and previews the chain as it stands', asyn
   // The preview leaves out the refunds the expense already has, and says nothing of them
   await expect(preview(picker)).toContainText('Harbor Electronics')
   await expect(preview(picker)).not.toContainText('linked')
-  await expect(preview(picker).getByTestId('refund-chain-new')).toHaveCount(0)
+  await expect(unsaved(picker)).toHaveCount(0)
   await expect(preview(picker).getByTestId('refund-status')).toHaveText('Partly refunded')
   await expect(preview(picker).getByTestId('refund-room')).toHaveText('$135.00')
 })
 
-// Example 2: picking the exact refund adds it to the preview marked New, refunded in full, and Link makes the same
-// chain in the Refunds section
+// Example 2: picking the exact refund adds it to the preview in the Refunds section's dashed Unsaved border, refunded
+// in full, and Link makes the same chain in the Refunds section
 test('previews a pick that refunds in full and links the same chain', async ({ page, request }) => {
   const { dialog, picker } = await openPicker(page, request, 'expense')
 
   await rowWith(group(picker, 'likely'), 'Harbor Electronics', '+$135.00').getByRole('button').click()
-  await expect(preview(picker).getByTestId('refund-chain-new')).toHaveCount(1)
+  await expect(unsaved(picker)).toHaveCount(1)
+  await expect(unsaved(picker)).toContainText('+$135.00')
+  await expect(unsavedLabels(picker)).toHaveText(['Unsaved'])
+  // A screen reader hears that the pick is unsaved, in words kept off the screen
+  await expect(unsaved(picker).getByText('not saved yet')).toHaveClass('sr-only')
+  await expect(preview(picker).getByText('New', { exact: true })).toHaveCount(0)
   await expect(preview(picker).getByTestId('refund-status')).toHaveText('Refunded in full')
   await expect(preview(picker).getByTestId('refund-room')).toHaveText('$0.00')
   // The rows that no longer fit fold away while the picked one stays in its group
@@ -189,7 +197,7 @@ test('hides a group and its heading when a search leaves it empty', async ({ pag
 })
 
 // Example 5: a refund's picker offers as likely the expenses from its merchant or with exactly its amount left, folds
-// the one with less left, and previews the chain of the expense picked with this refund marked New
+// the one with less left, and previews the chain of the expense picked, in the dashed Unsaved border, with this refund
 test('groups a refund picker by fit and previews the picked expense chain', async ({ page, request }) => {
   const { picker } = await openPicker(page, request, 'refund')
 
@@ -202,9 +210,9 @@ test('groups a refund picker by fit and previews the picked expense chain', asyn
     /This expense has only \$50\.00 left to refund$/,
   )
 
-  // Before a pick the preview shows this refund alone, marked New, and its live region is already there to read the
-  // first pick's result
-  await expect(preview(picker).getByTestId('refund-chain-new')).toHaveCount(1)
+  // Before a pick the preview shows this refund alone with no link to mark unsaved, and its live region is already
+  // there to read the first pick's result
+  await expect(unsaved(picker)).toHaveCount(0)
   await expect(preview(picker)).toContainText('Harbor Electronics')
   await expect(preview(picker)).not.toContainText('Pick the expense')
   await expect(preview(picker).getByTestId('refund-room')).toHaveCount(0)
@@ -214,7 +222,10 @@ test('groups a refund picker by fit and previews the picked expense chain', asyn
   await rowWith(group(picker, 'likely'), 'Harbor Electronics', '−$420.00').getByRole('button').click()
   await expect(totals).toHaveText('Refunded in full, $0.00 left to refund')
   await expect(preview(picker)).not.toContainText('linked')
-  await expect(preview(picker).getByTestId('refund-chain-new')).toHaveCount(1)
+  // The picked expense is the link's other side, so it takes the border, as in the Refunds section of a refund
+  await expect(unsaved(picker)).toHaveCount(1)
+  await expect(unsaved(picker)).toContainText('−$420.00')
+  await expect(unsavedLabels(picker)).toHaveText(['Unsaved'])
   await expect(preview(picker).getByTestId('refund-status')).toHaveText('Refunded in full')
   await expect(preview(picker).getByTestId('refund-room')).toHaveText('$0.00')
 })
@@ -296,15 +307,18 @@ async function openUnlinkedPicker(page: Page, request: APIRequestContext) {
   return { dialog, picker }
 }
 
-// With nothing linked yet the preview has no line for linked refunds, and several picks each join the chain marked New
-// and together set what is left
+// With nothing linked yet, several picks join the chain in one shared dashed Unsaved border with one label, and
+// together set what is left
 test('previews several picks together on an expense with nothing linked', async ({ page, request }) => {
   const { picker } = await openUnlinkedPicker(page, request)
   await expect(preview(picker).getByTestId('refund-room')).toHaveText('$100.00')
 
   await rowWith(group(picker, 'likely'), 'Harbor Electronics', '+$40.00').getByRole('button').click()
   await rowWith(group(picker, 'other'), 'Corner Shop', '+$30.00').getByRole('button').click()
-  await expect(preview(picker).getByTestId('refund-chain-new')).toHaveCount(2)
+  await expect(unsaved(picker)).toHaveCount(2)
+  await expect(unsavedLabels(picker)).toHaveCount(1)
+  await expect(unsaved(picker).first()).toHaveCSS('border-bottom-width', '0px')
+  await expect(unsaved(picker).last()).toHaveCSS('border-top-width', '0px')
   await expect(preview(picker).getByTestId('refund-status')).toHaveText('Partly refunded')
   await expect(preview(picker).getByTestId('refund-room')).toHaveText('$30.00')
   await expect(folded(picker)).toHaveText("1 can't be linked, more than what's left")

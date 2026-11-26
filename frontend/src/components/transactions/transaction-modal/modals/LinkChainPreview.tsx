@@ -29,11 +29,12 @@ interface LinkChainPreviewProps {
 }
 
 /**
- * The chain linking would make, pinned above the picker's buttons in the look of the Refunds section: the expense, each
- * picked refund marked New, and what is left to refund with its badge. The refunds the expense already has stay out,
- * since what is left already counts them. A refund with no expense picked yet shows itself alone, marked New. A screen
- * reader hears what is left each time a pick changes it, from a live region present from the start, so the first pick
- * is read too
+ * The chain linking would make, pinned above the picker's buttons in the look of the Refunds section: the expense, its
+ * refunds, and what is left to refund with its badge. Each pick sits in the dashed Unsaved border the Refunds section
+ * gives a link Save has yet to make, since Link only holds it there until Save. The refunds the expense already has stay
+ * out, since what is left already counts them. A refund with no expense picked yet shows itself alone. A screen reader
+ * hears what is left each time a pick changes it, from a live region present from the start, so the first pick is read
+ * too
  */
 export default function LinkChainPreview({ transaction, picked, refundRoom, iconOf, kindOf }: LinkChainPreviewProps) {
   const { formatCurrency } = useMoneyFormatters()
@@ -70,7 +71,6 @@ export default function LinkChainPreview({ transaction, picked, refundRoom, icon
                 dt={transaction.dt}
                 amount={transaction.amount}
                 currency={transaction.currency}
-                isNew
               />
             </RefundChainBox>
           </RevealRow>
@@ -84,6 +84,7 @@ export default function LinkChainPreview({ transaction, picked, refundRoom, icon
                 dt={expense.dt}
                 amount={expense.amount}
                 currency={expense.currency}
+                notSaved={!picksRefund}
                 lineBelow
               />
               {/* The lead eases with the first pick, so the chain's height never snaps beside an easing row */}
@@ -95,11 +96,12 @@ export default function LinkChainPreview({ transaction, picked, refundRoom, icon
                 )}
               </AnimatePresence>
               {/* A long run of picks scrolls in its own box, so it never pushes the list off a phone's screen. Each pick
-                  eases in and out as a row of the Refunds section does */}
-              <div className="max-h-[9.5rem] overflow-y-auto overscroll-contain">
+                  eases in and out as a row of the Refunds section does. The box and each row reach 8px past the chain
+                  on each side, with padding to match, so neither cuts off the Unsaved border */}
+              <div className="-mx-2 max-h-[9.5rem] overflow-y-auto overscroll-contain">
                 <AnimatePresence initial={false}>
                   {refunds.map((refund, index) => (
-                    <RevealRow key={refund.id} spacingClassName="">
+                    <RevealRow key={refund.id} spacingClassName="px-2">
                       <RefundChainGap place="above" />
                       <RefundChainRow
                         icon={iconOf(expense)}
@@ -108,7 +110,9 @@ export default function LinkChainPreview({ transaction, picked, refundRoom, icon
                         dt={refund.dt}
                         amount={refund.amount}
                         currency={refund.currency}
-                        isNew
+                        notSaved={picksRefund}
+                        joinsAbove={picksRefund && index > 0}
+                        joinsBelow={picksRefund && index < refunds.length - 1}
                         lineAbove
                         lineBelow={index < refunds.length - 1}
                       />

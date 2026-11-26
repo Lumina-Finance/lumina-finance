@@ -117,9 +117,6 @@ interface RefundChainRowProps {
   /** Marks a link that Save has yet to make */
   notSaved?: boolean
 
-  /** Marks the row a link picker would add, in a preview of the chain linking makes */
-  isNew?: boolean
-
   /** Joins an unsaved row's border to the unsaved row above or below it, so a run of them shares one border */
   joinsAbove?: boolean
   joinsBelow?: boolean
@@ -148,7 +145,6 @@ export function RefundChainRow({
   amount,
   currency,
   notSaved = false,
-  isNew = false,
   joinsAbove = false,
   joinsBelow = false,
   unlink,
@@ -213,16 +209,6 @@ export function RefundChainRow({
         <p className="break-words text-sm font-medium leading-5" style={{ color: 'var(--app-text)' }}>
           {merchantName}
           {notSaved && <span className="sr-only">, not saved yet</span>}
-          {/* Sits after the name, 4px off it, as a word a screen reader hears in its place */}
-          {isNew && (
-            <span
-              className="ml-1 inline-block rounded-full px-1.5 align-[1px] text-[0.625rem] font-semibold uppercase leading-4 tracking-wider"
-              style={{ background: 'var(--app-accent-soft)', color: 'var(--app-accent-on-page-tint)' }}
-              data-testid="refund-chain-new"
-            >
-              <span className="sr-only">, </span>New
-            </span>
-          )}
         </p>
         {/* Wraps between whole phrases on a narrow screen rather than cutting the date off. Each phrase draws its
             dot in front, and the negative margin pushes the dot of a phrase starting a line out of the clipped box.
