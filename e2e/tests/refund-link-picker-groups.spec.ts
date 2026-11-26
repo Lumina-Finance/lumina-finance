@@ -185,6 +185,21 @@ test('folds the rows a partial pick leaves no room for and brings them back', as
   await expect(amounts(group(picker, 'other'))).toHaveText(['+$130.00'])
 })
 
+// A row easing out of its group into the folded row can't be picked on its way out, so what is left never goes below
+// nothing
+test('ignores a press on a row easing into the folded row', async ({ page, request }) => {
+  const { picker } = await openPicker(page, request, 'expense')
+  const refund = rowWith(group(picker, 'likely'), 'Harbor Electronics', '+$135.00').getByRole('button')
+  await expect(refund).toBeVisible()
+
+  await rowWith(group(picker, 'likely'), 'Harbor Electronics', '+$60.00').getByRole('button').click()
+  // Pressed at once, while the row still eases out of Likely matches
+  await refund.click({ force: true, timeout: 1000 })
+  await expect(preview(picker).getByTestId('refund-room')).toHaveText('$75.00')
+  await expect(unsaved(picker)).toHaveCount(1)
+  await expect(folded(picker)).toHaveText("4 can't be linked, each more than what's left")
+})
+
 // Example 4: a search narrows every group, and a group left with no rows drops its heading
 test('hides a group and its heading when a search leaves it empty', async ({ page, request }) => {
   const { picker } = await openPicker(page, request, 'expense')

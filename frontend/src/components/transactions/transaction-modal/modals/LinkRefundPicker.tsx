@@ -163,11 +163,15 @@ export default function TransactionModalLinkRefundPicker({
   const picked = rows.filter((candidate) => pickedIds.includes(candidate.id))
   if (picked.length !== pickedIds.length && candidates.data !== undefined) setPickedIds(picked.map(({ id }) => id))
 
-  // An expense takes several refunds, and a refund takes one expense, so pressing another row moves its pick
+  // An expense takes several refunds, and a refund takes one expense, so pressing another row moves its pick. A row
+  // easing out of its group into the folded row still takes a press for a moment, with the refusal it had before, so a
+  // new pick is checked against the picks as they are when it lands
   const togglePick = (id: string) =>
-    setPickedIds((current) =>
-      current.includes(id) ? current.filter((pickedId) => pickedId !== id) : picksRefund ? [...current, id] : [id],
-    )
+    setPickedIds((current) => {
+      if (current.includes(id)) return current.filter((pickedId) => pickedId !== id)
+      if (getRefusedRooms(transaction, rows, refundRoom, current).has(id)) return current
+      return picksRefund ? [...current, id] : [id]
+    })
 
   const setFilter = (patch: Partial<TransactionListFilters>) =>
     setFilters((current) => normalizeTransactionFilters({ ...current, ...patch }))
