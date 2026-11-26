@@ -1,10 +1,10 @@
-import { type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MoreVertical } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { getMenuItemTarget } from '@/components/passkeys/menuKeyboard'
 import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
-import { FLOATING_LAYER_PROPS } from '@/utils/floatingLayer'
+import { FLOATING_LAYER_PROPS, markFloatingLayer } from '@/utils/floatingLayer'
 
 interface OverflowMenuItem {
   label: string
@@ -99,6 +99,12 @@ export function OverflowMenu({
     setIsOpen(false)
     if (hadFocus) triggerRef.current?.focus({ preventScroll: true })
   }, [isFocusInMenu, triggerRef])
+
+  // The menu stays on the page while it fades out, and a dialogue leaves Escape to any open floating layer, so the
+  // closing menu stops counting as one at once and a dialogue its chosen item opens answers the first Escape
+  useLayoutEffect(() => {
+    markFloatingLayer(menuRef.current, isOpen)
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) return
