@@ -1,20 +1,26 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link2 } from 'lucide-react'
 import { AnimatePresence } from 'motion/react'
 import RevealRow from '@/components/transactions/transaction-modal/sections/RevealRow'
 import { useAccounts } from '@/api/accounts'
 import { useCategories } from '@/api/categories'
-import { useRefundLinkCandidates, type Transaction } from '@/api/transactions'
+import { useRefundLinkCandidates, type RefundLinkCandidate, type Transaction } from '@/api/transactions'
 import { GlassSearchField } from '@/components/list-controls/GlassSearchField'
 import LoadFailure from '@/components/errors/LoadFailure'
 import { ModalFormFooter } from '@/components/modal/FormFooter'
+import { MODAL_INSET_CLASS_NAME } from '@/components/modal/inset'
 import { ModalTitledPanel } from '@/components/modal/TitledPanel'
 import { useMoneyFormatters } from '@/hooks/useMoneyFormatters'
+import { useTodayYmd } from '@/hooks/useTodayYmd'
 import LinkCandidateRow from '@/components/transactions/transaction-modal/modals/LinkCandidateRow'
+import LinkChainPreview from '@/components/transactions/transaction-modal/modals/LinkChainPreview'
 import TransactionModalLinkRefundFilters from '@/components/transactions/transaction-modal/modals/LinkRefundFilters'
-import { getRefusedRooms } from '@/components/transactions/transaction-modal/utils/refund'
+import UnlinkableCandidates from '@/components/transactions/transaction-modal/modals/UnlinkableCandidates'
+import { NO_MERCHANT } from '@/components/transactions/transaction-modal/sections/RefundChain'
+import { getRefusedRooms, groupLinkCandidates } from '@/components/transactions/transaction-modal/utils/refund'
 import { toTransactionListAccount, type TransactionListFilters } from '@/components/transactions/types/transactionList'
 import { normalizeTransactionFilters } from '@/components/transactions/utils/normalizeTransactionFilters'
+import { formatShortDateRangeLabel } from '@/utils/date'
 
 // How long typing pauses before the search is sent, so a word is one request rather than one per letter
 const SEARCH_DEBOUNCE_MS = 250
@@ -41,18 +47,25 @@ interface LinkRefundPickerProps {
   /** What is left to refund of the open expense once its refunds, saved and held, are counted */
   refundRoom: number | undefined
 
+  /** What is left to refund, sent with the list while the window holds links or refunds the server can't count */
+  leftToRefund: number | undefined
+
+  /** The round icon an expense and its refunds share */
+  iconOf: (expense: Transaction) => ReactNode
+
   /** Holds the picks until the window is saved */
   onPick: (picked: Transaction[]) => void
 }
 
 /**
  * Opens over the transaction modal to link existing refunds to an expense, or an existing expense to
- * a refund. The server lists only what linking would accept, the exact amount first and then the nearest,
- * and the list's own filters narrow it. An expense takes several refunds while
- * their total stays within it, so each pick lowers what is left for the others. A row that no longer fits stays
- * listed, greyed out with its reason in the shared tooltip, and returns to full strength when a pick is undone. A refund takes one expense, and
- * pressing another moves the pick. The modal's Link button, live once one is picked, holds the picks until
- * the window it opened from is saved
+ * a refund. The server lists only what linking would accept, the likely matches first and then the
+ * nearest, and the list's own filters narrow it. The list shows the likely matches and the others under their own
+ * headings, and folds what can't be linked now into one row at the end that opens to say why for each. An expense
+ * takes several refunds while their total stays within it, so each pick lowers what is left for the others and folds
+ * away the rows it leaves no room for. Undoing the pick brings them back. A refund takes one expense, and pressing
+ * another moves the pick. Above the buttons, a preview shows the chain linking would make. The modal's Link button,
+ * live once one is picked, holds the picks until the window it opened from is saved
  */
 export default function TransactionModalLinkRefundPicker({
   open,
@@ -61,10 +74,13 @@ export default function TransactionModalLinkRefundPicker({
   heldIds,
   unlinkedIds,
   refundRoom,
+  leftToRefund,
+  iconOf,
   onPick,
 }: LinkRefundPickerProps) {
   const titleId = useId()
-  const { formatCurrency } = useMoneyFormatters()
+  const { formatCurrency, formatMovedCurrency } = useMoneyFormatters()
+  const today = useTodayYmd()
   const [search, setSearch] = useState('')
   const [sentSearch, setSentSearch] = useState('')
   const [filters, setFilters] = useState<TransactionListFilters>({})
@@ -74,8 +90,7 @@ export default function TransactionModalLinkRefundPicker({
   const bodyRef = useRef<HTMLElement | null>(null)
 
   // Opening or closing the filter panel un-pins or re-pins the block above the rows. The body goes back to the
-  // top in the same frame, which is where the pinned block was, so the explanation, search field and Filters
-  // button do not move
+  // top in the same frame. The pinned block sat at that top, so the search field and Filters button do not move
   const watchFilterPanel = (block: HTMLDivElement | null) => {
     if (!block) return
     const observer = new MutationObserver(() => {
@@ -97,11 +112,11 @@ export default function TransactionModalLinkRefundPicker({
     return () => observer.disconnect()
   }
   const picksRefund = transaction.amount < 0
-  const candidates = useRefundLinkCandidates(
-    open ? transaction.id : null,
-    sentSearch,
-    unlinkedIds.length > 0 ? { ...filters, unlinked_id: unlinkedIds } : filters,
-  )
+  const candidates = useRefundLinkCandidates(open ? transaction.id : null, sentSearch, {
+    ...filters,
+    ...(unlinkedIds.length > 0 && { unlinked_id: unlinkedIds }),
+    ...(leftToRefund !== undefined && { left_to_refund: leftToRefund }),
+  })
   const { data: accounts } = useAccounts()
   const { data: categories } = useCategories()
   const transactionAccounts = useMemo(() => (accounts ?? []).map(toTransactionListAccount), [accounts])
@@ -129,12 +144,11 @@ export default function TransactionModalLinkRefundPicker({
 
   const rows = (candidates.data ?? []).filter((candidate) => !heldIds.includes(candidate.id))
 
-  // Every row stays listed. One that can't be picked now is greyed out with what is left, and returns to full strength
-  // when a pick is undone
+  // A row a pick leaves no room for folds into the row of those that can't be linked, and comes back when the pick is
+  // undone. The others keep the group the server's reasons give them
   const refusedRooms = getRefusedRooms(transaction, rows, refundRoom, pickedIds)
-  const refusalFor = (candidate: Transaction): string | null => {
-    const room = refusedRooms.get(candidate.id)
-    if (room === undefined) return null
+  const groups = groupLinkCandidates(rows, refusedRooms)
+  const refusalFor = (room: number, candidate: Transaction): string => {
     if (picksRefund) {
       return room > 0
         ? `This refund is more than the ${formatCurrency(room, candidate.currency)} left to refund`
@@ -149,11 +163,15 @@ export default function TransactionModalLinkRefundPicker({
   const picked = rows.filter((candidate) => pickedIds.includes(candidate.id))
   if (picked.length !== pickedIds.length && candidates.data !== undefined) setPickedIds(picked.map(({ id }) => id))
 
-  // An expense takes several refunds, and a refund takes one expense, so pressing another row moves its pick
+  // An expense takes several refunds, and a refund takes one expense, so pressing another row moves its pick. A row
+  // easing out of its group into the folded row still takes a press for a moment, with the refusal it had before, so a
+  // new pick is checked against the picks as they are when it lands
   const togglePick = (id: string) =>
-    setPickedIds((current) =>
-      current.includes(id) ? current.filter((pickedId) => pickedId !== id) : picksRefund ? [...current, id] : [id],
-    )
+    setPickedIds((current) => {
+      if (current.includes(id)) return current.filter((pickedId) => pickedId !== id)
+      if (getRefusedRooms(transaction, rows, refundRoom, current).has(id)) return current
+      return picksRefund ? [...current, id] : [id]
+    })
 
   const setFilter = (patch: Partial<TransactionListFilters>) =>
     setFilters((current) => normalizeTransactionFilters({ ...current, ...patch }))
@@ -172,28 +190,92 @@ export default function TransactionModalLinkRefundPicker({
         ? 'empty'
         : 'rows'
   const hasNarrowing = sentSearch !== '' || Object.keys(filters).length > 0
+
+  // The header names the open transaction, so the picker says what it links to
+  const eyebrow = [
+    transaction.merchant_name ?? NO_MERCHANT,
+    formatShortDateRangeLabel(transaction.dt, transaction.dt, Number(today.slice(0, 4))),
+    formatMovedCurrency(transaction.amount, transaction.currency),
+  ].join(' · ')
+  const kindOf = (expense: Transaction) => categoryById.get(expense.category_id)?.name ?? 'Uncategorized'
+
+  const renderRow = (candidate: RefundLinkCandidate, refusal: string | null) => {
+    const account = accountById.get(candidate.account_id)
+    return (
+      <RevealRow key={candidate.id} spacingClassName={ROW_SPACING_CLASS_NAME}>
+        <LinkCandidateRow
+          transaction={candidate}
+          category={categoryById.get(candidate.category_id)}
+          accountName={account?.name}
+          accountInstitution={account?.institution}
+          isPicked={pickedIds.includes(candidate.id)}
+          refusal={refusal}
+          onPick={() => {
+            if (!refusal) togglePick(candidate.id)
+          }}
+        />
+      </RevealRow>
+    )
+  }
+
+  // A group with no rows left drops its heading with them
+  const group = (key: string, heading: string, groupRows: RefundLinkCandidate[]) => (
+    <AnimatePresence initial={false}>
+      {groupRows.length > 0 && (
+        <RevealRow key={key} spacingClassName="">
+          <div role="group" aria-labelledby={`${titleId}-${key}`} data-testid={`link-group-${key}`}>
+            <h3
+              id={`${titleId}-${key}`}
+              className="pb-2 pt-1 text-xs font-semibold uppercase tracking-wide"
+              style={{ color: 'var(--app-text-subtle)' }}
+            >
+              {heading}
+            </h3>
+            <AnimatePresence initial={false}>
+              {groupRows.map((candidate) => renderRow(candidate, null))}
+            </AnimatePresence>
+          </div>
+        </RevealRow>
+      )}
+    </AnimatePresence>
+  )
   return (
     <ModalTitledPanel
       open={open}
       level="stacked"
       onClose={handleClose}
       titleId={titleId}
-      eyebrow="Refund link"
+      eyebrow={eyebrow}
       title={picksRefund ? 'Link a refund' : 'Link to an expense'}
       RailIcon={Link2}
       railLabel="Refund link"
       extraPanelClassName={PANEL_CLASS_NAME}
       footer={
-        <ModalFormFooter
-          level="stacked"
-          submitLabel="Link"
-          submitDisabled={false}
-          submitBlockedReason={picked.length > 0 ? undefined : 'Pick a transaction first'}
-          submitWidthClassName="w-full sm:w-auto"
-          error={null}
-          onCancel={handleClose}
-          onPrimary={handleLink}
-        />
+        <>
+          {/* Stays in view under the scrolling list, so each pick shows at once what linking would make */}
+          <div
+            className={`shrink-0 border-t py-3 ${MODAL_INSET_CLASS_NAME.stacked}`}
+            style={{ borderColor: 'var(--app-border)' }}
+          >
+            <LinkChainPreview
+              transaction={transaction}
+              picked={picked}
+              refundRoom={refundRoom}
+              iconOf={iconOf}
+              kindOf={kindOf}
+            />
+          </div>
+          <ModalFormFooter
+            level="stacked"
+            submitLabel="Link"
+            submitDisabled={false}
+            submitBlockedReason={picked.length > 0 ? undefined : 'Pick a transaction first'}
+            submitWidthClassName="w-full sm:w-auto"
+            error={null}
+            onCancel={handleClose}
+            onPrimary={handleLink}
+          />
+        </>
       }
     >
       {/* Stays at the top of the scrolling body, so only the rows scroll beneath it. The body's padding is not
@@ -204,11 +286,6 @@ export default function TransactionModalLinkRefundPicker({
         className="sticky -top-4 z-10 -mt-4 space-y-4 pb-3 pt-4 has-[[aria-expanded=true]]:relative has-[[aria-expanded=true]]:top-0"
         style={{ background: 'var(--app-bg)' }}
       >
-        <p className="text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-          {picksRefund
-            ? 'Pick money that comes in to link as a refund of this expense. Linking changes no amount or total.'
-            : 'Pick the expense this refund gives money back for. Linking changes no amount or total.'}
-        </p>
         <div ref={watchSearchRowWidth} className="flex items-start gap-3">
           <GlassSearchField
             value={search}
@@ -246,27 +323,21 @@ export default function TransactionModalLinkRefundPicker({
                   : 'No expense is free to link this refund to.'}
             </p>
           ) : (
-            <div role="group" aria-label="Transactions that can be linked" data-testid="link-candidates">
+            <div data-testid="link-candidates">
+              {group('likely', 'Likely matches', groups.likely)}
+              {group('other', picksRefund ? 'Other money in' : 'Other expenses', groups.other)}
               <AnimatePresence initial={false}>
-                {rows.map((candidate) => {
-                  const account = accountById.get(candidate.account_id)
-                  const refusal = refusalFor(candidate)
-                  return (
-                    <RevealRow key={candidate.id} spacingClassName={ROW_SPACING_CLASS_NAME}>
-                      <LinkCandidateRow
-                        transaction={candidate}
-                        category={categoryById.get(candidate.category_id)}
-                        accountName={account?.name}
-                        accountInstitution={account?.institution}
-                        isPicked={pickedIds.includes(candidate.id)}
-                        refusal={refusal}
-                        onPick={() => {
-                          if (!refusal) togglePick(candidate.id)
-                        }}
-                      />
-                    </RevealRow>
-                  )
-                })}
+                {groups.unlinkable.length > 0 && (
+                  <RevealRow key="unlinkable" spacingClassName="">
+                    <UnlinkableCandidates picksRefund={picksRefund} rooms={groups.unlinkable.map(({ room }) => room)}>
+                      <AnimatePresence initial={false}>
+                        {groups.unlinkable.map(({ candidate, room }) =>
+                          renderRow(candidate, refusalFor(room, candidate)),
+                        )}
+                      </AnimatePresence>
+                    </UnlinkableCandidates>
+                  </RevealRow>
+                )}
               </AnimatePresence>
             </div>
           )}

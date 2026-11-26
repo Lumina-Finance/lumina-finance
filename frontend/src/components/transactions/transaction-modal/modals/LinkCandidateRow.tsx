@@ -1,11 +1,13 @@
 import type { Category } from '@/api/categories'
 import type { Institution } from '@/api/institutions'
-import type { Transaction } from '@/api/transactions'
+import type { RefundLinkCandidate } from '@/api/transactions'
 import TransactionRow from '@/components/transactions/Row'
 import { useDisabledReason } from '@/hooks/useDisabledReason'
 
-// A picked row takes the accent fill and an accent border. The others keep a clear border so it eases in and out
-const ROW_CLASS_NAME = 'scroll-mt-44 rounded-lg transition-[background-color,box-shadow] motion-reduce:transition-none'
+// A picked row takes the accent fill and an accent border. The others keep a clear border so it eases in and out. The
+// row inside takes the same corners, so its hover fill and focus ring match a picked row
+const ROW_CLASS_NAME =
+  'scroll-mt-44 rounded-lg [&_.app-transaction-row]:rounded-lg transition-[background-color,box-shadow] motion-reduce:transition-none'
 const RESTING_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px transparent' }
 const PICKED_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
 
@@ -14,28 +16,26 @@ const PICKED_ROW_STYLE = { boxShadow: 'inset 0 0 0 1px var(--app-accent)' }
 const PICKED_ROW_CLASS_NAME =
   'bg-[var(--app-accent-soft)] hover:bg-[var(--app-accent-chosen-hover-fill)] [&_.app-transaction-row]:bg-transparent!'
 
-// A row that can't be picked wears the app's standard disabled strength, and eases to and from it as picks change. The
-// whole of the row's content fades, its cells and its title, whereas the row around it draws the keyboard focus
-// ring and stays at full strength
-const CONTENT_CLASS_NAME =
-  '[&_[data-row-content]]:transition-opacity motion-reduce:[&_[data-row-content]]:transition-none'
+// A row that can't be picked wears the app's standard disabled strength. The whole of the row's content fades, its
+// cells and its title, whereas the row around it draws the keyboard focus ring and stays at full strength
 const DISABLED_CONTENT_CLASS_NAME = '[&_[data-row-content]]:opacity-50'
 
 interface LinkCandidateRowProps {
-  transaction: Transaction
+  transaction: RefundLinkCandidate
   category: Category | undefined
   accountName: string | undefined
   accountInstitution: Institution | null | undefined
   isPicked: boolean
 
-  /** Why the row can't be picked now, shown in the shared tooltip like a greyed out button's. Null when it can be */
+  /** Why the row can't be linked now, shown in the shared tooltip like a greyed out button's. Null when it can be */
   refusal: string | null
   onPick: () => void
 }
 
 /**
- * A row of the link picker. A row that can't be picked is greyed out, and its reason is given by the tooltip on
- * hover, keyboard focus and tap and by its description for a screen reader, never written into the row
+ * A row of the link picker. A row that can't be linked is greyed out, and its reason is given by the tooltip on hover,
+ * keyboard focus and tap and by its description for a screen reader, never written into the row. A likely match
+ * carries no label saying why, since its group heading says it
  */
 export default function LinkCandidateRow({
   transaction,
@@ -55,7 +55,7 @@ export default function LinkCandidateRow({
       data-picked={isPicked ? 'true' : undefined}
       data-refused={refusal ? 'true' : undefined}
     >
-      <div className={refusal ? `${CONTENT_CLASS_NAME} ${DISABLED_CONTENT_CLASS_NAME}` : CONTENT_CLASS_NAME}>
+      <div className={refusal ? DISABLED_CONTENT_CLASS_NAME : undefined}>
         <TransactionRow
           transaction={transaction}
           currency={transaction.currency}

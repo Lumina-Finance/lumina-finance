@@ -106,8 +106,8 @@ export function CollapsibleSection({
     <div className={className}>
       {/* Inside a list that scrolls sideways, the header fits the visible width and stays in view. Each
           part sits on the first line, so a summary that wraps keeps the label and chevron level with its
-          first line rather than centred between its lines. The side padding keeps the hover tint clear
-          of the icon and chevron */}
+          first line rather than centred between its lines. A label that wraps leaves no word alone on its
+          last line. The side padding keeps the hover tint clear of the icon and chevron */}
       <button
         ref={headerRef}
         type="button"
@@ -124,7 +124,7 @@ export function CollapsibleSection({
         <span className="flex h-6 shrink-0 items-center" style={{ width: iconSlotWidth }}>
           <Icon size={16} aria-hidden />
         </span>
-        <span className="font-medium leading-6">{label}</span>
+        <span className="font-medium leading-6 text-pretty">{label}</span>
         <span className="flex min-h-6 min-w-0 flex-1 items-center gap-3">{summary}</span>
         <span className="flex h-6 shrink-0 items-center">
           <ChevronDown size={16} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden />

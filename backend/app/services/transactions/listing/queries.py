@@ -59,6 +59,7 @@ def build_transaction_listing_query(
     limit: int | None,
     offset: int | None,
     extra_conditions: Sequence[ColumnElement[bool]] = (),
+    leading_order: Sequence[ColumnElement] = (),
     nearest_amount: tuple[int, str] | None = None,
 ):
     """Build the SQL query for a filtered transaction page
@@ -83,6 +84,8 @@ def build_transaction_listing_query(
         offset: Number of transactions to skip before returning rows, or None for none
         extra_conditions: Further conditions every row must meet. They may name the category, which a
             date-sorted query has joined
+        leading_order: Ordering that date sorting applies before the nearest amount, such as how likely a
+            match each row is
         nearest_amount: Optional amount magnitude in minor units and its currency. Date sorting then puts the
             transactions in that currency with exactly that magnitude first, then the nearest magnitudes,
             and then the other currencies, each group newest first
@@ -137,6 +140,7 @@ def build_transaction_listing_query(
 
     if sort_by == "dt":
         transaction_query = transaction_query.order_by(
+            *leading_order,
             *_nearest_amount_order(nearest_amount),
             *_date_sort_order(sort_order, _tag_names()),
         )

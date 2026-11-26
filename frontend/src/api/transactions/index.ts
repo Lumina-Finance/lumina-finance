@@ -11,6 +11,7 @@ export type {
   LinkCandidateFilters,
   OutlierTransaction,
   OverviewFilters,
+  RefundLinkCandidate,
   TopCategorySpend,
   Transaction,
   TransactionFilters,

@@ -117,6 +117,18 @@ class TransactionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RefundLinkCandidateResponse(TransactionResponse):
+    """A transaction offered by the refund link picker, with why it is a likely match"""
+
+    # Paid to or from the open transaction's own merchant. A merchant the app ships, such as Myself
+    # or Unknown, names no shop, so it never matches
+    same_merchant: bool = False
+
+    # Exactly what is left to refund: on an expense's picker the refund's amount equals what the
+    # expense has left, and on a refund's picker the expense has exactly the refund's amount left
+    exact_amount: bool = False
+
+
 class LinkRefundRequest(BaseModel):
     """Link an existing transaction as the refund of an expense."""
 

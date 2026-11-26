@@ -1,5 +1,5 @@
 import type { AccountsOverview } from '@/api/accounts'
-import type { Transaction } from '@/api/transactions'
+import type { RefundLinkCandidate, Transaction } from '@/api/transactions'
 import { getAccountWriteBlockReason } from '@/components/transactions/utils/createBlockReason'
 
 /**
@@ -49,6 +49,12 @@ export function getRefundRoom(original: Amounted, refunds: readonly Amounted[]):
 }
 
 export type RefundStatus = 'full' | 'partial'
+
+/** What the badge over an expense's refunds says for each status */
+export const REFUND_STATUS_LABELS: Record<RefundStatus, string> = {
+  full: 'Refunded in full',
+  partial: 'Partly refunded',
+}
 
 /**
  * How much of an expense its refunds give back, for the badge over its refunds. Null while nothing is refunded
@@ -105,8 +111,9 @@ export function getSelectableAccounts<
 
 /**
  * The candidates a press can't pick now, with what is left to refund for each, so the picker greys them out and
- * says why instead of letting a press be refused. An expense is offered refunds against what is left of it after the
- * refunds already picked, and a picked row is never refused. A refund is offered expenses by their own room
+ * says why. The picker also refuses a press on one, for a row still easing into the folded row. An expense is offered
+ * refunds against what is left of it after the refunds already picked, and a picked row is never refused. A refund
+ * is offered expenses by their own room
  *
  * @param anchor The transaction the window edits
  * @param candidates What the server says linking would accept
@@ -138,6 +145,59 @@ export function getRefusedRooms(
     }
   }
   return refused
+}
+
+export interface LinkCandidateGroups<T> {
+  /** Linkable candidates from the same merchant or for exactly what is left, in the server's order */
+  likely: T[]
+
+  /** Every other linkable candidate, nearest amount first */
+  other: T[]
+
+  /** Candidates a pick can't take now, each with what is left to refund for it */
+  unlinkable: { candidate: T; room: number }[]
+}
+
+/**
+ * Sorts the picker's candidates into the likely matches, the others and those that can't be linked now. The server
+ * says why each is likely and puts the likely ones first, so a row keeps its group while picks change. Picks only
+ * move rows into and out of the ones that can't be linked
+ *
+ * @param candidates What the server offers, in its order
+ * @param refusedRooms The candidates a pick can't take now, from `getRefusedRooms`
+ */
+export function groupLinkCandidates<T extends Pick<RefundLinkCandidate, 'id' | 'same_merchant' | 'exact_amount'>>(
+  candidates: readonly T[],
+  refusedRooms: ReadonlyMap<string, number>,
+): LinkCandidateGroups<T> {
+  const groups: LinkCandidateGroups<T> = { likely: [], other: [], unlinkable: [] }
+  for (const candidate of candidates) {
+    const room = refusedRooms.get(candidate.id)
+    if (room !== undefined) groups.unlinkable.push({ candidate, room })
+    else if (candidate.same_merchant || candidate.exact_amount) groups.likely.push(candidate)
+    else groups.other.push(candidate)
+  }
+  return groups
+}
+
+/**
+ * Says how many candidates can't be linked and why, when they share a reason, as in "2 can't be linked, each more than
+ * what's left". On an expense each refund is held back by what is left of the expense. On a refund each expense is
+ * held back by what is left of its own
+ *
+ * @param picksRefund Whether the picker is an expense's, picking its refunds
+ * @param rooms What is left to refund for each candidate that can't be linked
+ */
+export function describeUnlinkable(picksRefund: boolean, rooms: readonly number[]): string {
+  const count = `${rooms.length} can't be linked`
+  const each = rooms.length === 1 ? '' : 'each '
+  if (rooms.every((room) => room <= 0)) {
+    return `${count}, ${picksRefund ? 'nothing is left to refund' : `${each}already refunded in full`}`
+  }
+  if (rooms.every((room) => room > 0)) {
+    return `${count}, ${picksRefund ? `${each}more than what's left` : `${each}with less than this refund left`}`
+  }
+  return count
 }
 
 /**
