@@ -407,6 +407,9 @@ test('moves a rule with its menu and with the keyboard, and keeps the order afte
   // The first rule can't move up and the last can't move down, and each says why. The reason hangs clear of the menu
   const firstMenu = await openRowMenu(page, section, alpha)
   await expect(firstMenu.getByRole('menuitem', { name: 'Move up' })).toHaveAttribute('aria-disabled', 'true')
+  // A mouse press leaves focus on the button, and the first Down enters the menu at its first item
+  await page.keyboard.press('ArrowDown')
+  await expect(firstMenu.getByRole('menuitem', { name: 'Edit' })).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(firstMenu.getByRole('menuitem', { name: 'Move up' })).toBeFocused()
   const reason = page.locator('span[aria-hidden="true"]').filter({ hasText: /^This rule is already first$/ })
@@ -860,7 +863,11 @@ test('moves through a row menu with the arrow keys, Home and End, and Escape ret
   const { names, section } = await openThreeRules(page, request)
   const [, beta] = names
 
-  const menu = await openRowMenu(page, section, beta)
+  // Opened from the keyboard, the menu takes focus on its first item
+  await settleRow(section.getByRole('listitem').filter({ hasText: beta }))
+  await section.getByRole('button', { name: `Actions for ${beta}`, exact: true }).focus()
+  await page.keyboard.press('Enter')
+  const menu = page.getByRole('menu', { name: `Actions for ${beta}` })
   const item = (name: string) => menu.getByRole('menuitem', { name, exact: true })
   await expect(item('Edit')).toBeFocused()
 
@@ -1377,7 +1384,9 @@ for (const unavailable of [
     await page.mouse.move(2, 2)
     await expect(reason).toHaveCount(0)
 
-    // The keyboard on the item, with the ring drawn inside its edge on all four sides, as an available item draws it
+    // The keyboard on the item, with the ring drawn inside its edge on all four sides, as an available item draws it.
+    // The menu opened from a mouse press, so focus is still on its button until the first Down
+    await page.keyboard.press('ArrowDown')
     await expect(edit).toBeFocused()
     for (let step = 0; step < unavailable.arrowsFromEdit; step += 1) await page.keyboard.press('ArrowDown')
     await expect(item).toBeFocused()
