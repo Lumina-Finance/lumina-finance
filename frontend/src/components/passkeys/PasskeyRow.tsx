@@ -1,27 +1,27 @@
-import { Check, KeyRound, Pencil, Trash2, X } from 'lucide-react';
-import { useId, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import type { Passkey } from '@/api/passkeys';
-import { FieldLabelRow } from '@/components/forms/FieldLabelRow';
-import { FormError } from '@/components/forms/FormError';
-import { OverflowMenu } from '@/components/passkeys/OverflowMenu';
-import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton';
-import { useAuth } from '@/hooks/useAuth';
-import { useRefusedSubmit } from '@/hooks/useRefusedSubmit';
-import { useRelativeTime } from '@/hooks/useRelativeTime';
-import { DATE_FORMATS, formatDate } from '@/utils/date';
+import { Check, KeyRound, Pencil, Trash2, X } from 'lucide-react'
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import type { Passkey } from '@/api/passkeys'
+import { FieldLabelRow } from '@/components/forms/FieldLabelRow'
+import { FormError } from '@/components/forms/FormError'
+import { OverflowMenu } from '@/components/passkeys/OverflowMenu'
+import { DisabledReasonButton } from '@/components/tooltips/DisabledReasonButton'
+import { useAuth } from '@/hooks/useAuth'
+import { useRefusedSubmit } from '@/hooks/useRefusedSubmit'
+import { useRelativeTime } from '@/hooks/useRelativeTime'
+import { DATE_FORMATS, formatDate } from '@/utils/date'
 
 // Crossfade the card between its resting details and the rename fields so neither state snaps in
-const FIELD_TRANSITION = { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const };
+const FIELD_TRANSITION = { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const }
 
-const RENAME_FIELDS = ['name'] as const;
+const RENAME_FIELDS = ['name'] as const
 
 interface PasskeyRowProps {
-  passkey: Passkey;
-  onRename: (name: string) => Promise<void>;
-  onRemove: () => Promise<void>;
+  passkey: Passkey
+  onRename: (name: string) => Promise<void>
+  onRemove: () => Promise<void>
   /** True while any passkey mutation is in flight, so a row cannot start a second one */
-  disabled: boolean;
+  disabled: boolean
 }
 
 /**
@@ -30,33 +30,62 @@ interface PasskeyRowProps {
  * the backend re-checks a current second factor before deleting a passkey
  */
 export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRowProps) {
-  const { user } = useAuth();
-  const shouldReduceMotion = useReducedMotion();
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [draftName, setDraftName] = useState(passkey.name);
-  const [error, setError] = useState<string | null>(null);
-  const lastUsed = useRelativeTime(passkey.last_used_at);
-  const nameId = useId();
-  const nameErrorId = `${nameId}-error`;
-  const renameRefusal = useRefusedSubmit(
-    { name: draftName.trim() ? undefined : 'Name is required' },
-    RENAME_FIELDS,
-    { name: nameId },
-  );
+  const { user } = useAuth()
+  const shouldReduceMotion = useReducedMotion()
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [draftName, setDraftName] = useState(passkey.name)
+  const [error, setError] = useState<string | null>(null)
+  const lastUsed = useRelativeTime(passkey.last_used_at)
+  const nameId = useId()
+  const nameErrorId = `${nameId}-error`
+  const renameRefusal = useRefusedSubmit({ name: draftName.trim() ? undefined : 'Name is required' }, RENAME_FIELDS, {
+    name: nameId,
+  })
+  const menuTriggerRef = useRef<HTMLButtonElement>(null)
+  const shouldFocusMenuRef = useRef(false)
+
+  // Save and Cancel leave with the rename fields, so the focused control goes off the page, and the menu
+  // button that replaces them is a new element. It takes focus once it is there and the row lets it be pressed
+  useEffect(() => {
+    if (isRenaming || disabled || !shouldFocusMenuRef.current) return
+
+    shouldFocusMenuRef.current = false
+    menuTriggerRef.current?.focus({ preventScroll: true })
+  }, [isRenaming, disabled])
+
+  function endRename() {
+    shouldFocusMenuRef.current = true
+    setIsRenaming(false)
+  }
+
+  function cancelRename() {
+    setDraftName(passkey.name)
+    setError(null)
+    renameRefusal.reset()
+    endRename()
+  }
+
+  // Held here so Escape only ends the rename and does not also close the dialogue the row sits in
+  function handleRenameKeyDown(event: KeyboardEvent) {
+    if (event.key !== 'Escape') return
+
+    event.preventDefault()
+    cancelRename()
+  }
 
   /**
    * Saves a trimmed, non-empty new label and returns the card to its resting state
    */
   async function saveRename() {
-    if (!renameRefusal.guard()) return;
-    const trimmed = draftName.trim();
+    if (!renameRefusal.guard()) return
+    const trimmed = draftName.trim()
 
-    setError(null);
+    setError(null)
     try {
-      await onRename(trimmed);
-      setIsRenaming(false);
+      await onRename(trimmed)
+      endRename()
     } catch {
-      setError('Could not rename this passkey.');
+      setError('Could not rename this passkey.')
     }
   }
 
@@ -64,16 +93,16 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
    * Starts removal, which opens a step-up prompt before the backend deletes the passkey
    */
   async function handleRemove() {
-    setError(null);
+    setError(null)
     try {
-      await onRemove();
+      await onRemove()
     } catch {
-      setError('Could not remove this passkey.');
+      setError('Could not remove this passkey.')
     }
   }
 
-  const addedLabel = `Added ${formatDate(new Date(passkey.created_at), DATE_FORMATS.monthDayYear, user?.tz)}`;
-  const usageLabel = lastUsed ? `last used ${lastUsed}` : 'not used yet';
+  const addedLabel = `Added ${formatDate(new Date(passkey.created_at), DATE_FORMATS.monthDayYear, user?.tz)}`
+  const usageLabel = lastUsed ? `last used ${lastUsed}` : 'not used yet'
 
   return (
     <div className="rounded-xl border p-3" style={{ borderColor: 'var(--app-border)' }}>
@@ -125,7 +154,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" onKeyDown={handleRenameKeyDown}>
                   <input
                     id={nameId}
                     className={`app-input min-w-0 flex-1 ${renameRefusal.errors.name ? 'app-input-error' : ''}`}
@@ -148,12 +177,7 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
                   </DisabledReasonButton>
                   <button
                     type="button"
-                    onClick={() => {
-                      setDraftName(passkey.name);
-                      setError(null);
-                      renameRefusal.reset();
-                      setIsRenaming(false);
-                    }}
+                    onClick={cancelRename}
                     className="app-secondary-button shrink-0"
                     aria-label="Cancel rename"
                   >
@@ -174,24 +198,30 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{passkey.name}</p>
                   {/* Wraps between the two parts on a phone rather than hiding the last used words. The dot sits in the gap before the second part, so a wrapped second part pushes it past the left edge, where the line clips it */}
-                  <p className="flex flex-wrap gap-x-3 overflow-x-clip break-words text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  <p
+                    className="flex flex-wrap gap-x-3 overflow-x-clip break-words text-xs"
+                    style={{ color: 'var(--app-text-muted)' }}
+                  >
                     {/* The trailing space is dropped from the layout but keeps copied text and screen readers from joining the two parts */}
                     <span className="whitespace-nowrap">{addedLabel} </span>
-                    <span className="relative whitespace-nowrap before:absolute before:right-full before:w-3 before:text-center before:content-['·']">{usageLabel}</span>
+                    <span className="relative whitespace-nowrap before:absolute before:right-full before:w-3 before:text-center before:content-['·']">
+                      {usageLabel}
+                    </span>
                   </p>
                 </div>
                 <OverflowMenu
                   label={`Options for ${passkey.name}`}
                   disabled={disabled}
+                  triggerRef={menuTriggerRef}
                   items={[
                     {
                       label: 'Rename',
                       icon: <Pencil size={15} aria-hidden />,
                       onSelect: () => {
-                        setDraftName(passkey.name);
-                        setError(null);
-                        renameRefusal.reset();
-                        setIsRenaming(true);
+                        setDraftName(passkey.name)
+                        setError(null)
+                        renameRefusal.reset()
+                        setIsRenaming(true)
                       },
                     },
                     { label: 'Remove', icon: <Trash2 size={15} aria-hidden />, onSelect: handleRemove, danger: true },
@@ -205,5 +235,5 @@ export function PasskeyRow({ passkey, onRename, onRemove, disabled }: PasskeyRow
 
       <FormError message={error} className="mt-2 text-xs" />
     </div>
-  );
+  )
 }
