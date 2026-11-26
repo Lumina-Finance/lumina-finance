@@ -57,7 +57,10 @@ export function ThenSection({
     [merchantQuery.data],
   )
   const merchantOptions = useMemo(
-    () => [{ value: '', label: 'No merchant' }, ...ownMerchants.map((record) => ({ value: record.id, label: record.name }))],
+    () => [
+      { value: '', label: 'No merchant' },
+      ...ownMerchants.map((record) => ({ value: record.id, label: record.name })),
+    ],
     [ownMerchants],
   )
 

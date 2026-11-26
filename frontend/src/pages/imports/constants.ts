@@ -753,7 +753,8 @@ export const RULE_COVERED_MERCHANTS_EMPTY = {
 export const IMPORT_RULES_LOADING_LABEL = 'Checking your import rules…'
 export const IMPORT_RULES_LOAD_FAILURE_TITLE = 'Your import rules could not be checked'
 export const IMPORT_RULES_REFUSED_REASON = "The rows couldn't be sent."
-export const IMPORT_RULES_CHANGED_REASON = 'One of your rules, or a merchant, category or tag it uses, changed during the check.'
+export const IMPORT_RULES_CHANGED_REASON =
+  'One of your rules, or a merchant, category or tag it uses, changed during the check.'
 export const IMPORT_RULES_LOAD_FAILURE_EXPLANATION =
   "Your rules decide each row's merchant, category and tags, so the import can't go on until they are checked."
 

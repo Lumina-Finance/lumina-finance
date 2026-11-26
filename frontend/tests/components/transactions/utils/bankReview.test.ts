@@ -158,8 +158,14 @@ describe('what a new item shows, as a ledger row shows a transaction', () => {
 
 describe('why Approve all is unavailable', () => {
   it.each([
-    [{ any_addable: false, changed: false, read_only_reason: null }, 'No waiting item is ready to add: each needs a merchant and a category'],
-    [{ any_addable: false, changed: true, read_only_reason: null }, 'No waiting item is ready to add: each needs a merchant and a category'],
+    [
+      { any_addable: false, changed: false, read_only_reason: null },
+      'No waiting item is ready to add: each needs a merchant and a category',
+    ],
+    [
+      { any_addable: false, changed: true, read_only_reason: null },
+      'No waiting item is ready to add: each needs a merchant and a category',
+    ],
     [{ any_addable: true, changed: false, read_only_reason: null }, null],
     [{ any_addable: true, changed: true, read_only_reason: null }, null],
   ])('gives the one reason, whatever the rules changed, for %j', (rules, reason) => {

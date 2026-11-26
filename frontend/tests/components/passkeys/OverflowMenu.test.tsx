@@ -35,7 +35,9 @@ function triggerAttributes(markup: string): string {
 describe('the overflow menu trigger', () => {
   it('names the trigger and marks it as opening a closed menu, with the passkey card look', () => {
     const attributes = triggerAttributes(
-      renderToStaticMarkup(createElement(OverflowMenu, { label: 'Options for Laptop', items: ITEMS, triggerRef: { current: null } })),
+      renderToStaticMarkup(
+        createElement(OverflowMenu, { label: 'Options for Laptop', items: ITEMS, triggerRef: { current: null } }),
+      ),
     )
 
     expect(attributes).toContain('aria-label="Options for Laptop"')
@@ -46,10 +48,19 @@ describe('the overflow menu trigger', () => {
 
   it('holds the trigger off when the caller does, and not otherwise', () => {
     const held = triggerAttributes(
-      renderToStaticMarkup(createElement(OverflowMenu, { label: 'Options for Laptop', items: ITEMS, disabled: true, triggerRef: { current: null } })),
+      renderToStaticMarkup(
+        createElement(OverflowMenu, {
+          label: 'Options for Laptop',
+          items: ITEMS,
+          disabled: true,
+          triggerRef: { current: null },
+        }),
+      ),
     )
     const open = triggerAttributes(
-      renderToStaticMarkup(createElement(OverflowMenu, { label: 'Options for Laptop', items: ITEMS, triggerRef: { current: null } })),
+      renderToStaticMarkup(
+        createElement(OverflowMenu, { label: 'Options for Laptop', items: ITEMS, triggerRef: { current: null } }),
+      ),
     )
 
     expect(held).toMatch(/\sdisabled(=""|\s|$)/)
