@@ -17,7 +17,7 @@ interface LinkChainPreviewProps {
   /** The open transaction. On an expense the picks are its refunds, and on a refund the pick is its expense */
   transaction: Transaction
 
-  /** The rows picked so far, in the order they were picked */
+  /** The rows picked so far, in the list's order */
   picked: Transaction[]
 
   /** On an expense, what is left to refund before the picks, undefined while it loads. Ignored on a refund */
