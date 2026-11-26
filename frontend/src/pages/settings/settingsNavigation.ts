@@ -30,17 +30,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 ]
 
 /**
- * Returns whether a section opened from a link is held at the top of the screen while the page grows
- *
- * Only Bank connections is, since the account page's Open settings link scrolls it to the top and the
- * sections above it load after the page opens. A link to any other section scrolls once and leaves the
- * page where the reader takes it
- */
-export function isHeldWhenLinked(id: SettingsSectionId): boolean {
-  return id === 'bank-connections'
-}
-
-/**
  * The sections the settings page shows. Bank connections shows only while the deployment offers bank
  * sync to the user, as the account page's bank link section does. Wherever it offers none, settings
  * leaves Bank connections out, unless the build's screen covers the section.

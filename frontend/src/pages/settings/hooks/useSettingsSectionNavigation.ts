@@ -2,19 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { BELOW_MOBILE_NAVIGATION_TOGGLE_ROOT_MARGIN } from '@/components/navigation/constants/data'
 import { buildImportOriginState } from '@/utils/importOrigin'
-import {
-  isHeldWhenLinked,
-  SETTINGS_SECTIONS,
-  type SettingsSection,
-  type SettingsSectionId,
-} from '@/pages/settings/settingsNavigation'
+import { SETTINGS_SECTIONS, type SettingsSection, type SettingsSectionId } from '@/pages/settings/settingsNavigation'
 import { ignoreFirstReport } from '@/pages/settings/utils/ignoreFirstReport'
 
 const PROGRAMMATIC_SCROLL_SETTLE_MS = 600
 const COMPACT_MENU_QUERY = '(max-width: 1199.98px)'
 
-// How long a section opened from a link stays held at the top while the sections above it load
-const HOLD_LINKED_SECTION_MS = 3000
+// A section opened from a link stays held at the top while the sections above it load, until the page
+// has stayed the same size for this long, and for no longer than the limit
+const HOLD_LINKED_SECTION_QUIET_MS = 3000
+const HOLD_LINKED_SECTION_LIMIT_MS = 15000
 const READER_SCROLL_EVENTS = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
 
 // Space left above a section the page scrolls to: below the pinned section menu where it shows, or
@@ -99,12 +96,12 @@ export function useSettingsSectionNavigation(shownSections: readonly SettingsSec
     let observer: ResizeObserver | null = null
     let releaseTimer: number | null = null
 
-    // A section held when linked is put back at the top each time the page grows, since the sections
+    // A section opened from a link is put back at the top each time the page grows, since the sections
     // above it load after the page opens and push it down, until the reader scrolls themselves or the
-    // hold runs out. The observer's first report is ignored, since it comes before anything has grown
-    // and its unanimated scroll would cut the smooth scroll that just began short. Any other section
-    // scrolls once and lets the scroll spy resume when that has settled
-    const holds = isHeldWhenLinked(linkedId)
+    // page has stayed the same size for a while. The observer's first report is ignored, since it comes
+    // before anything has grown and its unanimated scroll would cut the smooth scroll that just began
+    // short. The scroll spy resumes once the hold ends
+    const holdStartedAt = performance.now()
     function release() {
       observer?.disconnect()
       observer = null
@@ -114,6 +111,14 @@ export function useSettingsSectionNavigation(shownSections: readonly SettingsSec
       skipScrollSpyRef.current = false
     }
 
+    // Each growth restarts the wait for the next one, up to a limit so a page that never stops
+    // changing size cannot hold the reader's position for good
+    function holdUntilQuiet() {
+      if (releaseTimer !== null) window.clearTimeout(releaseTimer)
+      const timeLeft = HOLD_LINKED_SECTION_LIMIT_MS - (performance.now() - holdStartedAt)
+      releaseTimer = window.setTimeout(release, Math.max(0, Math.min(HOLD_LINKED_SECTION_QUIET_MS, timeLeft)))
+    }
+
     const frameId = window.requestAnimationFrame(() => {
       const element = document.getElementById(linkedId)
       if (!element) return
@@ -121,12 +126,15 @@ export function useSettingsSectionNavigation(shownSections: readonly SettingsSec
       skipScrollSpyRef.current = true
       setActiveSection(linkedId)
       scrollToSection(element)
-      if (holds) {
-        observer = new ResizeObserver(ignoreFirstReport(() => scrollToSection(element, 'auto')))
-        observer.observe(document.body)
-        for (const type of READER_SCROLL_EVENTS) window.addEventListener(type, release, { passive: true })
-      }
-      releaseTimer = window.setTimeout(release, holds ? HOLD_LINKED_SECTION_MS : PROGRAMMATIC_SCROLL_SETTLE_MS)
+      observer = new ResizeObserver(
+        ignoreFirstReport(() => {
+          scrollToSection(element, 'auto')
+          holdUntilQuiet()
+        }),
+      )
+      observer.observe(document.body)
+      for (const type of READER_SCROLL_EVENTS) window.addEventListener(type, release, { passive: true })
+      holdUntilQuiet()
     })
 
     return () => {
