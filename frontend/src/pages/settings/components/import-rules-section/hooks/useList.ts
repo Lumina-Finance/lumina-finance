@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback } from 'react'
 import { useInfiniteImportRules, type ImportRule } from '@/api/import-rules'
 import {
   RULE_LIST_PAGE_SIZE,
@@ -13,32 +13,14 @@ import { usePaginatedSettingsList } from '@/pages/settings/components/shared/hoo
  * The shared hook holds a page asked for while the loaded pages are read again after a move or a delete. A read of
  * them can still start between the shared hook's last look and its request, and the query's default then cancels
  * that read. The next page then sat beside an out-of-date first page, and a rule showed twice until a reload. Here a
- * request for the next page never cancels a read, and a page asked for during one is asked for once it ends
+ * request for the next page never cancels a read
  */
 function useRulesQuery(filters: { q?: string }, pageSize: number) {
   const query = useInfiniteImportRules(pageSize, filters.q)
-  const { fetchNextPage, isFetching, hasNextPage } = query
-  const pageWaitingForRead = useRef(false)
+  const { fetchNextPage } = query
+  const fetchNextPageKeepingRead = useCallback(() => void fetchNextPage({ cancelRefetch: false }), [fetchNextPage])
 
-  useEffect(() => {
-    if (!pageWaitingForRead.current || isFetching) return
-    pageWaitingForRead.current = false
-    if (hasNextPage) void fetchNextPage({ cancelRefetch: false })
-  }, [fetchNextPage, hasNextPage, isFetching])
-
-  return {
-    data: query.data,
-    error: query.error,
-    isError: query.isError,
-    isFetching: query.isFetching,
-    isLoading: query.isLoading,
-    isFetchingNextPage: query.isFetchingNextPage,
-    hasNextPage: query.hasNextPage,
-    fetchNextPage: () => {
-      if (isFetching) pageWaitingForRead.current = true
-      else void fetchNextPage({ cancelRefetch: false })
-    },
-  }
+  return { ...query, fetchNextPage: fetchNextPageKeepingRead }
 }
 
 const sortByPosition = (rules: ImportRule[]) => rules.slice().sort((a, b) => a.position - b.position)
