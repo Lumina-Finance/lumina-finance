@@ -331,8 +331,8 @@ describe('restoring the saved copy', () => {
     const stored = await savedCopyOf((client) =>
       client.setQueryData(['bank-sync', 'review', 'items', 'all'], { pages: [{ items: [] }], pageParams: [null] }),
     )
-    // The shape that was current before, '13'. This copy then reads as saved by it
-    stored[QUERY_CACHE_STORAGE_KEY] = JSON.stringify({ ...JSON.parse(stored[QUERY_CACHE_STORAGE_KEY]), shape: '13' })
+    // The shape that was current before, '14'. This copy then reads as saved by it
+    stored[QUERY_CACHE_STORAGE_KEY] = JSON.stringify({ ...JSON.parse(stored[QUERY_CACHE_STORAGE_KEY]), shape: '14' })
 
     const reloaded = loadPage(stored)
     await reloaded.restore()
@@ -831,7 +831,7 @@ describe('a restore that fails', () => {
   async function entryHolding(text: string) {
     const key = await importSavedCopyKey(savedCopySession().saved_copy_key!)
     const entry = {
-      shape: '14',
+      shape: '15',
       userId: USER_A,
       keyNumber: 0,
       savedAt: Date.now(),
@@ -1007,7 +1007,7 @@ describe('what the saved copy keeps of the last check', () => {
         }),
       )
       const entry = {
-        shape: '14',
+        shape: '15',
         userId: USER_A,
         keyNumber: 0,
         savedAt: Date.now(),
