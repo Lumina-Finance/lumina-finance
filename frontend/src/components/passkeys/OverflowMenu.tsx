@@ -130,6 +130,9 @@ export function OverflowMenu({
     const onKeyDown = (event: KeyboardEvent) => {
       // The trigger has just taken focus back, so after Tab the browser carries on from the trigger
       if (event.key === 'Escape' || event.key === 'Tab') {
+        // The menu takes Escape as its own. A dialogue around the menu can hear the same press after the menu stops
+        // counting as a floating layer, and the dialogue leaves a press already taken alone
+        if (event.key === 'Escape') event.preventDefault()
         closeMenuKeepingFocus()
         return
       }
