@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useInfiniteImportRules, type ImportRule } from '@/api/import-rules'
 import {
   RULE_LIST_PAGE_SIZE,
@@ -7,11 +8,37 @@ import {
 import { usePaginatedSettingsList } from '@/pages/settings/components/shared/hooks/usePaginatedSettingsList'
 
 /**
- * Reads the rules for the shared hook, with the text it passes as the search. The shared hook holds a page asked for
- * while the loaded pages are read again after a move or a delete, and asks for it once that read ends
+ * Reads the rules for the shared hook, with the text it passes as the search
+ *
+ * The shared hook holds a page asked for while the loaded pages are read again after a move or a delete. A read of
+ * them can still start between the shared hook's last look and its request, and the query's default then cancels
+ * that read. The next page then sat beside an out-of-date first page, and a rule showed twice until a reload. Here a
+ * request for the next page never cancels a read, and a page asked for during one is asked for once it ends
  */
 function useRulesQuery(filters: { q?: string }, pageSize: number) {
-  return useInfiniteImportRules(pageSize, filters.q)
+  const query = useInfiniteImportRules(pageSize, filters.q)
+  const { fetchNextPage, isFetching, hasNextPage } = query
+  const pageWaitingForRead = useRef(false)
+
+  useEffect(() => {
+    if (!pageWaitingForRead.current || isFetching) return
+    pageWaitingForRead.current = false
+    if (hasNextPage) void fetchNextPage({ cancelRefetch: false })
+  }, [fetchNextPage, hasNextPage, isFetching])
+
+  return {
+    data: query.data,
+    error: query.error,
+    isError: query.isError,
+    isFetching: query.isFetching,
+    isLoading: query.isLoading,
+    isFetchingNextPage: query.isFetchingNextPage,
+    hasNextPage: query.hasNextPage,
+    fetchNextPage: () => {
+      if (isFetching) pageWaitingForRead.current = true
+      else void fetchNextPage({ cancelRefetch: false })
+    },
+  }
 }
 
 const sortByPosition = (rules: ImportRule[]) => rules.slice().sort((a, b) => a.position - b.position)
