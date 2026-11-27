@@ -12,15 +12,11 @@
   <a href="https://github.com/Lumina-Finance/lumina-finance"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/Lumina-Finance/lumina-finance?label=GitHub%20Stars&style=flat&logo=github&logoColor=white&labelColor=181717&color=eac54f"></a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/sponsors/Lumina-Finance"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/sponsor_dark.svg"><img alt="Sponsor on GitHub" src="docs/sponsor_light.svg" height="40"></picture></a>&nbsp;&nbsp;<a href="https://www.buymeacoffee.com/lumina.finance"><img alt="Buy Me a Coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="40"></a>
-</p>
-
 <!-- markdownlint-enable MD033 -->
 
 Lumina Finance is a self-hosted personal finance app that helps you understand your spending behaviour, track expenses, and set budgets while keeping you in control of your data.
 
-Join the community at [r/LuminaFinance](https://www.reddit.com/r/LuminaFinance/) to ask questions, share feedback and discuss releases.
+If Lumina Finance looks useful to you, star it on GitHub so more people can find it, and join [r/LuminaFinance](https://www.reddit.com/r/LuminaFinance/) to ask questions, share feedback and discuss releases.
 
 <!-- markdownlint-disable MD033 -->
 <picture>
@@ -28,10 +24,6 @@ Join the community at [r/LuminaFinance](https://www.reddit.com/r/LuminaFinance/)
   <img alt="Lumina Finance shown on desktop, tablet, and mobile" src="docs/screenshots/hero_light.png">
 </picture>
 <!-- markdownlint-enable MD033 -->
-
-## DISCLAIMER
-
-THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTIES OF ANY KIND. THIS APPLICATION IS A SOFTWARE TOOL ONLY AND DOES NOT PROVIDE FINANCIAL, INVESTMENT, TAX, LEGAL, ACCOUNTING, OR OTHER PROFESSIONAL ADVICE. ANY CALCULATIONS, ESTIMATES, PROJECTIONS, SUMMARIES, OR OTHER OUTPUTS MAY BE INACCURATE OR INCOMPLETE AND SHOULD NOT BE RELIED ON AS A SUBSTITUTE FOR PROFESSIONAL JUDGMENT. YOU ARE SOLELY RESPONSIBLE FOR REVIEWING ALL OUTPUTS AND FOR ANY DECISIONS YOU MAKE. USE OF THIS APPLICATION IS AT YOUR OWN RISK.
 
 ## Demo
 
@@ -200,6 +192,10 @@ Setup, configuration and answers to common questions are on the docs site at [do
 - [Fail2ban integration](https://docs.luminafinance.co/self-hosting/blocking-abuse/)
 - [Environment variables](https://docs.luminafinance.co/self-hosting/environment-variables/)
 - [FAQ](https://docs.luminafinance.co/self-hosting/faq/)
+
+## DISCLAIMER
+
+THIS APPLICATION IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTIES OF ANY KIND. THIS APPLICATION IS A SOFTWARE TOOL ONLY AND DOES NOT PROVIDE FINANCIAL, INVESTMENT, TAX, LEGAL, ACCOUNTING, OR OTHER PROFESSIONAL ADVICE. ANY CALCULATIONS, ESTIMATES, PROJECTIONS, SUMMARIES, OR OTHER OUTPUTS MAY BE INACCURATE OR INCOMPLETE AND SHOULD NOT BE RELIED ON AS A SUBSTITUTE FOR PROFESSIONAL JUDGMENT. YOU ARE SOLELY RESPONSIBLE FOR REVIEWING ALL OUTPUTS AND FOR ANY DECISIONS YOU MAKE. USE OF THIS APPLICATION IS AT YOUR OWN RISK.
 
 ## Support the project
 
