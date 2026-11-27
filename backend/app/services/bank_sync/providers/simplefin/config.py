@@ -53,7 +53,8 @@ SIMPLEFIN_TEST_ORIGIN = read_test_origin_setting(TEST_ORIGIN_KEY)
 # dates chosen afterwards
 SIMPLEFIN_HISTORY_MONTHS = read_count_setting(HISTORY_MONTHS_KEY, 12)
 
-# Requests each SimpleFIN connection may send in a rolling 24 hours, below the 24 a day SimpleFIN
-# Bridge expects, so setup and retries never earn a warning that could get the token disabled. A
-# higher value than the 24 is refused at start
-SIMPLEFIN_DAILY_REQUESTS = read_count_setting(DAILY_REQUESTS_KEY, 20, maximum=24)
+# Requests each SimpleFIN connection may send in a rolling 24 hours, the 24 a day SimpleFIN Bridge
+# expects. Bridge gives listings and single-account fetches a quota each, so a shared count of 24
+# can't go over either, and its first warning stops the connection until a request frees up. A higher
+# value could get the token disabled, so it is refused at start
+SIMPLEFIN_DAILY_REQUESTS = read_count_setting(DAILY_REQUESTS_KEY, 24, maximum=24)

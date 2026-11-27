@@ -28,12 +28,12 @@ def test_akahu_test_origin_beyond_an_origin_is_refused_at_start(monkeypatch, ori
         read_test_origin_setting(akahu_config.TEST_ORIGIN_KEY)
 
 
-def test_akahu_daily_operations_default_is_generous_and_zero_is_refused(monkeypatch):
-    """Akahu publishes no limit so 100 is the default, and a count below 1 would hold every sync back"""
+def test_akahu_daily_operations_default_to_one_an_hour_and_zero_is_refused(monkeypatch):
+    """Akahu refreshes a personal app's data once a day, so 24 is the default, and a count below 1 would hold every sync back"""
     key = "BANK_SYNC_AKAHU_DAILY_REQUESTS"
     try:
         monkeypatch.delenv(key, raising=False)
-        assert importlib.reload(akahu_config).AKAHU_DAILY_REQUESTS == 100
+        assert importlib.reload(akahu_config).AKAHU_DAILY_REQUESTS == 24
         monkeypatch.setenv(key, "0")
         with pytest.raises(RuntimeError, match=f"Invalid {key}"):
             importlib.reload(akahu_config)

@@ -28,12 +28,12 @@ def test_pluggy_test_origin_beyond_an_origin_is_refused_at_start(monkeypatch, or
         read_test_origin_setting(pluggy_config.TEST_ORIGIN_KEY)
 
 
-def test_pluggy_daily_operations_default_is_generous_and_zero_is_refused(monkeypatch):
-    """Pluggy limits a minute and not a day, so 100 is the default, and a count below 1 would hold every sync back"""
+def test_pluggy_daily_operations_default_to_one_an_hour_and_zero_is_refused(monkeypatch):
+    """Pluggy updates an item's data once a day, so 24 is the default, and a count below 1 would hold every sync back"""
     key = "BANK_SYNC_PLUGGY_DAILY_REQUESTS"
     try:
         monkeypatch.delenv(key, raising=False)
-        assert importlib.reload(pluggy_config).PLUGGY_DAILY_REQUESTS == 100
+        assert importlib.reload(pluggy_config).PLUGGY_DAILY_REQUESTS == 24
         monkeypatch.setenv(key, "0")
         with pytest.raises(RuntimeError, match=f"Invalid {key}"):
             importlib.reload(pluggy_config)

@@ -58,10 +58,12 @@ def test_simplefin_test_origin_may_use_plain_http(monkeypatch):
     assert read_test_origin_setting(simplefin_config.TEST_ORIGIN_KEY) == "http://fake-bridge:8080"
 
 
-def test_the_daily_request_cap_simplefin_reads_is_refused_over_24(monkeypatch):
-    """SimpleFIN Bridge can disable a token past 24 requests a day, so 25 stops the app starting and 24 is kept"""
+def test_the_daily_request_cap_simplefin_reads_defaults_to_24_and_is_refused_over_it(monkeypatch):
+    """SimpleFIN Bridge expects 24 requests a day and can disable a token past it, so 24 is the default and 25 stops the app starting"""
     key = "BANK_SYNC_SIMPLEFIN_DAILY_REQUESTS"
     try:
+        monkeypatch.delenv(key, raising=False)
+        assert importlib.reload(simplefin_config).SIMPLEFIN_DAILY_REQUESTS == 24
         monkeypatch.setenv(key, "25")
         with pytest.raises(RuntimeError, match=f"Invalid {key}"):
             importlib.reload(simplefin_config)
