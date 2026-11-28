@@ -696,7 +696,7 @@ test("shows a connection's requests left in its row, and then its facts", NEEDS_
   // Connecting sends the token claim and one listing, and only the listing counts toward the requests
   await test.step("shows each connection's requests left in its row, counting a new connection's listing alone", async () => {
     await expect(section.getByText('Requests', { exact: true })).toBeVisible()
-    await expect(section.locator(`[data-connection-id="${connection.id}"]`)).toContainText('19 of 20 left')
+    await expect(section.locator(`[data-connection-id="${connection.id}"]`)).toContainText('23 of 24 left')
   })
 
   await test.step("shows a connection's facts", async () => {
@@ -718,7 +718,7 @@ test("shows a connection's requests left in its row, and then its facts", NEEDS_
     await expect(fact(dialog, 'Added')).toHaveText(formatToday())
     await expect(fact(dialog, 'Institutions linked')).toHaveText('1 · no limit')
     // Left, as the row counts them
-    await expect(fact(dialog, 'Requests, 24 hours')).toHaveText(/^\d+ of 20 left$/)
+    await expect(fact(dialog, 'Requests, 24 hours')).toHaveText(/^\d+ of 24 left$/)
     await expect(dialog.getByRole('region', { name: 'Institutions · 1 of 2 bank accounts linked' })).toBeVisible()
   })
 })
