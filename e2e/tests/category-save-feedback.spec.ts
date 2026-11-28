@@ -42,5 +42,6 @@ test.describe('tax-advantaged category save feedback', () => {
     await expect(dialog).toHaveCount(0)
     await expect(page.getByRole('dialog', { name: '2019', exact: true })).toHaveCount(0)
     await expect(category).toBeVisible()
+    await expect(category.getByRole('row').filter({ hasText: '2019' })).toBeVisible()
   })
 })
