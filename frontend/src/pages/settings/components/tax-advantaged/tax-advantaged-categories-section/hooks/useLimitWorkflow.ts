@@ -246,7 +246,7 @@ export function useTaxAdvantagedLimitWorkflow({
   }
 
   /**
-   * Validates and creates a new annual limit while preserving feedback timing
+   * Validates and creates a new annual limit while preserving feedback timing, then closes the dialogue
    */
   async function createNewLimit() {
     if (!showAddTaxYear || createLimit.isPending || pendingCreateLimitYear !== null) return
@@ -258,7 +258,7 @@ export function useTaxAdvantagedLimitWorkflow({
 
     let createError: unknown = null
     try {
-      const createdLimit = await createLimit.mutateAsync({
+      await createLimit.mutateAsync({
         categoryId: plan.id,
         year,
         contribution_limit: toMinorUnits(newLimitForm.contribution_limit, currencies, plan.currency) ?? 0,
@@ -266,7 +266,6 @@ export function useTaxAdvantagedLimitWorkflow({
         accrued_contributions: toMinorUnits(newLimitForm.accrued_contributions, currencies, plan.currency) ?? 0,
         accrued_withdrawals: toMinorUnits(newLimitForm.accrued_withdrawals, currencies, plan.currency) ?? 0,
       })
-      setSelectedLimitYear(createdLimit.year)
     } catch (error) {
       createError = error
     }

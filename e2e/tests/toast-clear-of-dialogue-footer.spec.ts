@@ -30,26 +30,6 @@ for (const size of PHONE_SIZES) {
   test.describe(`${size.width}x${size.height}`, () => {
     test.use({ viewport: size })
 
-    test('keeps the Limits saved message off the year dialogue\'s Save and Cancel buttons', async ({ page, request }) => {
-      const user = await signUpUser(request)
-      await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
-      await logInViaApi(page, user)
-      await openPage(page, '/settings#tax-advantaged-categories')
-      await page.getByRole('row').filter({ hasText: 'Retirement Savings' }).click()
-      await page.getByRole('dialog', { name: 'Retirement Savings', exact: true }).getByRole('button', { name: 'Add year', exact: true }).click()
-      const dialog = page.getByRole('dialog', { name: 'New year', exact: true })
-      await dialog.getByRole('textbox', { name: 'New tax year', exact: true }).fill('2019')
-      await dialog.getByRole('textbox', { name: 'New tax-year contribution limit', exact: true }).fill('5000')
-      await dialog.getByRole('button', { name: 'Save', exact: true }).click()
-
-      await expect(page.locator('body > [role="status"]').filter({ hasText: 'Limits saved.' })).toBeVisible()
-      // The dialogue now shows the saved year, with its own Cancel and Save
-      const save = page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true })
-      const cancel = page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true })
-      await expect(save).toBeVisible()
-      await expect.poll(isClearOfToast(page, 'Limits saved.', [save, cancel])).toBe(true)
-    })
-
     test('keeps the Saving account link message off the linked count under the account list', async ({ page, request }) => {
       const user = await signUpUser(request)
       await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
