@@ -4,7 +4,7 @@ import { createTaxAdvantagedCategory, signUpUser } from '../support/api'
 import { logInViaApi, openPage, waitForDialogFocus } from '../support/app'
 
 test.describe('tax-advantaged category save feedback', () => {
-  test('confirms a saved year in the shared message and shows a failed one once, in the dialogue', async ({ page, request }) => {
+  test('confirms a saved year in the shared message, closes its dialogue and shows a failed one once, in the dialogue', async ({ page, request }) => {
     const user = await signUpUser(request)
     await createTaxAdvantagedCategory(request, user, 'Retirement Savings')
     await logInViaApi(page, user)
@@ -37,5 +37,10 @@ test.describe('tax-advantaged category save feedback', () => {
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(page.locator('body > [role="status"]').filter({ hasText: 'Limits saved.' })).toBeVisible()
     await expect(dismiss).toBeVisible()
+
+    // Saving the new year closes its dialogue, rather than opening the saved year, and leaves the category open
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: '2019', exact: true })).toHaveCount(0)
+    await expect(category).toBeVisible()
   })
 })
