@@ -103,7 +103,7 @@ test('keeps the Sync now icon beside the Bank sync label, and syncs from it and 
     const icon = page.getByRole('button', { name: 'Sync now', exact: true })
     await expect(icon).toHaveAttribute('aria-disabled', 'true')
     await expect(icon).toHaveAccessibleDescription(
-      'This connection has used its 20 SimpleFIN requests in the last 24 hours. More are available in 10 minutes.',
+      'This connection has used its 24 SimpleFIN requests in the last 24 hours. More are available in 10 minutes.',
     )
     await page.unrouteAll({ behavior: 'ignoreErrors' })
   })
@@ -209,7 +209,7 @@ test('words when more requests are available anew as minutes pass with the bank 
   await openPage(page, `/accounts/${account.id}`)
   await page.getByRole('button', { name: 'Bank sync: Synced 3 hours ago. Open bank link' }).click()
   const syncNow = page.getByRole('dialog', { name: 'Edit account', exact: true }).getByRole('button', { name: 'Sync now' })
-  const spent = (when: string) => `This connection has used its 20 SimpleFIN requests in the last 24 hours. More are available ${when}.`
+  const spent = (when: string) => `This connection has used its 24 SimpleFIN requests in the last 24 hours. More are available ${when}.`
   await expect(syncNow).toHaveAccessibleDescription(spent('in 10 minutes'))
 
   await allLanded()

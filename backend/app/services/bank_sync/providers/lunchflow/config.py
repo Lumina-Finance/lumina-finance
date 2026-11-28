@@ -35,5 +35,6 @@ def warn_if_test_origin_set() -> None:
 LUNCHFLOW_TEST_ORIGIN = read_test_origin_setting(TEST_ORIGIN_KEY)
 
 # Syncs and listings each connection may run in a rolling 24 hours, each counted once however many
-# requests it sends. Lunch Flow publishes no limit, so the default is generous
-LUNCHFLOW_DAILY_REQUESTS = read_count_setting(DAILY_REQUESTS_KEY, 100)
+# requests it sends. Lunch Flow publishes no limit and updates its data once a day, so one an hour on
+# average leaves room for an import and Sync now without pulling far more often than the data changes
+LUNCHFLOW_DAILY_REQUESTS = read_count_setting(DAILY_REQUESTS_KEY, 24)

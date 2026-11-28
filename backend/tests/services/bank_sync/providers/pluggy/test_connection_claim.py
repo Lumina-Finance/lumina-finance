@@ -143,7 +143,7 @@ async def test_claim_saves_the_connection_encrypted_and_lists_its_bank_accounts(
         ("acc-chk", "Conta Corrente", "Banco Aurora", "BRL"),
     ]
     assert body["accounts"][0]["eligible_account_ids"] == [everyday.json()["id"]]
-    assert body["request_budget"] == {"limit": 100, "used": 2, "available_again_at": None, "held_by_provider": False}
+    assert body["request_budget"] == {"limit": 24, "used": 2, "available_again_at": None, "held_by_provider": False}
     [connection] = await _stored_connections()
     assert connection.owner_id == user_id
     assert json.loads(decrypt(connection.credential_encrypted)) == {

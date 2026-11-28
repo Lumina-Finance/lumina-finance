@@ -34,6 +34,6 @@ def warn_if_test_origin_set() -> None:
 AKAHU_TEST_ORIGIN = read_test_origin_setting(TEST_ORIGIN_KEY)
 
 # Syncs and listings each connection may run in a rolling 24 hours, each counted once however many
-# requests it sends. Akahu publishes no rate limit, and a personal app's data refreshes once a day,
-# so the default is generous
-AKAHU_DAILY_REQUESTS = read_count_setting(DAILY_REQUESTS_KEY, 100)
+# requests it sends. Akahu publishes no daily limit, and refreshes a personal app's data once a day
+# with at least an hour between manual refreshes, so one an hour on average is all a pull can use
+AKAHU_DAILY_REQUESTS = read_count_setting(DAILY_REQUESTS_KEY, 24)
